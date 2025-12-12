@@ -1,0 +1,11 @@
+# Local Mode Override
+# 로컬 PostgreSQL + 파일 시스템 저장
+# 사용: docker-compose -f docker-compose.yml -f docker-compose.override.local.yml up
+
+services:
+  backend:
+    environment:
+      MODE: local
+      STORAGE_BACKEND: local
+      LOCAL_STORAGE_PATH: /app/local_storage
+      DATABASE_URL: postgresql://oaria:oaria@db:5432/oaria
