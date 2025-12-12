@@ -32,8 +32,10 @@ services:
       - /app/node_modules
     environment:
       MODE: ${MODE:-local}
-      # For server-side (Next.js rewrites): use Docker network service name
-      NEXT_PUBLIC_API_URL: http://backend:8000
+      # 클라이언트 (브라우저): 빈 문자열 - Next.js 프록시 통해 요청
+      NEXT_PUBLIC_API_URL: ""
+      # 서버 (Next.js rewrites): Docker 네트워크 서비스 이름
+      INTERNAL_API_URL: http://backend:8000
     ports:
       - "3000:3000"
     depends_on:
