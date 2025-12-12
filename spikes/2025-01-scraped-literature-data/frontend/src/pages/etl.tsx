@@ -63,8 +63,21 @@ export default function ETLControlPanel() {
   const [etlStatus, setEtlStatus] = useState<ETLStatus | null>(null);
   const [manualLoading, setManualLoading] = useState(false);
   
-  // Auto ETL
+// Auto ETL
   const [autoStatus, setAutoStatus] = useState<AutoETLStatus | null>(null);
+  
+  // Auto ETL 실시간 진행 추적
+  const [autoProgress, setAutoProgress] = useState<{
+    startTime: Date | null;
+    initialOffset: number;
+    currentOffset: number;
+    totalRemaining: number;
+  }>({
+    startTime: null,
+    initialOffset: 0,
+    currentOffset: 0,
+    totalRemaining: 0,
+  });
   
   // ETL Logs (for both Manual and Auto)
   const [etlLogs, setEtlLogs] = useState<string[]>([]);
@@ -179,8 +192,16 @@ export default function ETLControlPanel() {
   };
 
   // ETL 상태 폴링 (Manual Run용)
+  const completionLoggedRef = useRef(false);
+  
   const pollETLStatus = (jobId: string) => {
-    if (intervalRef.current) clearInterval(intervalRef.current);
+    // 이전 인터벌 정리
+    if (intervalRef.current) {
+      clearInterval(intervalRef.current);
+      intervalRef.current = null;
+    }
+    // 완료 로그 플래그 리셋
+    completionLoggedRef.current = false;
     
     intervalRef.current = setInterval(async () => {
       try {
@@ -190,17 +211,27 @@ export default function ETLControlPanel() {
           setEtlStatus(data);
           
           if (['completed', 'error', 'stopped'].includes(data.status)) {
-            clearInterval(intervalRef.current!);
-            // Update stats partially (fetched, resume_index, ETA, last_sync)
-            await updateStatsPartial();
-            // Add completion log
-            addEtlLog(`✅ Completed == Inserted: +${data.inserted} | Skipped: ${data.skipped}`);
+            // 인터벌 정리
+            if (intervalRef.current) {
+              clearInterval(intervalRef.current);
+              intervalRef.current = null;
+            }
+            
+            // 중복 로그 방지
+            if (!completionLoggedRef.current) {
+              completionLoggedRef.current = true;
+              await updateStatsPartial();
+              addEtlLog(`✅ Completed == Inserted: +${data.inserted} | Skipped: ${data.skipped}`);
+            }
           }
         }
       } catch (e) {
-        clearInterval(intervalRef.current!);
+        if (intervalRef.current) {
+          clearInterval(intervalRef.current);
+          intervalRef.current = null;
+        }
       }
-    }, 1000);
+    }, 1500); // 1.5초 간격으로 변경 (너무 빠른 폴링 방지)
   };
 
   // Auto ETL Job Polling (for batch completions)
@@ -217,6 +248,14 @@ export default function ETLControlPanel() {
         if (autoRes.ok) {
           const auto = await autoRes.json();
           setAutoStatus(auto);
+          
+          // Update current offset from auto status
+          if (auto.current_offset !== undefined) {
+            setAutoProgress(prev => ({
+              ...prev,
+              currentOffset: auto.current_offset,
+            }));
+          }
           
           // If there's a current job, check its status for UI progress
           if (auto.current_job_id && auto.running && !auto.paused) {
@@ -238,6 +277,8 @@ export default function ETLControlPanel() {
           if (!auto.running) {
             clearInterval(autoIntervalRef.current!);
             autoIntervalRef.current = null;
+            // 진행 추적 리셋
+            setAutoProgress(prev => ({ ...prev, startTime: null }));
             addEtlLog(`🏁 Auto ETL Ended (Completed ${auto.completed_batches} batches)`);
           }
         }
@@ -254,6 +295,13 @@ export default function ETLControlPanel() {
       method: 'POST',
     });
     if (res.ok) {
+      // 진행률 추적 초기화
+      setAutoProgress({
+        startTime: new Date(),
+        initialOffset: offset,
+        currentOffset: offset,
+        totalRemaining: stats?.remaining || 0,
+      });
       addEtlLog(`🟢 Auto ETL Started (term="${term}", batch=${batchSize})`);
       startAutoPolling();
     }
@@ -616,6 +664,147 @@ export default function ETLControlPanel() {
                   </div>
                 ))}
               </div>
+            )}
+
+            {/* Auto ETL 실시간 진행률 표시 */}
+            {autoProgress.startTime && autoStatus?.running && (
+              (() => {
+                const now = new Date();
+                const elapsedMs = now.getTime() - autoProgress.startTime.getTime();
+                const elapsedSec = Math.floor(elapsedMs / 1000);
+                
+                // 처리된 항목 수
+                const processed = autoProgress.currentOffset - autoProgress.initialOffset;
+                const totalToProcess = autoProgress.totalRemaining;
+                
+                // 진행률 (정밀)
+                const progressPct = totalToProcess > 0 
+                  ? (processed / totalToProcess) * 100 
+                  : 0;
+                
+                // 속도 (items per second)
+                const speed = elapsedSec > 0 ? processed / elapsedSec : 0;
+                
+                // 남은 시간 예측
+                const remaining = totalToProcess - processed;
+                const etaSeconds = speed > 0 ? Math.ceil(remaining / speed) : 0;
+                
+                // 완료 예정 시간
+                const completionTime = new Date(now.getTime() + etaSeconds * 1000);
+                
+                // 시간 포맷팅
+                const formatDuration = (sec: number) => {
+                  const h = Math.floor(sec / 3600);
+                  const m = Math.floor((sec % 3600) / 60);
+                  const s = sec % 60;
+                  if (h > 0) return `${h}h ${m}m ${s}s`;
+                  if (m > 0) return `${m}m ${s}s`;
+                  return `${s}s`;
+                };
+                
+                const formatDateTime = (d: Date) => {
+                  return d.toLocaleString('ko-KR', {
+                    year: 'numeric',
+                    month: '2-digit',
+                    day: '2-digit',
+                    hour: '2-digit',
+                    minute: '2-digit',
+                    hour12: true,
+                  });
+                };
+                
+                return (
+                  <div style={{
+                    marginTop: 16,
+                    padding: 16,
+                    background: 'linear-gradient(135deg, rgba(59, 130, 246, 0.1), rgba(16, 185, 129, 0.1))',
+                    borderRadius: 12,
+                    border: '1px solid rgba(59, 130, 246, 0.2)',
+                  }}>
+                    {/* Progress Bar */}
+                    <div style={{ marginBottom: 12 }}>
+                      <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 4, fontSize: 11 }}>
+                        <span style={{ fontWeight: 600, color: 'var(--accent-blue)' }}>
+                          실시간 진행률
+                        </span>
+                        <span style={{ fontFamily: 'var(--font-mono)', fontWeight: 700 }}>
+                          {progressPct.toFixed(3)}%
+                        </span>
+                      </div>
+                      <div style={{
+                        height: 6,
+                        background: 'var(--bg-tertiary)',
+                        borderRadius: 3,
+                        overflow: 'hidden',
+                      }}>
+                        <div style={{
+                          width: `${Math.min(progressPct, 100)}%`,
+                          height: '100%',
+                          background: 'linear-gradient(90deg, #3B82F6, #10B981)',
+                          borderRadius: 3,
+                          transition: 'width 0.3s ease',
+                        }} />
+                      </div>
+                    </div>
+                    
+                    {/* Stats Grid */}
+                    <div style={{
+                      display: 'grid',
+                      gridTemplateColumns: 'repeat(3, 1fr)',
+                      gap: 12,
+                      fontSize: 11,
+                    }}>
+                      {/* 시작 시간 */}
+                      <div>
+                        <div style={{ color: 'var(--text-muted)', marginBottom: 2 }}>시작</div>
+                        <div style={{ fontFamily: 'var(--font-mono)', fontWeight: 500 }}>
+                          {autoProgress.startTime.toLocaleTimeString('ko-KR', { hour12: false })}
+                        </div>
+                      </div>
+                      
+                      {/* 경과 시간 */}
+                      <div>
+                        <div style={{ color: 'var(--text-muted)', marginBottom: 2 }}>경과</div>
+                        <div style={{ fontFamily: 'var(--font-mono)', fontWeight: 500, color: '#F59E0B' }}>
+                          {formatDuration(elapsedSec)}
+                        </div>
+                      </div>
+                      
+                      {/* 처리 속도 */}
+                      <div>
+                        <div style={{ color: 'var(--text-muted)', marginBottom: 2 }}>속도</div>
+                        <div style={{ fontFamily: 'var(--font-mono)', fontWeight: 500 }}>
+                          {speed.toFixed(1)}/s
+                        </div>
+                      </div>
+                      
+                      {/* 처리량 */}
+                      <div>
+                        <div style={{ color: 'var(--text-muted)', marginBottom: 2 }}>처리</div>
+                        <div style={{ fontFamily: 'var(--font-mono)', fontWeight: 500, color: '#10B981' }}>
+                          {processed.toLocaleString()} / {totalToProcess.toLocaleString()}
+                        </div>
+                      </div>
+                      
+                      {/* 남은 시간 */}
+                      <div>
+                        <div style={{ color: 'var(--text-muted)', marginBottom: 2 }}>남은 시간</div>
+                        <div style={{ fontFamily: 'var(--font-mono)', fontWeight: 500, color: '#EF4444' }}>
+                          {speed > 0 ? formatDuration(etaSeconds) : '-'}
+                        </div>
+                      </div>
+                      
+                      {/* 완료 예정 */}
+                      <div>
+                        <div style={{ color: 'var(--text-muted)', marginBottom: 2 }}>완료 예정</div>
+                        <div style={{ fontFamily: 'var(--font-mono)', fontWeight: 500, color: '#3B82F6' }}>
+                          {speed > 0 ? formatDateTime(completionTime) : '-'}
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                );
+              })()
             )}
           </div>
         </div>

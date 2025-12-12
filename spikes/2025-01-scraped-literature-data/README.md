@@ -251,6 +251,10 @@ Apple Developer Console × Google Cloud Logs 감성의
 
 make up
 
+# Complete rebuild (down + clean + up)
+
+make rebuild
+
 # GCP mode
 
 make up-gcp

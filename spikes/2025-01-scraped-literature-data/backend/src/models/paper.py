@@ -6,14 +6,38 @@ PubMed 논문 데이터를 저장하는 SQLAlchemy ORM 모델입니다.
 테이블 구조:
 - papers: 메타데이터 + Abstract + Full-text 경로
 - embedding_tasks: 임베딩 작업 대기열
+
+MySQL/PostgreSQL 둘 다 지원:
+- PostgreSQL: JSONB 사용 (인덱싱, 연산자 지원)
+- MySQL: JSON 사용
 """
 
 from datetime import datetime
 from sqlalchemy import Column, String, Text, DateTime, JSON, Enum, Integer
-from sqlalchemy.dialects.postgresql import JSONB
+from sqlalchemy.types import TypeDecorator
 import enum
 
 from ..db import Base
+from ..config import settings
+
+
+# 데이터베이스에 따라 적절한 JSON 타입 선택
+def get_json_type():
+    """
+    데이터베이스 타입에 따라 적절한 JSON 컬럼 타입 반환
+    - PostgreSQL: JSONB (인덱싱, 연산자 지원)
+    - MySQL: JSON
+    """
+    if settings.db_type == "postgresql":
+        from sqlalchemy.dialects.postgresql import JSONB
+        return JSONB
+    else:
+        # MySQL 또는 기타 데이터베이스는 표준 JSON 사용
+        return JSON
+
+
+# 현재 데이터베이스에 맞는 JSON 타입
+JSONType = get_json_type()
 
 
 class EmbeddingStatus(str, enum.Enum):
@@ -41,17 +65,17 @@ class Paper(Base):
     # 메타데이터
     title = Column(Text, nullable=False, default="")
     abstract = Column(Text, nullable=False, default="")
-    authors = Column(JSONB, nullable=False, default=list)
+    authors = Column(JSONType, nullable=False, default=list)  # MySQL: JSON, PostgreSQL: JSONB
     journal = Column(String(500), nullable=True)
     pubdate = Column(String(50), nullable=True)
     doi = Column(String(200), nullable=True)
-    mesh_terms = Column(JSONB, nullable=False, default=list)
+    mesh_terms = Column(JSONType, nullable=False, default=list)  # MySQL: JSON, PostgreSQL: JSONB
     
     # Full-text 저장 경로 (로컬 파일 경로 또는 GCS URL)
     fulltext_path = Column(Text, nullable=True)
     
     # 섹션별 텍스트 (PMC Full-text에서 추출)
-    sections = Column(JSONB, nullable=True)
+    sections = Column(JSONType, nullable=True)  # MySQL: JSON, PostgreSQL: JSONB
     
     # 임베딩 상태
     embedding_status = Column(
@@ -97,3 +121,4 @@ class EmbeddingTask(Base):
     
     def __repr__(self):
         return f"<EmbeddingTask(id={self.id}, pmid={self.pmid}, status={self.status})>"
+

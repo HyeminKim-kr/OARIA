@@ -6,6 +6,7 @@
 
 import type { AppProps } from 'next/app';
 import { useEffect } from 'react';
+import { EnvProvider } from '@/context/EnvContext';
 import '@/styles/globals.css';
 
 export default function App({ Component, pageProps }: AppProps) {
@@ -17,5 +18,9 @@ export default function App({ Component, pageProps }: AppProps) {
     }
   }, []);
 
-  return <Component {...pageProps} />;
+  return (
+    <EnvProvider>
+      <Component {...pageProps} />
+    </EnvProvider>
+  );
 }

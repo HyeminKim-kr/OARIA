@@ -21,6 +21,7 @@ from typing import Optional
 
 from fastapi import FastAPI, HTTPException, Depends, Query
 from fastapi.middleware.cors import CORSMiddleware
+from pydantic import BaseModel
 from sqlalchemy.orm import Session
 from sqlalchemy import func
 
@@ -85,13 +86,135 @@ app.add_middleware(
 # =============================================================================
 
 @app.get("/api/health")
-async def health_check():
-    """헬스체크"""
-    return {
+async def health_check(db: Session = Depends(get_db)):
+    """헬스체크 (DB 연결 상태 포함)"""
+    from .db import get_available_modes, get_custom_connection_info
+    from .config import get_active_mode
+    
+    db_connected = False
+    try:
+        db.execute(text("SELECT 1"))
+        db_connected = True
+    except Exception as e:
+        print(f"⚠️ Health check DB execute failed: {e}")
+    
+    modes_info = get_available_modes()
+    active_mode = get_active_mode()
+    
+    # 커스텀 연결 정보
+    custom_info = get_custom_connection_info() if active_mode == "custom" else {}
+    
+    # modes_info에서 실제 연결 상태/타입 확인
+    if active_mode == "custom" and custom_info:
+        db_type = custom_info.get("db_type", "postgresql")
+        db_connected = True  # 커스텀 연결 시 연결 성공으로 가정
+    elif active_mode in modes_info.get("modes", {}):
+        mode_info = modes_info["modes"][active_mode]
+        if not db_connected and mode_info.get("connected"):
+            db_connected = True
+        db_type = mode_info.get("db_type", settings.db_type)
+    else:
+        db_type = settings.db_type
+    
+    response = {
         "status": "healthy",
-        "mode": settings.mode,
+        "mode": active_mode,
+        "db_type": db_type,
+        "db_connected": db_connected,
         "storage": settings.storage_backend,
+        "supports_switching": modes_info.get("supports_switching", False),
     }
+    
+    # 커스텀 연결 시 추가 정보
+    if active_mode == "custom" and custom_info:
+        response["custom_connection"] = {
+            "host": custom_info.get("host"),
+            "port": custom_info.get("port"),
+            "database": custom_info.get("database"),
+            "connected_at": custom_info.get("connected_at"),
+        }
+    
+    return response
+
+
+@app.get("/api/db/modes")
+async def get_db_modes():
+    """사용 가능한 DB 모드 목록"""
+    from .db import get_available_modes
+    return get_available_modes()
+
+
+@app.post("/api/db/switch")
+async def switch_db_mode(mode: str = Query(..., description="local 또는 gcp")):
+    """런타임에 DB 모드 전환"""
+    from .db import switch_database
+    
+    if mode not in ["local", "gcp"]:
+        raise HTTPException(status_code=400, detail="Mode must be 'local' or 'gcp'")
+    
+    result = switch_database(mode)
+    
+    if not result["success"]:
+        raise HTTPException(status_code=500, detail=result.get("error", "Switch failed"))
+    
+    add_log("db", f"🔄 DB Mode 전환: {result['old_mode']} → {result['new_mode']}")
+    
+    return result
+
+
+class CustomDBConnectionRequest(BaseModel):
+    """커스텀 DB 연결 요청"""
+    host: str
+    port: int = 5432
+    database: str
+    username: str
+    password: str
+    db_type: str = "postgresql"  # postgresql 또는 mysql
+    test_only: bool = False  # True면 테스트만, False면 연결 전환
+
+
+@app.post("/api/db/connect-custom")
+async def connect_custom_db(request: CustomDBConnectionRequest):
+    """커스텀 DB에 연결 (테스트 또는 전환)"""
+    from .db import connect_custom_database
+    from urllib.parse import quote_plus
+    import os
+    
+    # URL 인코딩 (특수문자 @ : / 등 처리)
+    username_enc = quote_plus(request.username)
+    password_enc = quote_plus(request.password) if request.password else ''
+    
+    # Docker 환경에서 localhost/127.0.0.1 → host.docker.internal 변환
+    host = request.host
+    if host in ('localhost', '127.0.0.1') and os.path.exists('/.dockerenv'):
+        host = 'host.docker.internal'
+        add_log("db", f"🐳 Docker 환경 감지: {request.host} → {host}")
+    
+    # URL 생성
+    if request.db_type == "mysql":
+        url = f"mysql+pymysql://{username_enc}:{password_enc}@{host}:{request.port}/{request.database}"
+    else:
+        url = f"postgresql://{username_enc}:{password_enc}@{host}:{request.port}/{request.database}"
+    
+    result = connect_custom_database(
+        url=url,
+        db_type=request.db_type,
+        host=request.host,
+        port=request.port,
+        database=request.database,
+        test_only=request.test_only
+    )
+    
+    if result["success"]:
+        if request.test_only:
+            add_log("db", f"✅ 커스텀 DB 연결 테스트 성공: {request.host}:{request.port}/{request.database}")
+        else:
+            add_log("success", f"🔗 커스텀 DB 연결 완료: {request.host}:{request.port}")
+    else:
+        add_log("error", f"커스텀 DB 연결 실패: {result.get('error', 'Unknown error')}")
+        raise HTTPException(status_code=500, detail=result.get("error", "Connection failed"))
+    
+    return result
 
 
 # =============================================================================
@@ -860,6 +983,18 @@ async def get_logs_api(limit: int = Query(100, ge=1, le=1000)):
     """최근 로그 조회 (전역 콘솔용)"""
     logs = get_logs(limit)
     return {"logs": logs, "total": len(logs)}
+
+
+class AddLogRequest(BaseModel):
+    level: str = "info"
+    message: str
+
+
+@app.post("/api/logs/add")
+async def add_log_api(request: AddLogRequest):
+    """프론트엔드에서 로그 추가 (System Console 표시용)"""
+    add_log(request.level, request.message)
+    return {"success": True}
 
 
 @app.get("/api/console/stream")

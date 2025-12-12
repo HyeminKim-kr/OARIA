@@ -17,6 +17,7 @@ help:
 	@echo "  make up-d       - 백그라운드 실행"
 	@echo "  make down       - 스택 중지"
 	@echo "  make restart    - 재시작 (down + up)"
+	@echo "  make rebuild    - 완전 재빌드 (down + clean + up)"
 	@echo ""
 	@echo "🔧 빌드 & 정리:"
 	@echo "  make build      - 이미지 빌드만"
@@ -57,10 +58,17 @@ down:
 	docker-compose down
 	@$(MAKE) clean-images --silent
 
-# 재시작
+# 재시작 (빠른 재시작, 백그라운드)
 restart:
 	@$(MAKE) down
 	@$(MAKE) up-d
+
+# 완전 재빌드 (볼륨 삭제 + 클린 빌드)
+# clean에서 down -v를 포함하므로 down 별도 호출 불필요
+rebuild:
+	@echo "🔄 완전 재빌드 시작 (clean + up)..."
+	@$(MAKE) clean
+	@$(MAKE) up
 
 # =============================================================================
 # 빌드 & 정리

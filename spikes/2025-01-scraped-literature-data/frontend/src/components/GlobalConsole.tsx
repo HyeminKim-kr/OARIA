@@ -6,11 +6,15 @@
  * - SSE 자동 재연결
  * - 드래그 리사이즈
  * - 다크/라이트 모드 지원
+ * - 지수 백오프 (에러 시 점진적 재시도 간격 증가)
  */
 
 import { useState, useEffect, useRef, useCallback } from 'react';
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL || '';
+
+// 지수 백오프 간격 (ms): 2초 → 10초 → 30초 → 1분 → 5분 → 30분 → 1시간
+const BACKOFF_INTERVALS = [2000, 10000, 30000, 60000, 300000, 1800000, 3600000];
 
 interface LogEntry {
   timestamp: string;
@@ -27,24 +31,37 @@ export default function GlobalConsole() {
   const [autoScroll, setAutoScroll] = useState(true);
   const [isDragging, setIsDragging] = useState(false);
   const [reconnectCount, setReconnectCount] = useState(0);
+  const [backoffLevel, setBackoffLevel] = useState(0);
+  const [lastErrorTime, setLastErrorTime] = useState<number | null>(null);
   
   const consoleRef = useRef<HTMLDivElement>(null);
   const eventSourceRef = useRef<EventSource | null>(null);
   const dragStartY = useRef(0);
   const dragStartHeight = useRef(220);
 
-  // 로그 로드
+  // 로그 로드 (에러 시 간략한 메시지 + 지수 백오프)
   const loadLogs = useCallback(async () => {
     try {
       const res = await fetch(`${API_URL}/api/logs?limit=50`);
       if (res.ok) {
         const data = await res.json();
         setLogs(data.logs || []);
+        // 성공 시 백오프 리셋
+        setBackoffLevel(0);
+        setLastErrorTime(null);
       }
-    } catch (e) {
-      console.error('Load logs error:', e);
+    } catch (e: any) {
+      const now = Date.now();
+      // 마지막 에러 로그 후 최소 30초 경과 시에만 로그 출력
+      if (!lastErrorTime || now - lastErrorTime > 30000) {
+        const interval = BACKOFF_INTERVALS[Math.min(backoffLevel, BACKOFF_INTERVALS.length - 1)];
+        console.warn(`⚠️ Backend unavailable (retry in ${interval / 1000}s)`);
+        setLastErrorTime(now);
+      }
+      // 백오프 레벨 증가
+      setBackoffLevel(prev => Math.min(prev + 1, BACKOFF_INTERVALS.length - 1));
     }
-  }, []);
+  }, [backoffLevel, lastErrorTime]);
 
   // SSE 연결
   const connectSSE = useCallback(() => {
@@ -58,6 +75,7 @@ export default function GlobalConsole() {
       es.onopen = () => {
         setIsConnected(true);
         setReconnectCount(0);
+        setBackoffLevel(0); // 연결 성공 시 백오프 리셋
       };
       
       es.onmessage = (event) => {
@@ -65,7 +83,7 @@ export default function GlobalConsole() {
           const log = JSON.parse(event.data);
           setLogs(prev => [...prev.slice(-150), log]);
         } catch (e) {
-          console.error('Parse error:', e);
+          // 파싱 에러는 무시 (간소화)
         }
       };
       
@@ -74,10 +92,11 @@ export default function GlobalConsole() {
         es.close();
         eventSourceRef.current = null;
         
-        // 자동 재연결 (최대 10회)
+        // 자동 재연결 (지수 백오프)
         setReconnectCount(prev => {
           if (prev < 10) {
-            setTimeout(connectSSE, 2000 + prev * 1000);
+            const delay = BACKOFF_INTERVALS[Math.min(prev, BACKOFF_INTERVALS.length - 1)];
+            setTimeout(connectSSE, delay);
             return prev + 1;
           }
           return prev;
@@ -86,7 +105,7 @@ export default function GlobalConsole() {
       
       eventSourceRef.current = es;
     } catch (e) {
-      console.error('SSE connection error:', e);
+      // SSE 연결 에러는 간략히 처리
     }
   }, []);
 
@@ -102,13 +121,14 @@ export default function GlobalConsole() {
     };
   }, [loadLogs, connectSSE]);
 
-  // Polling fallback (SSE 실패 시)
+  // Polling fallback (SSE 실패 시) - 지수 백오프 적용
   useEffect(() => {
     if (!isConnected) {
-      const interval = setInterval(loadLogs, 2000);
-      return () => clearInterval(interval);
+      const interval = BACKOFF_INTERVALS[Math.min(backoffLevel, BACKOFF_INTERVALS.length - 1)];
+      const timer = setInterval(loadLogs, interval);
+      return () => clearInterval(timer);
     }
-  }, [isConnected, loadLogs]);
+  }, [isConnected, loadLogs, backoffLevel]);
 
   // 자동 스크롤
   useEffect(() => {
@@ -173,11 +193,19 @@ export default function GlobalConsole() {
     return styles[level] || styles.info;
   };
 
-  // 시간 포맷
+  // 시간 포맷 (2025.12.13 PM 12:00:00)
   const formatTime = (timestamp: string) => {
     try {
       const date = new Date(timestamp);
-      return date.toLocaleTimeString('ko-KR', { hour12: false });
+      const year = date.getFullYear();
+      const month = String(date.getMonth() + 1).padStart(2, '0');
+      const day = String(date.getDate()).padStart(2, '0');
+      const hours = date.getHours();
+      const ampm = hours >= 12 ? 'PM' : 'AM';
+      const h12 = hours % 12 || 12;
+      const minutes = String(date.getMinutes()).padStart(2, '0');
+      const seconds = String(date.getSeconds()).padStart(2, '0');
+      return `${year}.${month}.${day} ${ampm} ${String(h12).padStart(2, '0')}:${minutes}:${seconds}`;
     } catch {
       return timestamp?.slice(11, 19) || '';
     }
