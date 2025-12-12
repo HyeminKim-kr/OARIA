@@ -1,139 +1,74 @@
-# --------------------------------------------------------------
-# Auto Generated/Compiled Output (자동 생성/컴파일 결과)
-# --------------------------------------------------------------
-# Dependencies (의존성)
-/node_modules
-.pnp
-.pnp.*
-.pnpm-debug.log*
+# ==============================================================================
+# OARIA Spikes Project - .gitignore (루트 레벨)
+# 이 파일 하나로 모든 하위 폴더에 적용됩니다
+# ==============================================================================
 
-# Yarn 2+ Zero-Install (Yarn Berry)
-.yarn/*
-!.yarn/patches
-!.yarn/plugins
-!.yarn/releases
-!.yarn/versions
-!.yarn/sdks
-.yarn/install-state.gz
+# ------------------------------------------------------------------------------
+# Python
+# ------------------------------------------------------------------------------
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+*.egg-info/
+.eggs/
+dist/
+build/
+.venv/
+venv/
+*.egg
+.python-version
 
-# Compiled JS/TS/Build Output (컴파일된 빌드 출력)
-/dist
-/build
-/out
-/.next/
+# ------------------------------------------------------------------------------
+# Node.js / Frontend
+# ------------------------------------------------------------------------------
+node_modules/
+.next/
+out/
+.nuxt/
 *.tsbuildinfo
 next-env.d.ts
 
-# Python Artifacts (Python 결과물)
-/python
-__pycache__/
-*.pyc
-*.pyo
-*.pyd
-*.pdb
-*.egg-info/
-.eggs/
-build/
-dist/
-.python-version
-venv/
-.venv/
-
-
-# --------------------------------------------------------------
-# Logs and Diagnostics (로그 및 진단 파일)
-# --------------------------------------------------------------
-logs
+# ------------------------------------------------------------------------------
+# Logs
+# ------------------------------------------------------------------------------
 *.log
 npm-debug.log*
 yarn-debug.log*
 yarn-error.log*
-lerna-debug.log*
-report.[0-9]*.[0-9]*.[0-9]*.[0-9]*.json # Node.js Diagnostic reports
+.pnpm-debug.log*
 
-
-# --------------------------------------------------------------
-# Environment Variables (환경 변수 파일) - [사용자 설정 반영]
-# --------------------------------------------------------------
-# .env 파일을 Git에 포함시키지 않음.
-.env*
-# 그러나 예시 파일은 포함하도록 예외 처리 (Optional)
+# ------------------------------------------------------------------------------
+# Environment Variables (민감 정보)
+# ------------------------------------------------------------------------------
+.env
+.env.*
 !.env.example
-!.env.*.example
-env_backup
 
-
-# --------------------------------------------------------------
-# Testing and Coverage (테스트 및 커버리지 결과)
-# --------------------------------------------------------------
-/coverage
-/.nyc_output
-test-report.xml
-/test # (주의: 코드 파일이 아닌 테스트 관련 출력 폴더일 경우)
-
-
-# --------------------------------------------------------------
-# IDEs, Editors, and Configuration (IDE 및 에디터 설정)
-# --------------------------------------------------------------
-# General IDE/Editor files
-/.idea
-.project
-.classpath
-.c9/
-*.launch
-.settings/
-*.sublime-workspace
-
-# VS Code Specific (VS Code 설정)
-.vscode/*
-!.vscode/tasks.json
-!.vscode/launch.json
-!.vscode/extensions.json
-
-
-# --------------------------------------------------------------
-# OS and Temporary Files (운영체제 및 임시 파일)
-# --------------------------------------------------------------
+# ------------------------------------------------------------------------------
+# OS & IDE
+# ------------------------------------------------------------------------------
 .DS_Store
-.AppleDouble
-.LSOverride
-*.pem
-.vercel
-.cache/
+.DS_Store?
+._*
+Thumbs.db
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
 
-# macOS Volume Files
-.DocumentRevisions-V100
-.fseventsd
-.Spotlight-V100
-.TemporaryItems
-.Trashes
-.VolumeIcon.icns
-.com.apple.timemachine.donotpresent
-.AppleDB
-.AppleDesktop
-Network Trash Folder
-Temporary Items
-.apdisk
+# ------------------------------------------------------------------------------
+# Docker & Volumes
+# ------------------------------------------------------------------------------
+docker-compose.override.yml
+*.bak
 
-# Temporary/Cache Directories
-.temp
-.tmp
-/temp
-backup/
-/dump.rdb # Redis dump file
-test.http
-
-
-# --------------------------------------------------------------
-# Custom Project Specific Files (커스텀 프로젝트 파일)
-# --------------------------------------------------------------
-/doc
-/documentation
-/output
-/app/db/mongo/generated/*
-/app/metadata.ts
-/docker/mariadb/db/data/*
-pids
-*.pid
-*.seed
-*.pid.lock
+# ------------------------------------------------------------------------------
+# Coverage & Tests
+# ------------------------------------------------------------------------------
+coverage/
+.nyc_output/
+htmlcov/
+.pytest_cache/
+.coverage
