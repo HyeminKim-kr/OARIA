@@ -1,5 +1,5 @@
 """
-OARIA Spike - 스토리지 어댑터
+OARIA Literature - 스토리지 어댑터
 
 Local/GCS 자동 스위칭 스토리지 어댑터입니다.
 

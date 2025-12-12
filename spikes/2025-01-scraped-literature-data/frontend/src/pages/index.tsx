@@ -1,262 +1,176 @@
 /**
- * OARIA Spike - 메인 검색 페이지
+ * OARIA Literature - Dashboard (Home)
  * 
- * PubMed 논문 검색 및 ETL 시작 UI
+ * 오늘 처리된 논문 / Embedding 상태 / ETL 진행률
  */
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import Link from 'next/link';
+import Layout from '../components/Layout';
 
-// API URL
 const API_URL = process.env.NEXT_PUBLIC_API_URL || '';
+
+interface Stats {
+  papers: number;
+  embeddings: {
+    pending: number;
+    done: number;
+    error: number;
+    total: number;
+  };
+  qdrant_points: number;
+}
 
 interface Paper {
   pmid: string;
   title: string;
-  abstract: string;
-  authors: string[];
   journal: string;
   pubdate: string;
-}
-
-interface SearchResult {
-  papers: Paper[];
-  total: number;
-  term: string;
+  embedding_status: string;
 }
 
 export default function Home() {
-  const [term, setTerm] = useState('breast cancer');
-  const [dateFrom, setDateFrom] = useState('');
-  const [dateTo, setDateTo] = useState('');
-  const [count, setCount] = useState<{ total: number; estimated_hours: number } | null>(null);
-  const [papers, setPapers] = useState<Paper[]>([]);
-  const [loading, setLoading] = useState(false);
-  const [etlLimit, setEtlLimit] = useState(100);
-  const [etlJobId, setEtlJobId] = useState<string | null>(null);
-  const [etlStatus, setEtlStatus] = useState<string>('');
-  const [expanded, setExpanded] = useState<string | null>(null);
+  const [stats, setStats] = useState<Stats | null>(null);
+  const [recentPapers, setRecentPapers] = useState<Paper[]>([]);
+  const [loading, setLoading] = useState(true);
 
-  // 검색 건수 조회
-  const handleSearch = async () => {
-    setLoading(true);
+  const loadData = async () => {
     try {
-      const params = new URLSearchParams({ term });
-      if (dateFrom) params.append('date_from', dateFrom);
-      if (dateTo) params.append('date_to', dateTo);
+      const [statsRes, papersRes] = await Promise.all([
+        fetch(`${API_URL}/api/db/stats`),
+        fetch(`${API_URL}/api/papers?page=1&per_page=5`),
+      ]);
       
-      const res = await fetch(`${API_URL}/api/pubmed/count?${params}`);
-      const data = await res.json();
-      setCount(data);
-      setPapers([]);
-    } catch (error) {
-      console.error('Search error:', error);
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  // 미리보기
-  const handlePreview = async () => {
-    setLoading(true);
-    try {
-      const res = await fetch(`${API_URL}/api/pubmed/preview`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ term, date_from: dateFrom, date_to: dateTo }),
-      });
-      const data: SearchResult = await res.json();
-      setPapers(data.papers);
-      if (!count) {
-        setCount({ total: data.total, estimated_hours: 0 });
+      if (statsRes.ok) setStats(await statsRes.json());
+      if (papersRes.ok) {
+        const data = await papersRes.json();
+        setRecentPapers(data.papers || []);
       }
-    } catch (error) {
-      console.error('Preview error:', error);
+    } catch (e) {
+      console.error('Load data error:', e);
     } finally {
       setLoading(false);
     }
   };
 
-  // ETL 시작
-  const handleStartETL = async () => {
-    setLoading(true);
-    try {
-      const res = await fetch(`${API_URL}/api/etl/start`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ term, limit: etlLimit, offset: 0 }),
-      });
-      const data = await res.json();
-      setEtlJobId(data.job_id);
-      setEtlStatus('running');
-      
-      // 상태 폴링 시작
-      pollETLStatus(data.job_id);
-    } catch (error) {
-      console.error('ETL start error:', error);
-    } finally {
-      setLoading(false);
-    }
-  };
+  useEffect(() => {
+    loadData();
+    const interval = setInterval(loadData, 10000);
+    return () => clearInterval(interval);
+  }, []);
 
-  // ETL 상태 폴링
-  const pollETLStatus = async (jobId: string) => {
-    const interval = setInterval(async () => {
-      try {
-        const res = await fetch(`${API_URL}/api/etl/status?job_id=${jobId}`);
-        const data = await res.json();
-        setEtlStatus(`${data.status} (${data.collected}/${data.total})`);
-        
-        if (data.status === 'completed' || data.status === 'error') {
-          clearInterval(interval);
-        }
-      } catch (error) {
-        console.error('Status polling error:', error);
-        clearInterval(interval);
-      }
-    }, 2000);
-  };
+  const embeddingProgress = stats?.embeddings 
+    ? (stats.embeddings.done / Math.max(stats.embeddings.total, 1)) * 100 
+    : 0;
 
   return (
-    <div className="container">
-      {/* Header */}
-      <header className="header">
-        <h1>🔬 OARIA Spike</h1>
-        <p>PubMed/PMC ETL → SQL → Embedding → Qdrant</p>
-      </header>
-
-      {/* Navigation */}
-      <nav>
-        <Link href="/" className="active">검색</Link>
-        <Link href="/dashboard">대시보드</Link>
-        <Link href="/evidence">Evidence</Link>
-      </nav>
-
-      {/* Search Form */}
-      <div className="card" style={{ marginBottom: 24 }}>
-        <div style={{ display: 'grid', gridTemplateColumns: '1fr 150px 150px auto auto', gap: 12, alignItems: 'end' }}>
-          <div>
-            <label style={{ display: 'block', marginBottom: 6, fontSize: 14, color: 'var(--text-secondary)' }}>검색어</label>
-            <input
-              className="input"
-              value={term}
-              onChange={(e) => setTerm(e.target.value)}
-              placeholder="예: breast cancer"
-              onKeyPress={(e) => e.key === 'Enter' && handleSearch()}
-            />
-          </div>
-          <div>
-            <label style={{ display: 'block', marginBottom: 6, fontSize: 14, color: 'var(--text-secondary)' }}>시작일</label>
-            <input
-              className="input"
-              type="date"
-              value={dateFrom}
-              onChange={(e) => setDateFrom(e.target.value)}
-            />
-          </div>
-          <div>
-            <label style={{ display: 'block', marginBottom: 6, fontSize: 14, color: 'var(--text-secondary)' }}>종료일</label>
-            <input
-              className="input"
-              type="date"
-              value={dateTo}
-              onChange={(e) => setDateTo(e.target.value)}
-            />
-          </div>
-          <button className="btn btn-primary" onClick={handleSearch} disabled={loading}>
-            {loading ? '⏳' : '🔍'} 검색
-          </button>
-          <button className="btn btn-secondary" onClick={handlePreview} disabled={loading}>
-            👀 미리보기
-          </button>
+    <Layout title="Dashboard" subtitle="OARIA Literature Data System Overview">
+      {/* Stats Grid */}
+      <div className="stats-grid">
+        <div className="stat-card">
+          <div className="stat-label">Total Papers</div>
+          <div className="stat-value">{stats?.papers?.toLocaleString() || '—'}</div>
+        </div>
+        <div className="stat-card">
+          <div className="stat-label">Embeddings Done</div>
+          <div className="stat-value green">{stats?.embeddings?.done?.toLocaleString() || '—'}</div>
+        </div>
+        <div className="stat-card">
+          <div className="stat-label">Pending</div>
+          <div className="stat-value yellow">{stats?.embeddings?.pending?.toLocaleString() || '—'}</div>
+        </div>
+        <div className="stat-card">
+          <div className="stat-label">Qdrant Points</div>
+          <div className="stat-value blue">{stats?.qdrant_points?.toLocaleString() || '—'}</div>
         </div>
       </div>
 
-      {/* Stats */}
-      {count && (
-        <div className="stats-grid">
-          <div className="card stat-card">
-            <div className="stat-value">{count.total.toLocaleString()}</div>
-            <div className="stat-label">총 논문 수</div>
-          </div>
-          <div className="card stat-card">
-            <div className="stat-value">~{count.estimated_hours.toFixed(2)}h</div>
-            <div className="stat-label">예상 수집 시간</div>
-          </div>
-          <div className="card stat-card">
-            <div className="stat-value">{papers.length}</div>
-            <div className="stat-label">미리보기</div>
-          </div>
-        </div>
-      )}
-
-      {/* ETL Controls */}
-      {count && count.total > 0 && (
+      {/* Embedding Progress */}
+      {stats?.embeddings && stats.embeddings.total > 0 && (
         <div className="card" style={{ marginBottom: 24 }}>
-          <div style={{ marginBottom: 16, padding: 12, background: 'rgba(99, 102, 241, 0.1)', borderRadius: 8 }}>
-            💡 무료 API는 초당 3회로 제한됩니다. 대량 수집 시 시간이 걸릴 수 있습니다.
-          </div>
-          <div style={{ display: 'flex', gap: 16, alignItems: 'center', flexWrap: 'wrap' }}>
-            <div>
-              <label style={{ marginRight: 8, fontSize: 14 }}>수집할 논문 수:</label>
-              <input
-                className="input"
-                type="number"
-                value={etlLimit}
-                onChange={(e) => setEtlLimit(Number(e.target.value))}
-                style={{ width: 100 }}
-                min={1}
-                max={count.total}
-              />
+          <div className="card-header">
+            <div className="card-title">
+              <span>🧠</span> Embedding Progress
             </div>
-            <button className="btn btn-primary" onClick={handleStartETL} disabled={loading || etlStatus === 'running'}>
-              🚀 ETL 시작
-            </button>
-            {etlJobId && (
-              <span className={`badge ${etlStatus.includes('completed') ? 'badge-completed' : 'badge-running'}`}>
-                {etlStatus}
-              </span>
-            )}
+            <span style={{ fontSize: 14, color: 'var(--text-secondary)' }}>
+              {embeddingProgress.toFixed(1)}%
+            </span>
+          </div>
+          <div className="progress-bar" style={{ marginBottom: 16 }}>
+            <div className="progress-fill" style={{ width: `${embeddingProgress}%` }} />
+          </div>
+          <div style={{ display: 'flex', gap: 24, fontSize: 13, color: 'var(--text-secondary)' }}>
+            <span>✅ Done: {stats.embeddings.done}</span>
+            <span>⏳ Pending: {stats.embeddings.pending}</span>
+            {stats.embeddings.error > 0 && <span>❌ Errors: {stats.embeddings.error}</span>}
           </div>
         </div>
       )}
 
-      {/* Papers List */}
+      {/* Quick Actions */}
+      <div className="card" style={{ marginBottom: 24 }}>
+        <div className="card-header">
+          <div className="card-title">
+            <span>⚡</span> Quick Actions
+          </div>
+        </div>
+        <div style={{ display: 'flex', gap: 12, flexWrap: 'wrap' }}>
+          <Link href="/dashboard">
+            <button className="btn btn-primary">📊 Manage Papers</button>
+          </Link>
+          <Link href="/evidence">
+            <button className="btn btn-secondary">🔍 Semantic Search</button>
+          </Link>
+          <Link href="/guide">
+            <button className="btn btn-ghost">📖 View Guide</button>
+          </Link>
+        </div>
+      </div>
+
+      {/* Recent Papers */}
       <div className="card">
-        <div style={{ display: 'flex', justifyContent: 'space-between', padding: '16px 0', borderBottom: '1px solid var(--border)' }}>
-          <h2 style={{ fontSize: '1.1rem', fontWeight: 600 }}>📚 논문 목록</h2>
-          <span>{papers.length} 건</span>
+        <div className="card-header">
+          <div className="card-title">
+            <span>📚</span> Recent Papers
+          </div>
+          <Link href="/dashboard">
+            <button className="btn btn-ghost" style={{ fontSize: 13 }}>View All →</button>
+          </Link>
         </div>
         
-        {papers.length === 0 ? (
-          <div style={{ textAlign: 'center', padding: 60, color: 'var(--text-secondary)' }}>
-            <p>검색 또는 미리보기를 클릭하여 논문을 가져오세요</p>
+        {recentPapers.length === 0 ? (
+          <div className="empty-state">
+            <div className="empty-state-icon">📭</div>
+            <div className="empty-state-title">No papers yet</div>
+            <div className="empty-state-description">
+              Start by running an ETL job to collect papers from PubMed.
+            </div>
           </div>
         ) : (
-          papers.map((paper) => (
-            <div
-              key={paper.pmid}
-              className="paper-card"
-              onClick={() => setExpanded(expanded === paper.pmid ? null : paper.pmid)}
-            >
+          recentPapers.map((paper) => (
+            <div key={paper.pmid} className="paper-card">
               <div className="paper-title">{paper.title}</div>
               <div className="paper-meta">
-                <span style={{ marginRight: 16, fontFamily: 'monospace', background: 'var(--bg-secondary)', padding: '2px 8px', borderRadius: 4 }}>
-                  PMID: {paper.pmid}
+                <span className="paper-meta-item">
+                  <span>🆔</span> {paper.pmid}
                 </span>
-                <span style={{ marginRight: 16 }}>📅 {paper.pubdate}</span>
-                <span style={{ marginRight: 16 }}>📖 {paper.journal}</span>
-                <span>👥 {paper.authors?.slice(0, 3).join(', ')}{(paper.authors?.length || 0) > 3 ? '...' : ''}</span>
+                <span className="paper-meta-item">
+                  <span>📅</span> {paper.pubdate}
+                </span>
+                <span className="paper-meta-item">
+                  <span>📖</span> {paper.journal}
+                </span>
+                <span className={`badge ${
+                  paper.embedding_status === 'done' ? 'badge-completed' :
+                  paper.embedding_status === 'error' ? 'badge-error' : 'badge-pending'
+                }`}>
+                  {paper.embedding_status || 'pending'}
+                </span>
               </div>
-              {expanded === paper.pmid && (
-                <div style={{ marginTop: 12, fontSize: 14, color: 'var(--text-secondary)', lineHeight: 1.6 }}>
-                  {paper.abstract || '(초록 없음)'}
-                </div>
-              )}
             </div>
           ))
         )}
       </div>
-    </div>
+    </Layout>
   );
 }

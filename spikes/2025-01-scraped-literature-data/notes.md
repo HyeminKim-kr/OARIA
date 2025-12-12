@@ -1,4 +1,4 @@
-# Spike Notes
+# Literature Data Notes
 
 ## 2025-01-12 - 초기 구현
 

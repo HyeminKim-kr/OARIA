@@ -1,11 +1,13 @@
 /**
- * OARIA Spike - Evidence 페이지
+ * OARIA Literature - Semantic Search
  * 
- * Qdrant 의미 검색 및 RAG 결과 뷰어
+ * PubMedBERT + Qdrant 의미 검색
+ * Evidence 카드에 신뢰도 색상 표시
  */
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import Link from 'next/link';
+import Layout from '../components/Layout';
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL || '';
 
@@ -19,9 +21,10 @@ interface SearchResult {
   pubdate: string;
 }
 
-interface SemanticSearchResponse {
-  query: string;
-  results: SearchResult[];
+interface EmbeddingStatus {
+  pending: number;
+  done: number;
+  error: number;
   total: number;
 }
 
@@ -31,8 +34,20 @@ export default function Evidence() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [lastQuery, setLastQuery] = useState('');
+  const [embeddingStatus, setEmbeddingStatus] = useState<EmbeddingStatus | null>(null);
 
-  // 의미 검색 실행
+  useEffect(() => {
+    const loadStatus = async () => {
+      try {
+        const res = await fetch(`${API_URL}/api/embedding/status`);
+        if (res.ok) setEmbeddingStatus(await res.json());
+      } catch (e) {
+        console.error('Status error:', e);
+      }
+    };
+    loadStatus();
+  }, []);
+
   const handleSearch = async () => {
     if (!query.trim()) return;
     
@@ -43,163 +58,224 @@ export default function Evidence() {
       const res = await fetch(`${API_URL}/api/search/semantic`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          query,
-          limit: 20,
-          score_threshold: 0.3,
-        }),
+        body: JSON.stringify({ query, limit: 20, score_threshold: 0.3 }),
       });
       
       if (!res.ok) {
-        throw new Error('검색 실패. 임베딩이 완료된 논문이 있는지 확인하세요.');
+        const errData = await res.json().catch(() => ({}));
+        throw new Error(errData.detail || 'Search failed');
       }
       
-      const data: SemanticSearchResponse = await res.json();
+      const data = await res.json();
       setResults(data.results);
       setLastQuery(data.query);
-    } catch (err) {
-      setError(err instanceof Error ? err.message : '검색 오류');
+    } catch (err: any) {
+      setError(err.message || 'Search error');
       setResults([]);
     } finally {
       setLoading(false);
     }
   };
 
-  // 점수에 따른 색상
-  const getScoreColor = (score: number) => {
-    if (score >= 0.8) return '#10b981';
-    if (score >= 0.6) return '#6366f1';
-    if (score >= 0.4) return '#f59e0b';
-    return '#ef4444';
+  // 신뢰도에 따른 색상 및 레이블
+  const getConfidence = (score: number) => {
+    if (score >= 0.8) return { color: 'var(--accent-green)', label: 'High', bg: 'rgba(52, 211, 153, 0.15)' };
+    if (score >= 0.5) return { color: 'var(--accent-blue)', label: 'Medium', bg: 'rgba(96, 165, 250, 0.15)' };
+    return { color: 'var(--text-muted)', label: 'Low', bg: 'var(--bg-tertiary)' };
   };
 
+  const hasEmbeddings = embeddingStatus && embeddingStatus.done > 0;
+  const exampleQueries = [
+    'breast cancer immunotherapy mechanisms',
+    'BRCA1 mutation treatment options',
+    'chemotherapy resistance pathways',
+    'targeted therapy biomarkers',
+  ];
+
   return (
-    <div className="container">
-      {/* Header */}
-      <header className="header">
-        <h1>🧬 Evidence Search</h1>
-        <p>PubMedBERT + Qdrant 의미 검색</p>
-      </header>
-
-      {/* Navigation */}
-      <nav>
-        <Link href="/">검색</Link>
-        <Link href="/dashboard">대시보드</Link>
-        <Link href="/evidence" className="active">Evidence</Link>
-      </nav>
-
-      {/* Search Form */}
-      <div className="card" style={{ marginBottom: 24 }}>
-        <div style={{ marginBottom: 16 }}>
-          <h3 style={{ fontSize: '1rem', fontWeight: 600, marginBottom: 8 }}>의미 검색 (Semantic Search)</h3>
-          <p style={{ fontSize: 14, color: 'var(--text-secondary)' }}>
-            자연어 질문을 입력하면 의미적으로 유사한 논문을 찾습니다.
-          </p>
+    <Layout title="Semantic Search" subtitle="AI-powered evidence discovery using PubMedBERT + Qdrant">
+      {/* Status Alert */}
+      {!hasEmbeddings && (
+        <div className="alert alert-warning" style={{ marginBottom: 24 }}>
+          <span className="alert-icon">⚠️</span>
+          <div className="alert-content">
+            No embeddings available. Process embeddings from the{' '}
+            <Link href="/dashboard" style={{ color: 'var(--warning)', fontWeight: 600 }}>Papers page</Link>{' '}
+            to enable semantic search.
+          </div>
         </div>
+      )}
+
+      {/* Search Card */}
+      <div className="card" style={{ marginBottom: 24 }}>
+        <div className="card-header">
+          <div className="card-title">
+            <span>🔍</span> Search Query
+          </div>
+          {embeddingStatus && (
+            <span className={`badge ${hasEmbeddings ? 'badge-completed' : 'badge-pending'}`}>
+              {embeddingStatus.done} embeddings ready
+            </span>
+          )}
+        </div>
+        
         <div style={{ display: 'flex', gap: 12 }}>
-          <input
-            className="input"
-            value={query}
-            onChange={(e) => setQuery(e.target.value)}
-            placeholder="예: What are the treatment options for BRCA1 mutation carriers?"
-            onKeyPress={(e) => e.key === 'Enter' && handleSearch()}
-            style={{ flex: 1 }}
-          />
-          <button className="btn btn-primary" onClick={handleSearch} disabled={loading}>
-            {loading ? '⏳' : '🔍'} 검색
+          <div className="search-input-wrapper" style={{ flex: 1 }}>
+            <span className="search-icon">🔬</span>
+            <input
+              className="input"
+              value={query}
+              onChange={(e) => setQuery(e.target.value)}
+              placeholder="Enter your research question..."
+              onKeyPress={(e) => e.key === 'Enter' && handleSearch()}
+              disabled={!hasEmbeddings}
+            />
+          </div>
+          <button 
+            className="btn btn-primary" 
+            onClick={handleSearch} 
+            disabled={loading || !hasEmbeddings}
+          >
+            {loading ? '⏳ Searching...' : '🔍 Search'}
           </button>
         </div>
         
         {error && (
-          <div style={{ marginTop: 12, padding: 12, background: 'rgba(239, 68, 68, 0.1)', borderRadius: 8, color: '#ef4444' }}>
-            ⚠️ {error}
+          <div className="alert alert-error" style={{ marginTop: 16, marginBottom: 0 }}>
+            <span className="alert-icon">❌</span>
+            <div className="alert-content">{error}</div>
           </div>
         )}
       </div>
 
       {/* Example Queries */}
-      <div className="card" style={{ marginBottom: 24 }}>
-        <h4 style={{ fontSize: '0.9rem', fontWeight: 600, marginBottom: 12, color: 'var(--text-secondary)' }}>
-          💡 예시 질문
-        </h4>
-        <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8 }}>
-          {[
-            'breast cancer immunotherapy',
-            'BRCA1 mutation treatment',
-            'chemotherapy resistance mechanisms',
-            'tumor microenvironment',
-            'targeted therapy for HER2',
-          ].map((example) => (
-            <button
-              key={example}
-              className="btn btn-secondary"
-              style={{ fontSize: 12, padding: '8px 12px' }}
-              onClick={() => {
-                setQuery(example);
-              }}
-            >
-              {example}
-            </button>
-          ))}
+      {hasEmbeddings && !lastQuery && (
+        <div className="card" style={{ marginBottom: 24 }}>
+          <div className="card-header">
+            <div className="card-title">
+              <span>💡</span> Example Queries
+            </div>
+          </div>
+          <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8 }}>
+            {exampleQueries.map((example) => (
+              <button
+                key={example}
+                className="btn btn-secondary"
+                style={{ fontSize: 13 }}
+                onClick={() => setQuery(example)}
+              >
+                {example}
+              </button>
+            ))}
+          </div>
         </div>
-      </div>
+      )}
 
       {/* Results */}
       <div className="card">
-        <div style={{ display: 'flex', justifyContent: 'space-between', padding: '16px 0', borderBottom: '1px solid var(--border)' }}>
-          <h2 style={{ fontSize: '1.1rem', fontWeight: 600 }}>
-            📚 검색 결과
-            {lastQuery && <span style={{ fontWeight: 400, color: 'var(--text-secondary)', marginLeft: 8 }}>"{lastQuery}"</span>}
-          </h2>
-          <span>{results.length} 건</span>
-        </div>
-
-        {results.length === 0 ? (
-          <div style={{ textAlign: 'center', padding: 60, color: 'var(--text-secondary)' }}>
-            {lastQuery ? (
-              <p>검색 결과가 없습니다. 다른 쿼리를 시도해보세요.</p>
-            ) : (
-              <p>검색어를 입력하고 검색 버튼을 클릭하세요.</p>
+        <div className="card-header">
+          <div className="card-title">
+            <span>📊</span> Results
+            {lastQuery && (
+              <span style={{ fontWeight: 400, fontSize: 13, color: 'var(--text-muted)', marginLeft: 8 }}>
+                "{lastQuery}"
+              </span>
             )}
           </div>
-        ) : (
-          results.map((result, index) => (
-            <div key={result.pmid} className="paper-card">
-              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 8 }}>
-                <span style={{ 
-                  fontSize: 12, 
-                  fontWeight: 700, 
-                  background: 'var(--bg-secondary)', 
-                  padding: '4px 12px', 
-                  borderRadius: 20 
-                }}>
-                  #{index + 1}
-                </span>
-                <span style={{
-                  fontSize: 14,
-                  fontWeight: 700,
-                  color: getScoreColor(result.score),
-                }}>
-                  유사도: {(result.score * 100).toFixed(1)}%
-                </span>
-              </div>
-              
-              <div className="paper-title">{result.title}</div>
-              
-              <div className="paper-meta" style={{ marginBottom: 12 }}>
-                <span style={{ marginRight: 16, fontFamily: 'monospace' }}>PMID: {result.pmid}</span>
-                <span style={{ marginRight: 16 }}>📅 {result.pubdate}</span>
-                <span style={{ marginRight: 16 }}>📖 {result.journal}</span>
-                <span>👥 {result.authors?.slice(0, 2).join(', ')}{(result.authors?.length || 0) > 2 ? '...' : ''}</span>
-              </div>
-              
-              <div style={{ fontSize: 14, color: 'var(--text-secondary)', lineHeight: 1.6 }}>
-                {result.abstract}
-              </div>
+          <span style={{ fontSize: 14, color: 'var(--text-secondary)' }}>
+            {results.length} matches
+          </span>
+        </div>
+
+        {!hasEmbeddings ? (
+          <div className="empty-state">
+            <div className="empty-state-icon">🔐</div>
+            <div className="empty-state-title">Embeddings Required</div>
+            <div className="empty-state-description">
+              Process paper embeddings to enable semantic search capabilities.
             </div>
-          ))
+            <Link href="/dashboard">
+              <button className="btn btn-primary" style={{ marginTop: 16 }}>
+                Go to Papers →
+              </button>
+            </Link>
+          </div>
+        ) : results.length === 0 ? (
+          <div className="empty-state">
+            <div className="empty-state-icon">🔍</div>
+            <div className="empty-state-title">
+              {lastQuery ? 'No results found' : 'Enter a search query'}
+            </div>
+            <div className="empty-state-description">
+              {lastQuery 
+                ? 'Try different keywords or a broader query.'
+                : 'Use natural language to find relevant research papers.'}
+            </div>
+          </div>
+        ) : (
+          results.map((result, index) => {
+            const confidence = getConfidence(result.score);
+            return (
+              <div 
+                key={result.pmid} 
+                className="paper-card"
+                style={{ 
+                  borderLeft: `3px solid ${confidence.color}`,
+                  paddingLeft: 20,
+                }}
+              >
+                <div style={{ 
+                  display: 'flex', 
+                  justifyContent: 'space-between', 
+                  alignItems: 'flex-start',
+                  marginBottom: 8,
+                }}>
+                  <span style={{ 
+                    fontSize: 12, 
+                    fontWeight: 600, 
+                    color: 'var(--text-muted)',
+                    background: 'var(--bg-tertiary)',
+                    padding: '4px 10px',
+                    borderRadius: 12,
+                  }}>
+                    #{index + 1}
+                  </span>
+                  <div style={{ 
+                    display: 'flex', 
+                    alignItems: 'center', 
+                    gap: 12,
+                  }}>
+                    <span style={{ 
+                      fontSize: 12, 
+                      fontWeight: 600, 
+                      color: confidence.color,
+                      background: confidence.bg,
+                      padding: '4px 12px',
+                      borderRadius: 12,
+                    }}>
+                      {confidence.label} ({(result.score * 100).toFixed(0)}%)
+                    </span>
+                  </div>
+                </div>
+                
+                <div className="paper-title">{result.title}</div>
+                <div className="paper-meta" style={{ marginBottom: 12 }}>
+                  <span className="paper-meta-item">
+                    <span>🆔</span> {result.pmid}
+                  </span>
+                  <span className="paper-meta-item">
+                    <span>📅</span> {result.pubdate}
+                  </span>
+                  <span className="paper-meta-item">
+                    <span>📖</span> {result.journal}
+                  </span>
+                </div>
+                <div className="paper-abstract">{result.abstract}</div>
+              </div>
+            );
+          })
         )}
       </div>
-    </div>
+    </Layout>
   );
 }

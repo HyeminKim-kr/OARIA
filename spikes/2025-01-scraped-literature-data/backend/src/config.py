@@ -1,5 +1,5 @@
 """
-OARIA Spike - 환경 설정
+OARIA Literature - 환경 설정
 
 MODE 환경변수에 따라 자동으로 설정을 전환합니다:
 - local: 로컬 PostgreSQL + 파일 시스템

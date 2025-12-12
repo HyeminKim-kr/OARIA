@@ -1,5 +1,5 @@
 """
-OARIA Spike - FastAPI 메인 서버
+OARIA Literature - FastAPI 메인 서버
 
 PubMed ETL, 임베딩, 의미 검색 API를 제공합니다.
 
@@ -47,7 +47,7 @@ from .qdrant_client import get_qdrant_client
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     """앱 시작/종료 시 리소스 관리"""
-    print(f"🚀 OARIA Spike Server starting... (mode: {settings.mode})")
+    print(f"🚀 OARIA Literature Server starting... (mode: {settings.mode})")
     
     # DB 테이블 생성
     init_db()
@@ -59,11 +59,11 @@ async def lifespan(app: FastAPI):
     
     # 정리
     await embedding_worker.stop()
-    print("👋 OARIA Spike Server shutting down...")
+    print("👋 OARIA Literature Server shutting down...")
 
 
 app = FastAPI(
-    title="OARIA Spike - PubMed ETL",
+    title="OARIA Literature - PubMed ETL",
     description="PubMed/PMC ETL → SQL → Embedding → Qdrant 파이프라인",
     version="0.1.0",
     lifespan=lifespan,
@@ -334,3 +334,145 @@ async def stop_embedding_worker():
     """임베딩 워커 중단"""
     await embedding_worker.stop()
     return {"status": "stopped"}
+
+
+# =============================================================================
+# Database Management
+# =============================================================================
+
+@app.post("/api/db/init")
+async def init_database():
+    """데이터베이스 테이블 초기화 (없으면 생성)"""
+    try:
+        init_db()
+        return {"status": "success", "message": "Database tables initialized"}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.post("/api/db/reset")
+async def reset_database(confirm: str = Query(..., description="확인용: 'yes'를 입력")):
+    """
+    데이터베이스 초기화 (모든 데이터 삭제)
+    
+    ⚠️ 주의: 모든 논문과 임베딩 데이터가 삭제됩니다!
+    """
+    if confirm != "yes":
+        raise HTTPException(status_code=400, detail="reset을 확인하려면 confirm=yes 를 입력하세요")
+    
+    try:
+        from .db import engine, Base
+        from .models.paper import Paper as PaperModel, EmbeddingTask
+        
+        # 테이블 삭제 후 재생성
+        Base.metadata.drop_all(bind=engine)
+        Base.metadata.create_all(bind=engine)
+        
+        # Qdrant 컬렉션도 재생성
+        qdrant = get_qdrant_client()
+        try:
+            qdrant._get_client().delete_collection(qdrant.collection)
+        except Exception:
+            pass
+        qdrant._initialized = False
+        qdrant.ensure_collection()
+        
+        return {
+            "status": "success",
+            "message": "Database and Qdrant collection reset successfully",
+        }
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.get("/api/db/stats")
+async def get_db_stats(db: Session = Depends(get_db)):
+    """데이터베이스 통계"""
+    from .models.paper import Paper as PaperModel, EmbeddingTask
+    
+    paper_count = db.query(func.count(PaperModel.pmid)).scalar()
+    
+    # 임베딩 상태별 카운트
+    pending = db.query(func.count(EmbeddingTask.id)).filter(
+        EmbeddingTask.status == "pending"
+    ).scalar()
+    done = db.query(func.count(EmbeddingTask.id)).filter(
+        EmbeddingTask.status == "done"
+    ).scalar()
+    error = db.query(func.count(EmbeddingTask.id)).filter(
+        EmbeddingTask.status == "error"
+    ).scalar()
+    
+    # Qdrant 포인트 수
+    try:
+        qdrant = get_qdrant_client()
+        qdrant_count = qdrant.get_count()
+    except Exception:
+        qdrant_count = 0
+    
+    return {
+        "papers": paper_count,
+        "embeddings": {
+            "pending": pending,
+            "done": done,
+            "error": error,
+            "total": pending + done + error,
+        },
+        "qdrant_points": qdrant_count,
+    }
+
+
+# =============================================================================
+# Logging
+# =============================================================================
+
+from collections import deque
+from datetime import datetime
+
+# 로그 버퍼 (최대 500개 보관)
+log_buffer: deque = deque(maxlen=500)
+
+
+def add_log(message: str, level: str = "info"):
+    """로그 추가"""
+    log_entry = {
+        "timestamp": datetime.now().isoformat(),
+        "level": level,
+        "message": message,
+    }
+    log_buffer.append(log_entry)
+    # 콘솔에도 출력
+    icon = {"info": "ℹ️", "success": "✅", "warning": "⚠️", "error": "❌"}.get(level, "📝")
+    print(f"{icon} [{level.upper()}] {message}")
+
+
+@app.get("/api/logs")
+async def get_logs(limit: int = Query(100, ge=1, le=500)):
+    """최근 로그 조회"""
+    logs = list(log_buffer)[-limit:]
+    return {"logs": logs, "total": len(log_buffer)}
+
+
+@app.post("/api/logs/clear")
+async def clear_logs():
+    """로그 초기화"""
+    log_buffer.clear()
+    add_log("로그가 초기화되었습니다", "info")
+    return {"status": "cleared"}
+
+
+# 기존 ETL 시작에 로그 추가
+original_start_etl = start_etl
+
+
+@app.post("/api/etl/start", include_in_schema=False)
+async def start_etl_with_log(request: ETLStartRequest):
+    add_log(f"ETL 시작: '{request.term}' (offset={request.offset}, limit={request.limit})", "info")
+    try:
+        result = await original_start_etl(request)
+        add_log(f"ETL 작업 생성됨: {result['job_id']}", "success")
+        return result
+    except Exception as e:
+        add_log(f"ETL 시작 실패: {str(e)}", "error")
+        raise
+

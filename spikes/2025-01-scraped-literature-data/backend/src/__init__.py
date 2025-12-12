@@ -1,1 +1,1 @@
-"""OARIA Spike - Backend Source Package"""
+"""OARIA Literature - Backend Source Package"""

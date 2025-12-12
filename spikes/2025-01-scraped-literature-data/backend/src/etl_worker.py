@@ -1,5 +1,5 @@
 """
-OARIA Spike - ETL Worker
+OARIA Literature - ETL Worker
 
 PubMed 논문을 수집하여 SQL에 저장하는 ETL 파이프라인입니다.
 

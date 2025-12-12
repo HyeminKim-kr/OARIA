@@ -1,5 +1,5 @@
 """
-OARIA Spike - 데이터베이스 연결
+OARIA Literature - 데이터베이스 연결
 
 SQLAlchemy를 사용하여 PostgreSQL에 연결합니다.
 로컬 모드와 GCP 모드 모두 동일한 인터페이스로 동작합니다.

@@ -1,5 +1,5 @@
 [project]
-name = "oaria-spike-backend"
+name = "oaria-lit-backend"
 version = "0.1.0"
 description = "OARIA Bio - PubMed ETL Spike Backend"
 readme = "README.md"

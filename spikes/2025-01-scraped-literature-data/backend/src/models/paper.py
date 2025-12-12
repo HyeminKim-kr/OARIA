@@ -1,5 +1,5 @@
 """
-OARIA Spike - Paper ORM 모델
+OARIA Literature - Paper ORM 모델
 
 PubMed 논문 데이터를 저장하는 SQLAlchemy ORM 모델입니다.
 

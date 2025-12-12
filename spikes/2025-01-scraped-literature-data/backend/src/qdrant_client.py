@@ -1,5 +1,5 @@
 """
-OARIA Spike - Qdrant 클라이언트
+OARIA Literature - Qdrant 클라이언트
 
 Qdrant 벡터 데이터베이스와 상호작용하는 클라이언트입니다.
 
@@ -151,21 +151,40 @@ class OariaQdrantClient:
         self.ensure_collection()
         client = self._get_client()
         
-        results = client.search(
-            collection_name=self.collection,
-            query_vector=query_embedding,
-            limit=limit,
-            score_threshold=score_threshold,
-        )
-        
-        return [
-            {
-                "pmid": str(hit.id),
-                "score": hit.score,
-                "payload": hit.payload,
-            }
-            for hit in results
-        ]
+        # qdrant-client >= 1.7에서는 query_points 사용
+        try:
+            results = client.query_points(
+                collection_name=self.collection,
+                query=query_embedding,
+                limit=limit,
+                score_threshold=score_threshold,
+            )
+            
+            return [
+                {
+                    "pmid": str(hit.id),
+                    "score": hit.score,
+                    "payload": hit.payload,
+                }
+                for hit in results.points
+            ]
+        except AttributeError:
+            # 구 버전 qdrant-client 호환
+            results = client.search(
+                collection_name=self.collection,
+                query_vector=query_embedding,
+                limit=limit,
+                score_threshold=score_threshold,
+            )
+            
+            return [
+                {
+                    "pmid": str(hit.id),
+                    "score": hit.score,
+                    "payload": hit.payload,
+                }
+                for hit in results
+            ]
     
     def get_count(self) -> int:
         """컬렉션의 포인트 수 반환"""

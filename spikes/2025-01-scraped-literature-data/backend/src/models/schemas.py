@@ -1,5 +1,5 @@
 """
-OARIA Spike - Pydantic 스키마
+OARIA Literature - Pydantic 스키마
 
 API 요청/응답에 사용되는 Pydantic 모델입니다.
 """

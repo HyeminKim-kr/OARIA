@@ -1,5 +1,5 @@
 """
-OARIA Spike - Embedding Worker
+OARIA Literature - Embedding Worker
 
 PubMedBERT 기반 임베딩을 생성하고 Qdrant에 저장하는 워커입니다.
 

@@ -1,4 +1,4 @@
-"""OARIA Spike - Models Package"""
+"""OARIA Literature - Models Package"""
 from .paper import Paper, EmbeddingTask
 from .schemas import (
     PaperCreate,

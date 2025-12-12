@@ -3,7 +3,7 @@ version: "3.9"
 services:
   backend:
     build: ./backend
-    container_name: oaria-spike-backend
+    container_name: oaria-lit-backend
     environment:
       MODE: ${MODE:-local}
       DATABASE_URL: ${DATABASE_URL:-postgresql://oaria:oaria@db:5432/oaria}
@@ -26,13 +26,14 @@ services:
 
   frontend:
     build: ./frontend
-    container_name: oaria-spike-frontend
+    container_name: oaria-lit-frontend
     volumes:
       - ./frontend:/app
       - /app/node_modules
     environment:
       MODE: ${MODE:-local}
-      NEXT_PUBLIC_API_URL: ${NEXT_PUBLIC_API_URL:-http://localhost:8000}
+      # For server-side (Next.js rewrites): use Docker network service name
+      NEXT_PUBLIC_API_URL: http://backend:8000
     ports:
       - "3000:3000"
     depends_on:
@@ -41,7 +42,7 @@ services:
 
   db:
     image: postgres:16-alpine
-    container_name: oaria-spike-db
+    container_name: oaria-lit-db
     environment:
       POSTGRES_USER: oaria
       POSTGRES_PASSWORD: oaria
@@ -59,7 +60,7 @@ services:
 
   qdrant:
     image: qdrant/qdrant:latest
-    container_name: oaria-spike-qdrant
+    container_name: oaria-lit-qdrant
     ports:
       - "6333:6333"
       - "6334:6334"

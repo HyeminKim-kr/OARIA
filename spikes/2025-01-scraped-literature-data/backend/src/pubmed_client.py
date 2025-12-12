@@ -1,5 +1,5 @@
 """
-OARIA Spike - PubMed E-utilities 클라이언트
+OARIA Literature - PubMed E-utilities 클라이언트
 
 NCBI E-utilities API를 사용하여 PubMed 논문을 검색하고 수집합니다.
 

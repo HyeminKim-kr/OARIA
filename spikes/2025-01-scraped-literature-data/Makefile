@@ -1,11 +1,11 @@
-# OARIA Spike - Makefile
+# OARIA Literature - Makefile
 # Docker Compose 명령어를 간편하게 실행
 
 .PHONY: help up down build logs clean dev-backend dev-frontend
 
 # 기본 명령어
 help:
-	@echo "🔬 OARIA Spike - 사용 가능한 명령어"
+	@echo "🔬 OARIA Literature - 사용 가능한 명령어"
 	@echo ""
 	@echo "  make up         - 전체 스택 실행 (Local 모드)"
 	@echo "  make up-gcp     - 전체 스택 실행 (GCP 모드)"
@@ -72,3 +72,19 @@ dev-backend:
 # 개발 모드 - 프론트엔드만
 dev-frontend:
 	cd frontend && npm install --legacy-peer-deps && npm run dev
+
+# =============================================================================
+# Database Management
+# =============================================================================
+
+# DB 초기화 (테이블 생성)
+db-init:
+	curl -X POST http://localhost:8000/api/db/init
+
+# DB 리셋 (⚠️ 모든 데이터 삭제)
+db-reset:
+	curl -X POST "http://localhost:8000/api/db/reset?confirm=yes"
+
+# DB 통계 조회
+db-stats:
+	curl http://localhost:8000/api/db/stats | python3 -m json.tool

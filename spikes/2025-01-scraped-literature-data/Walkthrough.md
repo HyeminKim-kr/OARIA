@@ -1,4 +1,4 @@
-# OARIA Spike System - 완료 보고서
+# OARIA Literature System - 완료 보고서
 
 ## 구현 완료 ✅
 
