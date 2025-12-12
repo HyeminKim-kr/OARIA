@@ -1,5 +1,6 @@
 """OARIA Literature - Models Package"""
 from .paper import Paper, EmbeddingTask
+from .cron_log import CronLog
 from .schemas import (
     PaperCreate,
     PaperResponse,
@@ -16,6 +17,7 @@ from .schemas import (
 __all__ = [
     "Paper",
     "EmbeddingTask",
+    "CronLog",
     "PaperCreate",
     "PaperResponse",
     "SearchRequest",

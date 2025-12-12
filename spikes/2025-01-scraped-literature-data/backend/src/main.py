@@ -39,9 +39,10 @@ from .models import (
     EmbeddingStatusResponse,
 )
 from .pubmed_client import PubMedClient
-from .etl_worker import etl_worker
+from .etl_worker import etl_worker, add_log, get_logs, clear_logs
 from .embedding_worker import embedding_worker
 from .qdrant_client import get_qdrant_client
+
 
 
 @asynccontextmanager
@@ -183,7 +184,391 @@ async def stop_etl(job_id: str = Query(..., description="Job ID")):
     return {"status": "stopped", "job_id": job_id}
 
 
-# =============================================================================
+@app.get("/api/etl/keyword-stats")
+async def get_keyword_stats(
+    term: str = Query(..., description="Search term"),
+    db: Session = Depends(get_db),
+):
+    """키워드별 수집 통계 조회 (Resume 지원용)"""
+    from .models.paper import Paper as PaperModel
+    
+    # 해당 키워드로 검색된 논문 수 (간단히 term이 abstract에 포함된 것으로 추정)
+    # 실제로는 search_term 필드를 Paper 모델에 추가하는 것이 더 정확함
+    search_term = f"%{term}%"
+    collected = db.query(PaperModel).filter(
+        (PaperModel.title.ilike(search_term)) |
+        (PaperModel.abstract.ilike(search_term))
+    ).count()
+    
+    # PubMed 전체 결과 수 조회
+    try:
+        pubmed_client = PubMedClient()
+        pubmed_total = await pubmed_client.get_count(term)
+    except:
+        pubmed_total = 0
+    
+    return {
+        "term": term,
+        "collected": collected,
+        "pubmed_total": pubmed_total,
+        "last_offset": collected,  # 다음 offset = 현재까지 수집된 수
+    }
+
+
+def to_kst_korean(dt):
+    """UTC datetime을 한국식 KST 포맷으로 변환 (YYYY. MM. DD AM/PM HH:mm:ss)"""
+    if dt is None:
+        return None
+    if dt.tzinfo is None:
+        dt = dt.replace(tzinfo=timezone.utc)
+    kst_dt = dt.astimezone(KST)
+    
+    hour = kst_dt.hour
+    am_pm = "AM" if hour < 12 else "PM"
+    
+    return kst_dt.strftime(f"%Y. %m. %d {am_pm} %H:%M:%S")
+
+
+@app.get("/api/etl/search")
+async def search_keyword_stats(
+    term: str = Query(..., description="Search term"),
+    db: Session = Depends(get_db),
+):
+    """키워드 기반 진행률 통계 조회 (Progress %, Remaining, Resume Index)"""
+    from .models.cron_log import CronLog
+    from .models.paper import Paper as PaperModel
+    
+    # PubMed 전체 수 조회 (async with으로 클라이언트 생성)
+    pubmed_total = 0
+    try:
+        async with PubMedClient() as client:
+            pubmed_total = await client.get_count(term)
+    except Exception as e:
+        add_log("warning", f"PubMed count 조회 실패: {e}")
+        pubmed_total = 0
+    
+    # DB에 저장된 해당 키워드 논문 수
+    db_count = db.query(PaperModel).filter(
+        (PaperModel.title.ilike(f"%{term}%")) |
+        (PaperModel.abstract.ilike(f"%{term}%"))
+    ).count()
+
+    
+    # CronLog에서 해당 키워드 최근 기록
+    recent_logs = db.query(CronLog).filter(
+        CronLog.keyword.ilike(f"%{term}%")
+    ).order_by(CronLog.run_at.desc()).limit(20).all()
+    
+    # 마지막 처리 인덱스 (resume point)
+    last_pmid = None
+    last_run_dt = None
+    total_fetched = 0
+    total_inserted = 0
+    total_skipped = 0
+    
+    if recent_logs:
+        last_log = recent_logs[0]
+        last_pmid = last_log.pmid_range_end
+        last_run_dt = last_log.run_at
+        
+        for log in recent_logs:
+            total_fetched += log.fetched or 0
+            total_inserted += log.inserted or 0
+            total_skipped += log.skipped or 0
+    
+    # Progress 계산
+    progress = 0.0
+    remaining = pubmed_total
+    
+    if pubmed_total > 0:
+        progress = min((db_count / pubmed_total) * 100, 100)
+        remaining = max(pubmed_total - db_count, 0)
+    
+    # Resume Index 계산 (DB의 마지막 offset)
+    resume_index = db_count
+    
+    # ETA 추정 (배치당 평균 시간 기반)
+    # 배치 사이즈 200, 배치당 약 5초 가정
+    eta_display = None
+    eta_minutes = None
+    if remaining > 0:
+        batches_needed = remaining / 200  # 배치 수
+        seconds_per_batch = 5  # 배치당 5초
+        total_seconds = int(batches_needed * seconds_per_batch)
+        eta_minutes = total_seconds // 60
+        
+        # 사람이 읽기 쉬운 형식으로 변환
+        if total_seconds < 60:
+            eta_display = f"{total_seconds}s"
+        elif total_seconds < 3600:
+            eta_display = f"{total_seconds // 60}m"
+        elif total_seconds < 86400:
+            hours = total_seconds // 3600
+            mins = (total_seconds % 3600) // 60
+            eta_display = f"{hours}h {mins}m"
+        else:
+            days = total_seconds // 86400
+            hours = (total_seconds % 86400) // 3600
+            eta_display = f"{days}d {hours}h"
+    
+    add_log("info", f"🔍 Search: term=\"{term}\" → Progress {progress:.1f}% | Remaining {remaining:,}")
+    
+    return {
+        "term": term,
+        "pubmed_total": pubmed_total,
+        "fetched": db_count,
+        "remaining": remaining,
+        "progress": round(progress, 1),
+        "resume_index": resume_index,
+        "last_pmid": last_pmid,
+        "last_sync_kst": to_kst_korean(last_run_dt),
+        "total_runs": len(recent_logs),
+        "total_inserted": total_inserted,
+        "total_skipped": total_skipped,
+        "eta_minutes": eta_minutes,
+        "eta_display": eta_display,
+
+    }
+
+
+
+# Auto ETL 상태 관리
+auto_etl_state = {
+    "running": False,
+    "paused": False,
+    "term": "",
+    "batch_size": 100,
+    "current_job_id": None,
+    "current_offset": 0,
+    "total_batches": 0,
+    "completed_batches": 0,
+}
+auto_etl_task = None  # Background task for auto ETL loop
+
+
+async def auto_etl_loop():
+    """Auto ETL 루프 - 배치를 연속으로 실행"""
+    global auto_etl_state
+    
+    while auto_etl_state["running"]:
+        # 일시정지 상태면 대기
+        if auto_etl_state["paused"]:
+            await asyncio.sleep(1)
+            continue
+        
+        try:
+            # 현재 offset에서 배치 시작
+            term = auto_etl_state["term"]
+            batch_size = auto_etl_state["batch_size"]
+            offset = auto_etl_state["current_offset"]
+            
+            add_log("etl", f"🔄 Auto ETL Batch #{auto_etl_state['completed_batches'] + 1} starting (offset={offset})")
+            
+            job = await etl_worker.start_etl(
+                term=term,
+                limit=batch_size,
+                offset=offset,
+            )
+            auto_etl_state["current_job_id"] = job.job_id
+            auto_etl_state["total_batches"] += 1
+            
+            # 작업 완료 대기
+            while True:
+                status = etl_worker.get_status(job.job_id)
+                if not status:
+                    break
+                
+                if status["status"] in ["completed", "error", "stopped"]:
+                    # 배치 완료
+                    auto_etl_state["completed_batches"] += 1
+                    auto_etl_state["current_offset"] = offset + batch_size
+                    
+                    if status["status"] == "completed":
+                        add_log("success", f"✅ Auto ETL Batch #{auto_etl_state['completed_batches']} Completed == Inserted: +{status['inserted']} | Skipped: {status['skipped']}")
+                    elif status["status"] == "error":
+                        add_log("error", f"❌ Auto ETL Batch #{auto_etl_state['completed_batches']} Error: {status['message']}")
+                    elif status["status"] == "stopped":
+                        add_log("warning", f"⏹️ Auto ETL Batch #{auto_etl_state['completed_batches']} Stopped")
+                        auto_etl_state["running"] = False
+                    break
+                
+                await asyncio.sleep(1)
+                
+                # 일시정지/취소 체크
+                if not auto_etl_state["running"]:
+                    break
+                if auto_etl_state["paused"]:
+                    add_log("etl", f"⏸️ Auto ETL Paused during batch #{auto_etl_state['completed_batches'] + 1}")
+                    break
+            
+            # 취소되었으면 루프 종료
+            if not auto_etl_state["running"]:
+                break
+            
+            # 다음 배치 전 짧은 대기
+            await asyncio.sleep(1)
+            
+        except asyncio.CancelledError:
+            add_log("warning", "⏹️ Auto ETL Loop Cancelled")
+            break
+        except Exception as e:
+            add_log("error", f"❌ Auto ETL Loop Error: {e}")
+            await asyncio.sleep(5)  # 에러 시 5초 대기 후 재시도
+    
+    add_log("info", f"🏁 Auto ETL Loop Ended (Completed {auto_etl_state['completed_batches']} batches)")
+
+
+@app.post("/api/etl/auto/start")
+async def start_auto_etl(
+    term: str = Query(...),
+    batch_size: int = Query(100, ge=10, le=500),
+):
+    """Auto ETL 시작 - 연속적으로 배치 실행"""
+    global auto_etl_state, auto_etl_task
+    
+    if auto_etl_state["running"] and not auto_etl_state["paused"]:
+        raise HTTPException(status_code=400, detail="Auto ETL already running")
+    
+    auto_etl_state["running"] = True
+    auto_etl_state["paused"] = False
+    auto_etl_state["term"] = term
+    auto_etl_state["batch_size"] = batch_size
+    auto_etl_state["current_offset"] = 0
+    auto_etl_state["total_batches"] = 0
+    auto_etl_state["completed_batches"] = 0
+    
+    add_log("etl", f"🟢 Auto ETL Started (term=\"{term}\", batch={batch_size})")
+    
+    # Start background auto ETL loop
+    auto_etl_task = asyncio.create_task(auto_etl_loop())
+    
+    return {
+        "status": "started",
+        "term": term,
+        "batch_size": batch_size,
+    }
+
+
+@app.post("/api/etl/auto/pause")
+async def pause_auto_etl():
+    """Auto ETL 일시정지"""
+    global auto_etl_state
+    
+    if not auto_etl_state["running"]:
+        raise HTTPException(status_code=400, detail="Auto ETL not running")
+    
+    auto_etl_state["paused"] = True
+    add_log("etl", "🔴 Auto ETL Paused")
+    
+    return {"status": "paused"}
+
+
+@app.post("/api/etl/auto/resume")
+async def resume_auto_etl():
+    """Auto ETL 재개"""
+    global auto_etl_state, auto_etl_task
+    
+    if not auto_etl_state["running"]:
+        raise HTTPException(status_code=400, detail="Auto ETL not running")
+    
+    auto_etl_state["paused"] = False
+    add_log("etl", "🟡 Auto ETL Resumed")
+    
+    # 루프가 중단되었으면 다시 시작
+    if auto_etl_task is None or auto_etl_task.done():
+        auto_etl_task = asyncio.create_task(auto_etl_loop())
+    
+    return {"status": "resumed"}
+
+
+@app.post("/api/etl/auto/cancel")
+async def cancel_auto_etl():
+    """Auto ETL 완전 취소"""
+    global auto_etl_state, auto_etl_task
+    
+    # 현재 작업 중지
+    if auto_etl_state["current_job_id"]:
+        await etl_worker.stop_etl(auto_etl_state["current_job_id"])
+    
+    # 백그라운드 태스크 취소
+    if auto_etl_task and not auto_etl_task.done():
+        auto_etl_task.cancel()
+        try:
+            await auto_etl_task
+        except asyncio.CancelledError:
+            pass
+    
+    auto_etl_state["running"] = False
+    auto_etl_state["paused"] = False
+    auto_etl_state["current_job_id"] = None
+    auto_etl_task = None
+    
+    add_log("etl", "⏹️ Auto ETL Cancelled")
+    
+    return {"status": "cancelled"}
+
+
+@app.get("/api/etl/auto/status")
+async def get_auto_etl_status():
+    """Auto ETL 상태 조회"""
+    return {
+        "running": auto_etl_state["running"],
+        "paused": auto_etl_state["paused"],
+        "term": auto_etl_state["term"],
+        "batch_size": auto_etl_state["batch_size"],
+        "current_job_id": auto_etl_state["current_job_id"],
+        "current_offset": auto_etl_state["current_offset"],
+        "total_batches": auto_etl_state["total_batches"],
+        "completed_batches": auto_etl_state["completed_batches"],
+    }
+
+
+# Realtime Pull 상태
+realtime_pull_state = {
+    "enabled": False,
+    "term": "",
+    "interval_seconds": 60,
+}
+
+
+@app.post("/api/etl/realtime/start")
+async def start_realtime_pull(
+    term: str = Query(...),
+    interval_seconds: int = Query(60, ge=30, le=300),
+):
+    """실시간 배치 Pull 시작 (1분 간격)"""
+    global realtime_pull_state
+    
+    realtime_pull_state["enabled"] = True
+    realtime_pull_state["term"] = term
+    realtime_pull_state["interval_seconds"] = interval_seconds
+    
+    add_log("etl", f"⏱️ Real-time Pull Started (term=\"{term}\", interval={interval_seconds}s)")
+    
+    return {
+        "status": "started",
+        "term": term,
+        "interval_seconds": interval_seconds,
+    }
+
+
+@app.post("/api/etl/realtime/stop")
+async def stop_realtime_pull():
+    """실시간 배치 Pull 중지"""
+    global realtime_pull_state
+    
+    realtime_pull_state["enabled"] = False
+    add_log("etl", "⏹️ Real-time Pull Stopped")
+    
+    return {"status": "stopped"}
+
+
+@app.get("/api/etl/realtime/status")
+async def get_realtime_pull_status():
+    """실시간 배치 Pull 상태"""
+    return realtime_pull_state
+
+
 # Papers (DB)
 # =============================================================================
 
@@ -191,20 +576,35 @@ async def stop_etl(job_id: str = Query(..., description="Job ID")):
 async def get_papers(
     page: int = Query(1, ge=1),
     per_page: int = Query(20, ge=1, le=100),
+    search: Optional[str] = Query(None, description="Search term for title/abstract"),
+    sort: str = Query("created_at", description="Sort field"),
+    order: str = Query("desc", description="Sort order: asc or desc"),
     db: Session = Depends(get_db),
 ):
-    """저장된 논문 목록 조회"""
+    """저장된 논문 목록 조회 (검색, 정렬 지원)"""
     from .models.paper import Paper as PaperModel
     
-    total = db.query(func.count(PaperModel.pmid)).scalar()
+    query = db.query(PaperModel)
     
-    papers = (
-        db.query(PaperModel)
-        .order_by(PaperModel.created_at.desc())
-        .offset((page - 1) * per_page)
-        .limit(per_page)
-        .all()
-    )
+    # 검색
+    if search:
+        search_term = f"%{search}%"
+        query = query.filter(
+            (PaperModel.title.ilike(search_term)) |
+            (PaperModel.abstract.ilike(search_term)) |
+            (PaperModel.pmid.ilike(search_term))
+        )
+    
+    total = query.count()
+    
+    # 정렬
+    sort_column = getattr(PaperModel, sort, PaperModel.created_at)
+    if order == "asc":
+        query = query.order_by(sort_column.asc())
+    else:
+        query = query.order_by(sort_column.desc())
+    
+    papers = query.offset((page - 1) * per_page).limit(per_page).all()
     
     return {
         "papers": [
@@ -216,14 +616,39 @@ async def get_papers(
                 "journal": p.journal,
                 "pubdate": p.pubdate,
                 "embedding_status": p.embedding_status,
+                "created_at": str(p.created_at) if p.created_at else None,
             }
             for p in papers
         ],
         "page": page,
         "per_page": per_page,
         "total": total,
-        "total_pages": (total + per_page - 1) // per_page,
+        "total_pages": (total + per_page - 1) // per_page if total > 0 else 0,
     }
+
+
+from pydantic import BaseModel
+
+class DeleteAllRequest(BaseModel):
+    confirm: str
+
+@app.delete("/api/papers/all")
+async def delete_all_papers(request: DeleteAllRequest, db: Session = Depends(get_db)):
+    """전체 논문 삭제 (확인 필요)"""
+    from .models.paper import Paper as PaperModel
+    
+    if request.confirm != "DELETE":
+        raise HTTPException(status_code=400, detail="Confirmation required: type 'DELETE'")
+    
+    count = db.query(PaperModel).count()
+    db.query(PaperModel).delete()
+    db.commit()
+    
+    # 로그 추가
+    from .etl_worker import etl_worker
+    await etl_worker.add_log("warning", f"Deleted all {count} papers from database")
+    
+    return {"deleted": count, "message": f"Deleted {count} papers"}
 
 
 @app.get("/api/papers/{pmid}")
@@ -423,56 +848,542 @@ async def get_db_stats(db: Session = Depends(get_db)):
 
 
 # =============================================================================
-# Logging
+# Logging (전역 콘솔 + SSE 스트림)
 # =============================================================================
 
-from collections import deque
-from datetime import datetime
-
-# 로그 버퍼 (최대 500개 보관)
-log_buffer: deque = deque(maxlen=500)
-
-
-def add_log(message: str, level: str = "info"):
-    """로그 추가"""
-    log_entry = {
-        "timestamp": datetime.now().isoformat(),
-        "level": level,
-        "message": message,
-    }
-    log_buffer.append(log_entry)
-    # 콘솔에도 출력
-    icon = {"info": "ℹ️", "success": "✅", "warning": "⚠️", "error": "❌"}.get(level, "📝")
-    print(f"{icon} [{level.upper()}] {message}")
+from fastapi.responses import StreamingResponse
+import asyncio
 
 
 @app.get("/api/logs")
-async def get_logs(limit: int = Query(100, ge=1, le=500)):
-    """최근 로그 조회"""
-    logs = list(log_buffer)[-limit:]
-    return {"logs": logs, "total": len(log_buffer)}
+async def get_logs_api(limit: int = Query(100, ge=1, le=1000)):
+    """최근 로그 조회 (전역 콘솔용)"""
+    logs = get_logs(limit)
+    return {"logs": logs, "total": len(logs)}
+
+
+@app.get("/api/console/stream")
+async def console_sse_stream():
+    """전역 콘솔 SSE 스트림"""
+    
+    async def event_generator():
+        last_count = 0
+        while True:
+            logs = get_logs(50)
+            current_count = len(logs)
+            
+            # 새 로그가 있으면 전송
+            if current_count > last_count:
+                new_logs = logs[-(current_count - last_count):]
+                for log in new_logs:
+                    import json
+                    yield f"data: {json.dumps(log)}\n\n"
+                last_count = current_count
+            elif current_count < last_count:
+                # 로그 클리어됨
+                last_count = current_count
+            
+            await asyncio.sleep(0.5)
+    
+    return StreamingResponse(
+        event_generator(),
+        media_type="text/event-stream",
+        headers={
+            "Cache-Control": "no-cache",
+            "Connection": "keep-alive",
+            "X-Accel-Buffering": "no",
+        }
+    )
 
 
 @app.post("/api/logs/clear")
-async def clear_logs():
+async def clear_logs_api():
     """로그 초기화"""
-    log_buffer.clear()
-    add_log("로그가 초기화되었습니다", "info")
+    clear_logs()
+    add_log("system", "🗑️ 콘솔 로그가 초기화되었습니다")
     return {"status": "cleared"}
 
 
-# 기존 ETL 시작에 로그 추가
-original_start_etl = start_etl
+# =============================================================================
+# Cron Logs (크론 실행 기록 + KST 변환)
+# =============================================================================
+
+from datetime import timezone, timedelta
+
+# KST 타임존 (UTC+9)
+KST = timezone(timedelta(hours=9))
 
 
-@app.post("/api/etl/start", include_in_schema=False)
-async def start_etl_with_log(request: ETLStartRequest):
-    add_log(f"ETL 시작: '{request.term}' (offset={request.offset}, limit={request.limit})", "info")
+def to_kst(dt):
+    """UTC datetime을 KST 문자열로 변환"""
+    if dt is None:
+        return None
+    if dt.tzinfo is None:
+        dt = dt.replace(tzinfo=timezone.utc)
+    kst_dt = dt.astimezone(KST)
+    return kst_dt.strftime("%Y-%m-%d %H:%M:%S")
+
+
+@app.get("/api/cron/logs")
+async def get_cron_logs(
+    limit: int = Query(50, ge=1, le=200),
+    db: Session = Depends(get_db),
+):
+    """크론 실행 기록 조회 (KST 변환 포함)"""
+    from .models.cron_log import CronLog
+    
+    logs = db.query(CronLog).order_by(CronLog.run_at.desc()).limit(limit).all()
+    
+    return {
+        "logs": [
+            {
+                "id": log.id,
+                "run_at": log.run_at.isoformat() if log.run_at else None,
+                "run_at_kst": to_kst(log.run_at),  # KST 변환
+                "keyword": log.keyword,
+                "fetched": log.fetched,
+                "inserted": log.inserted,
+                "skipped": log.skipped,
+                "duration_ms": log.duration_ms,
+                "status": log.status,
+                "error_message": log.error_message,
+                "pmid_range_start": log.pmid_range_start,
+                "pmid_range_end": log.pmid_range_end,
+                "db_before": log.db_before,
+                "db_after": log.db_after,
+            }
+            for log in logs
+        ],
+        "total": len(logs),
+
+    }
+
+
+@app.get("/api/cron/stats/today")
+async def get_today_stats(db: Session = Depends(get_db)):
+    """오늘 기준 통계"""
+    from .models.cron_log import CronLog
+    from .models.paper import Paper as PaperModel
+    from datetime import date
+    
+    today = date.today()
+    
+    # 오늘 크론 실행 기록
+    today_logs = db.query(CronLog).filter(
+        func.date(CronLog.run_at) == today
+    ).all()
+    
+    # 오늘 통계 계산
+    runs_today = len(today_logs)
+    inserted_today = sum(log.inserted for log in today_logs)
+    skipped_today = sum(log.skipped for log in today_logs)
+    successful_runs = sum(1 for log in today_logs if log.status == "success")
+    failed_runs = sum(1 for log in today_logs if log.status == "error")
+    
+    # 전체 논문 수
+    total_papers = db.query(func.count(PaperModel.pmid)).scalar()
+    
+    # 오늘 추가된 논문 (created_at 기준)
+    papers_added_today = db.query(func.count(PaperModel.pmid)).filter(
+        func.date(PaperModel.created_at) == today
+    ).scalar()
+    
+    return {
+        "date": today.isoformat(),
+        "runs_today": runs_today,
+        "successful_runs": successful_runs,
+        "failed_runs": failed_runs,
+        "inserted_today": inserted_today,
+        "skipped_today": skipped_today,
+        "papers_added_today": papers_added_today,
+        "total_papers": total_papers,
+    }
+
+
+@app.post("/api/cron/run")
+async def run_cron_manually(
+    term: str = Query("breast cancer", description="검색 키워드"),
+    limit: int = Query(100, ge=1, le=1000, description="수집할 논문 수"),
+):
+    """크론 수동 실행"""
     try:
-        result = await original_start_etl(request)
-        add_log(f"ETL 작업 생성됨: {result['job_id']}", "success")
-        return result
+        job = await etl_worker.start_etl(
+            term=term,
+            limit=limit,
+            offset=0,  # TODO: Resume 지원
+        )
+        
+        return {
+            "job_id": job.job_id,
+            "status": job.status,
+            "message": f"Cron started for '{term}' (limit={limit})",
+        }
     except Exception as e:
-        add_log(f"ETL 시작 실패: {str(e)}", "error")
-        raise
+        raise HTTPException(status_code=500, detail=str(e))
 
+
+# =============================================================================
+# Database Tables Admin
+# =============================================================================
+
+@app.get("/api/db/tables")
+async def get_db_tables(db: Session = Depends(get_db)):
+    """모든 테이블 목록 및 row 수 (엔터프라이즈)"""
+    from .models.paper import Paper as PaperModel, EmbeddingTask
+    from .models.cron_log import CronLog
+    from datetime import datetime
+    
+    def get_table_info(model, name: str, description: str, pk_field: str = "id"):
+        count = db.query(func.count(getattr(model, pk_field))).scalar()
+        
+        # 최신 업데이트 시간
+        latest = None
+        if hasattr(model, 'created_at'):
+            latest_row = db.query(model.created_at).order_by(model.created_at.desc()).first()
+            if latest_row:
+                latest = latest_row[0].isoformat() if latest_row[0] else None
+        
+        return {
+            "name": name,
+            "count": count,
+            "description": description,
+            "latest_update": latest,
+            "estimated_size_mb": round(count * 0.002, 2),  # 대략적 추정
+        }
+    
+    tables = [
+        get_table_info(PaperModel, "papers", "논문 메타데이터 및 임베딩", "pmid"),
+        get_table_info(EmbeddingTask, "embedding_tasks", "임베딩 작업 대기열", "id"),
+        get_table_info(CronLog, "cron_logs", "ETL 크론 실행 기록", "id"),
+    ]
+    
+    return {"tables": tables, "total_tables": len(tables)}
+
+
+@app.get("/api/db/table/{table_name}")
+async def get_table_detail(
+    table_name: str,
+    db: Session = Depends(get_db),
+):
+    """테이블 상세 정보"""
+    from .models.paper import Paper as PaperModel, EmbeddingTask
+    from .models.cron_log import CronLog
+    
+    table_map = {
+        "papers": {
+            "model": PaperModel,
+            "pk": "pmid",
+            "columns": ["pmid", "title", "journal", "pubdate", "embedding_status", "created_at"],
+            "filterable": ["embedding_status", "journal", "pubdate"],
+        },
+        "embedding_tasks": {
+            "model": EmbeddingTask,
+            "pk": "id",
+            "columns": ["id", "pmid", "text_type", "status", "created_at"],
+            "filterable": ["status", "text_type"],
+        },
+        "cron_logs": {
+            "model": CronLog,
+            "pk": "id",
+            "columns": ["id", "keyword", "inserted", "skipped", "status", "run_at"],
+            "filterable": ["status", "keyword"],
+        },
+    }
+    
+    if table_name not in table_map:
+        raise HTTPException(status_code=404, detail=f"테이블 없음: {table_name}")
+    
+    info = table_map[table_name]
+    model = info["model"]
+    pk = info["pk"]
+    
+    count = db.query(func.count(getattr(model, pk))).scalar()
+    
+    return {
+        "name": table_name,
+        "count": count,
+        "columns": info["columns"],
+        "filterable_columns": info["filterable"],
+        "primary_key": pk,
+    }
+
+
+@app.get("/api/db/table/{table_name}/rows")
+async def get_table_rows(
+    table_name: str,
+    page: int = Query(1, ge=1),
+    per_page: int = Query(50, ge=1, le=10000),  # 전체 보기 지원
+    sort: str = Query(None),
+    order: str = Query("desc"),
+    search: Optional[str] = Query(None),
+    db: Session = Depends(get_db),
+):
+    """테이블별 실제 데이터 조회 (KST 변환 포함)"""
+    from .models.paper import Paper as PaperModel, EmbeddingTask
+    from .models.cron_log import CronLog
+    
+    table_config = {
+        "papers": {
+            "model": PaperModel,
+            "pk": "pmid",
+            "sort_default": "created_at",
+            "search_fields": ["title", "pmid", "journal"],
+            "columns": ["pmid", "title", "journal", "pubdate", "embedding_status", "created_at"],
+        },
+        "embedding_tasks": {
+            "model": EmbeddingTask,
+            "pk": "id",
+            "sort_default": "created_at",
+            "search_fields": ["pmid"],
+            "columns": ["id", "pmid", "text_type", "status", "created_at"],
+        },
+        "cron_logs": {
+            "model": CronLog,
+            "pk": "id",
+            "sort_default": "run_at",
+            "search_fields": ["keyword"],
+            "columns": ["id", "keyword", "inserted", "skipped", "offset_start", "offset_end", "status", "duration_ms", "run_at"],
+        },
+    }
+    
+    if table_name not in table_config:
+        raise HTTPException(status_code=404, detail=f"테이블 없음: {table_name}")
+    
+    config = table_config[table_name]
+    model = config["model"]
+    pk = config["pk"]
+    sort_field = sort or config["sort_default"]
+    
+    query = db.query(model)
+    
+    # 검색
+    if search:
+        search_term = f"%{search}%"
+        conditions = []
+        for field in config["search_fields"]:
+            if hasattr(model, field):
+                conditions.append(getattr(model, field).ilike(search_term))
+        if conditions:
+            from sqlalchemy import or_
+            query = query.filter(or_(*conditions))
+    
+    # 총 개수
+    total = query.count()
+    
+    # 정렬
+    if hasattr(model, sort_field):
+        sort_col = getattr(model, sort_field)
+        if order == "asc":
+            query = query.order_by(sort_col.asc())
+        else:
+            query = query.order_by(sort_col.desc())
+    
+    # 페이지네이션
+    rows = query.offset((page - 1) * per_page).limit(per_page).all()
+    
+    # 결과 변환 (KST 적용)
+    def row_to_dict(row):
+        result = {}
+        for col in config["columns"]:
+            val = getattr(row, col, None)
+            if col in ["created_at", "run_at"] and val:
+                result[col] = val.isoformat() if val else None
+                result[f"{col}_kst"] = to_kst(val)
+            elif isinstance(val, list):
+                result[col] = val
+            else:
+                result[col] = str(val) if val is not None else None
+        return result
+    
+    return {
+        "table": table_name,
+        "rows": [row_to_dict(r) for r in rows],
+        "total": total,
+        "page": page,
+        "per_page": per_page,
+        "total_pages": (total + per_page - 1) // per_page if total > 0 else 0,
+        "columns": config["columns"],
+    }
+
+
+class PartialDeleteRequest(BaseModel):
+    condition_type: str  # date_before, date_after, status, keyword
+    condition_value: str
+    confirm: str
+
+
+@app.post("/api/db/table/{table_name}/preview-delete")
+async def preview_delete(
+    table_name: str,
+    condition_type: str = Query(...),
+    condition_value: str = Query(...),
+    db: Session = Depends(get_db),
+):
+    """조건부 삭제 미리보기 (영향받는 row 수)"""
+    from .models.paper import Paper as PaperModel, EmbeddingTask
+    from .models.cron_log import CronLog
+    from datetime import datetime
+    
+    table_map = {
+        "papers": PaperModel,
+        "embedding_tasks": EmbeddingTask,
+        "cron_logs": CronLog,
+    }
+    
+    if table_name not in table_map:
+        raise HTTPException(status_code=404, detail=f"테이블 없음: {table_name}")
+    
+    model = table_map[table_name]
+    query = db.query(model)
+    
+    # 조건 적용
+    try:
+        if condition_type == "date_before":
+            date = datetime.fromisoformat(condition_value)
+            if hasattr(model, 'created_at'):
+                query = query.filter(model.created_at < date)
+            elif hasattr(model, 'run_at'):
+                query = query.filter(model.run_at < date)
+        elif condition_type == "date_after":
+            date = datetime.fromisoformat(condition_value)
+            if hasattr(model, 'created_at'):
+                query = query.filter(model.created_at > date)
+            elif hasattr(model, 'run_at'):
+                query = query.filter(model.run_at > date)
+        elif condition_type == "status":
+            if hasattr(model, 'status'):
+                query = query.filter(model.status == condition_value)
+            elif hasattr(model, 'embedding_status'):
+                query = query.filter(model.embedding_status == condition_value)
+        elif condition_type == "keyword":
+            if hasattr(model, 'title'):
+                query = query.filter(model.title.ilike(f"%{condition_value}%"))
+            elif hasattr(model, 'keyword'):
+                query = query.filter(model.keyword.ilike(f"%{condition_value}%"))
+        else:
+            raise HTTPException(status_code=400, detail=f"지원하지 않는 조건: {condition_type}")
+    except Exception as e:
+        raise HTTPException(status_code=400, detail=f"조건 파싱 오류: {str(e)}")
+    
+    affected = query.count()
+    
+    return {
+        "table": table_name,
+        "condition_type": condition_type,
+        "condition_value": condition_value,
+        "affected_rows": affected,
+    }
+
+
+@app.delete("/api/db/table/{table_name}/partial")
+async def partial_delete(
+    table_name: str,
+    request: PartialDeleteRequest,
+    db: Session = Depends(get_db),
+):
+    """조건부 삭제 실행"""
+    from .models.paper import Paper as PaperModel, EmbeddingTask
+    from .models.cron_log import CronLog
+    from datetime import datetime
+    import time
+    
+    if request.confirm != "DELETE":
+        raise HTTPException(status_code=400, detail="확인 필요: 'DELETE' 입력")
+    
+    table_map = {
+        "papers": PaperModel,
+        "embedding_tasks": EmbeddingTask,
+        "cron_logs": CronLog,
+    }
+    
+    if table_name not in table_map:
+        raise HTTPException(status_code=404, detail=f"테이블 없음: {table_name}")
+    
+    model = table_map[table_name]
+    query = db.query(model)
+    
+    start_time = time.time()
+    
+    # 조건 적용
+    try:
+        if request.condition_type == "date_before":
+            date = datetime.fromisoformat(request.condition_value)
+            if hasattr(model, 'created_at'):
+                query = query.filter(model.created_at < date)
+            elif hasattr(model, 'run_at'):
+                query = query.filter(model.run_at < date)
+        elif request.condition_type == "date_after":
+            date = datetime.fromisoformat(request.condition_value)
+            if hasattr(model, 'created_at'):
+                query = query.filter(model.created_at > date)
+            elif hasattr(model, 'run_at'):
+                query = query.filter(model.run_at > date)
+        elif request.condition_type == "status":
+            if hasattr(model, 'status'):
+                query = query.filter(model.status == request.condition_value)
+            elif hasattr(model, 'embedding_status'):
+                query = query.filter(model.embedding_status == request.condition_value)
+        elif request.condition_type == "keyword":
+            if hasattr(model, 'title'):
+                query = query.filter(model.title.ilike(f"%{request.condition_value}%"))
+            elif hasattr(model, 'keyword'):
+                query = query.filter(model.keyword.ilike(f"%{request.condition_value}%"))
+        else:
+            raise HTTPException(status_code=400, detail=f"지원하지 않는 조건: {request.condition_type}")
+    except Exception as e:
+        raise HTTPException(status_code=400, detail=f"조건 파싱 오류: {str(e)}")
+    
+    deleted = query.delete(synchronize_session=False)
+    db.commit()
+    
+    duration_ms = int((time.time() - start_time) * 1000)
+    
+    add_log("warning", f"조건부 삭제: {table_name} | {request.condition_type}={request.condition_value} | {deleted} rows | {duration_ms}ms")
+    
+    return {
+        "table": table_name,
+        "deleted": deleted,
+        "condition_type": request.condition_type,
+        "condition_value": request.condition_value,
+        "duration_ms": duration_ms,
+    }
+
+
+@app.delete("/api/db/table/{table_name}/full")
+async def full_delete_table(
+    table_name: str,
+    confirm: str = Query(..., description="'DELETE' 입력 필요"),
+    db: Session = Depends(get_db),
+):
+    """테이블 전체 삭제"""
+    from .models.paper import Paper as PaperModel, EmbeddingTask
+    from .models.cron_log import CronLog
+    import time
+    
+    if confirm != "DELETE":
+        raise HTTPException(status_code=400, detail="확인 필요: 'DELETE' 입력")
+    
+    table_map = {
+        "papers": PaperModel,
+        "embedding_tasks": EmbeddingTask,
+        "cron_logs": CronLog,
+    }
+    
+    if table_name not in table_map:
+        raise HTTPException(status_code=404, detail=f"테이블 없음: {table_name}")
+    
+    model = table_map[table_name]
+    
+    start_time = time.time()
+    count = db.query(model).count()
+    db.query(model).delete()
+    db.commit()
+    duration_ms = int((time.time() - start_time) * 1000)
+    
+    add_log("warning", f"전체 삭제: {table_name} | {count} rows | {duration_ms}ms")
+    
+    return {
+        "table": table_name,
+        "deleted": count,
+        "duration_ms": duration_ms,
+    }

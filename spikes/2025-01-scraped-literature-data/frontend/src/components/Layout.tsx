@@ -1,13 +1,13 @@
 /**
  * OARIA Literature - Premium Layout
  * 
- * Apple/Google급 사이드바 + 헤더 레이아웃
+ * Apple/Google급 사이드바 + 헤더 레이아웃 + 전역 콘솔
  */
 
 import { useState, useEffect, ReactNode } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/router';
-import Console from './Console';
+import GlobalConsole from './GlobalConsole';
 
 interface LayoutProps {
   children: ReactNode;
@@ -37,9 +37,15 @@ export default function Layout({ children, title, subtitle }: LayoutProps) {
 
   const navItems = [
     { href: '/', icon: '🏠', label: 'Dashboard' },
+    { href: '/etl', icon: '🚀', label: 'ETL Worker' },
     { href: '/dashboard', icon: '📊', label: 'Papers' },
     { href: '/evidence', icon: '🔍', label: 'Semantic Search' },
-    { href: '/guide', icon: '📖', label: 'Guide' },
+  ];
+
+  const adminItems = [
+    { href: '/admin/papers', icon: '📄', label: 'Paper Manager' },
+    { href: '/admin/cron', icon: '⏱️', label: 'Cron Logs' },
+    { href: '/admin/db', icon: '🗄️', label: 'DB Tables' },
   ];
 
   return (
@@ -74,6 +80,20 @@ export default function Layout({ children, title, subtitle }: LayoutProps) {
               </Link>
             ))}
           </div>
+
+          <div className="nav-section">
+            {!collapsed && <div className="nav-section-title">Admin</div>}
+            {adminItems.map((item) => (
+              <Link
+                key={item.href}
+                href={item.href}
+                className={`sidebar-link ${router.pathname === item.href ? 'active' : ''}`}
+              >
+                <span className="sidebar-icon">{item.icon}</span>
+                {!collapsed && <span className="sidebar-label">{item.label}</span>}
+              </Link>
+            ))}
+          </div>
         </nav>
 
         <div className="sidebar-footer">
@@ -96,13 +116,14 @@ export default function Layout({ children, title, subtitle }: LayoutProps) {
             {subtitle && <p>{subtitle}</p>}
           </header>
         )}
-        <div className="page-content" style={{ paddingBottom: 80 }}>
+        <div className="page-content" style={{ paddingBottom: 220 }}>
           {children}
         </div>
       </main>
 
-      {/* Console */}
-      <Console />
+      {/* 전역 콘솔 */}
+      <GlobalConsole position="bottom" />
     </div>
   );
 }
+

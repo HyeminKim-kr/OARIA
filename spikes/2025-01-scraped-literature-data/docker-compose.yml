@@ -1,8 +1,22 @@
 version: "3.9"
 
+# =============================================================================
+# OARIA Literature - Docker Compose
+#
+# 이미지 이름 규칙:
+# - backend:  oaria-lit-backend:latest
+# - frontend: oaria-lit-frontend:latest
+#
+# 사용법:
+# - make up      → 시작 (자동 빌드)
+# - make down    → 중지
+# - make restart → 재시작
+# =============================================================================
+
 services:
   backend:
     build: ./backend
+    image: oaria-lit-backend:latest   # 명시적 이미지 태그
     container_name: oaria-lit-backend
     environment:
       MODE: ${MODE:-local}
@@ -26,6 +40,7 @@ services:
 
   frontend:
     build: ./frontend
+    image: oaria-lit-frontend:latest   # 명시적 이미지 태그
     container_name: oaria-lit-frontend
     volumes:
       - ./frontend:/app
