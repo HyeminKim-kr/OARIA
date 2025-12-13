@@ -17,6 +17,7 @@ interface TableInfo {
   description: string;
   latest_update: string | null;
   estimated_size_mb: number;
+  registered: boolean;
 }
 
 interface TableRow {
@@ -24,8 +25,9 @@ interface TableRow {
 }
 
 export default function DBViewer() {
-  // Tables
-  const [tables, setTables] = useState<TableInfo[]>([]);
+  // Tables (등록 + 미등록)
+  const [registeredTables, setRegisteredTables] = useState<TableInfo[]>([]);
+  const [unregisteredTables, setUnregisteredTables] = useState<TableInfo[]>([]);
   const [loading, setLoading] = useState(true);
   
   // Selected Table
@@ -55,7 +57,8 @@ export default function DBViewer() {
       const res = await fetch(`${API_URL}/api/db/tables`);
       if (res.ok) {
         const data = await res.json();
-        setTables(data.tables || []);
+        setRegisteredTables(data.registered_tables || []);
+        setUnregisteredTables(data.unregistered_tables || []);
       }
     } catch (e) {
       console.error('Load tables error:', e);
@@ -114,7 +117,10 @@ export default function DBViewer() {
     return () => clearTimeout(debounce);
   }, [search]);
 
-  const getSelectedTableInfo = () => tables.find(t => t.name === selectedTable);
+  const getSelectedTableInfo = () => [...registeredTables, ...unregisteredTables].find(t => t.name === selectedTable);
+  
+  // 전체 테이블
+  const allTables = [...registeredTables, ...unregisteredTables];
 
   // 테이블 삭제 함수
   const handleDeleteTable = async (tableName: string) => {
@@ -155,7 +161,7 @@ export default function DBViewer() {
     
     setDeleting(true);
     try {
-      for (const table of tables) {
+      for (const table of allTables) {
         await fetch(`${API_URL}/api/db/table/${table.name}/full?confirm=DELETE`, {
           method: 'DELETE',
         });
@@ -199,41 +205,83 @@ export default function DBViewer() {
               Loading...
             </div>
           ) : (
-            <div style={{ padding: 8 }}>
-              {tables.map((table) => (
-                <div
-                  key={table.name}
-                  onClick={() => setSelectedTable(table.name)}
-                  style={{
-                    padding: '12px 14px',
-                    borderRadius: 8,
-                    cursor: 'pointer',
-                    background: selectedTable === table.name ? 'var(--accent-blue)' : 'transparent',
-                    color: selectedTable === table.name ? '#fff' : 'var(--text-primary)',
-                    marginBottom: 4,
-                    transition: 'all 0.15s ease',
-                  }}
-                >
-                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                    <span style={{ fontWeight: 500 }}>🗂️ {table.name}</span>
-                    <span style={{
-                      fontSize: 11,
-                      padding: '2px 8px',
-                      borderRadius: 10,
-                      background: selectedTable === table.name ? 'rgba(255,255,255,0.2)' : 'var(--bg-tertiary)',
-                    }}>
-                      {table.count.toLocaleString()}
-                    </span>
-                  </div>
-                  <div style={{
-                    fontSize: 11,
-                    marginTop: 4,
-                    opacity: 0.7,
-                  }}>
-                    {table.description}
-                  </div>
+            <div style={{ padding: 8, maxHeight: 'calc(100vh - 400px)', overflowY: 'auto' }}>
+              {/* 등록된 테이블 */}
+              <div style={{ marginBottom: 12 }}>
+                <div style={{ fontSize: 10, color: 'var(--text-muted)', marginBottom: 6, padding: '0 8px', fontWeight: 600 }}>
+                  ✅ REGISTERED ({registeredTables.length})
                 </div>
-              ))}
+                {registeredTables.map((table) => (
+                  <div
+                    key={table.name}
+                    onClick={() => setSelectedTable(table.name)}
+                    style={{
+                      padding: '12px 14px',
+                      borderRadius: 8,
+                      cursor: 'pointer',
+                      background: selectedTable === table.name ? 'var(--accent-blue)' : 'transparent',
+                      color: selectedTable === table.name ? '#fff' : 'var(--text-primary)',
+                      marginBottom: 4,
+                      transition: 'all 0.15s ease',
+                    }}
+                  >
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                      <span style={{ fontWeight: 500 }}>🗂️ {table.name}</span>
+                      <span style={{
+                        fontSize: 11,
+                        padding: '2px 8px',
+                        borderRadius: 10,
+                        background: selectedTable === table.name ? 'rgba(255,255,255,0.2)' : 'var(--bg-tertiary)',
+                      }}>
+                        {table.count.toLocaleString()}
+                      </span>
+                    </div>
+                    <div style={{ fontSize: 11, marginTop: 4, opacity: 0.7 }}>
+                      {table.description}
+                    </div>
+                  </div>
+                ))}
+              </div>
+              
+              {/* 미등록 테이블 */}
+              {unregisteredTables.length > 0 && (
+                <div>
+                  <div style={{ fontSize: 10, color: 'var(--accent-yellow)', marginBottom: 6, padding: '0 8px', fontWeight: 600 }}>
+                    ⚠️ UNREGISTERED ({unregisteredTables.length})
+                  </div>
+                  {unregisteredTables.map((table) => (
+                    <div
+                      key={table.name}
+                      onClick={() => setSelectedTable(table.name)}
+                      style={{
+                        padding: '12px 14px',
+                        borderRadius: 8,
+                        cursor: 'pointer',
+                        background: selectedTable === table.name ? 'rgba(245, 158, 11, 0.3)' : 'transparent',
+                        color: selectedTable === table.name ? '#F59E0B' : 'var(--text-secondary)',
+                        marginBottom: 4,
+                        transition: 'all 0.15s ease',
+                        border: '1px dashed var(--border-primary)',
+                      }}
+                    >
+                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                        <span style={{ fontWeight: 500 }}>📋 {table.name}</span>
+                        <span style={{
+                          fontSize: 11,
+                          padding: '2px 8px',
+                          borderRadius: 10,
+                          background: 'var(--bg-tertiary)',
+                        }}>
+                          {table.count.toLocaleString()}
+                        </span>
+                      </div>
+                      <div style={{ fontSize: 11, marginTop: 4, opacity: 0.6 }}>
+                        {table.description}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
             </div>
           )}
           

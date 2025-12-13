@@ -1163,36 +1163,87 @@ async def run_cron_manually(
 
 @app.get("/api/db/tables")
 async def get_db_tables(db: Session = Depends(get_db)):
-    """모든 테이블 목록 및 row 수 (엔터프라이즈)"""
+    """모든 테이블 목록 및 row 수 (모델 등록 + 미등록 포함)"""
     from .models.paper import Paper as PaperModel, EmbeddingTask
     from .models.cron_log import CronLog
+    from sqlalchemy import inspect, text
     from datetime import datetime
     
-    def get_table_info(model, name: str, description: str, pk_field: str = "id"):
-        count = db.query(func.count(getattr(model, pk_field))).scalar()
-        
-        # 최신 업데이트 시간
-        latest = None
-        if hasattr(model, 'created_at'):
-            latest_row = db.query(model.created_at).order_by(model.created_at.desc()).first()
-            if latest_row:
-                latest = latest_row[0].isoformat() if latest_row[0] else None
-        
-        return {
-            "name": name,
-            "count": count,
-            "description": description,
-            "latest_update": latest,
-            "estimated_size_mb": round(count * 0.002, 2),  # 대략적 추정
-        }
+    # 등록된 모델 정보
+    registered_models = {
+        "papers": {"model": PaperModel, "pk": "pmid", "description": "논문 메타데이터 및 임베딩"},
+        "embedding_tasks": {"model": EmbeddingTask, "pk": "id", "description": "임베딩 작업 대기열"},
+        "cron_logs": {"model": CronLog, "pk": "id", "description": "ETL 크론 실행 기록"},
+    }
     
-    tables = [
-        get_table_info(PaperModel, "papers", "논문 메타데이터 및 임베딩", "pmid"),
-        get_table_info(EmbeddingTask, "embedding_tasks", "임베딩 작업 대기열", "id"),
-        get_table_info(CronLog, "cron_logs", "ETL 크론 실행 기록", "id"),
-    ]
+    def get_model_table_info(model, name: str, description: str, pk_field: str):
+        try:
+            count = db.query(func.count(getattr(model, pk_field))).scalar()
+            latest = None
+            if hasattr(model, 'created_at'):
+                latest_row = db.query(model.created_at).order_by(model.created_at.desc()).first()
+                if latest_row:
+                    latest = latest_row[0].isoformat() if latest_row[0] else None
+            
+            return {
+                "name": name,
+                "count": count,
+                "description": description,
+                "latest_update": latest,
+                "estimated_size_mb": round(count * 0.002, 2),
+                "registered": True,
+            }
+        except Exception:
+            # 테이블이 DB에 없으면 None 반환
+            return None
     
-    return {"tables": tables, "total_tables": len(tables)}
+    def get_raw_table_info(table_name: str, description: str = "미등록 테이블"):
+        """테이블 정보 조회 (raw SQL)"""
+        try:
+            count_result = db.execute(text(f"SELECT COUNT(*) FROM {table_name}")).scalar()
+            return {
+                "name": table_name,
+                "count": count_result,
+                "description": description,
+                "latest_update": None,
+                "estimated_size_mb": round(count_result * 0.001, 2),
+                "registered": False,
+            }
+        except Exception:
+            return None
+    
+    # DB에 실제 존재하는 테이블 목록 먼저 조회
+    inspector = inspect(db.get_bind())
+    all_db_tables = set(inspector.get_table_names())
+    
+    # 1. 등록된 모델 테이블 (실제 DB에 존재하는 것만)
+    registered_tables = []
+    for name, info in registered_models.items():
+        if name in all_db_tables:
+            table_info = get_model_table_info(
+                info["model"], name, info["description"], info["pk"]
+            )
+            if table_info:
+                registered_tables.append(table_info)
+    
+    # 2. 미등록 테이블 (등록된 모델 이외의 테이블)
+    registered_names = set(registered_models.keys())
+    unregistered_names = all_db_tables - registered_names
+    
+    # 3. 미등록 테이블 정보 수집
+    unregistered_tables = []
+    for table_name in sorted(unregistered_names):
+        if table_name.startswith("alembic") or table_name.startswith("_"):
+            continue  # 마이그레이션/시스템 테이블 제외
+        info = get_raw_table_info(table_name)
+        if info:
+            unregistered_tables.append(info)
+    
+    return {
+        "registered_tables": registered_tables,
+        "unregistered_tables": unregistered_tables,
+        "total_tables": len(registered_tables) + len(unregistered_tables),
+    }
 
 
 @app.get("/api/db/table/{table_name}")
@@ -1281,8 +1332,55 @@ async def get_table_rows(
         },
     }
     
-    if table_name not in table_config:
-        raise HTTPException(status_code=404, detail=f"테이블 없음: {table_name}")
+    from sqlalchemy import inspect, text
+    inspector = inspect(db.get_bind())
+    all_db_tables = set(inspector.get_table_names())
+    
+    # 미등록 테이블이거나, 등록 테이블이지만 DB에 존재하지 않으면 raw SQL 사용
+    if table_name not in table_config or table_name not in all_db_tables:
+        
+        try:
+            if table_name not in all_db_tables:
+                raise HTTPException(status_code=404, detail=f"테이블 없음: {table_name}")
+            
+            # 컬럼 정보 가져오기
+            columns_info = inspector.get_columns(table_name)
+            columns = [col['name'] for col in columns_info]
+            
+            # 총 개수
+            total_result = db.execute(text(f"SELECT COUNT(*) FROM {table_name}")).scalar()
+            
+            # 데이터 조회 (페이지네이션)
+            offset = (page - 1) * per_page
+            rows_result = db.execute(text(
+                f"SELECT * FROM {table_name} LIMIT {per_page} OFFSET {offset}"
+            ))
+            
+            rows_data = []
+            for row in rows_result:
+                row_dict = {}
+                for i, col in enumerate(columns):
+                    val = row[i]
+                    if hasattr(val, 'isoformat'):
+                        row_dict[col] = val.isoformat()
+                    else:
+                        row_dict[col] = str(val) if val is not None else None
+                rows_data.append(row_dict)
+            
+            return {
+                "table": table_name,
+                "rows": rows_data,
+                "total": total_result,
+                "page": page,
+                "per_page": per_page,
+                "total_pages": (total_result + per_page - 1) // per_page,
+                "columns": columns,
+                "registered": False,
+            }
+        except HTTPException:
+            raise
+        except Exception as e:
+            raise HTTPException(status_code=500, detail=f"테이블 조회 오류: {str(e)}")
     
     config = table_config[table_name]
     model = config["model"]
