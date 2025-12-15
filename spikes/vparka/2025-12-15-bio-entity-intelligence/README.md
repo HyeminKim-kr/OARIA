@@ -60,7 +60,7 @@ cp .env.example .env
 |------|--------|------|
 | `FAST_DEBUG` | `0` | `1`로 설정 시 빠른 디버그 모드 |
 | `OUTPUT_DIR` | `./cancer-ner-pubmedbert` | 체크포인트 저장 경로 |
-| `HF_HUB_MODEL_ID` | `vparka/cancer-ner-pubmedbert` | HuggingFace Hub 모델 ID |
+| `HF_HUB_MODEL_ID` | `user/cancer-ner-pubmedbert` | HuggingFace Hub 모델 ID |
 | `HF_HUB_PRIVATE` | `true` | Hub 저장소 비공개 여부 |
 | `SEED` | `42` | 랜덤 시드 |
 
@@ -92,7 +92,7 @@ cp .env.example .env
 ```python
 from transformers import pipeline
 
-ner = pipeline("ner", model="vparka/cancer-ner-pubmedbert", aggregation_strategy="simple")
+ner = pipeline("ner", model="user/cancer-ner-pubmedbert", aggregation_strategy="simple")
 
 text = "EGFR mutation is common in lung cancer treated with cisplatin."
 for r in ner(text):

@@ -49,7 +49,7 @@ FAST_DEBUG = os.getenv("FAST_DEBUG", "0") == "1"
 
 MODEL_NAME = "microsoft/BiomedNLP-PubMedBERT-base-uncased-abstract"
 OUTPUT_DIR = os.getenv("BC5CDR_OUTPUT_DIR", "./runs/cancer-ner-pubmedbert")
-HF_HUB_MODEL_ID = os.getenv("BC5CDR_HUB_MODEL_ID", "vparka/cancer-ner-pubmedbert")
+HF_HUB_MODEL_ID = os.getenv("BC5CDR_HUB_MODEL_ID", "user/cancer-ner-pubmedbert")
 HF_HUB_PRIVATE = os.getenv("HF_HUB_PRIVATE", "true").lower() == "true"
 SEED = int(os.getenv("SEED", "42"))
 
