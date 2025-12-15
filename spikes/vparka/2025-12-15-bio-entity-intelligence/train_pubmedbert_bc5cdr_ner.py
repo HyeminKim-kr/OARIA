@@ -42,26 +42,15 @@ def assert_datasets_version():
 
 assert_datasets_version()
 
-# ---------------------------
+# ------------------------------------------------------------
 # 1. Env / Config
-# ---------------------------
+# ------------------------------------------------------------
 FAST_DEBUG = os.getenv("FAST_DEBUG", "0") == "1"
 
 MODEL_NAME = "microsoft/BiomedNLP-PubMedBERT-base-uncased-abstract"
-OUTPUT_DIR = os.getenv(
-    "OUTPUT_DIR",
-    "./cancer-ner-pubmedbert"
-)
-HF_HUB_MODEL_ID = os.getenv(
-    "HF_HUB_MODEL_ID",
-    "vparka/cancer-ner-pubmedbert"
-)
-
-HF_HUB_PRIVATE = os.getenv(
-    "HF_HUB_PRIVATE",
-    "true"
-).lower() == "true"
-
+OUTPUT_DIR = os.getenv("BC5CDR_OUTPUT_DIR", "./runs/cancer-ner-pubmedbert")
+HF_HUB_MODEL_ID = os.getenv("BC5CDR_HUB_MODEL_ID", "vparka/cancer-ner-pubmedbert")
+HF_HUB_PRIVATE = os.getenv("HF_HUB_PRIVATE", "true").lower() == "true"
 SEED = int(os.getenv("SEED", "42"))
 
 if FAST_DEBUG:
@@ -210,9 +199,7 @@ if FAST_DEBUG:
         report_to="none",
 
         # 🔑 Hub 설정
-        push_to_hub=not FAST_DEBUG,
-        hub_model_id=HF_HUB_MODEL_ID,
-        hub_private_repo=HF_HUB_PRIVATE,
+        push_to_hub=False,
     )
 else:
     training_args = TrainingArguments(
@@ -271,14 +258,12 @@ trainer.train()
 # ---------------------------
 # Hugging Face Hub Push
 # ---------------------------
-trainer.push_to_hub(HF_HUB_MODEL_ID)
-tokenizer.push_to_hub(HF_HUB_MODEL_ID)
-
 if not FAST_DEBUG:
     trainer.push_to_hub(HF_HUB_MODEL_ID, private=HF_HUB_PRIVATE)
     tokenizer.push_to_hub(HF_HUB_MODEL_ID)
-
-print("📦 Model pushed to Hugging Face Hub")
+    print("📦 Model pushed to Hugging Face Hub")
+else:
+    print("⚡ FAST_DEBUG: skip Hugging Face Hub push")
 # ---------------------------🔼
 
 print("📊 Final Evaluation:")

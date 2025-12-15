@@ -48,8 +48,8 @@ assert_datasets_version()
 FAST_DEBUG = os.getenv("FAST_DEBUG", "0") == "1"
 
 MODEL_NAME = "microsoft/BiomedNLP-PubMedBERT-base-uncased-abstract"
-OUTPUT_DIR = os.getenv("OUTPUT_DIR", "./pubmedbert-multiner")
-HF_HUB_MODEL_ID = os.getenv("HF_HUB_MODEL_ID", "vparka/pubmedbert-multiner")
+OUTPUT_DIR = os.getenv("MULTINER_OUTPUT_DIR", "./runs/pubmedbert-multiner")
+HF_HUB_MODEL_ID = os.getenv("MULTINER_HUB_MODEL_ID", "vparka/pubmedbert-multiner")
 HF_HUB_PRIVATE = os.getenv("HF_HUB_PRIVATE", "true").lower() == "true"
 SEED = int(os.getenv("SEED", "42"))
 
@@ -364,11 +364,11 @@ trainer.train()
 # Hugging Face Hub Push
 # ---------------------------
 if not FAST_DEBUG:
-    trainer.push_to_hub(HF_HUB_MODEL_ID)
+    trainer.push_to_hub(HF_HUB_MODEL_ID, private=HF_HUB_PRIVATE)
     tokenizer.push_to_hub(HF_HUB_MODEL_ID)
     print("📦 Model pushed to Hugging Face Hub")
 else:
-    print("⚡ FAST_DEBUG: Hub push skipped")
+    print("⚡ FAST_DEBUG: skip Hugging Face Hub push")
 # ---------------------------🔼
 
 print("📊 Final Evaluation:")
