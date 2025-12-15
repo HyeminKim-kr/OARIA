@@ -146,6 +146,19 @@ Apple Developer Console × Google Cloud Logs 감성의
 
 ---
 
+### **embedding_tasks**
+
+| field | type | description |
+|-------|------|-------------|
+| id | bigint | PK |
+| pmid | varchar | PubMed UID |
+| status | varchar | pending/processing/done/error |
+| error_message | text | 에러 메시지 |
+| created_at | timestamptz | 생성 시각 |
+| processed_at | timestamptz | 처리 완료 시각 |
+
+---
+
 ### **cron_logs**
 
 | field | type | description |
@@ -160,6 +173,194 @@ Apple Developer Console × Google Cloud Logs 감성의
 | pmid_range_start | varchar | PMID 범위 시작 |
 | pmid_range_end | varchar | PMID 범위 끝 |
 | run_at | timestamptz | 실행 시간(UTC) |
+
+---
+
+## 🔬 Vector Database (Qdrant)
+
+### Collection Structure
+
+**Collection Name**: `papers`  
+**Vector Dimension**: 768 (PubMedBERT embeddings)  
+**Distance Metric**: Cosine  
+**Current Status**: 369 papers indexed
+
+### Vector Configuration
+
+```json
+{
+  "vectors": {
+    "size": 768,
+    "distance": "Cosine"
+  },
+  "shard_number": 1,
+  "replication_factor": 1,
+  "on_disk_payload": true
+}
+```
+
+### Payload Schema
+
+Each vector point contains:
+
+| field | type | description |
+|-------|------|-------------|
+| pmid | string | PubMed Unique ID |
+| title | string | 논문 제목 |
+| abstract | string | 초록 (최대 500자) |
+| authors | array | 저자 목록 (최대 5명) |
+| journal | string | 학술지명 |
+| pubdate | string | 출판일 |
+
+### Embedding Model
+
+**Model**: `pritamdeka/S-PubMedBERT-MS-MARCO`  
+**Type**: Biomedical domain-specialized BERT  
+**Dimension**: 768  
+**Batch Size**: 64  
+**Device**: CPU (Docker 환경 최적화)
+
+> 💡 **Alternative Model**: `all-MiniLM-L6-v2` (384 dims, faster)  
+> ⚠️ 모델 변경 시 Qdrant 컬렉션 재생성 필요!
+
+### Data Verification Commands
+
+```bash
+# Qdrant 컨테이너 접속
+docker exec -it oaria-lit-qdrant /bin/bash
+
+# 컬렉션 목록 조회
+curl http://localhost:6333/collections
+
+# papers 컬렉션 상세 정보
+curl http://localhost:6333/collections/papers
+
+# 첫 10개 벡터 데이터 조회 (payload + vector 포함)
+curl -X POST http://localhost:6333/collections/papers/points/scroll \
+  -H "Content-Type: application/json" \
+  -d '{
+    "limit": 10,
+    "with_payload": true,
+    "with_vector": true
+  }'
+
+# 특정 PMID 검색 (예: PMID 12345678)
+curl -X POST http://localhost:6333/collections/papers/points \
+  -H "Content-Type: application/json" \
+  -d '{
+    "ids": [12345678]
+  }'
+```
+
+### Embedding Processing Flow
+
+```mermaid
+graph LR
+    A[Papers Table] -->|PMID| B[Embedding Tasks]
+    B -->|Pending| C[Embedding Worker]
+    C -->|PubMedBERT| D[768-dim Vector]
+    D -->|Upsert| E[Qdrant]
+    E -->|Update Status| B
+    E -->|Update Status| A
+```
+
+**Processing States**:
+
+- `pending`: 임베딩 대기 중
+- `processing`: 임베딩 생성 중
+- `done`: Qdrant에 저장 완료
+- `error`: 처리 실패
+
+---
+
+### 🧠 RAG Search Result Comparison View
+
+**Frontend Page**: `/rag-compare`  
+**Purpose**: Query → Top-K 검색 결과 비교 및 검증
+
+#### Features
+
+##### 1. Natural Language Query
+
+- 자연어 쿼리 입력 (예: "CRISPR gene therapy mechanisms")
+- Top-K 설정 (3, 5, 10, 20)
+- Enter 키 또는 버튼으로 검색
+
+##### 2. Top-K Results Table
+
+- Rank: 순위 (#1, #2, ...)
+- Score: 유사도 점수 (0.0 ~ 1.0)
+  - ≥ 0.85: 초록색 (매우 유사)
+  - ≥ 0.70: 파란색 (유사)
+  - ≥ 0.50: 주황색 (보통)
+  - < 0.50: 회색 (낮음)
+- PMID: PubMed ID
+- Title: 논문 제목
+
+##### 3. Detail View Panel
+
+클릭 시 우측에 상세 정보 표시:
+
+- **Similarity Score**: 점수 + 진행바 시각화
+- **Title**: 논문 제목
+- **Abstract**: 초록 전문
+- **Vector Preview**: 첫 8개 차원 미리보기
+- **Full Payload**: JSON 형식 메타데이터
+
+#### API Endpoint
+
+```http
+POST /api/rag/search
+Content-Type: application/json
+
+{
+  "query": "CRISPR gene editing mechanisms",
+  "limit": 5
+}
+```
+
+**Response**:
+
+```json
+{
+  "query": "CRISPR gene editing mechanisms",
+  "results": [
+    {
+      "id": "12345678",
+      "score": 0.8923,
+      "payload": {
+        "title": "...",
+        "abstract": "...",
+        "pmid": "12345678",
+        "journal": "Nature",
+        "pubdate": "2024-01-15",
+        "authors": ["Smith J", "Doe A"]
+      },
+      "vector": [0.123, -0.456, ...] // 첫 20개 차원
+    }
+  ],
+  "total": 5,
+  "embedding_dimension": 768
+}
+```
+
+#### Processing Flow
+
+```mermaid
+graph LR
+    A[User Query] -->|Encode| B[PubMedBERT]
+    B -->|768-dim Vector| C[Qdrant Search]
+    C -->|Top-K Results| D[Score + Payload]
+    D -->|Enrich| E[DB Lookup]
+    E -->|Full Data| F[Frontend Display]
+```
+
+#### Use Cases
+
+- **Semantic Search Validation**: 검색 품질 확인
+- **Embedding Quality Check**: 벡터 유사도 검증
+- **Result Comparison**: 여러 결과 비교 분석
+- **RAG Pipeline Testing**: RAG 시스템 테스트
 
 ---
 
@@ -306,6 +507,19 @@ make dev-frontend
 
 ---
 
+### Embedding & Vector Search
+
+| Method | Endpoint | Description |
+|--------|----------|-------------|
+| GET | `/api/embedding/status` | 임베딩 작업 상태 조회 |
+| POST | `/api/embedding/process` | 수동 임베딩 처리 |
+| GET | `/api/embedding/sync-status` | DB-Qdrant 동기화 상태 |
+| POST | `/api/embedding/sync` | 동기화 실행 |
+| POST | `/api/rag/search` | 의미 검색 (RAG) |
+| GET | `/api/qdrant/count` | Qdrant 벡터 개수 |
+
+---
+
 ## 🎨 Development Conventions
 
 ### Git Commit Convention
@@ -385,4 +599,31 @@ Types: `feat`, `fix`, `docs`, `style`, `refactor`, `test`, `chore`
 
 ---
 
-**마지막 업데이트**: **2025-12-12**
+---
+
+## 📊 Current Data Status
+
+### Database (PostgreSQL)
+
+- **Papers**: 369 papers stored
+- **Embedding Tasks**: Processing queue managed
+- **Cron Logs**: ETL execution history
+
+### Vector Database (Qdrant)
+
+- **Collection**: papers
+- **Indexed Vectors**: 369 papers
+- **Vector Dimension**: 768 (PubMedBERT)
+- **Distance Metric**: Cosine similarity
+- **Status**: ✅ Operational
+
+### Embedding Configuration
+
+- **Model**: pritamdeka/S-PubMedBERT-MS-MARCO
+- **Dimension**: 768
+- **Batch Size**: 64
+- **Processing**: Async background worker
+
+---
+
+**마지막 업데이트**: **2025-12-15**

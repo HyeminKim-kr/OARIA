@@ -46,9 +46,13 @@ class Settings(BaseSettings):
     ncbi_api_key: str = ""
     pubmed_rate_limit: float = 3.0  # requests per second
     
-    # Embedding
+    # Embedding (configurable via EMBEDDING_MODEL and EMBEDDING_DIMENSION)
+    # Options: 
+    #   - "all-MiniLM-L6-v2" (384 dims, fast, general purpose)
+    #   - "pritamdeka/S-PubMedBert-MS-MARCO" (768 dims, slower, biomedical specialized)
     embedding_model: str = "pritamdeka/S-PubMedBert-MS-MARCO"
     embedding_dimension: int = 768
+    embedding_batch_size: int = 64
     
     class Config:
         env_file = ".env"

@@ -1,5 +1,5 @@
 """
-OARIA Literature - Qdrant 클라이언트
+OARIA Literature - Qdrant 클라이언트 (Admin 확장 버전)
 
 Qdrant 벡터 데이터베이스와 상호작용하는 클라이언트입니다.
 
@@ -8,13 +8,23 @@ Qdrant 벡터 데이터베이스와 상호작용하는 클라이언트입니다.
 - 벡터 업서트 (upsert)
 - 의미 검색 (semantic search)
 
+역할:
+- Qdrant Vector DB 단일 진입점 (SINGLE SOURCE OF TRUTH)
+- ETL / RAG / Admin Viewer 공용
+
 설계 이유:
 - Qdrant는 고성능 벡터 검색에 최적화
 - 768차원 PubMedBERT 임베딩 지원
 - 필터링과 페이로드 저장 지원
+
+추가된 Admin 기능:
+- 전체 벡터 Scroll 조회
+- 단일 벡터 상세 조회
+- 컬렉션 초기화 (RESET)
 """
 
-from typing import Optional
+from typing import Optional, Any, List, Tuple
+from datetime import datetime
 from qdrant_client import QdrantClient
 from qdrant_client.http import models
 from qdrant_client.http.exceptions import UnexpectedResponse
@@ -27,6 +37,11 @@ class OariaQdrantClient:
     Qdrant 벡터 DB 클라이언트
     
     PubMedBERT 임베딩을 저장하고 검색합니다.
+
+    주요 기능:
+    - PubMedBERT (768 dim) 임베딩 저장
+    - Semantic Search
+    - Admin / Viewer 지원
     """
     
     def __init__(self, url: str = None, collection: str = None):
@@ -36,7 +51,10 @@ class OariaQdrantClient:
         
         self._client: Optional[QdrantClient] = None
         self._initialized = False
-    
+
+    # ------------------------------------------------------------------
+    # Core
+    # ------------------------------------------------------------------
     def _get_client(self) -> QdrantClient:
         """Qdrant 클라이언트 반환"""
         if self._client is None:
@@ -72,6 +90,9 @@ class OariaQdrantClient:
         
         self._initialized = True
     
+    # ------------------------------------------------------------------
+    # Upsert
+    # ------------------------------------------------------------------
     def upsert(
         self,
         pmid: str,
@@ -82,12 +103,7 @@ class OariaQdrantClient:
         self.ensure_collection()
         client = self._get_client()
         
-        # PMID를 정수 ID로 변환 (Qdrant는 숫자 ID 권장)
-        point_id = int(pmid)
-        
-        # 페이로드 준비
-        if payload is None:
-            payload = {}
+        payload = payload or {}
         payload["pmid"] = pmid
         
         # 업서트
@@ -95,7 +111,7 @@ class OariaQdrantClient:
             collection_name=self.collection,
             points=[
                 models.PointStruct(
-                    id=point_id,
+                    id=int(pmid),
                     vector=embedding,
                     payload=payload,
                 )
@@ -116,15 +132,12 @@ class OariaQdrantClient:
         
         points = []
         for item in items:
-            pmid = item["pmid"]
-            point_id = int(pmid)
-            
             payload = item.get("payload", {})
-            payload["pmid"] = pmid
+            payload["pmid"] = item["pmid"]
             
             points.append(
                 models.PointStruct(
-                    id=point_id,
+                    id=int(item["pmid"]),
                     vector=item["embedding"],
                     payload=payload,
                 )
@@ -136,6 +149,9 @@ class OariaQdrantClient:
                 points=points,
             )
     
+    # ------------------------------------------------------------------
+    # Semantic Search (RAG)
+    # ------------------------------------------------------------------
     def search(
         self,
         query_embedding: list[float],
@@ -158,33 +174,100 @@ class OariaQdrantClient:
                 query=query_embedding,
                 limit=limit,
                 score_threshold=score_threshold,
-            )
-            
-            return [
-                {
-                    "pmid": str(hit.id),
-                    "score": hit.score,
-                    "payload": hit.payload,
-                }
-                for hit in results.points
-            ]
+            ).points
         except AttributeError:
-            # 구 버전 qdrant-client 호환
             results = client.search(
                 collection_name=self.collection,
                 query_vector=query_embedding,
                 limit=limit,
                 score_threshold=score_threshold,
             )
-            
-            return [
+
+        return [
+            {
+                "pmid": str(hit.id),
+                "score": hit.score,
+                "payload": hit.payload,
+            }
+            for hit in results
+        ]
+    
+    # ------------------------------------------------------------------
+    # Admin / Viewer 기능
+    # ------------------------------------------------------------------
+    def scroll(
+        self,
+        limit: int = 10,
+        offset: Optional[Any] = None,
+        with_payload: bool = True,
+        with_vector: bool = False,
+    ) -> Tuple[List[dict], Optional[Any]]:
+        """
+        전체 벡터 DB Scroll 조회 (Admin Viewer 용)
+        """
+        self.ensure_collection()
+        client = self._get_client()
+
+        points, next_offset = client.scroll(
+            collection_name=self.collection,
+            limit=limit,
+            offset=offset,
+            with_payload=with_payload,
+            with_vectors=with_vector,
+        )
+
+        return (
+            [
                 {
-                    "pmid": str(hit.id),
-                    "score": hit.score,
-                    "payload": hit.payload,
+                    "id": str(p.id),
+                    "payload": p.payload,
+                    "vector": p.vector if with_vector else None,
                 }
-                for hit in results
-            ]
+                for p in points
+            ],
+            next_offset,
+        )
+
+    # ------------------------------------------------------------------
+    # Viewer 기능
+    # ------------------------------------------------------------------
+    def get_vector(self, pmid: str) -> Optional[dict]:
+        """
+        단일 벡터 상세 조회 (Expand View)
+        """
+        self.ensure_collection()
+        client = self._get_client()
+
+        result = client.retrieve(
+            collection_name=self.collection,
+            ids=[int(pmid)],
+            with_payload=True,
+            with_vectors=True,
+        )
+
+        if not result:
+            return None
+
+        p = result[0]
+        return {
+            "id": str(p.id),
+            "vector": p.vector,
+            "payload": p.payload,
+        }
+
+    def get_collection_info(self) -> dict:
+        """
+        컬렉션 메타 정보
+        """
+        self.ensure_collection()
+        client = self._get_client()
+
+        info = client.get_collection(self.collection)
+        return {
+            "count": info.points_count,
+            "dimension": info.config.params.vectors.size,
+            "status": info.status,
+        }
     
     def get_count(self) -> int:
         """컬렉션의 포인트 수 반환"""
@@ -204,9 +287,162 @@ class OariaQdrantClient:
             collection_name=self.collection,
             points_selector=models.PointIdsList(points=[point_id]),
         )
+    
+    def exists(self, pmid: str) -> bool:
+        """특정 PMID가 Qdrant에 존재하는지 확인"""
+        self.ensure_collection()
+        client = self._get_client()
+        
+        try:
+            point_id = int(pmid)
+            result = client.retrieve(
+                collection_name=self.collection,
+                ids=[point_id],
+            )
+            return len(result) > 0
+        except Exception:
+            return False
+    
+    def get_all_pmids(self, limit: int = 10000) -> list[str]:
+        """저장된 모든 PMID 목록 반환"""
+        self.ensure_collection()
+        client = self._get_client()
+        
+        try:
+            # Scroll을 사용해 모든 포인트 ID 가져오기
+            pmids = []
+            offset = None
+            
+            while True:
+                results, offset = client.scroll(
+                    collection_name=self.collection,
+                    limit=1000,
+                    offset=offset,
+                    with_payload=False,
+                    with_vectors=False,
+                )
+                
+                pmids.extend([str(p.id) for p in results])
+                
+                if offset is None or len(pmids) >= limit:
+                    break
+            
+            return pmids[:limit]
+        except Exception as e:
+            print(f"⚠️ Failed to get all PMIDs: {e}")
+            return []
+    
+    # ------------------------------------------------------------------
+    # ⚠️ DANGER ZONE
+    # ------------------------------------------------------------------
+    def reset_collection(self):
+        """
+        ⚠️ 컬렉션 완전 초기화 (Admin Only)
+        """
+        client = self._get_client()
+
+        print(f"⚠️ RESET collection '{self.collection}'")
+        client.delete_collection(self.collection)
+
+        self._initialized = False
+        self.ensure_collection()
+
+    # ------------------------------------------------------------------
+    # Backup / Restore
+    # ------------------------------------------------------------------
+    def export_to_json(self, filepath: str) -> int:
+        """모든 벡터를 JSON 파일로 내보내기"""
+        self.ensure_collection()
+        client = self._get_client()
+        
+        try:
+            all_points = []
+            offset = None
+            
+            while True:
+                results, offset = client.scroll(
+                    collection_name=self.collection,
+                    limit=100,
+                    offset=offset,
+                    with_payload=True,
+                    with_vectors=True,
+                )
+                
+                for p in points:
+                    all_points.append({
+                        "id": p.id,
+                        "vector": p.vector,
+                        "payload": p.payload,
+                    })
+
+                if offset is None:
+                    break
+
+            
+            with open(filepath, 'w') as f:
+                import json
+                json.dump(
+                    {
+                        "collection": self.collection,
+                        "vector_size": self.vector_size,
+                        "exported_at": datetime.now().isoformat(),
+                        "points": all_points,
+                    },
+                    f,
+                    indent=2,
+                )
+            
+            print(f"✅ Exported {len(all_points)} vectors to {filepath}")
+            return len(all_points)
+        except Exception as e:
+            print(f"❌ Export failed: {e}")
+            raise
+    
+    def import_from_json(self, filepath: str) -> int:
+        """JSON 파일에서 벡터 가져오기"""
+        import json
+        self.ensure_collection()
+        client = self._get_client()
+        
+        try:
+            with open(filepath, 'r') as f:
+                data = json.load(f)
+            
+            points = data.get("points", [])
+            if not points:
+                return 0
+            
+            # 배치로 업서트
+            batch_size = 100
+            imported = 0
+            
+            for i in range(0, len(points), batch_size):
+                batch = points[i:i+batch_size]
+                qdrant_points = [
+                    models.PointStruct(
+                        id=p["id"],
+                        vector=p["vector"],
+                        payload=p.get("payload", {}),
+                    )
+                    for p in batch
+                ]
+                
+                client.upsert(
+                    collection_name=self.collection,
+                    points=qdrant_points,
+                )
+                imported += len(batch)
+            
+            print(f"✅ Imported {imported} vectors from {filepath}")
+            return imported
+        except Exception as e:
+            print(f"❌ Import failed: {e}")
+            raise
 
 
-# 싱글톤 인스턴스
+# ----------------------------------------------------------------------
+# Singleton
+# ----------------------------------------------------------------------
 _qdrant_instance: Optional[OariaQdrantClient] = None
 
 
@@ -216,3 +452,4 @@ def get_qdrant_client() -> OariaQdrantClient:
     if _qdrant_instance is None:
         _qdrant_instance = OariaQdrantClient()
     return _qdrant_instance
+

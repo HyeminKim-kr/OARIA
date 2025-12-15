@@ -151,6 +151,8 @@ export default function Layout({ children, title, subtitle }: LayoutProps) {
     { href: '/admin/papers', icon: '📄', label: 'Paper Manager' },
     { href: '/admin/cron', icon: '⏱️', label: 'Cron Logs' },
     { href: '/admin/db', icon: '🗄️', label: 'DB Tables' },
+    { href: '/qdrant', icon: '🔷', label: 'Qdrant Viewer' },
+    { href: '/rag-compare', icon: '🧠', label: 'RAG Compare' },
   ];
 
   return (

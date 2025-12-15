@@ -16,6 +16,28 @@ PubMed ETL, 임베딩, 의미 검색 API를 제공합니다.
     uvicorn src.main:app --reload --port 8000
 """
 
+import logging
+
+# =============================================================================
+# 로깅 필터: 폴링 엔드포인트의 노이즈 로그 억제
+# =============================================================================
+class SuppressPollingFilter(logging.Filter):
+    """자주 호출되는 폴링 엔드포인트의 로그를 숨김"""
+    SUPPRESS_PATHS = [
+        "/api/logs",
+        "/api/console/stream",
+    ]
+    
+    def filter(self, record: logging.LogRecord) -> bool:
+        message = record.getMessage()
+        for path in self.SUPPRESS_PATHS:
+            if path in message:
+                return False  # 이 로그 숨김
+        return True  # 다른 로그는 표시
+
+# uvicorn.access 로거에 필터 적용
+logging.getLogger("uvicorn.access").addFilter(SuppressPollingFilter())
+
 from contextlib import asynccontextmanager
 from typing import Optional
 
@@ -23,7 +45,7 @@ from fastapi import FastAPI, HTTPException, Depends, Query
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 from sqlalchemy.orm import Session
-from sqlalchemy import func
+from sqlalchemy import func, text
 
 from .config import settings
 from .db import get_db, init_db
@@ -884,6 +906,122 @@ async def stop_embedding_worker():
     return {"status": "stopped"}
 
 
+@app.get("/api/embedding/sync-status")
+async def get_embedding_sync_status():
+    """DB와 Qdrant 간 동기화 상태 확인"""
+    try:
+        status = embedding_worker.get_sync_status()
+        return status
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.post("/api/embedding/sync")
+async def sync_embeddings():
+    """DB와 Qdrant 불일치 자동 수정 (DONE인데 Qdrant에 없으면 PENDING으로)"""
+    try:
+        result = embedding_worker.sync_with_qdrant()
+        return result
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.post("/api/embedding/reset")
+async def reset_all_embeddings():
+    """모든 임베딩 상태 초기화 (Force Re-embed)"""
+    try:
+        result = embedding_worker.reset_all_embeddings()
+        return result
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.post("/api/embedding/export")
+async def export_embeddings():
+    """현재 Qdrant 벡터를 JSON 파일로 내보내기"""
+    import os
+    from .qdrant_client import get_qdrant_client
+    
+    try:
+        export_dir = "/app/local_storage/embeddings"
+        os.makedirs(export_dir, exist_ok=True)
+        
+        from datetime import datetime
+        filename = f"embeddings_{datetime.now().strftime('%Y%m%d_%H%M%S')}.json"
+        filepath = os.path.join(export_dir, filename)
+        
+        qdrant = get_qdrant_client()
+        count = qdrant.export_to_json(filepath)
+        
+        add_log("success", f"📤 Exported {count} embeddings to {filename}")
+        
+        return {
+            "success": True,
+            "filepath": filepath,
+            "filename": filename,
+            "count": count,
+        }
+    except Exception as e:
+        add_log("error", f"❌ Export failed: {str(e)}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.post("/api/embedding/import")
+async def import_embeddings(filename: str = Query(..., description="파일명 (local_storage/embeddings 내)")):
+    """JSON 파일에서 Qdrant로 벡터 가져오기"""
+    import os
+    from .qdrant_client import get_qdrant_client
+    
+    try:
+        filepath = f"/app/local_storage/embeddings/{filename}"
+        
+        if not os.path.exists(filepath):
+            raise HTTPException(status_code=404, detail=f"File not found: {filename}")
+        
+        qdrant = get_qdrant_client()
+        count = qdrant.import_from_json(filepath)
+        
+        add_log("success", f"📥 Imported {count} embeddings from {filename}")
+        
+        return {
+            "success": True,
+            "filename": filename,
+            "count": count,
+        }
+    except HTTPException:
+        raise
+    except Exception as e:
+        add_log("error", f"❌ Import failed: {str(e)}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.get("/api/embedding/exports")
+async def list_embedding_exports():
+    """내보낸 임베딩 파일 목록"""
+    import os
+    
+    try:
+        export_dir = "/app/local_storage/embeddings"
+        if not os.path.exists(export_dir):
+            return {"files": []}
+        
+        files = []
+        for f in os.listdir(export_dir):
+            if f.endswith(".json"):
+                filepath = os.path.join(export_dir, f)
+                stat = os.stat(filepath)
+                files.append({
+                    "filename": f,
+                    "size_bytes": stat.st_size,
+                    "modified_at": stat.st_mtime,
+                })
+        
+        files.sort(key=lambda x: x["modified_at"], reverse=True)
+        return {"files": files}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
 # =============================================================================
 # Database Management
 # =============================================================================
@@ -1620,3 +1758,384 @@ async def full_delete_table(
         "deleted": count,
         "duration_ms": duration_ms,
     }
+
+
+# =============================================================================
+# Qdrant Vector Browser (벡터 DB 탐색)
+# =============================================================================
+
+@app.get("/api/qdrant/info")
+async def get_qdrant_info():
+    """Qdrant 컬렉션 정보 조회"""
+    try:
+        qdrant = get_qdrant_client()
+        client = qdrant._get_client()
+        
+        # 컬렉션 정보
+        collection_info = client.get_collection(qdrant.collection)
+        
+        return {
+            "collection": qdrant.collection,
+            "url": qdrant.url,
+            "vector_size": qdrant.vector_size,
+            "points_count": collection_info.points_count,
+            "indexed_vectors_count": getattr(collection_info, 'indexed_vectors_count', None),
+            "segments_count": collection_info.segments_count,
+            "status": collection_info.status.name if collection_info.status else "unknown",
+            "config": {
+                "distance": "cosine",
+            }
+        }
+    except Exception as e:
+        return {
+            "collection": None,
+            "error": str(e),
+            "points_count": 0,
+        }
+
+
+@app.get("/api/qdrant/vectors")
+async def browse_qdrant_vectors(
+    page: int = Query(1, ge=1),
+    per_page: int = Query(20, ge=1, le=100),
+    search_pmid: Optional[str] = Query(None, description="특정 PMID 검색"),
+):
+    """
+    Qdrant 벡터 목록 조회 (페이지네이션)
+    
+    벡터 데이터는 크기가 크므로 벡터 자체는 제외하고 메타데이터만 반환합니다.
+    """
+    from .qdrant_client import get_qdrant_client
+    
+    try:
+        qdrant = get_qdrant_client()
+        client = qdrant._get_client()
+        qdrant.ensure_collection()
+        
+        # 특정 PMID 검색
+        if search_pmid:
+            try:
+                point_id = int(search_pmid)
+                results = client.retrieve(
+                    collection_name=qdrant.collection,
+                    ids=[point_id],
+                    with_payload=True,
+                    with_vectors=False,  # 벡터 데이터는 크므로 제외
+                )
+                
+                if results:
+                    point = results[0]
+                    return {
+                        "vectors": [{
+                            "id": point.id,
+                            "pmid": str(point.id),
+                            "payload": point.payload,
+                            "has_vector": True,
+                        }],
+                        "total": 1,
+                        "page": 1,
+                        "per_page": per_page,
+                        "total_pages": 1,
+                        "search_pmid": search_pmid,
+                    }
+                else:
+                    return {
+                        "vectors": [],
+                        "total": 0,
+                        "page": 1,
+                        "per_page": per_page,
+                        "total_pages": 0,
+                        "search_pmid": search_pmid,
+                        "message": f"PMID {search_pmid} not found in Qdrant",
+                    }
+            except ValueError:
+                raise HTTPException(status_code=400, detail="PMID는 숫자여야 합니다")
+        
+        # 전체 카운트
+        collection_info = client.get_collection(qdrant.collection)
+        total = collection_info.points_count
+        
+        if total == 0:
+            return {
+                "vectors": [],
+                "total": 0,
+                "page": 1,
+                "per_page": per_page,
+                "total_pages": 0,
+            }
+        
+        # 페이지네이션 계산
+        total_pages = (total + per_page - 1) // per_page
+        
+        # Scroll로 데이터 가져오기 (offset 기반)
+        # Qdrant scroll은 포인터 기반이므로, 페이지 계산을 위해 여러 번 호출 필요
+        # 성능을 위해 최대 페이지 제한
+        if page > 100:
+            raise HTTPException(status_code=400, detail="페이지는 100 이하만 지원됩니다")
+        
+        offset = None
+        skip_count = (page - 1) * per_page
+        collected = []
+        
+        # Skip할 항목들
+        skipped = 0
+        while skipped < skip_count:
+            batch_size = min(1000, skip_count - skipped)
+            results, offset = client.scroll(
+                collection_name=qdrant.collection,
+                limit=batch_size,
+                offset=offset,
+                with_payload=False,
+                with_vectors=False,
+            )
+            skipped += len(results)
+            if offset is None:
+                break
+        
+        # 실제 필요한 데이터 가져오기
+        if offset is not None or skip_count == 0:
+            results, _ = client.scroll(
+                collection_name=qdrant.collection,
+                limit=per_page,
+                offset=offset if skip_count > 0 else None,
+                with_payload=True,
+                with_vectors=False,
+            )
+            
+            for point in results:
+                collected.append({
+                    "id": point.id,
+                    "pmid": str(point.id),
+                    "payload": point.payload,
+                    "has_vector": True,
+                })
+        
+        return {
+            "vectors": collected,
+            "total": total,
+            "page": page,
+            "per_page": per_page,
+            "total_pages": total_pages,
+        }
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Qdrant 조회 오류: {str(e)}")
+
+
+@app.get("/api/qdrant/vector/{pmid}")
+async def get_qdrant_vector_detail(
+    pmid: str,
+    include_vector: bool = Query(False, description="벡터 데이터 포함 여부"),
+    db: Session = Depends(get_db),
+):
+    """
+    특정 PMID의 Qdrant 벡터 상세 조회
+    
+    DB의 논문 정보와 Qdrant 벡터 정보를 함께 반환합니다.
+    """
+    from .qdrant_client import get_qdrant_client
+    from .models.paper import Paper as PaperModel
+    
+    try:
+        point_id = int(pmid)
+    except ValueError:
+        raise HTTPException(status_code=400, detail="PMID는 숫자여야 합니다")
+    
+    try:
+        qdrant = get_qdrant_client()
+        client = qdrant._get_client()
+        qdrant.ensure_collection()
+        
+        # Qdrant에서 벡터 조회
+        results = client.retrieve(
+            collection_name=qdrant.collection,
+            ids=[point_id],
+            with_payload=True,
+            with_vectors=include_vector,
+        )
+        
+        if not results:
+            raise HTTPException(status_code=404, detail=f"PMID {pmid}가 Qdrant에 없습니다")
+        
+        point = results[0]
+        
+        # DB에서 논문 정보 조회
+        paper = db.query(PaperModel).filter(PaperModel.pmid == pmid).first()
+        
+        paper_info = None
+        if paper:
+            paper_info = {
+                "pmid": paper.pmid,
+                "title": paper.title,
+                "abstract": paper.abstract[:500] + "..." if paper.abstract and len(paper.abstract) > 500 else paper.abstract,
+                "authors": paper.authors,
+                "journal": paper.journal,
+                "pubdate": paper.pubdate,
+                "embedding_status": paper.embedding_status,
+                "created_at": paper.created_at.isoformat() if paper.created_at else None,
+            }
+        
+        # 벡터 정보
+        vector_info = {
+            "id": point.id,
+            "pmid": str(point.id),
+            "payload": point.payload,
+            "has_vector": True,
+        }
+        
+        if include_vector and point.vector:
+            # 벡터가 너무 크면 앞 50개만 표시
+            vector_preview = point.vector[:50] if len(point.vector) > 50 else point.vector
+            vector_info["vector_preview"] = vector_preview
+            vector_info["vector_dimension"] = len(point.vector)
+            vector_info["vector_full"] = point.vector
+        
+        return {
+            "qdrant": vector_info,
+            "paper": paper_info,
+            "sync_status": "synced" if paper and paper.embedding_status == "done" else "mismatch",
+        }
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"벡터 조회 오류: {str(e)}")
+
+
+@app.delete("/api/qdrant/vector/{pmid}")
+async def delete_qdrant_vector(
+    pmid: str,
+    confirm: str = Query(..., description="'DELETE' 입력 필요"),
+):
+    """특정 PMID의 Qdrant 벡터 삭제"""
+    if confirm != "DELETE":
+        raise HTTPException(status_code=400, detail="확인 필요: 'DELETE' 입력")
+    
+    try:
+        point_id = int(pmid)
+    except ValueError:
+        raise HTTPException(status_code=400, detail="PMID는 숫자여야 합니다")
+    
+    try:
+        qdrant = get_qdrant_client()
+        qdrant.delete(pmid)
+        
+        add_log("warning", f"🗑️ Qdrant 벡터 삭제: PMID {pmid}")
+        
+        return {
+            "success": True,
+            "pmid": pmid,
+            "message": f"PMID {pmid} 벡터 삭제 완료",
+        }
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"삭제 오류: {str(e)}")
+
+
+# =============================================================================
+# RAG Semantic Search (의미 기반 검색 비교 뷰용)
+# =============================================================================
+
+class RAGSearchRequest(BaseModel):
+    """RAG 검색 요청"""
+    query: str
+    limit: int = 5
+
+
+@app.post("/api/rag/search")
+async def rag_search(
+    request: RAGSearchRequest,
+    db: Session = Depends(get_db),
+):
+    """
+    RAG 의미 검색 - Query → Embedding → Top-K Similar Documents
+    
+    검색 결과 비교 뷰에서 사용:
+    - 쿼리를 임베딩으로 변환
+    - Qdrant에서 유사 문서 검색
+    - Score, Payload, Vector 미리보기 반환
+    """
+    from .qdrant_client import get_qdrant_client
+    from .embedding_worker import embedding_worker
+    from .models.paper import Paper as PaperModel
+    
+    query = request.query.strip()
+    if not query:
+        raise HTTPException(status_code=400, detail="쿼리가 비어있습니다")
+    
+    limit = min(request.limit, 50)  # 최대 50개 제한
+    
+    try:
+        # 1. 쿼리를 임베딩으로 변환
+        query_embedding = embedding_worker.encode(query)
+        
+        # 2. Qdrant에서 유사 문서 검색
+        qdrant = get_qdrant_client()
+        search_results = qdrant.search(
+            query_embedding=query_embedding,
+            limit=limit,
+            score_threshold=0.0,  # 모든 결과 반환 (점수순 정렬)
+        )
+        
+        # 3. 결과 포맷팅
+        results = []
+        for item in search_results:
+            pmid = item.get("pmid")
+            score = item.get("score", 0)
+            payload = item.get("payload", {})
+            
+            # DB에서 abstract 등 추가 정보 가져오기 (Qdrant payload에 없을 수 있음)
+            paper = db.query(PaperModel).filter(PaperModel.pmid == pmid).first()
+            
+            result = {
+                "id": pmid,
+                "score": score,
+                "payload": {
+                    "title": payload.get("title") or (paper.title if paper else None),
+                    "abstract": payload.get("abstract") or (paper.abstract if paper else None),
+                    "pmid": pmid,
+                    "journal": payload.get("journal") or (paper.journal if paper else None),
+                    "pubdate": payload.get("pubdate") or (paper.pubdate if paper else None),
+                    "authors": payload.get("authors") or (paper.authors if paper else None),
+                },
+                # 벡터 미리보기 (첫 10개 차원)
+                "vector": None,  # retrieve에서 별도로 가져와야 함
+            }
+            
+            results.append(result)
+        
+        # 4. 벡터 미리보기 추가 (옵션)
+        if results:
+            try:
+                client = qdrant._get_client()
+                pmid_list = [int(r["id"]) for r in results]
+                vectors = client.retrieve(
+                    collection_name=qdrant.collection,
+                    ids=pmid_list,
+                    with_vectors=True,
+                    with_payload=False,
+                )
+                
+                vector_map = {str(v.id): v.vector for v in vectors}
+                for r in results:
+                    vec = vector_map.get(r["id"])
+                    if vec:
+                        # 첫 20개 차원만 반환 (미리보기용)
+                        r["vector"] = vec[:20] if len(vec) > 20 else vec
+            except Exception:
+                pass  # 벡터 로드 실패 시 무시
+        
+        add_log("info", f"🔍 RAG Search: '{query[:50]}...' → {len(results)} results")
+        
+        return {
+            "query": query,
+            "results": results,
+            "total": len(results),
+            "embedding_dimension": len(query_embedding),
+        }
+        
+    except Exception as e:
+        add_log("error", f"❌ RAG Search Error: {str(e)}")
+        raise HTTPException(status_code=500, detail=f"검색 오류: {str(e)}")
+

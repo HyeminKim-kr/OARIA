@@ -89,10 +89,10 @@ export default function Dashboard() {
     setProcessing(true);
     setError(null);
     
-    const totalBatches = Math.ceil(embeddingStatus.pending / 10);
+    const totalBatches = Math.ceil(embeddingStatus.pending / 50);
     for (let i = 0; i < totalBatches; i++) {
       try {
-        const res = await fetch(`${API_URL}/api/embedding/process?batch_size=10`, { method: 'POST' });
+        const res = await fetch(`${API_URL}/api/embedding/process?batch_size=50`, { method: 'POST' });
         if (!res.ok) throw new Error('Batch failed');
         await loadEmbeddingStatus();
         await new Promise(r => setTimeout(r, 100));
@@ -152,7 +152,7 @@ export default function Dashboard() {
       </div>
 
       {/* Embedding Controls */}
-      {embeddingStatus && embeddingStatus.total > 0 && (
+      {(totalPapers > 0 || (embeddingStatus && embeddingStatus.total > 0)) && (
         <div className="card" style={{ marginBottom: 24 }}>
           <div className="card-header">
             <div className="card-title">
@@ -161,17 +161,17 @@ export default function Dashboard() {
             <div style={{ display: 'flex', gap: 8 }}>
               <button 
                 className="btn btn-secondary" 
-                onClick={() => processEmbeddings(10)} 
-                disabled={processing || embeddingStatus.pending === 0}
+                onClick={() => processEmbeddings(50)} 
+                disabled={processing || (embeddingStatus?.pending ?? 0) === 0}
               >
-                {processing ? '⏳' : '⚡'} Process 10
+                {processing ? '⏳' : '⚡'} Process 50
               </button>
               <button 
                 className="btn btn-primary" 
                 onClick={processAllEmbeddings} 
-                disabled={processing || embeddingStatus.pending === 0}
+                disabled={processing || (embeddingStatus?.pending ?? 0) === 0}
               >
-                {processing ? '⏳ Processing...' : `🚀 Process All (${embeddingStatus.pending})`}
+                {processing ? '⏳ Processing...' : `🚀 Process All (${embeddingStatus?.pending ?? totalPapers})`}
               </button>
             </div>
           </div>
@@ -179,7 +179,7 @@ export default function Dashboard() {
             <div className="progress-fill" style={{ width: `${progress}%` }} />
           </div>
           <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 13, color: 'var(--text-secondary)' }}>
-            <span>{embeddingStatus.done} / {embeddingStatus.total} completed</span>
+            <span>{embeddingStatus?.done ?? 0} / {embeddingStatus?.total ?? totalPapers} completed</span>
             <span>{progress.toFixed(1)}%</span>
           </div>
         </div>
