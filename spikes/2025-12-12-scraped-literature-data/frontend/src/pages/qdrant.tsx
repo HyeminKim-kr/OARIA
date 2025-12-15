@@ -25,53 +25,67 @@ interface VectorItem {
 }
 
 export default function QdrantViewer() {
+  /* ---------------- State ---------------- */
   const [info, setInfo] = useState<CollectionInfo | null>(null);
   const [vectors, setVectors] = useState<VectorItem[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
-  const [page, setPage] = useState(1);
+  // Scroll 기반
+  const [offset, setOffset] = useState<any>(null);
+  const [hasNext, setHasNext] = useState(true);
+
   const [searchPmid, setSearchPmid] = useState('');
 
-  const [expandedId, setExpandedId] = useState<string | number | null>(null);
+  const [expandedId, setExpandedId] = useState<string | null>(null);
   const [expandedVector, setExpandedVector] = useState<number[] | null>(null);
   const [expandingLoading, setExpandingLoading] = useState(false);
 
   const LIMIT = 10;
+
+  /* ---------------- API Base ---------------- */
+  const API_BASE = 'http://localhost:8000/api/admin/qdrant';
+
 
   /* -----------------------------------------
    * Fetch Collection Info
    * ---------------------------------------*/
   const fetchCollectionInfo = async () => {
     try {
-      const res = await fetch('/api/qdrant/info');
+      const res = await fetch(`${API_BASE}/info`);
       if (!res.ok) throw new Error('Failed to fetch collection info');
-      const data = await res.json();
-      setInfo(data);
-    } catch (err) {
-      console.error(err);
+      setInfo(await res.json());
+    } catch (e) {
+      console.error(e);
     }
   };
 
   /* -----------------------------------------
    * Fetch Vectors (Pagination + Search)
    * ---------------------------------------*/
-  const fetchVectors = async () => {
+  const fetchVectors = async (reset = false) => {
     setLoading(true);
     setError(null);
 
-    try {
-      const params = new URLSearchParams({
-        page: page.toString(),
-        limit: LIMIT.toString(),
-        ...(searchPmid && { pmid: searchPmid }),
+   try {
+      const res = await fetch(`${API_BASE}/scroll`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          limit: LIMIT,
+          offset: reset ? null : offset,
+          with_payload: true,
+          with_vector: false,
+        }),
       });
 
-      const res = await fetch(`/api/qdrant/vectors?${params.toString()}`);
-      if (!res.ok) throw new Error('Failed to fetch vectors');
+      if (!res.ok) throw new Error('Failed to scroll vectors');
 
       const data = await res.json();
-      setVectors(Array.isArray(data) ? data : data.result || []);
+
+      setVectors(reset ? data.points : [...vectors, ...data.points]);
+      setOffset(data.next_offset);
+      setHasNext(Boolean(data.next_offset));
     } catch (err: any) {
       setError(err.message);
     } finally {
@@ -82,7 +96,7 @@ export default function QdrantViewer() {
   /* -----------------------------------------
    * Expand Vector Row (Fetch full vector)
    * ---------------------------------------*/
-  const handleExpand = async (id: string | number) => {
+  const handleExpand = async (id: string) => {
     if (expandedId === id) {
       setExpandedId(null);
       setExpandedVector(null);
@@ -93,13 +107,13 @@ export default function QdrantViewer() {
     setExpandingLoading(true);
 
     try {
-      const res = await fetch(`/api/qdrant/vector/${id}`);
-      if (res.ok) {
-        const data = await res.json();
-        setExpandedVector(data.vector || []);
-      }
-    } catch (err) {
-      console.error('Failed to fetch vector detail', err);
+      const res = await fetch(`${API_BASE}/vector/${id}`);
+      if (!res.ok) throw new Error('Failed to fetch vector');
+
+      const data = await res.json();
+      setExpandedVector(data.vector || []);
+    } catch (e) {
+      console.error(e);
     } finally {
       setExpandingLoading(false);
     }
@@ -107,8 +121,7 @@ export default function QdrantViewer() {
 
   const renderVectorPreview = (vec: number[]) => {
     if (!vec || vec.length === 0) return 'No vector data';
-    const preview = vec.slice(0, 10).map(v => v.toFixed(4)).join(', ');
-    return `[${preview}, ... total ${vec.length} dims]`;
+    return `[${vec.slice(0, 10).map(v => v.toFixed(4)).join(', ')}, ... total ${vec.length} dims]`;
   };
 
   /* -----------------------------------------
@@ -116,16 +129,8 @@ export default function QdrantViewer() {
    * ---------------------------------------*/
   useEffect(() => {
     fetchCollectionInfo();
+    fetchVectors(true);
   }, []);
-
-  useEffect(() => {
-    fetchVectors();
-  }, [page]);
-
-  const handleSearch = () => {
-    setPage(1);
-    fetchVectors();
-  };
 
   /* -----------------------------------------
    * Render
@@ -153,9 +158,7 @@ export default function QdrantViewer() {
 
         <div className="stat-card">
           <div className="stat-label">DIMENSIONS</div>
-          <div className="stat-value">
-            {info?.dimension ?? '-'}
-          </div>
+          <div className="stat-value">{info?.dimension ?? '-'}</div>
           <div className="stat-hint">Embedding size</div>
         </div>
 
@@ -171,50 +174,19 @@ export default function QdrantViewer() {
       {/* ===============================
           2️⃣ Controls Bar
          =============================== */}
-      <div
-        className="card"
-        style={{ marginBottom: 16 }}
-      >
-        <div
-          style={{
-            display: 'flex',
-            justifyContent: 'space-between',
-            alignItems: 'center',
-            gap: 16,
-            flexWrap: 'wrap',
-          }}
-        >
-          <div style={{ display: 'flex', gap: 8 }}>
-            <input
-              className="input"
-              placeholder="Search by PMID..."
-              value={searchPmid}
-              onChange={(e) => setSearchPmid(e.target.value)}
-              onKeyDown={(e) => e.key === 'Enter' && handleSearch()}
-              style={{ width: 220 }}
-            />
-            <button className="btn btn-secondary" onClick={handleSearch}>
-              🔍 Search
-            </button>
+      <div className="card" style={{ marginBottom: 16 }}>
+        <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+          <div style={{ color: 'var(--text-muted)', fontSize: 13 }}>
+            Scroll-based DB explorer (Qdrant native)
           </div>
 
-          <div className="pagination">
-            <button
-              className="pagination-btn"
-              onClick={() => setPage(p => Math.max(1, p - 1))}
-              disabled={page === 1}
-            >
-              ← Prev
-            </button>
-            <span style={{ padding: '0 12px' }}>Page {page}</span>
-            <button
-              className="pagination-btn"
-              onClick={() => setPage(p => p + 1)}
-              disabled={vectors.length < LIMIT}
-            >
-              Next →
-            </button>
-          </div>
+          <button
+            className="btn btn-ghost"
+            disabled={!hasNext || loading}
+            onClick={() => fetchVectors(false)}
+          >
+            {loading ? '⏳' : 'Load more'}
+          </button>
         </div>
       </div>
 
@@ -222,12 +194,8 @@ export default function QdrantViewer() {
           3️⃣ Vector List (Accordion)
          =============================== */}
       <div className="card">
-        {loading ? (
-          <div className="empty-state">⏳ Loading vectors...</div>
-        ) : vectors.length === 0 ? (
-          <div className="empty-state">
-            📭 No vectors found
-          </div>
+        {vectors.length === 0 && !loading ? (
+          <div className="empty-state">📭 No vectors</div>
         ) : (
           <>
             <div
@@ -241,80 +209,46 @@ export default function QdrantViewer() {
 
             {vectors.map((vec) => (
               <div key={vec.id}>
-                {/* Row */}
                 <div
                   className="table-row"
-                  style={{
-                    gridTemplateColumns: '140px 1fr 80px',
-                    cursor: 'pointer',
-                  }}
+                  style={{ gridTemplateColumns: '140px 1fr 80px', cursor: 'pointer' }}
                   onClick={() => handleExpand(vec.id)}
                 >
-                  <div
-                    style={{
-                      fontFamily: 'var(--font-mono)',
-                      fontSize: 12,
-                      color: 'var(--accent-blue)',
-                    }}
-                  >
+                  <div style={{ fontFamily: 'var(--font-mono)', fontSize: 12 }}>
                     PMID: {vec.id}
                   </div>
-
-                  <div>
-                    {vec.payload?.title || (
-                      <span style={{ color: 'var(--text-muted)' }}>
-                        No title
-                      </span>
-                    )}
-                  </div>
-
+                  <div>{vec.payload?.title || 'No title'}</div>
                   <div style={{ textAlign: 'right' }}>
                     {expandedId === vec.id ? '▲' : '▼'}
                   </div>
                 </div>
 
-                {/* Expanded */}
                 {expandedId === vec.id && (
-                  <div
-                    style={{
-                      padding: 20,
-                      background: 'var(--bg-tertiary)',
-                      borderBottom: '1px solid var(--border-primary)',
-                    }}
-                  >
+                  <div style={{ padding: 20, background: 'var(--bg-tertiary)' }}>
                     {expandingLoading ? (
-                      <div>Loading details...</div>
+                      <div>Loading…</div>
                     ) : (
                       <>
-                        {/* Vector Preview */}
-                        <div style={{ marginBottom: 16 }}>
-                          <div className="section-label">
-                            VECTOR PREVIEW (First 10 dims)
-                          </div>
-                          <pre className="code-block">
-                            {expandedVector
-                              ? renderVectorPreview(expandedVector)
-                              : 'No vector data'}
-                          </pre>
+                        <div className="section-label">
+                          VECTOR PREVIEW
                         </div>
+                        <pre className="code-block">
+                          {expandedVector
+                            ? renderVectorPreview(expandedVector)
+                            : 'No vector'}
+                        </pre>
 
-                        {/* Abstract */}
                         {vec.payload?.abstract && (
-                          <div style={{ marginBottom: 16 }}>
+                          <>
                             <div className="section-label">ABSTRACT</div>
-                            <div className="text-box">
-                              {vec.payload.abstract}
-                            </div>
-                          </div>
+                            <div className="text-box">{vec.payload.abstract}</div>
+                          </>
                         )}
 
-                        {/* Full Payload */}
-                        <div>
-                          <div className="section-label">FULL PAYLOAD</div>
-                          <pre className="code-block">
-                            {JSON.stringify(vec.payload, null, 2)}
-                          </pre>
-                        </div>
+                        <div className="section-label">FULL PAYLOAD</div>
+                        <pre className="code-block">
+                          {JSON.stringify(vec.payload, null, 2)}
+                        </pre>
                       </>
                     )}
                   </div>
