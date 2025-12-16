@@ -95,6 +95,124 @@ spikes/
 
 ---
 
+## 스파이크 간 연결 (파이프라인 구성)
+
+하나의 기능이 여러 단계로 나뉠 때 (예: 크롤링 → 임베딩 → 벡터DB), 각 스파이크를 **독립적으로 실험**하되 **나중에 연결 가능**하도록 구성합니다.
+
+### 원칙
+
+1. **input/output 포맷을 명확히 정의**
+2. **각 스파이크는 파일로 입출력** (스파이크 단계)
+3. **프로덕션 반영 시 함수 호출로 연결** (통합 단계)
+
+### 폴더 구조 예시
+
+```text
+spikes/
+  2025-12-crawling-spike/
+    src/
+      crawler.py
+    output/
+      papers.json           # 출력 결과물
+
+  2025-12-embedding-spike/
+    src/
+      embedder.py
+    output/
+      embeddings.json
+
+  2025-12-vectordb-spike/
+    src/
+      store.py
+```
+
+### 작업 흐름
+
+**Step 1: 크롤링 스파이크**
+
+```python
+# src/crawler.py
+import json
+
+OUTPUT_PATH = "spikes/2025-12-crawling-spike/output/papers.json"
+
+def crawl_papers(query: str, limit: int) -> list[dict]:
+    # ... API 호출
+    return papers
+
+if __name__ == "__main__":
+    papers = crawl_papers("lung cancer", limit=100)
+    with open(OUTPUT_PATH, "w") as f:
+        json.dump(papers, f, ensure_ascii=False, indent=2)
+
+    print(f"출력 경로: {OUTPUT_PATH}")
+```
+
+**Step 2: 임베딩 스파이크**
+
+```python
+# src/embedder.py
+import json
+
+# 이전 스파이크 출력 경로 직접 참조
+INPUT_PATH = "spikes/2025-12-crawling-spike/output/papers.json"
+OUTPUT_PATH = "spikes/2025-12-embedding-spike/output/embeddings.json"
+
+def embed_papers(papers: list[dict]) -> list[dict]:
+    # ... 임베딩 로직
+    return embeddings
+
+if __name__ == "__main__":
+    with open(INPUT_PATH) as f:
+        papers = json.load(f)
+    embeddings = embed_papers(papers)
+    with open(OUTPUT_PATH, "w") as f:
+        json.dump(embeddings, f, indent=2)
+
+    print(f"출력 경로: {OUTPUT_PATH}")
+```
+
+**Step 3: 프로덕션 통합**
+
+스파이크 검증 완료 후 `backend/`에 통합 시:
+
+```python
+# backend/app/services/paper_pipeline.py
+from .crawler import crawl_papers
+from .embedder import embed_papers
+from .store import store_to_qdrant
+
+def run_pipeline(query: str, limit: int):
+    """파이프라인으로 연결"""
+    papers = crawl_papers(query, limit)
+    embeddings = embed_papers(papers)
+    store_to_qdrant(embeddings)
+    return {"processed": len(papers)}
+```
+
+### 핵심 포인트
+
+| 단계 | 방식 | 이유 |
+|------|------|------|
+| 스파이크 | 파일로 입출력 | 독립 실험, 디버깅 용이 |
+| 프로덕션 | 함수 호출로 연결 | 성능, 메모리 효율 |
+
+### 데이터 포맷 합의
+
+스파이크 시작 전 팀원 간 **output 포맷만 먼저 합의**하면 나중에 연결이 쉬워집니다.
+
+```python
+# 예: 크롤링 output 포맷
+{
+    "pmid": "12345678",
+    "title": "...",
+    "abstract": "...",
+    "full_text": "..."  # nullable
+}
+```
+
+---
+
 ## Python 환경 설정
 
 스파이크에서 Python을 사용할 때는 **uv**를 사용합니다.
