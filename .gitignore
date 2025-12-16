@@ -71,6 +71,8 @@ python/
 **/runs/
 **/outputs/
 *.safetensors
+cancer-ner-pubmedbert/
+pubmedbert-multiner/
 
 # ------------------------------------------------------------------------------
 # Logs & Diagnostics (로그 및 디버그)

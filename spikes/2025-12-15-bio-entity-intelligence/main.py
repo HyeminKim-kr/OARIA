@@ -49,6 +49,7 @@ def main():
     reset_steps()
     
     box("Configuration", [
+        f"Mode      : {base_config.MODE.upper()}",
         f"Model     : {base_config.MODEL_NAME}",
         f"Labels    : {len(base_config.LABELS)} classes",
         f"Epochs    : {train_config.EPOCHS}",
