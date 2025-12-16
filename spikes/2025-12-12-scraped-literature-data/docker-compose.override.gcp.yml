@@ -1,0 +1,25 @@
+# GCP Mode Override
+# Cloud SQL + GCS 저장
+# 사용: docker-compose -f docker-compose.yml -f docker-compose.override.gcp.yml up
+#
+# 필요 환경변수 (.env 파일에 설정):
+# - DATABASE_URL: Cloud SQL 연결 문자열
+# - GCS_BUCKET: GCS 버킷 이름
+# - GOOGLE_APPLICATION_CREDENTIALS: 서비스 계정 키 경로
+
+services:
+  backend:
+    environment:
+      MODE: gcp
+      STORAGE_BACKEND: gcp
+      DATABASE_URL: ${DATABASE_URL}
+      GCS_BUCKET: ${GCS_BUCKET}
+      GOOGLE_APPLICATION_CREDENTIALS: /app/credentials/service-account.json
+    volumes:
+      - ./backend:/app
+      - ./credentials:/app/credentials:ro
+
+  # GCP 모드에서는 로컬 DB 사용 안 함 (주석 처리 또는 제거 가능)
+  # db:
+  #   profiles:
+  #     - local-only

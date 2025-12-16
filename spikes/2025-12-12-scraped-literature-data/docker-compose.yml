@@ -1,0 +1,96 @@
+version: "3.9"
+
+# =============================================================================
+# OARIA Literature - Docker Compose
+#
+# 이미지 이름 규칙:
+# - backend:  oaria-lit-backend:latest
+# - frontend: oaria-lit-frontend:latest
+#
+# 사용법:
+# - make up      → 시작 (자동 빌드)
+# - make down    → 중지
+# - make restart → 재시작
+# =============================================================================
+
+services:
+  backend:
+    build: ./backend
+    image: oaria-lit-backend:latest   # 명시적 이미지 태그
+    container_name: oaria-lit-backend
+    environment:
+      MODE: ${MODE:-local}
+      # 단일 모드용 (LOCAL_DATABASE_URL, GCP_DATABASE_URL 미설정 시)
+      DATABASE_URL: ${DATABASE_URL:-}
+      # 런타임 스위칭용 (둘 다 설정 시 UI에서 전환 가능)
+      LOCAL_DATABASE_URL: ${LOCAL_DATABASE_URL:-}
+      GCP_DATABASE_URL: ${GCP_DATABASE_URL:-}
+      # 기타 설정
+      QDRANT_URL: ${QDRANT_URL:-http://qdrant:6333}
+      STORAGE_BACKEND: ${STORAGE_BACKEND:-local}
+      LOCAL_STORAGE_PATH: ${LOCAL_STORAGE_PATH:-/app/local_storage}
+      GCS_BUCKET: ${GCS_BUCKET:-}
+    volumes:
+      - ./backend:/app
+      - backend_storage:/app/local_storage
+    ports:
+      - "8000:8000"
+    depends_on:
+      db:
+        condition: service_healthy
+      qdrant:
+        condition: service_started
+    command: uvicorn src.main:app --host 0.0.0.0 --port 8000 --reload
+    restart: unless-stopped
+
+  frontend:
+    build: ./frontend
+    image: oaria-lit-frontend:latest   # 명시적 이미지 태그
+    container_name: oaria-lit-frontend
+    volumes:
+      - ./frontend:/app
+      - /app/node_modules
+    environment:
+      MODE: ${MODE:-local}
+      # 클라이언트 (브라우저): 빈 문자열 - Next.js 프록시 통해 요청
+      NEXT_PUBLIC_API_URL: ""
+      # 서버 (Next.js rewrites): Docker 네트워크 서비스 이름
+      INTERNAL_API_URL: http://backend:8000
+    ports:
+      - "3000:3000"
+    depends_on:
+      - backend
+    restart: unless-stopped
+
+  db:
+    image: postgres:16-alpine
+    container_name: oaria-lit-db
+    environment:
+      POSTGRES_USER: oaria
+      POSTGRES_PASSWORD: oaria
+      POSTGRES_DB: oaria
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    ports:
+      - "5432:5432"
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U oaria -d oaria"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+    restart: unless-stopped
+
+  qdrant:
+    image: qdrant/qdrant:latest
+    container_name: oaria-lit-qdrant
+    ports:
+      - "6333:6333"
+      - "6334:6334"
+    volumes:
+      - qdrant_data:/qdrant/storage
+    restart: unless-stopped
+
+volumes:
+  pgdata:
+  qdrant_data:
+  backend_storage:

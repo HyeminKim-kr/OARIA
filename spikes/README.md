@@ -30,12 +30,12 @@ spikes/
 
 ```text
 spikes/
-  2025-01-vector-store-spike/
-  2025-02-rag-chat-flow-spike/
-  2025-03-bio-etl-pipeline-spike/
+  2025-12-01-vector-store-spike/
+  2025-12-10-rag-chat-flow-spike/
+  2025-12-20-bio-etl-pipeline-spike/
 ```
 
-* `YYYY-MM` : 스파이크를 시작한 년/월
+* `YYYY-MM-DD` : 스파이크를 시작한 년/월/일
 * `<간단주제>` : 한눈에 주제가 보이도록 짧게
 * `-spike` : 실험 코드임을 명확히 표시
 
@@ -45,7 +45,7 @@ spikes/
 
 ```text
 spikes/
-  2025-01-vector-store-spike/
+  2025-12-01-vector-store-spike/
     README.md        # 이 스파이크의 목적/결론 정리
     docker-compose.yml
     src/

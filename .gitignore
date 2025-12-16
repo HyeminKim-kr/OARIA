@@ -1,0 +1,222 @@
+# ==============================================================================
+# OARIA Project - .gitignore (루트 레벨)
+# 멀티 스택(Node.js, Python, Docker, Frontend, Backend, Monorepo) 완전 대응
+# ==============================================================================
+
+
+# ------------------------------------------------------------------------------
+# Auto Generated / Compiled Output (자동 생성 및 빌드 결과물)
+# ------------------------------------------------------------------------------
+node_modules/
+.pnp/
+.pnp.*
+.pnpm-debug.log*
+
+# Yarn 2+ Zero-Install (Yarn Berry)
+.yarn/*
+!.yarn/patches
+!.yarn/plugins
+!.yarn/releases
+!.yarn/versions
+!.yarn/sdks
+.yarn/install-state.gz
+
+# Build Outputs
+dist/
+build/
+out/
+.next/
+.nuxt/
+
+# TypeScript
+*.tsbuildinfo
+next-env.d.ts
+
+
+# ------------------------------------------------------------------------------
+# Python Artifacts (Python 결과물)
+# ------------------------------------------------------------------------------
+**/__pycache__/
+*.py[cod]
+*$py.class
+*.cpython-*
+*.so
+*.pyd
+*.pyo
+
+# Packaging
+*.egg
+*.egg-info/
+.eggs/
+
+# Python Virtual Environments
+venv/
+.venv/
+.python-version
+
+# Python Build Output
+build/
+dist/
+pip-wheel-metadata/
+python/
+
+
+# ------------------------------------------------------------------------------
+# ML models / checkpoints
+# ------------------------------------------------------------------------------
+**/checkpoint-*/
+*.bin
+*.pt
+*.ckpt
+**/runs/
+**/outputs/
+*.safetensors
+cancer-ner-pubmedbert/
+pubmedbert-multiner/
+
+# ------------------------------------------------------------------------------
+# Logs & Diagnostics (로그 및 디버그)
+# ------------------------------------------------------------------------------
+logs/
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+lerna-debug.log*
+.pnpm-debug.log*
+report.*.json        # Node.js diagnostic reports
+debug/
+*.pid
+*.pid.lock
+
+
+# ------------------------------------------------------------------------------
+# Environment Variables (민감 정보)
+# ------------------------------------------------------------------------------
+# Ignore ALL environment files everywhere
+.env
+.env.*
+**/.env
+**/.env.*
+
+# Allow example templates
+!.env.example
+!.env.*.example
+
+# User-specific backup (Optional)
+env_backup
+*.secret
+*.private
+
+# GCP Credentials (서비스 계정 키 등 민감 파일)
+credentials/
+**/credentials/
+*.json
+!*.example.json
+
+
+# ------------------------------------------------------------------------------
+# Testing & Coverage (테스트 및 커버리지)
+# ------------------------------------------------------------------------------
+coverage/
+.nyc_output/
+htmlcov/
+pytest_cache/
+.coverage*
+test-report.xml
+
+# If /test is generated output and NOT source
+# /test
+
+
+# ------------------------------------------------------------------------------
+# OS / Editor / IDE Files (운영체제 및 IDE 파일)
+# ------------------------------------------------------------------------------
+# macOS
+.DS_Store
+.AppleDouble
+.LSOverride
+.fseventsd
+.Spotlight-V100
+.TemporaryItems
+.Trashes
+.apdisk
+.DocumentRevisions-V100
+.com.apple.timemachine.donotpresent
+
+# Windows
+Thumbs.db
+ehthumbs.db
+Desktop.ini
+
+# VSCode
+.vscode/*
+!.vscode/tasks.json
+!.vscode/launch.json
+!.vscode/extensions.json
+
+# JetBrains IDEs
+.idea/
+*.iml
+*.ipr
+*.iws
+
+# Sublime
+*.sublime-workspace
+
+# Others
+*.swp
+*.swo
+._*
+*~
+
+
+# ------------------------------------------------------------------------------
+# Docker / Containers / Databases
+# ------------------------------------------------------------------------------
+docker-compose.override.yml
+*.bak
+docker-data/
+docker/volumes/
+**/db/data/*
+dump.rdb            # Redis dump
+*.sql
+*.sqlite
+
+
+# ------------------------------------------------------------------------------
+# Caches / Temporary / Misc (임시 파일)
+# ------------------------------------------------------------------------------
+.cache/
+.temp/
+.tmp/
+temp/
+tmp/
+backup/
+.cache-loader/
+.parcel-cache/
+.pnp.loader/
+.cache_babel/
+.cache_mocha/
+
+test.http
+*.http
+
+
+# ------------------------------------------------------------------------------
+# Custom Project Specific Files (OARIA 전용)
+# ------------------------------------------------------------------------------
+/doc/
+/documentation/
+/output/
+/public/uploads/
+/app/db/mongo/generated/*
+/app/metadata.ts
+
+# PID files
+pids/
+*.seed
+
+# ------------------------------------------------------------------------------
+# End of .gitignore
+# ------------------------------------------------------------------------------
