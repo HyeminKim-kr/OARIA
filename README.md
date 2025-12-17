@@ -73,6 +73,7 @@ Backend runs at `http://localhost:8000`
 - `refactor`: 코드 리팩토링
 - `test`: 테스트 추가/수정
 - `chore`: 빌드, 설정 파일 변경
+- `spike`: 스파이크 각 테스트
 
 **Examples:**
 ```

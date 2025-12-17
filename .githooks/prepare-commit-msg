@@ -1,0 +1,41 @@
+#!/bin/bash
+
+# ============================================================
+# Git Hook: prepare-commit-msg
+# 브랜치명에서 Jira 티켓 번호를 파싱하여 커밋 메시지에 자동 추가
+# ============================================================
+
+COMMIT_MSG_FILE=$1
+COMMIT_SOURCE=$2
+
+# merge, squash, amend 커밋은 스킵
+if [ "$COMMIT_SOURCE" = "merge" ] || [ "$COMMIT_SOURCE" = "squash" ]; then
+    exit 0
+fi
+
+# 현재 브랜치명 가져오기
+BRANCH_NAME=$(git symbolic-ref --short HEAD 2>/dev/null)
+
+# 브랜치명이 없으면 (detached HEAD 등) 스킵
+if [ -z "$BRANCH_NAME" ]; then
+    exit 0
+fi
+
+# 브랜치명에서 Jira 티켓 번호 추출 (OAR-123 패턴)
+TICKET=$(echo "$BRANCH_NAME" | grep -oE 'OAR-[0-9]+' | head -1)
+
+# 티켓 번호가 없으면 스킵
+if [ -z "$TICKET" ]; then
+    exit 0
+fi
+
+# 현재 커밋 메시지 읽기
+COMMIT_MSG=$(cat "$COMMIT_MSG_FILE")
+
+# 이미 티켓 번호가 있으면 스킵
+if echo "$COMMIT_MSG" | grep -qE "^$TICKET"; then
+    exit 0
+fi
+
+# 커밋 메시지 앞에 티켓 번호 추가
+echo "$TICKET $COMMIT_MSG" > "$COMMIT_MSG_FILE"
