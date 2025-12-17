@@ -1,0 +1,25 @@
+{
+    "mcpServers": {
+      "mcp-atlassian": {
+        "command": "docker",
+        "args": [
+          "run", "--rm", "-i",
+          "-e", "CONFLUENCE_URL",
+          "-e", "CONFLUENCE_USERNAME",
+          "-e", "CONFLUENCE_API_TOKEN",
+          "-e", "JIRA_URL",
+          "-e", "JIRA_USERNAME",
+          "-e", "JIRA_API_TOKEN",
+          "ghcr.io/sooperset/mcp-atlassian:latest"
+        ],
+        "env": {
+          "CONFLUENCE_URL": "https://hyemink.atlassian.net/wiki",
+          "CONFLUENCE_USERNAME": "your email",
+          "CONFLUENCE_API_TOKEN": "",
+          "JIRA_URL": "https://hyemink.atlassian.net",
+          "JIRA_USERNAME": "your email",
+          "JIRA_API_TOKEN": ""
+        }
+      }
+    }
+  }
