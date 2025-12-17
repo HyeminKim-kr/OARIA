@@ -95,6 +95,116 @@ spikes/
 
 ---
 
+## 팀 스파이크 (동일 주제, 다중 구현)
+
+여러 명이 같은 주제를 **각자 다르게 구현**하여 비교/검토할 때 사용합니다.
+
+### 목적
+
+- 같은 문제에 대한 다양한 접근 방식 탐색
+- 팀원 간 상호 피드백 및 학습
+- 최적의 구현 방식 선택
+
+### 폴더 구조
+
+**이니셜로 개인별 폴더 구분:**
+
+```text
+spikes/
+  YYYY-MM-<주제>-spike/
+    README.md              # 공통: 목표, 비교 결과, 최종 결론
+    <이니셜>/              # 개인별 구현
+      README.md            # 개인: 접근 방식, 결과
+      src/
+      output/
+```
+
+예시:
+
+```text
+spikes/
+  2025-12-pubmed-api-spike/
+    README.md
+    tsy/
+      README.md
+      src/
+        crawler.py
+      output/
+    kjh/
+      README.md
+      src/
+        crawler.py
+      output/
+    plk/
+      README.md
+      src/
+        crawler.py
+      output/
+```
+
+### 브랜치 전략
+
+각자 **자신의 이니셜이 포함된 브랜치**에서 작업:
+
+```bash
+# 브랜치 생성
+git checkout dev
+git checkout -b spike/pubmed-api-tsy
+
+# 자기 폴더에서 작업
+cd spikes/2025-12-pubmed-api-spike/tsy/
+
+# 커밋 (Jira Sub-task 번호 포함)
+git commit -m "OAR-50 requests 기반 PubMed API 구현"
+
+# PR 생성 → dev로 머지
+```
+
+**장점:** 각자 다른 폴더에서 작업하므로 **3개 브랜치 모두 충돌 없이 머지 가능**
+
+### 공통 README.md 작성 가이드
+
+스파이크 완료 후 **비교 결과**를 공통 README.md에 정리:
+
+```markdown
+## Findings
+
+| 구현 | 접근 방식 | 장점 | 단점 | 성능 |
+|------|----------|------|------|------|
+| tsy | requests (동기) | 단순함 | 느림 | 100건/분 |
+| kjh | httpx (비동기) | 빠름, 깔끔 | 약간 복잡 | 300건/분 |
+| plk | aiohttp | 가장 빠름 | 러닝커브 | 350건/분 |
+
+## Decision
+
+✅ **kjh 구현 채택** - 성능과 복잡도 밸런스 최적
+
+### 이유
+- 비동기 지원으로 충분한 성능
+- httpx는 requests와 API가 유사하여 팀 적응 용이
+- 타임아웃, 재시도 등 기본 제공
+
+### 다음 단계
+- [ ] backend/app/services/에 kjh 코드 기반으로 구현
+- [ ] 테스트 코드 작성
+- [ ] 에러 핸들링 강화
+```
+
+### Jira 연동
+
+각 개인 구현은 **Jira Sub-task**로 관리:
+
+```
+Task: OAR-18 (PubMed API 연동)
+├── Sub-task: OAR-50 (tsy 구현) → spike/pubmed-api-tsy
+├── Sub-task: OAR-51 (kjh 구현) → spike/pubmed-api-kjh
+└── Sub-task: OAR-52 (plk 구현) → spike/pubmed-api-plk
+```
+
+커밋 메시지에 Sub-task 번호를 포함하면 Jira에서 자동 추적됩니다.
+
+---
+
 ## 스파이크 간 연결 (파이프라인 구성)
 
 하나의 기능이 여러 단계로 나뉠 때 (예: 크롤링 → 임베딩 → 벡터DB), 각 스파이크를 **독립적으로 실험**하되 **나중에 연결 가능**하도록 구성합니다.

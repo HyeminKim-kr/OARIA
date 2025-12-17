@@ -4,6 +4,16 @@
 
 ---
 
+## 핵심 원칙
+
+> **"Jira는 Jira답게, Git은 Git답게"**
+
+- Jira의 계층 구조(Epic → Task → Sub-task)를 Git 브랜치에 그대로 반영하지 않습니다
+- Git 브랜치는 **단순하게** 유지합니다
+- **커밋 메시지의 이슈 키**가 Git과 Jira를 연결하는 유일한 고리입니다
+
+---
+
 ## 브랜치 전략
 
 ### 브랜치 구조
@@ -11,11 +21,13 @@
 ```
 main (프로덕션)
   └── dev (개발 통합)
-        ├── feat/기능명 (기능 개발)
-        ├── fix/버그명 (버그 수정)
-        ├── hotfix/긴급수정 (프로덕션 긴급 수정)
-        └── spike/실험명 (실험/검증)
+        ├── feature/OAR-XX-설명 (기능 개발)
+        ├── fix/OAR-XX-설명 (버그 수정)
+        ├── hotfix/OAR-XX-설명 (프로덕션 긴급 수정)
+        └── spike/주제-이니셜 (실험/검증)
 ```
+
+**이게 전부입니다.** Epic 브랜치, Task 브랜치 같은 중간 계층은 만들지 않습니다.
 
 ### 브랜치별 역할
 
@@ -23,24 +35,71 @@ main (프로덕션)
 |--------|------|------------|------------|
 | `main` | 프로덕션 배포 | - | - |
 | `dev` | 개발 통합 | main | main |
-| `feat/*` | 새 기능 개발 | dev | dev |
+| `feature/*` | 새 기능 개발 | dev | dev |
 | `fix/*` | 버그 수정 | dev | dev |
 | `hotfix/*` | 프로덕션 긴급 수정 | main | main → dev |
-| `spike/*` | 실험/PoC | dev | dev (선택) |
+| `spike/*` | 실험/PoC | dev | dev |
 
 ### 브랜치 네이밍
 
+**일반 작업:**
 ```
-<type>/<issue-number>-<short-description>
+<type>/OAR-<이슈번호>-<short-description>
 ```
 
 예시:
 ```bash
-feat/12-user-authentication
-fix/34-login-error
-hotfix/56-payment-crash
-spike/rag-pipeline
+feature/OAR-18-pubmed-api
+fix/OAR-34-login-error
+hotfix/OAR-56-payment-crash
 ```
+
+**스파이크 (팀 스파이크 포함):**
+```
+spike/<주제>-<이니셜>
+```
+
+예시:
+```bash
+spike/pubmed-api-tsy
+spike/embedding-kjh
+spike/vectordb-plk
+```
+
+---
+
+## Jira 연동
+
+### 핵심: 커밋 메시지에 이슈 키 포함
+
+```bash
+git commit -m "OAR-50 PubMed API requests 기반 구현"
+```
+
+- 이슈 키는 **대문자** 사용 (OAR-50 ✅, oar-50 ❌)
+- 커밋 메시지 **맨 앞**에 배치
+- 이것만으로 Jira에서 커밋, 브랜치, PR이 자동 추적됩니다
+
+### Jira 계층과 Git 매핑
+
+Jira에서 복잡한 계층이 있어도 Git은 단순하게:
+
+```
+Jira 구조:
+Epic OAR-9 (암 논문 자동 BATCH 수집기)
+├── Task OAR-18 (PubMed API 연동)
+│   ├── Sub-task OAR-50 (tsy 구현)
+│   ├── Sub-task OAR-51 (kjh 구현)
+│   └── Sub-task OAR-52 (plk 구현)
+
+Git 브랜치:
+dev
+├── spike/pubmed-api-tsy    (OAR-50 커밋)
+├── spike/pubmed-api-kjh    (OAR-51 커밋)
+└── spike/pubmed-api-plk    (OAR-52 커밋)
+```
+
+**계층은 Jira에서 관리, Git은 flat하게 유지**
 
 ---
 
