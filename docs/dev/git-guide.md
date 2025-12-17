@@ -187,8 +187,11 @@ git checkout -b spike/batch-collector-tsy
 git commit -m "OAR-50 requests 기반 PubMed API 구현"
 
 # dev에 머지 (스크립트 사용 권장)
-./scripts/git-merge.sh
+./git-merge.sh
 ```
+
+> **중요:** 원격에 push할 필요 없이 **로컬 커밋까지만** 하면 됩니다.
+> 스크립트가 rebase → merge → push를 자동으로 처리합니다.
 
 **수동으로 머지할 경우:**
 
@@ -438,24 +441,35 @@ Closes #12
 
 스파이크 브랜치를 dev에 **깔끔하게 머지**하는 스크립트입니다.
 
+**사용 전 준비:**
+```bash
+# 1. 브랜치 생성
+git checkout -b spike/기능명-이니셜
+
+# 2. 작업 & 커밋 (여기까지만!)
+git add .
+git commit -m "OAR-XX 작업 내용"
+
+# ⚠️ git push 하지 않음! 로컬 커밋까지만 하면 됩니다.
+```
+
+**스크립트 실행:**
+```bash
+# 기본 사용 (현재 브랜치를 dev에 머지)
+./git-merge.sh
+
+# 머지 후 브랜치 삭제
+./git-merge.sh -d
+
+# 실행 전 미리보기
+./git-merge.sh --dry-run
+```
+
 **동작 순서:**
 1. `origin/dev` 최신화 (fetch)
 2. 현재 브랜치를 dev 위로 rebase
 3. dev로 전환 후 fast-forward 머지
-4. `origin/dev`에 push
-
-**사용법:**
-
-```bash
-# 기본 사용 (현재 브랜치를 dev에 머지)
-./scripts/git-merge.sh
-
-# 머지 후 브랜치 삭제
-./scripts/git-merge.sh -d
-
-# 실행 전 미리보기
-./scripts/git-merge.sh --dry-run
-```
+4. `origin/dev`에 push ← 스크립트가 자동으로 push
 
 **왜 이 스크립트를 사용하나요?**
 

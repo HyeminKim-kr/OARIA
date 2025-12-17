@@ -196,18 +196,20 @@ cd spikes/2025-12-batch-collector-spike/tsy/
 git commit -m "OAR-50 requests 기반 PubMed API 구현"
 git commit -m "OAR-50 에러 핸들링 추가"
 
+# ⚠️ git push 하지 않음! 로컬 커밋까지만 하면 됩니다.
+
 # dev에 머지 (스크립트 사용 권장!)
-./scripts/git-merge.sh
+./git-merge.sh
 
 # 머지 후 브랜치 삭제까지 한번에
-./scripts/git-merge.sh -d
+./git-merge.sh -d
 ```
 
 **스크립트가 하는 일:**
 1. `origin/dev` 최신화
 2. 현재 브랜치를 dev 위로 rebase (일직선 정리)
 3. fast-forward 머지 (머지 커밋 없음)
-4. push
+4. `origin/dev`에 push ← 스크립트가 자동으로 push
 
 **장점:**
 - 각자 다른 폴더에서 작업 → **충돌 없이 머지 가능**
