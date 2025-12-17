@@ -94,9 +94,10 @@ Epic OAR-9 (암 논문 자동 BATCH 수집기)
 
 Git 브랜치:
 dev
-├── spike/pubmed-api-tsy    (OAR-50 커밋)
-├── spike/pubmed-api-kjh    (OAR-51 커밋)
-└── spike/pubmed-api-plk    (OAR-52 커밋)
+├── spike/batch-collector-tsy    (OAR-50 커밋)
+├── spike/batch-collector-kjh    (OAR-51 커밋)
+├── spike/batch-collector-plk    (OAR-52 커밋)
+└── feature/OAR-9-batch-collector (통합 커밋)
 ```
 
 **계층은 Jira에서 관리, Git은 flat하게 유지**
@@ -153,16 +154,70 @@ git push origin dev
 git branch -d hotfix/56-payment-crash
 ```
 
-### 스파이크 (실험)
+### 스파이크 (팀 실험)
+
+스파이크는 빠른 실험을 위해 **PR 없이 직접 머지**합니다.
+
+```text
+┌─────────────────────────────────────────────────────────────────┐
+│  1단계: 스파이크 (각자 실험)                                      │
+├─────────────────────────────────────────────────────────────────┤
+│  spike/batch-collector-tsy ──┐                                  │
+│  spike/batch-collector-kjh ──┼──► dev (PR 없이 직접 머지)         │
+│  spike/batch-collector-plk ──┘                                  │
+├─────────────────────────────────────────────────────────────────┤
+│  2단계: 비교 & 결론                                               │
+├─────────────────────────────────────────────────────────────────┤
+│  spikes/README.md에 Findings / Decision 정리                     │
+├─────────────────────────────────────────────────────────────────┤
+│  3단계: 통합 (서비스 코드)                                        │
+├─────────────────────────────────────────────────────────────────┤
+│  dev ──► feature/OAR-9-batch-collector ──► dev (PR 필수)         │
+└─────────────────────────────────────────────────────────────────┘
+```
+
+**1단계: 스파이크 브랜치**
 
 ```bash
-# dev에서 분기
+# 브랜치 생성
 git checkout dev
-git checkout -b spike/embedding-test
+git checkout -b spike/batch-collector-tsy
 
-# 실험 진행...
-# 결과가 좋으면 dev에 PR, 아니면 브랜치 삭제
+# 작업 & 커밋 (Sub-task 번호 필수!)
+git commit -m "OAR-50 requests 기반 PubMed API 구현"
+
+# dev에 머지 (스크립트 사용 권장)
+./scripts/git-merge.sh
 ```
+
+**수동으로 머지할 경우:**
+
+```bash
+# 1. rebase로 정리
+git fetch origin dev
+git rebase origin/dev
+
+# 2. fast-forward 머지
+git checkout dev
+git merge spike/batch-collector-tsy  # fast-forward!
+git push origin dev
+```
+
+**3단계: 통합 브랜치 (PR 필수)**
+
+```bash
+# 메인 테스크들 완료 후
+git checkout dev
+git checkout -b feature/OAR-9-batch-collector
+
+# 서비스 코드 작성 (Claude 활용)
+# ...
+
+# PR 생성 → 리뷰 → dev 머지
+git push -u origin feature/OAR-9-batch-collector
+```
+
+> 상세한 스파이크 워크플로우는 `spikes/README.md` 참고
 
 ---
 
@@ -377,6 +432,42 @@ Closes #12
 
 ---
 
+## 프로젝트 스크립트
+
+### git-merge.sh
+
+스파이크 브랜치를 dev에 **깔끔하게 머지**하는 스크립트입니다.
+
+**동작 순서:**
+1. `origin/dev` 최신화 (fetch)
+2. 현재 브랜치를 dev 위로 rebase
+3. dev로 전환 후 fast-forward 머지
+4. `origin/dev`에 push
+
+**사용법:**
+
+```bash
+# 기본 사용 (현재 브랜치를 dev에 머지)
+./scripts/git-merge.sh
+
+# 머지 후 브랜치 삭제
+./scripts/git-merge.sh -d
+
+# 실행 전 미리보기
+./scripts/git-merge.sh --dry-run
+```
+
+**왜 이 스크립트를 사용하나요?**
+
+| 방식 | 결과 |
+|------|------|
+| `git merge` (직접) | 머지 커밋 생성 → 그래프 복잡 |
+| `rebase + fast-forward` | 일직선 그래프 → 깔끔 |
+
+스크립트는 rebase + fast-forward를 자동으로 수행하여 **일직선 그래프**를 유지합니다.
+
+---
+
 ## 유용한 Git 명령어
 
 ```bash
@@ -410,7 +501,16 @@ git stash list
 
 ## 금지 사항
 
-1. **`main`, `dev`에 직접 푸시 금지** → PR로만 머지
-2. **공유 브랜치에 force push 금지**
-3. **`.env`, 시크릿 파일 커밋 금지**
-4. **대용량 파일(데이터셋, 모델 등) 커밋 금지** → Git LFS 또는 외부 저장소 사용
+1. **`main`에 직접 푸시 금지** → PR로만 머지
+2. **`dev`에 직접 푸시는 스파이크만 허용** → 일반 feature/fix는 PR 필수
+3. **공유 브랜치에 force push 금지**
+4. **`.env`, 시크릿 파일 커밋 금지**
+5. **대용량 파일(데이터셋, 모델 등) 커밋 금지** → Git LFS 또는 외부 저장소 사용
+
+### PR 규칙 요약
+
+| 브랜치 타입 | dev 머지 방식 |
+|------------|--------------|
+| `spike/*` | 직접 머지 (PR 생략) |
+| `feature/*` | PR 필수 |
+| `fix/*` | PR 필수 |

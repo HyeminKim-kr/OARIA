@@ -123,7 +123,7 @@ spikes/
 
 ```text
 spikes/
-  2025-12-pubmed-api-spike/
+  2025-12-batch-collector-spike/
     README.md
     tsy/
       README.md
@@ -142,29 +142,82 @@ spikes/
       output/
 ```
 
-### 브랜치 전략
+### 전체 워크플로우
 
-각자 **자신의 이니셜이 포함된 브랜치**에서 작업:
+```text
+┌─────────────────────────────────────────────────────────────────┐
+│  1단계: 스파이크 (각자 실험)                                      │
+├─────────────────────────────────────────────────────────────────┤
+│                                                                 │
+│  spike/batch-collector-tsy ──┐                                  │
+│  spike/batch-collector-kjh ──┼──► dev (PR 없이 직접 머지)         │
+│  spike/batch-collector-plk ──┘                                  │
+│                                                                 │
+│  * 각자 spikes/ 폴더에서 실험                                     │
+│  * 커밋 메시지에 Sub-task 번호 포함 (OAR-50, OAR-51, ...)         │
+│  * 빠른 반복을 위해 PR 생략                                       │
+│                                                                 │
+├─────────────────────────────────────────────────────────────────┤
+│  2단계: 비교 & 결론                                               │
+├─────────────────────────────────────────────────────────────────┤
+│                                                                 │
+│  spikes/2025-12-batch-collector-spike/README.md                 │
+│  └── Findings / Decision 섹션에 비교 결과 정리                    │
+│                                                                 │
+├─────────────────────────────────────────────────────────────────┤
+│  3단계: 통합 (서비스 코드 작성)                                    │
+├─────────────────────────────────────────────────────────────────┤
+│                                                                 │
+│  dev ──► feature/OAR-9-batch-collector                          │
+│          │                                                      │
+│          ├── 스파이크 결과 기반으로 backend/ 또는 frontend/ 구현   │
+│          ├── 테스트 코드 작성                                     │
+│          └── PR 생성 ──► dev 머지                                │
+│                                                                 │
+│  * 한 명이 담당하여 Claude 등으로 서비스 코드 작성                  │
+│  * 통합 단계에서는 PR 필수 (코드 리뷰)                             │
+│                                                                 │
+└─────────────────────────────────────────────────────────────────┘
+```
+
+### 1단계: 스파이크 브랜치
+
+**브랜치 네이밍:** `spike/<기능명>-<이니셜>`
 
 ```bash
 # 브랜치 생성
 git checkout dev
-git checkout -b spike/pubmed-api-tsy
+git checkout -b spike/batch-collector-tsy
 
 # 자기 폴더에서 작업
-cd spikes/2025-12-pubmed-api-spike/tsy/
+cd spikes/2025-12-batch-collector-spike/tsy/
 
-# 커밋 (Jira Sub-task 번호 포함)
+# 커밋 (Jira Sub-task 번호 필수!)
 git commit -m "OAR-50 requests 기반 PubMed API 구현"
+git commit -m "OAR-50 에러 핸들링 추가"
 
-# PR 생성 → dev로 머지
+# dev에 머지 (스크립트 사용 권장!)
+./scripts/git-merge.sh
+
+# 머지 후 브랜치 삭제까지 한번에
+./scripts/git-merge.sh -d
 ```
 
-**장점:** 각자 다른 폴더에서 작업하므로 **3개 브랜치 모두 충돌 없이 머지 가능**
+**스크립트가 하는 일:**
+1. `origin/dev` 최신화
+2. 현재 브랜치를 dev 위로 rebase (일직선 정리)
+3. fast-forward 머지 (머지 커밋 없음)
+4. push
 
-### 공통 README.md 작성 가이드
+**장점:**
+- 각자 다른 폴더에서 작업 → **충돌 없이 머지 가능**
+- PR 생략 → **빠른 실험 반복**
+- 커밋에 Sub-task 번호 → **Jira 추적 유지**
+- 스크립트 사용 → **깔끔한 Git 그래프 유지**
 
-스파이크 완료 후 **비교 결과**를 공통 README.md에 정리:
+### 2단계: 비교 & 결론
+
+스파이크 완료 후 **공통 README.md**에 비교 결과 정리:
 
 ```markdown
 ## Findings
@@ -183,25 +236,55 @@ git commit -m "OAR-50 requests 기반 PubMed API 구현"
 - 비동기 지원으로 충분한 성능
 - httpx는 requests와 API가 유사하여 팀 적응 용이
 - 타임아웃, 재시도 등 기본 제공
-
-### 다음 단계
-- [ ] backend/app/services/에 kjh 코드 기반으로 구현
-- [ ] 테스트 코드 작성
-- [ ] 에러 핸들링 강화
 ```
+
+### 3단계: 통합 (서비스 코드)
+
+에픽 하위의 메인 테스크들이 완료되면, **한 명이 통합 담당**:
+
+```bash
+# 통합 브랜치 생성
+git checkout dev
+git checkout -b feature/OAR-9-batch-collector
+
+# Claude 등을 활용해 서비스 코드 작성
+# - 스파이크 결과 중 채택된 구현 기반
+# - backend/app/services/ 등에 정리된 코드로 구현
+# - 테스트 코드 작성
+
+# PR 생성 (통합 단계는 PR 필수)
+git push -u origin feature/OAR-9-batch-collector
+# GitHub에서 PR 생성 → 리뷰 → dev 머지
+```
+
+**통합 담당자 체크리스트:**
+- [ ] 각 스파이크 README 비교 결과 확인
+- [ ] 채택할 구현 방식 결정
+- [ ] `backend/` 또는 `frontend/`에 정리된 코드로 구현
+- [ ] 테스트 코드 작성
+- [ ] PR 생성 시 "어떤 스파이크를 기반으로 했는지" 명시
 
 ### Jira 연동
 
-각 개인 구현은 **Jira Sub-task**로 관리:
-
+```text
+Epic: OAR-9 (암 논문 자동 BATCH 수집기)
+├── Task: OAR-18 (PubMed API 연동)
+│   ├── Sub-task: OAR-50 (tsy) → spike/batch-collector-tsy 커밋
+│   ├── Sub-task: OAR-51 (kjh) → spike/batch-collector-kjh 커밋
+│   └── Sub-task: OAR-52 (plk) → spike/batch-collector-plk 커밋
+│
+└── 통합: feature/OAR-9-batch-collector → OAR-9 커밋
 ```
-Task: OAR-18 (PubMed API 연동)
-├── Sub-task: OAR-50 (tsy 구현) → spike/pubmed-api-tsy
-├── Sub-task: OAR-51 (kjh 구현) → spike/pubmed-api-kjh
-└── Sub-task: OAR-52 (plk 구현) → spike/pubmed-api-plk
-```
 
-커밋 메시지에 Sub-task 번호를 포함하면 Jira에서 자동 추적됩니다.
+**핵심:** 커밋 메시지에 이슈 키를 포함하면 Jira에서 자동 추적됩니다.
+
+```bash
+# 스파이크 커밋 (Sub-task 번호)
+git commit -m "OAR-50 PubMed API 구현"
+
+# 통합 커밋 (Epic 번호)
+git commit -m "OAR-9 batch collector 서비스 통합"
+```
 
 ---
 
