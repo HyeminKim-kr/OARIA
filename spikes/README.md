@@ -19,25 +19,30 @@
 
 ## 디렉토리 네이밍 규칙
 
-스파이크 폴더는 다음 규칙을 권장합니다.
+스파이크 폴더는 **Jira 메인 테스크 티켓 번호**를 사용합니다.
 
 ```text
 spikes/
-  YYYY-MM-<간단주제>-spike/
+  OAR-XX/           # 메인 테스크 티켓 번호
+    README.md       # 공통: 목표, 비교 결과
+    <이니셜>/       # 서브테스크 담당자별 폴더
+      src/
+      output/
 ```
 
 예시:
 
 ```text
 spikes/
-  2025-01-vector-store-spike/
-  2025-02-rag-chat-flow-spike/
-  2025-03-bio-etl-pipeline-spike/
+  OAR-18/           # PubMed API 연동
+  OAR-19/           # 저널 품질 필터링
+  OAR-20/           # 데이터 정제 파이프라인
 ```
 
-* `YYYY-MM` : 스파이크를 시작한 년/월
-* `<간단주제>` : 한눈에 주제가 보이도록 짧게
-* `-spike` : 실험 코드임을 명확히 표시
+**장점:**
+- 심플: 날짜/주제 고민 필요 없음
+- Jira 연동: 티켓 번호로 바로 검색 가능
+- 명확한 매핑: 폴더 = 메인 테스크
 
 ---
 
@@ -45,7 +50,7 @@ spikes/
 
 ```text
 spikes/
-  2025-01-vector-store-spike/
+  OAR-18/
     README.md        # 이 스파이크의 목적/결론 정리
     docker-compose.yml
     src/
@@ -107,13 +112,13 @@ spikes/
 
 ### 폴더 구조
 
-**이니셜로 개인별 폴더 구분:**
+**메인 테스크 티켓 번호 + 이니셜:**
 
 ```text
 spikes/
-  YYYY-MM-<주제>-spike/
+  OAR-XX/                  # 메인 테스크 티켓 번호
     README.md              # 공통: 목표, 비교 결과, 최종 결론
-    <이니셜>/              # 개인별 구현
+    <이니셜>/              # 서브테스크 담당자 (개인별 구현)
       README.md            # 개인: 접근 방식, 결과
       src/
       output/
@@ -123,19 +128,19 @@ spikes/
 
 ```text
 spikes/
-  2025-12-batch-collector-spike/
+  OAR-18/                  # 메인 테스크: PubMed API 연동
     README.md
-    tsy/
+    tsy/                   # 서브테스크 OAR-50 담당
       README.md
       src/
         crawler.py
       output/
-    kjh/
+    kjh/                   # 서브테스크 OAR-51 담당
       README.md
       src/
         crawler.py
       output/
-    plk/
+    plk/                   # 서브테스크 OAR-52 담당
       README.md
       src/
         crawler.py
@@ -149,11 +154,11 @@ spikes/
 │  1단계: 스파이크 (각자 실험)                                      │
 ├─────────────────────────────────────────────────────────────────┤
 │                                                                 │
-│  spike/batch-collector-tsy ──┐                                  │
-│  spike/batch-collector-kjh ──┼──► dev (PR 없이 직접 머지)         │
-│  spike/batch-collector-plk ──┘                                  │
+│  spike/OAR-18-tsy ──┐                                           │
+│  spike/OAR-18-kjh ──┼──► dev (PR 없이 직접 머지)                  │
+│  spike/OAR-18-plk ──┘                                           │
 │                                                                 │
-│  * 각자 spikes/ 폴더에서 실험                                     │
+│  * 각자 spikes/OAR-18/<이니셜>/ 폴더에서 실험                      │
 │  * 커밋 메시지에 Sub-task 번호 포함 (OAR-50, OAR-51, ...)         │
 │  * 빠른 반복을 위해 PR 생략                                       │
 │                                                                 │
@@ -161,7 +166,7 @@ spikes/
 │  2단계: 비교 & 결론                                               │
 ├─────────────────────────────────────────────────────────────────┤
 │                                                                 │
-│  spikes/2025-12-batch-collector-spike/README.md                 │
+│  spikes/OAR-18/README.md                                        │
 │  └── Findings / Decision 섹션에 비교 결과 정리                    │
 │                                                                 │
 ├─────────────────────────────────────────────────────────────────┤
@@ -182,15 +187,15 @@ spikes/
 
 ### 1단계: 스파이크 브랜치
 
-**브랜치 네이밍:** `spike/<기능명>-<이니셜>`
+**브랜치 네이밍:** `spike/OAR-XX-<이니셜>`
 
 ```bash
 # 브랜치 생성
 git checkout dev
-git checkout -b spike/batch-collector-tsy
+git checkout -b spike/OAR-18-tsy
 
 # 자기 폴더에서 작업
-cd spikes/2025-12-batch-collector-spike/tsy/
+cd spikes/OAR-18/tsy/
 
 # 커밋 (Jira Sub-task 번호 필수!)
 git commit -m "OAR-50 requests 기반 PubMed API 구현"
@@ -271,9 +276,9 @@ git push -u origin feature/OAR-9-batch-collector
 ```text
 Epic: OAR-9 (암 논문 자동 BATCH 수집기)
 ├── Task: OAR-18 (PubMed API 연동)
-│   ├── Sub-task: OAR-50 (tsy) → spike/batch-collector-tsy 커밋
-│   ├── Sub-task: OAR-51 (kjh) → spike/batch-collector-kjh 커밋
-│   └── Sub-task: OAR-52 (plk) → spike/batch-collector-plk 커밋
+│   ├── Sub-task: OAR-50 (tsy) → spike/OAR-18-tsy 커밋
+│   ├── Sub-task: OAR-51 (kjh) → spike/OAR-18-kjh 커밋
+│   └── Sub-task: OAR-52 (plk) → spike/OAR-18-plk 커밋
 │
 └── 통합: feature/OAR-9-batch-collector → OAR-9 커밋
 ```
@@ -304,21 +309,24 @@ git commit -m "OAR-9 batch collector 서비스 통합"
 
 ```text
 spikes/
-  2025-12-crawling-spike/
-    src/
-      crawler.py
-    output/
-      papers.json           # 출력 결과물
+  OAR-18/                   # 크롤링 테스크
+    tsy/
+      src/
+        crawler.py
+      output/
+        papers.json         # 출력 결과물
 
-  2025-12-embedding-spike/
-    src/
-      embedder.py
-    output/
-      embeddings.json
+  OAR-19/                   # 임베딩 테스크
+    tsy/
+      src/
+        embedder.py
+      output/
+        embeddings.json
 
-  2025-12-vectordb-spike/
-    src/
-      store.py
+  OAR-20/                   # 벡터DB 테스크
+    tsy/
+      src/
+        store.py
 ```
 
 ### 작업 흐름
@@ -326,10 +334,10 @@ spikes/
 **Step 1: 크롤링 스파이크**
 
 ```python
-# src/crawler.py
+# spikes/OAR-18/tsy/src/crawler.py
 import json
 
-OUTPUT_PATH = "spikes/2025-12-crawling-spike/output/papers.json"
+OUTPUT_PATH = "spikes/OAR-18/tsy/output/papers.json"
 
 def crawl_papers(query: str, limit: int) -> list[dict]:
     # ... API 호출
@@ -346,12 +354,12 @@ if __name__ == "__main__":
 **Step 2: 임베딩 스파이크**
 
 ```python
-# src/embedder.py
+# spikes/OAR-19/tsy/src/embedder.py
 import json
 
 # 이전 스파이크 출력 경로 직접 참조
-INPUT_PATH = "spikes/2025-12-crawling-spike/output/papers.json"
-OUTPUT_PATH = "spikes/2025-12-embedding-spike/output/embeddings.json"
+INPUT_PATH = "spikes/OAR-18/tsy/output/papers.json"
+OUTPUT_PATH = "spikes/OAR-19/tsy/output/embeddings.json"
 
 def embed_papers(papers: list[dict]) -> list[dict]:
     # ... 임베딩 로직
