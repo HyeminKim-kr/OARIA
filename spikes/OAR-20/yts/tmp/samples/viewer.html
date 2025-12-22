@@ -1,0 +1,591 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>OAR-20: Cancer Paper Full-text Viewer</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            background: #f5f5f5;
+            color: #333;
+            line-height: 1.6;
+        }
+
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 20px;
+        }
+
+        header {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            padding: 30px;
+            border-radius: 12px;
+            margin-bottom: 30px;
+        }
+
+        header h1 {
+            font-size: 1.8rem;
+            margin-bottom: 10px;
+        }
+
+        header p {
+            opacity: 0.9;
+        }
+
+        .stats {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+            gap: 15px;
+            margin-bottom: 30px;
+        }
+
+        .stat-card {
+            background: white;
+            padding: 20px;
+            border-radius: 10px;
+            text-align: center;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.05);
+        }
+
+        .stat-card .number {
+            font-size: 2rem;
+            font-weight: 700;
+            color: #667eea;
+        }
+
+        .stat-card .label {
+            font-size: 0.85rem;
+            color: #666;
+        }
+
+        .paper-card {
+            background: white;
+            border-radius: 12px;
+            padding: 25px;
+            margin-bottom: 20px;
+            box-shadow: 0 2px 15px rgba(0,0,0,0.05);
+            transition: transform 0.2s, box-shadow 0.2s;
+        }
+
+        .paper-card:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 4px 20px rgba(0,0,0,0.1);
+        }
+
+        .paper-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: flex-start;
+            margin-bottom: 15px;
+            flex-wrap: wrap;
+            gap: 10px;
+        }
+
+        .paper-id {
+            font-size: 0.75rem;
+            background: #e8e8e8;
+            padding: 4px 10px;
+            border-radius: 20px;
+            color: #666;
+        }
+
+        .paper-year {
+            font-size: 0.85rem;
+            color: #667eea;
+            font-weight: 600;
+        }
+
+        .paper-title {
+            font-size: 1.15rem;
+            font-weight: 600;
+            color: #222;
+            margin-bottom: 12px;
+            line-height: 1.4;
+        }
+
+        .paper-authors {
+            font-size: 0.85rem;
+            color: #666;
+            margin-bottom: 15px;
+        }
+
+        .paper-journal {
+            font-size: 0.8rem;
+            color: #888;
+            font-style: italic;
+            margin-bottom: 15px;
+        }
+
+        .paper-abstract {
+            font-size: 0.9rem;
+            color: #444;
+            background: #f9f9f9;
+            padding: 15px;
+            border-radius: 8px;
+            margin-bottom: 15px;
+            max-height: 200px;
+            overflow-y: auto;
+        }
+
+        .paper-keywords {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 8px;
+            margin-bottom: 15px;
+        }
+
+        .keyword {
+            font-size: 0.75rem;
+            background: #eef2ff;
+            color: #667eea;
+            padding: 4px 10px;
+            border-radius: 15px;
+        }
+
+        .paper-links {
+            display: flex;
+            gap: 10px;
+            flex-wrap: wrap;
+        }
+
+        .paper-links a, .paper-links button {
+            font-size: 0.8rem;
+            color: white;
+            background: #667eea;
+            padding: 8px 15px;
+            border-radius: 6px;
+            text-decoration: none;
+            transition: background 0.2s;
+            border: none;
+            cursor: pointer;
+        }
+
+        .paper-links a:hover, .paper-links button:hover {
+            background: #5a6fd6;
+        }
+
+        .paper-links a.pdf {
+            background: #e74c3c;
+        }
+
+        .paper-links a.pdf:hover {
+            background: #c0392b;
+        }
+
+        .paper-links button.fulltext-btn {
+            background: #27ae60;
+        }
+
+        .paper-links button.fulltext-btn:hover {
+            background: #219a52;
+        }
+
+        .badge-oa {
+            display: inline-block;
+            font-size: 0.7rem;
+            background: #27ae60;
+            color: white;
+            padding: 3px 8px;
+            border-radius: 4px;
+            margin-left: 10px;
+        }
+
+        .badge-fulltext {
+            display: inline-block;
+            font-size: 0.7rem;
+            background: #9b59b6;
+            color: white;
+            padding: 3px 8px;
+            border-radius: 4px;
+            margin-left: 5px;
+        }
+
+        .section-title {
+            font-size: 1.3rem;
+            font-weight: 600;
+            margin-bottom: 20px;
+            padding-bottom: 10px;
+            border-bottom: 2px solid #667eea;
+        }
+
+        .no-abstract {
+            color: #999;
+            font-style: italic;
+        }
+
+        /* Full-text Modal */
+        .modal {
+            display: none;
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0,0,0,0.7);
+            z-index: 1000;
+            overflow-y: auto;
+        }
+
+        .modal.active {
+            display: block;
+        }
+
+        .modal-content {
+            background: white;
+            max-width: 900px;
+            margin: 30px auto;
+            padding: 30px;
+            border-radius: 12px;
+            position: relative;
+        }
+
+        .modal-close {
+            position: absolute;
+            top: 15px;
+            right: 20px;
+            font-size: 1.5rem;
+            cursor: pointer;
+            color: #666;
+        }
+
+        .modal-close:hover {
+            color: #333;
+        }
+
+        .modal-title {
+            font-size: 1.3rem;
+            font-weight: 600;
+            margin-bottom: 20px;
+            padding-right: 40px;
+        }
+
+        .section-tabs {
+            display: flex;
+            gap: 10px;
+            margin-bottom: 20px;
+            flex-wrap: wrap;
+        }
+
+        .section-tab {
+            padding: 8px 16px;
+            border: 2px solid #667eea;
+            border-radius: 20px;
+            background: white;
+            color: #667eea;
+            cursor: pointer;
+            font-size: 0.85rem;
+            transition: all 0.2s;
+        }
+
+        .section-tab:hover, .section-tab.active {
+            background: #667eea;
+            color: white;
+        }
+
+        .fulltext-content {
+            background: #f9f9f9;
+            padding: 20px;
+            border-radius: 8px;
+            max-height: 500px;
+            overflow-y: auto;
+            font-size: 0.9rem;
+            line-height: 1.8;
+            white-space: pre-wrap;
+        }
+
+        .fulltext-stats {
+            margin-top: 15px;
+            font-size: 0.8rem;
+            color: #666;
+        }
+
+        /* File selector */
+        .file-selector {
+            background: white;
+            padding: 15px;
+            border-radius: 10px;
+            margin-bottom: 20px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.05);
+        }
+
+        .file-selector label {
+            font-weight: 600;
+            margin-right: 10px;
+        }
+
+        .file-selector select {
+            padding: 8px 15px;
+            border-radius: 6px;
+            border: 1px solid #ddd;
+            font-size: 0.9rem;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <header>
+            <h1>OAR-20: Cancer Paper Full-text Viewer</h1>
+            <p>Europe PMC Open Access Papers with Full-text</p>
+        </header>
+
+        <div class="file-selector">
+            <label for="jsonFile">Data File:</label>
+            <select id="jsonFile" onchange="loadFile()">
+                <option value="europe_pmc/fulltext_cancer_10.json">fulltext_cancer_10.json (Full-text)</option>
+            </select>
+        </div>
+
+        <div class="stats">
+            <div class="stat-card">
+                <div class="number" id="totalCount">-</div>
+                <div class="label">Total Papers</div>
+            </div>
+            <div class="stat-card">
+                <div class="number" id="oaCount">-</div>
+                <div class="label">Open Access</div>
+            </div>
+            <div class="stat-card">
+                <div class="number" id="fulltextCount">-</div>
+                <div class="label">With Full-text</div>
+            </div>
+            <div class="stat-card">
+                <div class="number" id="avgChars">-</div>
+                <div class="label">Avg. Characters</div>
+            </div>
+        </div>
+
+        <h2 class="section-title">Paper List</h2>
+
+        <div id="papers"></div>
+    </div>
+
+    <!-- Full-text Modal -->
+    <div class="modal" id="fulltextModal">
+        <div class="modal-content">
+            <span class="modal-close" onclick="closeModal()">&times;</span>
+            <h3 class="modal-title" id="modalTitle"></h3>
+
+            <div class="section-tabs" id="sectionTabs"></div>
+
+            <div class="fulltext-content" id="fulltextContent"></div>
+
+            <div class="fulltext-stats" id="fulltextStats"></div>
+        </div>
+    </div>
+
+    <script>
+        let currentPapers = [];
+
+        function loadFile() {
+            const file = document.getElementById('jsonFile').value;
+            fetch(file)
+                .then(response => response.json())
+                .then(data => {
+                    // Handle both raw API response and processed format
+                    if (data.resultList) {
+                        currentPapers = data.resultList.result;
+                    } else if (Array.isArray(data)) {
+                        currentPapers = data;
+                    } else {
+                        currentPapers = [];
+                    }
+                    renderPapers(currentPapers);
+                    updateStats(currentPapers);
+                })
+                .catch(error => {
+                    document.getElementById('papers').innerHTML = `
+                        <div class="paper-card">
+                            <p style="color: #e74c3c;">Error loading data: ${error.message}</p>
+                            <p style="color: #666; margin-top: 10px;">Path: ${file}</p>
+                        </div>
+                    `;
+                });
+        }
+
+        function renderPapers(papers) {
+            const container = document.getElementById('papers');
+
+            container.innerHTML = papers.map((paper, index) => {
+                // Handle both API response format and processed format
+                const authors = paper.authorString || (paper.authors ? paper.authors.join(', ') : 'Unknown');
+                const abstract = paper.abstractText || paper.abstract || '';
+                const keywords = paper.keywordList?.keyword || paper.keywords || [];
+                const journal = paper.journalInfo?.journal?.title || paper.journal || '';
+                const pmcid = paper.pmcid || '';
+                const doi = paper.doi || '';
+                const hasFulltext = paper.full_text || paper.fullText;
+                const year = paper.pubYear || paper.year || '';
+
+                return `
+                    <div class="paper-card">
+                        <div class="paper-header">
+                            <span class="paper-id">
+                                #${index + 1} | PMID: ${paper.pmid || 'N/A'}
+                                ${pmcid ? ` | ${pmcid}` : ''}
+                            </span>
+                            <span class="paper-year">${year}</span>
+                        </div>
+
+                        <h3 class="paper-title">
+                            ${paper.title}
+                            <span class="badge-oa">Open Access</span>
+                            ${hasFulltext ? '<span class="badge-fulltext">Full-text</span>' : ''}
+                        </h3>
+
+                        <p class="paper-authors">${truncateAuthors(authors)}</p>
+
+                        ${journal ? `<p class="paper-journal">${journal}</p>` : ''}
+
+                        ${abstract
+                            ? `<div class="paper-abstract">${abstract}</div>`
+                            : `<div class="paper-abstract no-abstract">No abstract available</div>`
+                        }
+
+                        ${keywords.length > 0 ? `
+                            <div class="paper-keywords">
+                                ${keywords.slice(0, 6).map(k => `<span class="keyword">${k}</span>`).join('')}
+                            </div>
+                        ` : ''}
+
+                        <div class="paper-links">
+                            ${hasFulltext ? `
+                                <button class="fulltext-btn" onclick="showFulltext(${index})">
+                                    View Full-text
+                                </button>
+                            ` : ''}
+                            ${pmcid ? `
+                                <a href="https://europepmc.org/article/PMC/${pmcid.replace('PMC', '')}" target="_blank">
+                                    Europe PMC
+                                </a>
+                                <a href="https://europepmc.org/article/PMC/${pmcid.replace('PMC', '')}?pdf=render" target="_blank" class="pdf">
+                                    PDF
+                                </a>
+                            ` : ''}
+                            ${doi ? `
+                                <a href="https://doi.org/${doi}" target="_blank">
+                                    DOI
+                                </a>
+                            ` : ''}
+                        </div>
+                    </div>
+                `;
+            }).join('');
+        }
+
+        function truncateAuthors(authorString) {
+            if (!authorString) return 'Unknown';
+            const authors = authorString.split(',');
+            if (authors.length > 3) {
+                return authors.slice(0, 3).join(',') + ` et al. (${authors.length} authors)`;
+            }
+            return authorString;
+        }
+
+        function updateStats(papers) {
+            document.getElementById('totalCount').textContent = papers.length;
+
+            const oaCount = papers.filter(p =>
+                p.isOpenAccess === 'Y' || p.is_open_access === true
+            ).length;
+            document.getElementById('oaCount').textContent = oaCount || papers.length;
+
+            const fulltextCount = papers.filter(p => p.full_text || p.fullText).length;
+            document.getElementById('fulltextCount').textContent = fulltextCount;
+
+            // Average characters in full-text
+            const fulltextPapers = papers.filter(p => p.full_text || p.fullText);
+            if (fulltextPapers.length > 0) {
+                const totalChars = fulltextPapers.reduce((sum, p) => {
+                    const text = p.full_text || p.fullText || '';
+                    return sum + text.length;
+                }, 0);
+                const avg = Math.round(totalChars / fulltextPapers.length);
+                document.getElementById('avgChars').textContent = formatNumber(avg);
+            } else {
+                document.getElementById('avgChars').textContent = '-';
+            }
+        }
+
+        function formatNumber(num) {
+            if (num >= 1000000) return (num / 1000000).toFixed(1) + 'M';
+            if (num >= 1000) return (num / 1000).toFixed(1) + 'K';
+            return num.toString();
+        }
+
+        function showFulltext(index) {
+            const paper = currentPapers[index];
+            const fulltext = paper.full_text || paper.fullText || '';
+            const sections = paper.full_text_sections || paper.fullTextSections || {};
+
+            document.getElementById('modalTitle').textContent = paper.title;
+
+            // Build section tabs
+            const tabsContainer = document.getElementById('sectionTabs');
+            const availableSections = ['full', 'abstract', 'introduction', 'methods', 'results', 'discussion', 'conclusion'];
+
+            let tabsHtml = '';
+            availableSections.forEach((section, i) => {
+                const content = section === 'full' ? fulltext : (sections[section] || '');
+                if (content) {
+                    const isActive = i === 0 ? 'active' : '';
+                    const label = section === 'full' ? 'Full Text' : section.charAt(0).toUpperCase() + section.slice(1);
+                    tabsHtml += `<button class="section-tab ${isActive}" onclick="showSection('${section}', ${index})">${label}</button>`;
+                }
+            });
+            tabsContainer.innerHTML = tabsHtml;
+
+            // Show full text by default
+            showSection('full', index);
+
+            document.getElementById('fulltextModal').classList.add('active');
+        }
+
+        function showSection(section, index) {
+            const paper = currentPapers[index];
+            const fulltext = paper.full_text || paper.fullText || '';
+            const sections = paper.full_text_sections || paper.fullTextSections || {};
+
+            const content = section === 'full' ? fulltext : (sections[section] || 'Section not available');
+            document.getElementById('fulltextContent').textContent = content;
+
+            // Update stats
+            document.getElementById('fulltextStats').textContent =
+                `Characters: ${content.length.toLocaleString()} | Words: ~${Math.round(content.split(/\s+/).length).toLocaleString()}`;
+
+            // Update active tab
+            document.querySelectorAll('.section-tab').forEach(tab => {
+                tab.classList.remove('active');
+                if (tab.textContent.toLowerCase().replace(' ', '') === section.replace(' ', '')) {
+                    tab.classList.add('active');
+                }
+            });
+        }
+
+        function closeModal() {
+            document.getElementById('fulltextModal').classList.remove('active');
+        }
+
+        // Close modal on escape key
+        document.addEventListener('keydown', (e) => {
+            if (e.key === 'Escape') closeModal();
+        });
+
+        // Close modal on outside click
+        document.getElementById('fulltextModal').addEventListener('click', (e) => {
+            if (e.target.id === 'fulltextModal') closeModal();
+        });
+
+        // Initial load
+        loadFile();
+    </script>
+</body>
+</html>
