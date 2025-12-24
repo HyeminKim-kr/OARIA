@@ -1,0 +1,648 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>OAR-18: Europe PMC API 테스트</title>
+    <style>
+        :root {
+            --primary: #2563eb;
+            --primary-dark: #1d4ed8;
+            --success: #10b981;
+            --warning: #f59e0b;
+            --bg: #f8fafc;
+            --card-bg: #ffffff;
+            --text: #1e293b;
+            --text-muted: #64748b;
+            --border: #e2e8f0;
+        }
+
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            background: var(--bg);
+            color: var(--text);
+            line-height: 1.6;
+        }
+
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 2rem;
+        }
+
+        header {
+            background: linear-gradient(135deg, var(--primary) 0%, var(--primary-dark) 100%);
+            color: white;
+            padding: 2rem;
+            border-radius: 12px;
+            margin-bottom: 2rem;
+        }
+
+        header h1 {
+            font-size: 1.75rem;
+            margin-bottom: 0.5rem;
+        }
+
+        header p {
+            opacity: 0.9;
+        }
+
+        .badge {
+            display: inline-block;
+            padding: 0.25rem 0.75rem;
+            border-radius: 9999px;
+            font-size: 0.75rem;
+            font-weight: 600;
+            background: rgba(255,255,255,0.2);
+            margin-top: 0.5rem;
+        }
+
+        .search-section {
+            background: var(--card-bg);
+            border-radius: 12px;
+            padding: 1.5rem;
+            margin-bottom: 2rem;
+            box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+        }
+
+        .search-form {
+            display: flex;
+            gap: 1rem;
+            flex-wrap: wrap;
+        }
+
+        .search-input {
+            flex: 1;
+            min-width: 200px;
+            padding: 0.75rem 1rem;
+            border: 2px solid var(--border);
+            border-radius: 8px;
+            font-size: 1rem;
+            transition: border-color 0.2s;
+        }
+
+        .search-input:focus {
+            outline: none;
+            border-color: var(--primary);
+        }
+
+        .search-btn {
+            padding: 0.75rem 1.5rem;
+            background: var(--primary);
+            color: white;
+            border: none;
+            border-radius: 8px;
+            font-size: 1rem;
+            font-weight: 600;
+            cursor: pointer;
+            transition: background 0.2s;
+        }
+
+        .search-btn:hover {
+            background: var(--primary-dark);
+        }
+
+        .search-btn:disabled {
+            opacity: 0.6;
+            cursor: not-allowed;
+        }
+
+        .options {
+            display: flex;
+            gap: 1rem;
+            margin-top: 1rem;
+            flex-wrap: wrap;
+        }
+
+        .option-label {
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+            cursor: pointer;
+        }
+
+        .stats {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+            gap: 1rem;
+            margin-bottom: 2rem;
+        }
+
+        .stat-card {
+            background: var(--card-bg);
+            border-radius: 12px;
+            padding: 1.25rem;
+            text-align: center;
+            box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+        }
+
+        .stat-value {
+            font-size: 1.75rem;
+            font-weight: 700;
+            color: var(--primary);
+        }
+
+        .stat-label {
+            font-size: 0.875rem;
+            color: var(--text-muted);
+            margin-top: 0.25rem;
+        }
+
+        .results-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 1rem;
+        }
+
+        .results-header h2 {
+            font-size: 1.25rem;
+        }
+
+        .paper-list {
+            display: flex;
+            flex-direction: column;
+            gap: 1rem;
+        }
+
+        .paper-card {
+            background: var(--card-bg);
+            border-radius: 12px;
+            padding: 1.5rem;
+            box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+            transition: transform 0.2s, box-shadow 0.2s;
+        }
+
+        .paper-card:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+        }
+
+        .paper-title {
+            font-size: 1.1rem;
+            font-weight: 600;
+            color: var(--primary);
+            margin-bottom: 0.5rem;
+            line-height: 1.4;
+        }
+
+        .paper-meta {
+            display: flex;
+            gap: 1rem;
+            flex-wrap: wrap;
+            font-size: 0.875rem;
+            color: var(--text-muted);
+            margin-bottom: 0.75rem;
+        }
+
+        .paper-meta span {
+            display: flex;
+            align-items: center;
+            gap: 0.25rem;
+        }
+
+        .paper-authors {
+            font-size: 0.875rem;
+            color: var(--text-muted);
+            margin-bottom: 0.75rem;
+        }
+
+        .paper-abstract {
+            font-size: 0.9rem;
+            color: var(--text);
+            line-height: 1.6;
+            display: -webkit-box;
+            -webkit-line-clamp: 3;
+            -webkit-box-orient: vertical;
+            overflow: hidden;
+        }
+
+        .paper-tags {
+            display: flex;
+            gap: 0.5rem;
+            margin-top: 1rem;
+            flex-wrap: wrap;
+        }
+
+        .tag {
+            padding: 0.25rem 0.5rem;
+            border-radius: 4px;
+            font-size: 0.75rem;
+            font-weight: 500;
+        }
+
+        .tag-oa {
+            background: #dcfce7;
+            color: #166534;
+        }
+
+        .tag-fulltext {
+            background: #dbeafe;
+            color: #1e40af;
+        }
+
+        .tag-id {
+            background: #f1f5f9;
+            color: #475569;
+        }
+
+        .loading {
+            text-align: center;
+            padding: 3rem;
+            color: var(--text-muted);
+        }
+
+        .spinner {
+            width: 40px;
+            height: 40px;
+            border: 3px solid var(--border);
+            border-top-color: var(--primary);
+            border-radius: 50%;
+            animation: spin 1s linear infinite;
+            margin: 0 auto 1rem;
+        }
+
+        @keyframes spin {
+            to { transform: rotate(360deg); }
+        }
+
+        .error {
+            background: #fef2f2;
+            color: #991b1b;
+            padding: 1rem;
+            border-radius: 8px;
+            margin-bottom: 1rem;
+        }
+
+        .empty-state {
+            text-align: center;
+            padding: 3rem;
+            color: var(--text-muted);
+        }
+
+        .load-more {
+            display: block;
+            width: 100%;
+            padding: 1rem;
+            margin-top: 1rem;
+            background: var(--card-bg);
+            border: 2px solid var(--border);
+            border-radius: 8px;
+            font-size: 1rem;
+            cursor: pointer;
+            transition: border-color 0.2s;
+        }
+
+        .load-more:hover {
+            border-color: var(--primary);
+        }
+
+        .fulltext-btn {
+            margin-top: 1rem;
+            padding: 0.5rem 1rem;
+            background: var(--success);
+            color: white;
+            border: none;
+            border-radius: 6px;
+            font-size: 0.875rem;
+            cursor: pointer;
+            transition: background 0.2s;
+        }
+
+        .fulltext-btn:hover {
+            background: #059669;
+        }
+
+        .fulltext-btn:disabled {
+            opacity: 0.6;
+            cursor: not-allowed;
+        }
+
+        .fulltext-container {
+            margin-top: 1rem;
+            padding: 1rem;
+            background: #f8fafc;
+            border-radius: 8px;
+            border: 1px solid var(--border);
+            max-height: 400px;
+            overflow-y: auto;
+        }
+
+        .fulltext-content {
+            font-size: 0.875rem;
+            line-height: 1.8;
+            white-space: pre-wrap;
+            word-break: break-word;
+        }
+
+        .fulltext-section {
+            margin-bottom: 1rem;
+        }
+
+        .fulltext-section h4 {
+            color: var(--primary);
+            margin-bottom: 0.5rem;
+            font-size: 0.9rem;
+        }
+
+        .fulltext-stats {
+            font-size: 0.75rem;
+            color: var(--text-muted);
+            margin-bottom: 0.5rem;
+        }
+
+        footer {
+            text-align: center;
+            padding: 2rem;
+            color: var(--text-muted);
+            font-size: 0.875rem;
+        }
+
+        footer a {
+            color: var(--primary);
+            text-decoration: none;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <header>
+            <h1>Europe PMC API 테스트</h1>
+            <p>OAR-18: 암 논문 수집 API 연동 - 팀 피드백용 데모</p>
+            <span class="badge">Viewer → Python FastAPI → Europe PMC</span>
+        </header>
+
+        <section class="search-section">
+            <form class="search-form" id="searchForm">
+                <input
+                    type="text"
+                    class="search-input"
+                    id="queryInput"
+                    placeholder="검색어 입력 (예: lung cancer, EGFR mutation)"
+                    value="neoplasms"
+                >
+                <button type="submit" class="search-btn" id="searchBtn">검색</button>
+            </form>
+            <div class="options">
+                <label class="option-label">
+                    <input type="checkbox" id="openAccessOnly" checked>
+                    Open Access만
+                </label>
+                <label class="option-label">
+                    <input type="number" id="pageSize" value="10" min="1" max="100" style="width: 60px; padding: 0.25rem;">
+                    건씩 조회
+                </label>
+            </div>
+        </section>
+
+        <section class="stats" id="stats" style="display: none;">
+            <div class="stat-card">
+                <div class="stat-value" id="totalCount">0</div>
+                <div class="stat-label">총 결과</div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-value" id="displayedCount">0</div>
+                <div class="stat-label">표시된 논문</div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-value" id="oaCount">0</div>
+                <div class="stat-label">Open Access</div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-value" id="fullTextCount">0</div>
+                <div class="stat-label">전문 가능</div>
+            </div>
+        </section>
+
+        <div id="resultsContainer">
+            <div class="empty-state">
+                <p>검색어를 입력하고 검색 버튼을 클릭하세요.</p>
+                <p style="margin-top: 0.5rem; font-size: 0.875rem;">기본값: <code>neoplasms</code> (암 관련 논문)</p>
+            </div>
+        </div>
+
+        <footer>
+            <p>
+                데이터 출처: <a href="https://europepmc.org/" target="_blank">Europe PMC</a> |
+                API 문서: <a href="https://europepmc.org/RestfulWebService" target="_blank">REST API Reference</a>
+            </p>
+            <p style="margin-top: 0.5rem;">OAR-18 스파이크 | 담당: yts</p>
+        </footer>
+    </div>
+
+    <script>
+        // Python FastAPI 백엔드 호출 (Europe PMC 직접 호출 X)
+        const API_BASE = 'http://localhost:8000';
+
+        let currentQuery = '';
+        let allPapers = [];
+
+        // 검색 폼 제출
+        document.getElementById('searchForm').addEventListener('submit', async (e) => {
+            e.preventDefault();
+            allPapers = [];
+            await search();
+        });
+
+        async function search() {
+            const query = document.getElementById('queryInput').value.trim();
+            const openAccessOnly = document.getElementById('openAccessOnly').checked;
+            const pageSize = parseInt(document.getElementById('pageSize').value) || 10;
+
+            if (!query) return;
+
+            const searchBtn = document.getElementById('searchBtn');
+            const resultsContainer = document.getElementById('resultsContainer');
+
+            // 로딩 상태
+            searchBtn.disabled = true;
+            searchBtn.textContent = '검색 중...';
+
+            resultsContainer.innerHTML = `
+                <div class="loading">
+                    <div class="spinner"></div>
+                    <p>Python 백엔드 → Europe PMC 논문 검색 중...</p>
+                </div>
+            `;
+
+            try {
+                currentQuery = openAccessOnly ? `${query} AND OPEN_ACCESS:Y` : query;
+
+                // FastAPI 백엔드 호출
+                const params = new URLSearchParams({
+                    query: query,
+                    limit: pageSize,
+                    open_access: openAccessOnly
+                });
+
+                const response = await fetch(`${API_BASE}/search?${params}`);
+
+                if (!response.ok) {
+                    throw new Error(`API 오류: ${response.status}`);
+                }
+
+                const data = await response.json();
+                allPapers = data.papers || [];
+
+                renderResults(data.hit_count, allPapers.length);
+
+            } catch (error) {
+                resultsContainer.innerHTML = `
+                    <div class="error">
+                        <strong>오류 발생:</strong> ${error.message}
+                        <br><small>FastAPI 서버가 실행 중인지 확인하세요: uv run uvicorn src.server:app --reload --port 8000</small>
+                    </div>
+                `;
+            } finally {
+                searchBtn.disabled = false;
+                searchBtn.textContent = '검색';
+            }
+        }
+
+        function renderResults(totalHits, displayedCount) {
+            const resultsContainer = document.getElementById('resultsContainer');
+            const statsSection = document.getElementById('stats');
+
+            // 통계 업데이트 (Python 백엔드 응답 형식에 맞춤)
+            statsSection.style.display = 'grid';
+            document.getElementById('totalCount').textContent = totalHits.toLocaleString();
+            document.getElementById('displayedCount').textContent = allPapers.length;
+            document.getElementById('oaCount').textContent = allPapers.filter(p => p.is_open_access).length;
+            document.getElementById('fullTextCount').textContent = allPapers.filter(p => p.has_full_text).length;
+
+            if (allPapers.length === 0) {
+                resultsContainer.innerHTML = `
+                    <div class="empty-state">
+                        <p>검색 결과가 없습니다.</p>
+                    </div>
+                `;
+                return;
+            }
+
+            let html = `
+                <div class="results-header">
+                    <h2>검색 결과</h2>
+                    <span style="color: var(--text-muted); font-size: 0.875rem;">
+                        쿼리: ${currentQuery} | Python 백엔드 경유
+                    </span>
+                </div>
+                <div class="paper-list">
+            `;
+
+            for (const paper of allPapers) {
+                // Python Paper 객체 형식에 맞춤
+                const authors = paper.authors || [];
+                const authorNames = authors.slice(0, 3).join(', ');
+                const hasMore = authors.length > 3;
+
+                html += `
+                    <article class="paper-card">
+                        <h3 class="paper-title">${paper.title || 'No title'}</h3>
+                        <div class="paper-meta">
+                            <span>${paper.journal || 'Unknown Journal'}</span>
+                            <span>${paper.year || 'N/A'}</span>
+                        </div>
+                        <p class="paper-authors">
+                            ${authorNames}${hasMore ? ` 외 ${authors.length - 3}명` : ''}
+                        </p>
+                        ${paper.abstract ? `<p class="paper-abstract">${paper.abstract}</p>` : ''}
+                        <div class="paper-tags">
+                            ${paper.is_open_access ? '<span class="tag tag-oa">Open Access</span>' : ''}
+                            ${paper.has_full_text ? '<span class="tag tag-fulltext">Full Text</span>' : ''}
+                            ${paper.pmid ? `<span class="tag tag-id">PMID: ${paper.pmid}</span>` : ''}
+                            ${paper.pmcid ? `<span class="tag tag-id">${paper.pmcid}</span>` : ''}
+                        </div>
+                        ${paper.pmcid && paper.has_full_text ? `
+                            <button class="fulltext-btn" onclick="fetchFullText('${paper.pmcid}', this)">
+                                전문 보기 (Python 백엔드)
+                            </button>
+                            <div class="fulltext-container" id="fulltext-${paper.pmcid}" style="display:none;"></div>
+                        ` : ''}
+                    </article>
+                `;
+            }
+
+            html += '</div>';
+
+            resultsContainer.innerHTML = html;
+        }
+
+        async function fetchFullText(pmcid, btn) {
+            const container = document.getElementById(`fulltext-${pmcid}`);
+
+            // 이미 로드된 경우 토글
+            if (container.dataset.loaded === 'true') {
+                container.style.display = container.style.display === 'none' ? 'block' : 'none';
+                btn.textContent = container.style.display === 'none' ? '전문 보기 (Python 백엔드)' : '전문 접기';
+                return;
+            }
+
+            // 로딩 상태
+            btn.disabled = true;
+            btn.textContent = '전문 로딩 중...';
+            container.style.display = 'block';
+            container.innerHTML = '<div class="loading"><div class="spinner"></div><p>Python 백엔드 → Europe PMC 전문 수집 중...</p></div>';
+
+            try {
+                // FastAPI 백엔드 호출
+                const response = await fetch(`${API_BASE}/fulltext/${pmcid}`);
+
+                if (!response.ok) {
+                    const errorData = await response.json();
+                    throw new Error(errorData.error || `HTTP ${response.status}`);
+                }
+
+                const data = await response.json();
+                const sections = data.sections || {};
+
+                // 결과 표시
+                let html = `
+                    <div class="fulltext-stats">
+                        전문 길이: ${data.full_text_length?.toLocaleString() || 0} 자 |
+                        PMCID: ${pmcid} |
+                        <strong>Python 백엔드 처리</strong>
+                    </div>
+                `;
+
+                const sectionNames = ['abstract', 'introduction', 'methods', 'results', 'discussion', 'conclusion'];
+                const hasAnySections = sectionNames.some(name => sections[name]);
+
+                if (hasAnySections) {
+                    html += '<div class="fulltext-sections">';
+                    for (const name of sectionNames) {
+                        if (sections[name]) {
+                            const title = name.charAt(0).toUpperCase() + name.slice(1);
+                            html += `<div class="fulltext-section"><h4>${title}</h4><p>${sections[name]}</p></div>`;
+                        }
+                    }
+                    html += '</div>';
+                } else if (sections.full) {
+                    // 섹션 추출 실패 시 전체 텍스트 표시 (처음 5000자)
+                    const fullText = sections.full;
+                    html += `<div class="fulltext-content">${fullText.substring(0, 5000)}${fullText.length > 5000 ? '...' : ''}</div>`;
+                }
+
+                container.innerHTML = html;
+                container.dataset.loaded = 'true';
+                btn.textContent = '전문 접기';
+
+            } catch (error) {
+                container.innerHTML = `
+                    <div class="error">
+                        <strong>전문 로드 실패:</strong> ${error.message}
+                        <br><small>FastAPI 서버가 실행 중인지 확인하세요.</small>
+                    </div>
+                `;
+            } finally {
+                btn.disabled = false;
+            }
+        }
+    </script>
+</body>
+</html>

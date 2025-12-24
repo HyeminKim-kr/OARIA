@@ -1,0 +1,70 @@
+{
+  "query": "neoplasms AND OPEN_ACCESS:Y",
+  "hitCount": 892451,
+  "nextCursorMark": "AoJ/k5TK7PsCFxJhMDAyNzk1NDgzNjAwMDAwMTU2ODI=",
+  "resultList": {
+    "result": [
+      {
+        "pmid": "39770123",
+        "pmcid": "PMC11706394",
+        "doi": "10.1186/s12885-024-13388-8",
+        "title": "EGFR-targeted therapy in non-small cell lung cancer: current advances and future perspectives",
+        "authorList": {
+          "author": [
+            {"fullName": "Zhang Wei", "firstName": "Wei", "lastName": "Zhang"},
+            {"fullName": "Kim Min-Jung", "firstName": "Min-Jung", "lastName": "Kim"},
+            {"fullName": "Park Soo-Young", "firstName": "Soo-Young", "lastName": "Park"}
+          ]
+        },
+        "journalTitle": "BMC Cancer",
+        "pubYear": "2024",
+        "abstractText": "Epidermal growth factor receptor (EGFR) mutations are present in approximately 15-20% of non-small cell lung cancer (NSCLC) patients. This comprehensive review examines the evolution of EGFR-targeted therapies, from first-generation tyrosine kinase inhibitors to the latest fourth-generation compounds designed to overcome resistance mechanisms...",
+        "isOpenAccess": "Y",
+        "hasFullText": "Y",
+        "citedByCount": 12,
+        "source": "MED"
+      },
+      {
+        "pmid": "39768456",
+        "pmcid": "PMC11704521",
+        "doi": "10.1038/s41598-024-84123-5",
+        "title": "Machine learning approaches for early detection of pancreatic cancer using multi-omics data",
+        "authorList": {
+          "author": [
+            {"fullName": "Johnson Emily R", "firstName": "Emily R", "lastName": "Johnson"},
+            {"fullName": "Smith David A", "firstName": "David A", "lastName": "Smith"}
+          ]
+        },
+        "journalTitle": "Scientific Reports",
+        "pubYear": "2024",
+        "abstractText": "Pancreatic cancer remains one of the most lethal malignancies with a five-year survival rate below 10%. Early detection is crucial for improving patient outcomes. In this study, we developed a novel machine learning framework that integrates genomic, proteomic, and metabolomic data to identify early-stage pancreatic cancer biomarkers...",
+        "isOpenAccess": "Y",
+        "hasFullText": "Y",
+        "citedByCount": 5,
+        "source": "MED"
+      },
+      {
+        "pmid": "39765789",
+        "pmcid": "PMC11701234",
+        "doi": "10.1016/j.canlet.2024.217456",
+        "title": "Immunotherapy resistance mechanisms in hepatocellular carcinoma: A systematic review",
+        "authorList": {
+          "author": [
+            {"fullName": "Lee Ji-Hoon", "firstName": "Ji-Hoon", "lastName": "Lee"},
+            {"fullName": "Chen Xiao-Ming", "firstName": "Xiao-Ming", "lastName": "Chen"},
+            {"fullName": "Wang Li", "firstName": "Li", "lastName": "Wang"},
+            {"fullName": "Tanaka Yuki", "firstName": "Yuki", "lastName": "Tanaka"},
+            {"fullName": "Mueller Hans", "firstName": "Hans", "lastName": "Mueller"}
+          ]
+        },
+        "journalTitle": "Cancer Letters",
+        "pubYear": "2024",
+        "abstractText": "Immune checkpoint inhibitors have shown promising results in hepatocellular carcinoma (HCC), yet many patients develop resistance. This systematic review analyzes the molecular mechanisms underlying immunotherapy resistance in HCC, including tumor microenvironment alterations, genetic mutations, and epigenetic modifications...",
+        "isOpenAccess": "Y",
+        "hasFullText": "Y",
+        "citedByCount": 28,
+        "source": "MED"
+      }
+    ]
+  }
+}

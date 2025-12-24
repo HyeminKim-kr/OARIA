@@ -1,0 +1,15 @@
+[project]
+name = "oar-18-europe-pmc"
+version = "0.1.0"
+description = "Europe PMC API 연동 - 암 논문 수집"
+requires-python = ">=3.11"
+dependencies = [
+    "httpx>=0.27.0",
+    "fastapi>=0.115.0",
+    "uvicorn>=0.32.0",
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=8.0.0",
+]
