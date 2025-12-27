@@ -13,6 +13,8 @@ from datetime import datetime
 from src.pipeline import Pipeline, PipelineStep
 from src.europe_pmc_client import PaperInfo
 from src.models import ParsedPaper
+from src.config import Config
+from src.storage import DatabaseStorage, S3Storage
 
 
 # 페이지 설정
@@ -33,6 +35,12 @@ if "selected_error_detail" not in st.session_state:
     st.session_state.selected_error_detail = None  # 실패한 논문 에러 상세
 if "processing" not in st.session_state:
     st.session_state.processing = False
+if "current_page" not in st.session_state:
+    st.session_state.current_page = "수집"  # 수집 or 조회
+if "stored_papers" not in st.session_state:
+    st.session_state.stored_papers = []
+if "selected_stored_paper" not in st.session_state:
+    st.session_state.selected_stored_paper = None
 
 
 def format_duration(ms: int) -> str:
@@ -42,10 +50,267 @@ def format_duration(ms: int) -> str:
     return f"{ms/1000:.1f}s"
 
 
-def main():
+def format_size(size_bytes: int) -> str:
+    """바이트를 읽기 쉬운 형태로 변환"""
+    if size_bytes < 1024:
+        return f"{size_bytes} B"
+    elif size_bytes < 1024 * 1024:
+        return f"{size_bytes / 1024:.1f} KB"
+    else:
+        return f"{size_bytes / (1024 * 1024):.1f} MB"
+
+
+async def load_stored_papers():
+    """DB에서 저장된 논문 목록 로드"""
+    config = Config.from_env()
+    db = DatabaseStorage(config)
+
+    async with db.connect():
+        papers = await db.get_papers(limit=100)
+        count = await db.get_papers_count()
+        return papers, count
+
+
+async def load_paper_details(paper_id: str):
+    """DB에서 논문 상세 정보 로드"""
+    config = Config.from_env()
+    db = DatabaseStorage(config)
+
+    async with db.connect():
+        return await db.get_paper_with_details(paper_id)
+
+
+async def search_stored_papers(keyword: str):
+    """DB에서 논문 검색"""
+    config = Config.from_env()
+    db = DatabaseStorage(config)
+
+    async with db.connect():
+        return await db.search_papers(keyword, limit=50)
+
+
+def load_s3_text(canonical_prefix: str, version: str = "v1"):
+    """S3에서 canonical text 로드"""
+    config = Config.from_env()
+    s3 = S3Storage(config)
+    return s3.get_canonical_text(canonical_prefix, version)
+
+
+def load_s3_metadata(canonical_prefix: str):
+    """S3에서 versions.json 로드"""
+    config = Config.from_env()
+    s3 = S3Storage(config)
+    return s3.get_versions_metadata(canonical_prefix)
+
+
+def load_s3_files(canonical_prefix: str):
+    """S3에서 파일 목록 로드"""
+    config = Config.from_env()
+    s3 = S3Storage(config)
+    return s3.list_paper_files(canonical_prefix)
+
+
+def render_view_page():
+    """수집된 논문 조회 페이지"""
+    st.title("📚 수집된 논문 조회")
+
+    col_left, col_right = st.columns([1, 1])
+
+    with col_left:
+        st.header("🗄️ 저장된 논문 목록")
+
+        # 검색
+        search_keyword = st.text_input("🔍 검색 (제목/초록)", placeholder="키워드 입력...")
+
+        # 로드 버튼
+        col1, col2 = st.columns(2)
+        with col1:
+            if st.button("📥 목록 새로고침", use_container_width=True):
+                with st.spinner("DB에서 논문 목록 로딩 중..."):
+                    try:
+                        papers, count = asyncio.run(load_stored_papers())
+                        st.session_state.stored_papers = papers
+                        st.success(f"총 {count}개 논문 중 {len(papers)}개 로드됨")
+                    except Exception as e:
+                        st.error(f"DB 연결 실패: {e}")
+        with col2:
+            if search_keyword and st.button("🔍 검색", use_container_width=True):
+                with st.spinner("검색 중..."):
+                    try:
+                        papers = asyncio.run(search_stored_papers(search_keyword))
+                        st.session_state.stored_papers = papers
+                        st.info(f"{len(papers)}개 검색됨")
+                    except Exception as e:
+                        st.error(f"검색 실패: {e}")
+
+        st.divider()
+
+        # 논문 목록 표시
+        if st.session_state.stored_papers:
+            for i, paper in enumerate(st.session_state.stored_papers):
+                paper_id = paper.get("paper_id", "N/A")
+                title = paper.get("title", "제목 없음")
+                year = paper.get("year", "N/A")
+                source = paper.get("source", "N/A")
+
+                with st.container():
+                    col_a, col_b = st.columns([4, 1])
+                    with col_a:
+                        st.markdown(f"**{title[:60]}{'...' if len(title) > 60 else ''}**")
+                        st.caption(f"📅 {year} | 🆔 {paper_id} | 📡 {source}")
+                    with col_b:
+                        if st.button("보기", key=f"view_{i}", use_container_width=True):
+                            st.session_state.selected_stored_paper = paper
+                            st.rerun()
+
+                st.divider()
+        else:
+            st.info("📥 '목록 새로고침' 버튼을 클릭하여 DB에서 논문을 로드하세요")
+
+    with col_right:
+        st.header("📑 논문 상세 정보")
+
+        if st.session_state.selected_stored_paper:
+            paper = st.session_state.selected_stored_paper
+            paper_id = paper.get("paper_id")
+
+            st.subheader(paper.get("title", "제목 없음")[:80])
+
+            # 기본 메타데이터
+            col1, col2, col3 = st.columns(3)
+            with col1:
+                st.metric("연도", paper.get("year", "N/A"))
+            with col2:
+                st.metric("길이", f"{paper.get('canonical_text_length', 0):,}")
+            with col3:
+                st.metric("버전", paper.get("canonical_text_version", "v1"))
+
+            # 탭
+            tab1, tab2, tab3, tab4 = st.tabs(["DB 정보", "저자/섹션", "S3 텍스트", "S3 메타데이터"])
+
+            with tab1:
+                # DB에서 가져온 정보
+                st.json({
+                    "paper_id": paper.get("paper_id"),
+                    "pmcid": paper.get("pmcid"),
+                    "pmid": paper.get("pmid"),
+                    "doi": paper.get("doi"),
+                    "journal": paper.get("journal"),
+                    "source": paper.get("source"),
+                    "source_url": paper.get("source_url"),
+                    "canonical_prefix": paper.get("canonical_prefix"),
+                    "canonical_text_hash": paper.get("canonical_text_hash", "")[:16] + "..." if paper.get("canonical_text_hash") else None,
+                    "created_at": str(paper.get("created_at")),
+                    "updated_at": str(paper.get("updated_at")),
+                })
+
+                # 원본 논문 링크
+                source_url = paper.get("source_url")
+                if source_url:
+                    st.markdown(f"🔗 [원본 논문 보기]({source_url})")
+
+            with tab2:
+                # 저자 및 섹션 정보 로드
+                if st.button("📥 저자/섹션 로드", key="load_details"):
+                    with st.spinner("상세 정보 로딩 중..."):
+                        try:
+                            details = asyncio.run(load_paper_details(paper_id))
+                            if details:
+                                # 저자
+                                st.markdown("### 👥 저자")
+                                for author in details.get("authors", []):
+                                    corresp = " ⭐" if author.get("is_corresponding") else ""
+                                    orcid = f" ({author.get('orcid')})" if author.get("orcid") else ""
+                                    st.markdown(f"**{author.get('author_order')}. {author.get('author_name')}**{corresp}{orcid}")
+                                    if author.get("affiliation"):
+                                        st.caption(f"└ {author.get('affiliation')[:100]}...")
+
+                                # 섹션
+                                st.markdown("### 📑 섹션")
+                                for section in details.get("sections", []):
+                                    offset_info = f"offset: {section.get('offset_start')} ~ {section.get('offset_end')}"
+                                    st.markdown(f"**[{section.get('section_order')}] {section.get('section_name').upper()}**: {section.get('section_title', '')[:40]}")
+                                    st.caption(offset_info)
+                            else:
+                                st.warning("상세 정보를 찾을 수 없습니다")
+                        except Exception as e:
+                            st.error(f"로드 실패: {e}")
+
+            with tab3:
+                # S3에서 canonical text 로드
+                canonical_prefix = paper.get("canonical_prefix")
+                if canonical_prefix:
+                    if st.button("📥 S3 텍스트 로드", key="load_s3_text"):
+                        with st.spinner("S3에서 텍스트 로딩 중..."):
+                            try:
+                                text = load_s3_text(canonical_prefix)
+                                if text:
+                                    st.text_area(
+                                        f"Canonical Text (총 {len(text):,}자)",
+                                        text[:5000] + ("..." if len(text) > 5000 else ""),
+                                        height=400,
+                                        disabled=True,
+                                    )
+                                else:
+                                    st.warning("S3에서 텍스트를 찾을 수 없습니다")
+                            except Exception as e:
+                                st.error(f"S3 로드 실패: {e}")
+                else:
+                    st.warning("canonical_prefix가 없습니다")
+
+            with tab4:
+                # S3 메타데이터 및 파일 목록
+                canonical_prefix = paper.get("canonical_prefix")
+                if canonical_prefix:
+                    if st.button("📥 S3 메타데이터 로드", key="load_s3_meta"):
+                        with st.spinner("S3에서 메타데이터 로딩 중..."):
+                            try:
+                                # versions.json
+                                metadata = load_s3_metadata(canonical_prefix)
+                                if metadata:
+                                    st.markdown("### versions.json")
+                                    st.json(metadata)
+
+                                # 파일 목록
+                                files = load_s3_files(canonical_prefix)
+                                if files:
+                                    st.markdown("### 📁 S3 파일 목록")
+                                    for f in files:
+                                        st.markdown(f"- `{f['key']}` ({format_size(f['size'])})")
+                                        st.caption(f"  수정: {f['last_modified']}")
+                                else:
+                                    st.info("S3에 파일이 없습니다")
+                            except Exception as e:
+                                st.error(f"S3 로드 실패: {e}")
+                else:
+                    st.warning("canonical_prefix가 없습니다")
+
+            # 닫기 버튼
+            if st.button("❌ 닫기"):
+                st.session_state.selected_stored_paper = None
+                st.rerun()
+        else:
+            st.info("👈 왼쪽에서 논문을 선택하세요")
+
+            # 통계 표시
+            if st.session_state.stored_papers:
+                st.subheader("📊 저장 현황")
+                st.metric("저장된 논문", len(st.session_state.stored_papers))
+
+                # 연도별 분포
+                years = [p.get("year") for p in st.session_state.stored_papers if p.get("year")]
+                if years:
+                    year_counts = {}
+                    for y in years:
+                        year_counts[y] = year_counts.get(y, 0) + 1
+                    st.bar_chart(year_counts)
+
+
+def render_collect_page():
+    """논문 수집 및 처리 페이지"""
     st.title("📄 OAR-19 파싱 파이프라인 데모")
 
-    # 사이드바: 설정 및 히스토리
+    # 사이드바 내용은 main에서 관리
     with st.sidebar:
         st.header("⚙️ 설정")
         save_to_db = st.checkbox("PostgreSQL 저장", value=True)
@@ -393,6 +658,34 @@ def main():
                             st.caption(f"   └ {failed_step_name}: {failed_message}...")
                         elif item.get("error"):
                             st.caption(f"   └ {item['error'][:100]}...")
+
+
+def main():
+    """메인 함수 - 페이지 라우팅"""
+    # 사이드바 상단: 페이지 선택
+    with st.sidebar:
+        st.header("📌 페이지 선택")
+        page = st.radio(
+            "페이지",
+            ["🔬 수집", "📚 조회"],
+            index=0 if st.session_state.current_page == "수집" else 1,
+            label_visibility="collapsed",
+        )
+
+        if page == "🔬 수집" and st.session_state.current_page != "수집":
+            st.session_state.current_page = "수집"
+            st.rerun()
+        elif page == "📚 조회" and st.session_state.current_page != "조회":
+            st.session_state.current_page = "조회"
+            st.rerun()
+
+        st.divider()
+
+    # 페이지 렌더링
+    if st.session_state.current_page == "수집":
+        render_collect_page()
+    else:
+        render_view_page()
 
 
 if __name__ == "__main__":

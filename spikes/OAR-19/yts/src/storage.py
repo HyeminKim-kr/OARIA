@@ -45,14 +45,16 @@ class DatabaseStorage:
             INSERT INTO papers (
                 paper_id, pmcid, pmid, doi,
                 title, abstract, journal, year,
-                keywords, source, is_open_access,
+                keywords, source, source_url, is_open_access,
                 canonical_prefix, canonical_text_version,
-                canonical_text_hash, canonical_text_length
+                canonical_text_hash, canonical_text_length,
+                raw_xml_hash, parser_version
             ) VALUES (
                 $1, $2, $3, $4,
                 $5, $6, $7, $8,
-                $9, $10, $11,
-                $12, $13, $14, $15
+                $9, $10, $11, $12,
+                $13, $14, $15, $16,
+                $17, $18
             )
             ON CONFLICT (paper_id) DO UPDATE SET
                 title = EXCLUDED.title,
@@ -60,8 +62,11 @@ class DatabaseStorage:
                 journal = EXCLUDED.journal,
                 year = EXCLUDED.year,
                 keywords = EXCLUDED.keywords,
+                source_url = EXCLUDED.source_url,
                 canonical_text_hash = EXCLUDED.canonical_text_hash,
                 canonical_text_length = EXCLUDED.canonical_text_length,
+                raw_xml_hash = EXCLUDED.raw_xml_hash,
+                parser_version = EXCLUDED.parser_version,
                 updated_at = NOW()
             RETURNING id
         """
@@ -80,11 +85,14 @@ class DatabaseStorage:
                 db_dict["year"],
                 db_dict["keywords"],
                 db_dict["source"],
+                db_dict["source_url"],
                 db_dict["is_open_access"],
                 db_dict["canonical_prefix"],
                 db_dict["canonical_text_version"],
                 db_dict["canonical_text_hash"],
                 db_dict["canonical_text_length"],
+                db_dict["raw_xml_hash"],
+                db_dict["parser_version"],
             )
             return result
 
@@ -183,6 +191,131 @@ class DatabaseStorage:
             "authors_count": authors_count,
             "sections_count": sections_count,
         }
+
+    # ========== 조회 메서드 ==========
+
+    async def get_papers(self, limit: int = 50, offset: int = 0) -> list[dict]:
+        """논문 목록 조회
+
+        Args:
+            limit: 최대 조회 수
+            offset: 시작 위치
+
+        Returns:
+            논문 목록 [{paper_id, title, year, journal, source, ...}, ...]
+        """
+        query = """
+            SELECT
+                id, paper_id, pmcid, pmid, doi,
+                title, journal, year, source, source_url,
+                canonical_prefix, canonical_text_version,
+                canonical_text_hash, canonical_text_length,
+                raw_xml_hash, parser_version,
+                created_at, updated_at
+            FROM papers
+            ORDER BY created_at DESC
+            LIMIT $1 OFFSET $2
+        """
+        async with self._pool.acquire() as conn:
+            rows = await conn.fetch(query, limit, offset)
+            return [dict(row) for row in rows]
+
+    async def get_paper_by_id(self, paper_id: str) -> dict | None:
+        """paper_id로 논문 조회
+
+        Args:
+            paper_id: 논문 ID (예: "pmid:27959700")
+
+        Returns:
+            논문 정보 또는 None
+        """
+        query = """
+            SELECT
+                id, paper_id, pmcid, pmid, doi,
+                title, abstract, journal, year,
+                keywords, source, source_url, is_open_access,
+                canonical_prefix, canonical_text_version,
+                canonical_text_hash, canonical_text_length,
+                raw_xml_hash, parser_version,
+                created_at, updated_at
+            FROM papers
+            WHERE paper_id = $1
+        """
+        async with self._pool.acquire() as conn:
+            row = await conn.fetchrow(query, paper_id)
+            return dict(row) if row else None
+
+    async def get_paper_with_details(self, paper_id: str) -> dict | None:
+        """논문 + 저자 + 섹션 정보 함께 조회
+
+        Args:
+            paper_id: 논문 ID (예: "pmid:27959700")
+
+        Returns:
+            {paper: {...}, authors: [...], sections: [...]}
+        """
+        paper = await self.get_paper_by_id(paper_id)
+        if not paper:
+            return None
+
+        db_id = paper["id"]
+
+        # 저자 조회
+        authors_query = """
+            SELECT author_order, author_name, orcid, affiliation, is_corresponding
+            FROM paper_authors
+            WHERE paper_id = $1
+            ORDER BY author_order
+        """
+
+        # 섹션 조회
+        sections_query = """
+            SELECT section_order, section_name, section_title, offset_start, offset_end
+            FROM paper_sections
+            WHERE paper_id = $1
+            ORDER BY section_order
+        """
+
+        async with self._pool.acquire() as conn:
+            authors = await conn.fetch(authors_query, db_id)
+            sections = await conn.fetch(sections_query, db_id)
+
+        return {
+            "paper": paper,
+            "authors": [dict(a) for a in authors],
+            "sections": [dict(s) for s in sections],
+        }
+
+    async def get_papers_count(self) -> int:
+        """전체 논문 수 조회"""
+        query = "SELECT COUNT(*) FROM papers"
+        async with self._pool.acquire() as conn:
+            return await conn.fetchval(query)
+
+    async def search_papers(self, keyword: str, limit: int = 20) -> list[dict]:
+        """키워드로 논문 검색 (제목, 초록)
+
+        Args:
+            keyword: 검색 키워드
+            limit: 최대 결과 수
+
+        Returns:
+            검색 결과 목록
+        """
+        query = """
+            SELECT
+                id, paper_id, pmcid, pmid, doi,
+                title, journal, year, source, source_url,
+                canonical_text_length, created_at
+            FROM papers
+            WHERE title ILIKE $1 OR abstract ILIKE $1
+            ORDER BY year DESC NULLS LAST, created_at DESC
+            LIMIT $2
+        """
+        search_pattern = f"%{keyword}%"
+        async with self._pool.acquire() as conn:
+            rows = await conn.fetch(query, search_pattern, limit)
+            return [dict(row) for row in rows]
 
 
 class S3Storage:
@@ -312,5 +445,91 @@ class S3Storage:
 
         return {
             "text_key": text_key,
-            "versions_key": versions_key,
+            "metadata_key": versions_key,
         }
+
+    # ========== 조회 메서드 ==========
+
+    def get_canonical_text(self, canonical_prefix: str, version: str = "v1") -> str | None:
+        """S3에서 canonical_text 조회
+
+        Args:
+            canonical_prefix: S3 경로 prefix (예: "canonical/pmid_27959700/")
+            version: 버전 (기본값 "v1")
+
+        Returns:
+            canonical_text 문자열 또는 None
+        """
+        client = self._get_client()
+        key = f"{canonical_prefix}{version}.txt"
+
+        try:
+            response = client.get_object(Bucket=self.config.s3.bucket, Key=key)
+            return response["Body"].read().decode("utf-8")
+        except client.exceptions.NoSuchKey:
+            return None
+        except Exception:
+            return None
+
+    def get_versions_metadata(self, canonical_prefix: str) -> dict | None:
+        """S3에서 versions.json 조회
+
+        Args:
+            canonical_prefix: S3 경로 prefix (예: "canonical/pmid_27959700/")
+
+        Returns:
+            버전 메타데이터 또는 None
+        """
+        client = self._get_client()
+        key = f"{canonical_prefix}versions.json"
+
+        try:
+            response = client.get_object(Bucket=self.config.s3.bucket, Key=key)
+            return json.loads(response["Body"].read().decode("utf-8"))
+        except client.exceptions.NoSuchKey:
+            return None
+        except Exception:
+            return None
+
+    def list_paper_files(self, canonical_prefix: str) -> list[dict]:
+        """논문의 S3 파일 목록 조회
+
+        Args:
+            canonical_prefix: S3 경로 prefix (예: "canonical/pmid_27959700/")
+
+        Returns:
+            파일 목록 [{key, size, last_modified}, ...]
+        """
+        client = self._get_client()
+
+        try:
+            response = client.list_objects_v2(
+                Bucket=self.config.s3.bucket,
+                Prefix=canonical_prefix,
+            )
+
+            files = []
+            for obj in response.get("Contents", []):
+                files.append({
+                    "key": obj["Key"],
+                    "size": obj["Size"],
+                    "last_modified": obj["LastModified"].isoformat(),
+                })
+            return files
+        except Exception:
+            return []
+
+    def get_text_by_paper_id(self, paper_id: str, version: str = "v1") -> str | None:
+        """paper_id로 canonical_text 조회 (편의 메서드)
+
+        Args:
+            paper_id: 논문 ID (예: "pmid:27959700")
+            version: 버전 (기본값 "v1")
+
+        Returns:
+            canonical_text 문자열 또는 None
+        """
+        # paper_id → canonical_prefix 변환
+        safe_id = paper_id.replace(":", "_").replace("/", "_")
+        canonical_prefix = f"canonical/{safe_id}/"
+        return self.get_canonical_text(canonical_prefix, version)

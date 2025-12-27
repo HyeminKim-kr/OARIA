@@ -30,8 +30,12 @@ CREATE TABLE papers (
     canonical_bucket VARCHAR(100) DEFAULT 'oaria-papers',
     canonical_prefix TEXT,        -- canonical/{paper_id}/ (버전 없이 prefix만)
     canonical_text_version VARCHAR(50) DEFAULT 'v1',
-    canonical_text_hash VARCHAR(64),  -- SHA256
+    canonical_text_hash VARCHAR(64),  -- SHA256 (canonical_text 기준)
     canonical_text_length INTEGER,
+
+    -- 변경 추적 (v1.1 추가: 원본 변경 vs 파서 변경 구분용)
+    raw_xml_hash VARCHAR(64),         -- SHA256 (원본 XML bytes 기준)
+    parser_version VARCHAR(20) DEFAULT '1.0.0',  -- 파싱 로직 버전
 
     -- 수집 정보
     source VARCHAR(50) DEFAULT 'europe_pmc',

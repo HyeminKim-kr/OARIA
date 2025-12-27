@@ -90,9 +90,23 @@ class ParsedPaper:
     canonical_text: str = ""
     canonical_text_hash: str = ""
 
+    # 변경 추적 (원본 변경 vs 파서 변경 구분)
+    raw_xml_hash: str = ""              # 원본 XML bytes SHA256
+    parser_version: str = "1.0.0"       # 파싱 로직 버전
+
     # 수집 정보
     source: str = "europe_pmc"
+    source_url: str | None = None  # 원본 논문 페이지 URL
     is_open_access: bool = True
+
+    def build_source_url(self) -> str | None:
+        """원본 논문 페이지 URL 생성"""
+        if self.source == "europe_pmc":
+            if self.pmcid:
+                return f"https://europepmc.org/article/PMC/{self.pmcid}"
+            elif self.pmid:
+                return f"https://europepmc.org/article/MED/{self.pmid}"
+        return None
 
     @property
     def canonical_text_length(self) -> int:
@@ -123,11 +137,14 @@ class ParsedPaper:
             "year": self.year,
             "keywords": self.keywords,
             "source": self.source,
+            "source_url": self.source_url or self.build_source_url(),
             "is_open_access": self.is_open_access,
             "canonical_prefix": self.canonical_prefix,
             "canonical_text_version": "v1",
             "canonical_text_hash": self.canonical_text_hash,
             "canonical_text_length": self.canonical_text_length,
+            "raw_xml_hash": self.raw_xml_hash,
+            "parser_version": self.parser_version,
         }
 
     def to_chunking_dict(self) -> dict:

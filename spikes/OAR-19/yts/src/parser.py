@@ -317,6 +317,9 @@ def parse_fulltext_xml(xml_content: str) -> ParsedPaper:
     Returns:
         ParsedPaper 객체
     """
+    # 원본 XML 해시 계산 (전처리 전 원본 기준)
+    raw_xml_hash = compute_hash(xml_content)
+
     # XML 전처리
     preprocessed = preprocess_fulltext(xml_content)
 
@@ -357,4 +360,5 @@ def parse_fulltext_xml(xml_content: str) -> ParsedPaper:
         sections=sections,
         canonical_text=canonical_text,
         canonical_text_hash=canonical_text_hash,
+        raw_xml_hash=raw_xml_hash,
     )
