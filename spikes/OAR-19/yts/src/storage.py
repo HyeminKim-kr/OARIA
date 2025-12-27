@@ -212,16 +212,21 @@ class S3Storage:
         except client.exceptions.ClientError:
             client.create_bucket(Bucket=self.config.s3.bucket)
 
-    def save_canonical_text(self, paper: ParsedPaper) -> str:
+    def save_canonical_text(self, paper: ParsedPaper, version: str = "v1") -> str:
         """canonical_text S3 저장
 
-        저장 경로: canonical/{paper_id}/text.txt
+        저장 경로: canonical/{safe_paper_id}/{version}.txt
+        예: canonical/pmid_27959700/v1.txt
+
+        Args:
+            paper: ParsedPaper 객체
+            version: 버전 (기본값 "v1", MVP에서는 고정)
 
         Returns:
             S3 키
         """
         client = self._get_client()
-        key = f"{paper.canonical_prefix}text.txt"
+        key = f"{paper.canonical_prefix}{version}.txt"
 
         client.put_object(
             Bucket=self.config.s3.bucket,
@@ -231,56 +236,54 @@ class S3Storage:
             Metadata={
                 "paper_id": paper.paper_id,
                 "hash": paper.canonical_text_hash,
-                "version": "v1",
+                "version": version,
             },
         )
 
         return key
 
-    def save_metadata(self, paper: ParsedPaper) -> str:
-        """메타데이터 JSON S3 저장
+    def save_versions_metadata(self, paper: ParsedPaper, version: str = "v1") -> str:
+        """버전 이력 메타데이터 S3 저장
 
-        저장 경로: canonical/{paper_id}/metadata.json
+        저장 경로: canonical/{safe_paper_id}/versions.json
+        예: canonical/pmid_27959700/versions.json
+
+        Args:
+            paper: ParsedPaper 객체
+            version: 현재 버전 (기본값 "v1")
 
         Returns:
             S3 키
         """
+        from datetime import datetime, timezone
+
         client = self._get_client()
-        key = f"{paper.canonical_prefix}metadata.json"
+        key = f"{paper.canonical_prefix}versions.json"
+
+        # 기존 versions.json이 있으면 로드, 없으면 새로 생성
+        existing_versions = {}
+        try:
+            response = client.get_object(Bucket=self.config.s3.bucket, Key=key)
+            existing_versions = json.loads(response['Body'].read().decode('utf-8'))
+        except client.exceptions.NoSuchKey:
+            pass
+        except Exception:
+            pass  # 다른 오류는 무시하고 새로 생성
+
+        # 현재 버전 정보 추가
+        versions_data = existing_versions.get("versions", {})
+        versions_data[version] = {
+            "created_at": datetime.now(timezone.utc).isoformat(),
+            "hash": paper.canonical_text_hash,
+            "length": paper.canonical_text_length,
+            "source": paper.source,
+            "sections": [s.name for s in paper.sections],
+        }
 
         metadata = {
             "paper_id": paper.paper_id,
-            "pmcid": paper.pmcid,
-            "pmid": paper.pmid,
-            "doi": paper.doi,
-            "title": paper.title,
-            "year": paper.year,
-            "journal": paper.journal,
-            "keywords": paper.keywords,
-            "mesh_terms": paper.mesh_terms,
-            "authors": [
-                {
-                    "name": a.name,
-                    "order": a.order,
-                    "orcid": a.orcid,
-                    "affiliation": a.affiliation,
-                    "is_corresponding": a.is_corresponding,
-                }
-                for a in paper.authors
-            ],
-            "sections": [
-                {
-                    "name": s.name,
-                    "title": s.title,
-                    "order": s.order,
-                    "offset_start": s.offset_start,
-                    "offset_end": s.offset_end,
-                    "char_count": s.char_count,
-                }
-                for s in paper.sections
-            ],
-            "canonical_text_hash": paper.canonical_text_hash,
-            "canonical_text_length": paper.canonical_text_length,
+            "current_version": version,
+            "versions": versions_data,
         }
 
         client.put_object(
@@ -292,18 +295,22 @@ class S3Storage:
 
         return key
 
-    def save_all(self, paper: ParsedPaper) -> dict:
+    def save_all(self, paper: ParsedPaper, version: str = "v1") -> dict:
         """논문 전체 S3 저장
 
+        Args:
+            paper: ParsedPaper 객체
+            version: 버전 (기본값 "v1", MVP에서는 고정)
+
         Returns:
-            저장된 키 목록 {text_key, metadata_key}
+            저장된 키 목록 {text_key, versions_key}
         """
         self.ensure_bucket()
 
-        text_key = self.save_canonical_text(paper)
-        metadata_key = self.save_metadata(paper)
+        text_key = self.save_canonical_text(paper, version=version)
+        versions_key = self.save_versions_metadata(paper, version=version)
 
         return {
             "text_key": text_key,
-            "metadata_key": metadata_key,
+            "versions_key": versions_key,
         }

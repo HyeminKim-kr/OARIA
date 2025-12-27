@@ -110,8 +110,8 @@ class TestParser:
 
         paper = parse_fulltext_xml(xml)
 
-        # 기본 메타데이터 확인
-        assert paper.paper_id == "pmc:PMC12345678"
+        # 기본 메타데이터 확인 (PMID 우선 정책)
+        assert paper.paper_id == "pmid:12345678"  # PMID가 있으면 PMID 우선
         assert paper.pmcid == "PMC12345678"
         assert paper.pmid == "12345678"
         assert paper.doi == "10.1234/test"
@@ -171,10 +171,10 @@ class TestParser:
 
         paper = parse_fulltext_xml(xml)
 
-        # pmcid 형식으로 와도 정상 파싱되어야 함
+        # pmcid 형식으로 와도 정상 파싱되어야 함 (PMID 우선 정책)
         assert paper.pmcid == "PMC12664089"
         assert paper.pmid == "41317095"
-        assert paper.paper_id == "pmc:PMC12664089"
+        assert paper.paper_id == "pmid:41317095"  # PMID가 있으므로 PMID 우선
 
     def test_parse_fulltext_xml_pmid_only(self):
         """PMID만 있는 경우 paper_id 생성"""
@@ -276,7 +276,7 @@ class TestModels:
         db_dict = paper.to_db_dict()
 
         assert db_dict["paper_id"] == "pmc:PMC123"
-        assert db_dict["canonical_prefix"] == "canonical/pmc:PMC123/"
+        assert db_dict["canonical_prefix"] == "canonical/pmc_PMC123/"  # : → _ 변환
         assert db_dict["canonical_text_version"] == "v1"
         assert db_dict["canonical_text_length"] == 12
 

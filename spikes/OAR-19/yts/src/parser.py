@@ -8,7 +8,7 @@ import hashlib
 import re
 from lxml import etree
 
-from .models import Author, Section, ParsedPaper
+from .models import Author, Section, ParsedPaper, determine_paper_id
 from .preprocess import clean_text, preprocess_fulltext
 
 
@@ -326,13 +326,12 @@ def parse_fulltext_xml(xml_content: str) -> ParsedPaper:
     # 메타데이터 추출
     metadata = parse_metadata(root)
 
-    # paper_id 생성
-    if metadata.get("pmcid"):
-        paper_id = f"pmc:{metadata['pmcid']}"
-    elif metadata.get("pmid"):
-        paper_id = f"pmid:{metadata['pmid']}"
-    else:
-        paper_id = f"doi:{metadata.get('doi', 'unknown')}"
+    # paper_id 생성 (PMID 우선)
+    paper_id = determine_paper_id(
+        pmid=metadata.get("pmid"),
+        pmcid=metadata.get("pmcid"),
+        doi=metadata.get("doi"),
+    )
 
     # 저자 추출
     authors = parse_authors(root)

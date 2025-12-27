@@ -5,7 +5,36 @@ PostgreSQL 스키마 및 청킹 연계를 위한 데이터 클래스
 """
 
 from dataclasses import dataclass, field
-from datetime import datetime
+
+
+def determine_paper_id(pmid: str | None, pmcid: str | None, doi: str | None) -> str:
+    """
+    PMID 우선으로 paper_id 결정
+
+    우선순위:
+    1. pmid:{pmid} - PMID가 논문의 고유 식별자
+    2. pmc:{pmcid} - PMID 없고 PMCID만 있을 때
+    3. doi:{doi} - 둘 다 없을 때 fallback
+
+    Args:
+        pmid: PubMed ID (예: "27959700")
+        pmcid: PMC ID (예: "PMC5765844")
+        doi: DOI (예: "10.1056/NEJMoa1713137")
+
+    Returns:
+        paper_id (예: "pmid:27959700")
+
+    Raises:
+        ValueError: 유효한 ID가 없을 때
+    """
+    if pmid:
+        return f"pmid:{pmid}"
+    elif pmcid:
+        return f"pmc:{pmcid}"
+    elif doi:
+        return f"doi:{doi}"
+    else:
+        raise ValueError("No valid identifier available (pmid, pmcid, or doi required)")
 
 
 @dataclass
@@ -71,8 +100,15 @@ class ParsedPaper:
 
     @property
     def canonical_prefix(self) -> str:
-        """S3 저장 경로 prefix"""
-        return f"canonical/{self.paper_id}/"
+        """S3 저장 경로 prefix (: → _ 변환)
+
+        Examples:
+            pmid:27959700 → canonical/pmid_27959700/
+            pmc:PMC5765844 → canonical/pmc_PMC5765844/
+            doi:10.1056/NEJMoa1713137 → canonical/doi_10.1056_NEJMoa1713137/
+        """
+        safe_id = self.paper_id.replace(':', '_').replace('/', '_')
+        return f"canonical/{safe_id}/"
 
     def to_db_dict(self) -> dict:
         """PostgreSQL papers 테이블용 딕셔너리"""
