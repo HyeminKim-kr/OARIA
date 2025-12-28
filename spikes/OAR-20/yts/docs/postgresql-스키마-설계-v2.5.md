@@ -4,7 +4,11 @@
 >
 > 결정: PostgreSQL (메타데이터/서비스) + S3 (대용량 텍스트)
 >
+<<<<<<<< HEAD:spikes/OAR-20/yts/docs/postgresql-스키마-설계-v2.4.md
 > **버전**: v2.4 (2025-12-27)
+========
+> **버전**: v2.5 (2025-12-28)
+>>>>>>>> 9513467 ( git commit -m "feat(OAR-20): PostgreSQL 스키마 v2.5 - 배치 수집 테이블 추가):spikes/OAR-20/yts/docs/postgresql-스키마-설계-v2.5.md
 >
 > 작성일: 2025-12-19
 
@@ -12,6 +16,10 @@
 
 | 버전 | 날짜 | 변경 내용 |
 |------|------|----------|
+<<<<<<<< HEAD:spikes/OAR-20/yts/docs/postgresql-스키마-설계-v2.4.md
+========
+| v2.5 | 2025-12-28 | **배치 수집 테이블 추가**: `collection_jobs`, `watermarks` - 작업 큐 및 증분 수집 상태 관리 (OAR-22 배치 아키텍처 연계) |
+>>>>>>>> 9513467 ( git commit -m "feat(OAR-20): PostgreSQL 스키마 v2.5 - 배치 수집 테이블 추가):spikes/OAR-20/yts/docs/postgresql-스키마-설계-v2.5.md
 | v2.4 | 2025-12-27 | **변경 추적 컬럼 추가**: `raw_xml_hash`, `parser_version` - 원본 변경 vs 파서 변경 구분용 (OAR-19 피드백 반영) |
 | v2.3 | 2025-12-22 | shallow 컬럼 GENERATED로 변경 (DB 보장), evidence 파싱 SQL에 text_version 추가 |
 | v2.2 | 2025-12-22 | offset 정의 명확화 (char index), 재현 버전 우선순위 명시, GIN 인덱스 → shallow 컬럼 전환 |
@@ -392,6 +400,137 @@ CREATE INDEX idx_feedbacks_user_id ON feedbacks(user_id);
 CREATE INDEX idx_feedbacks_rating ON feedbacks(rating);
 ```
 
+### 8. collection_jobs (수집 작업 큐) - v2.5 추가
+
+> 배치 수집 작업 관리 (OAR-22 배치 아키텍처 연계)
+>
+> **목적**: 초기 적재(A), 증분 수집(B), 보정(C) 작업의 상태/우선순위/재시도 관리
+
+```sql
+CREATE TABLE collection_jobs (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+
+    -- 기본 정보
+    job_type VARCHAR(20) NOT NULL,        -- backfill, incremental, repair
+    priority INT DEFAULT 10,               -- 낮을수록 우선 (1=최우선)
+    query TEXT NOT NULL,                   -- 검색 쿼리
+    params JSONB,                          -- 추가 파라미터
+    api_name VARCHAR(50) DEFAULT 'europe_pmc',  -- API별 limiter 연결
+
+    -- 상태 관리
+    status VARCHAR(20) DEFAULT 'pending',  -- pending, running, completed, failed, delayed
+    checkpoint JSONB,                      -- 체크포인트 (중단 재개용)
+
+    -- 재시도 관리
+    attempt_count INT DEFAULT 0,           -- 현재까지 시도 횟수
+    max_attempts INT DEFAULT 5,            -- 최대 재시도 횟수
+    next_run_at TIMESTAMPTZ,               -- 429/백오프 후 재실행 시각 (delay queue)
+
+    -- 워커 락 (동시 처리 방지)
+    locked_at TIMESTAMPTZ,                 -- 워커가 집어간 시각
+    locked_by VARCHAR(100),                -- 워커 ID
+
+    -- 에러 추적
+    last_error_code VARCHAR(10),           -- 429, 500, TIMEOUT 등
+    last_error_message TEXT,
+    last_error_at TIMESTAMPTZ,
+
+    -- 타임스탬프
+    created_at TIMESTAMPTZ DEFAULT NOW(),
+    started_at TIMESTAMPTZ,
+    completed_at TIMESTAMPTZ
+);
+
+-- 인덱스 1: 우선순위 순으로 pending/delayed 작업 조회 (SKIP LOCKED 패턴)
+CREATE INDEX idx_jobs_pending ON collection_jobs (priority, created_at)
+    WHERE status IN ('pending', 'delayed') AND (next_run_at IS NULL OR next_run_at <= NOW());
+
+-- 인덱스 2: delayed 작업 중 실행 가능한 것
+CREATE INDEX idx_jobs_delayed ON collection_jobs (next_run_at)
+    WHERE status = 'delayed' AND next_run_at IS NOT NULL;
+
+-- 인덱스 3: 오래된 락 감지 (좀비 워커)
+CREATE INDEX idx_jobs_stale_lock ON collection_jobs (locked_at)
+    WHERE status = 'running';
+
+-- 인덱스 4: 작업 유형별 조회
+CREATE INDEX idx_jobs_type ON collection_jobs (job_type, status);
+```
+
+**워커의 작업 획득 (SKIP LOCKED 패턴):**
+
+```sql
+UPDATE collection_jobs
+SET status = 'running',
+    locked_at = NOW(),
+    locked_by = $1  -- worker_id
+WHERE id = (
+    SELECT id FROM collection_jobs
+    WHERE status IN ('pending', 'delayed')
+      AND (next_run_at IS NULL OR next_run_at <= NOW())
+    ORDER BY priority, COALESCE(next_run_at, created_at), created_at
+    LIMIT 1
+    FOR UPDATE SKIP LOCKED
+)
+RETURNING *;
+```
+
+### 9. watermarks (증분 수집 상태) - v2.5 추가
+
+> 증분 수집의 마지막 완료 시점 추적
+>
+> **목적**: 다음 증분 수집 시 from_date 계산, 안전 윈도우(overlap) 적용
+
+```sql
+CREATE TABLE watermarks (
+    id VARCHAR(100) PRIMARY KEY,           -- 'incremental:europe_pmc:breast_cancer'
+
+    -- 상태
+    last_completed_at TIMESTAMPTZ NOT NULL,  -- 마지막 성공 완료 시각
+    overlap_days INT DEFAULT 2,              -- 안전 윈도우 (일)
+
+    -- 메타데이터
+    last_query TEXT,                         -- 마지막 실행한 쿼리
+    last_result_count INT,                   -- 마지막 수집 건수
+
+    -- 타임스탬프
+    created_at TIMESTAMPTZ DEFAULT NOW(),
+    updated_at TIMESTAMPTZ DEFAULT NOW()
+);
+```
+
+**사용 예시:**
+
+```python
+@dataclass
+class IncrementalState:
+    """증분 수집 상태"""
+    last_completed_at: datetime
+    overlap_days: int = 2
+
+    @property
+    def from_date(self) -> datetime:
+        """시작 날짜 (overlap 적용)"""
+        return self.last_completed_at - timedelta(days=self.overlap_days)
+
+# 워터마크 조회
+state = await db.fetchrow("""
+    SELECT last_completed_at, overlap_days
+    FROM watermarks WHERE id = $1
+""", 'incremental:europe_pmc')
+
+# 성공 완료 시에만 워터마크 업데이트
+await db.execute("""
+    INSERT INTO watermarks (id, last_completed_at, last_query, last_result_count)
+    VALUES ($1, NOW(), $2, $3)
+    ON CONFLICT (id) DO UPDATE SET
+        last_completed_at = EXCLUDED.last_completed_at,
+        last_query = EXCLUDED.last_query,
+        last_result_count = EXCLUDED.last_result_count,
+        updated_at = NOW()
+""", watermark_id, query, count)
+```
+
 ---
 
 ## S3 저장 구조
@@ -558,6 +697,27 @@ bucket, prefix, version = save_canonical_text("pmid:12345678", full_text, "v1")
                             ▲
                             │
                       answer_logs.evidence 참조
+
+┌───────────────────────────────────────────────────────────────┐
+│                   배치 수집 시스템 (v2.5)                        │
+├───────────────────────────────────────────────────────────────┤
+│                                                               │
+│  ┌─────────────────┐              ┌─────────────────┐         │
+│  │ collection_jobs │              │   watermarks    │         │
+│  ├─────────────────┤              ├─────────────────┤         │
+│  │ id (PK)         │              │ id (PK)         │         │
+│  │ job_type        │              │ last_completed  │         │
+│  │ priority        │              │ overlap_days    │         │
+│  │ status          │──────────────│ (증분 수집 상태) │         │
+│  │ checkpoint      │              └─────────────────┘         │
+│  │ attempt_count   │                      │                   │
+│  │ next_run_at     │                      ▼                   │
+│  │ (작업 큐)        │              ┌─────────────┐             │
+│  └─────────────────┘              │   papers    │             │
+│          │                        │ (수집 대상)  │             │
+│          └───────────────────────▶└─────────────┘             │
+│                                                               │
+└───────────────────────────────────────────────────────────────┘
 ```
 
 ---
@@ -811,6 +971,10 @@ ORDER BY date DESC;
 | `messages` | `conversation_id` | 대화 내 메시지 조회 |
 | `answer_logs` | `first_paper_id` | 목록 화면용 (GIN 대체) |
 | `answer_logs` | `created_at` | 시계열 조회 |
+| `collection_jobs` | `priority, created_at` (Partial) | SKIP LOCKED 작업 획득 |
+| `collection_jobs` | `next_run_at` (Partial) | delayed 작업 조회 |
+| `collection_jobs` | `locked_at` (Partial) | 좀비 워커 감지 |
+| `collection_jobs` | `job_type, status` | 작업 유형별 조회 |
 
 ---
 
