@@ -10,8 +10,8 @@ import streamlit as st
 import asyncio
 from datetime import datetime
 
-from src.pipeline import Pipeline, PipelineStep
-from src.europe_pmc_client import PaperInfo
+from src.pipeline import Pipeline, PipelineStep, AsyncPipeline, BatchResult
+from src.europe_pmc_client import PaperInfo, EuropePMCClient
 from src.models import ParsedPaper
 from src.config import Config
 from src.storage import DatabaseStorage, S3Storage
@@ -374,12 +374,14 @@ def render_collect_page():
             placeholder="예: breast cancer, EGFR mutation",
         )
 
-        col1, col2, col3 = st.columns([2, 1, 1])
+        col1, col2, col3, col4 = st.columns([2, 1, 1, 1])
         with col1:
-            limit = st.slider("검색 수", min_value=1, max_value=20, value=5)
+            limit = st.number_input("검색 수", min_value=1, max_value=10000, value=5, step=10)
         with col2:
-            search_btn = st.button("🔍 검색", type="secondary", use_container_width=True)
+            max_concurrent = st.number_input("동시 처리", min_value=1, value=5, step=5, help="병렬 처리 수 (높을수록 빠르지만 API 제한 주의)")
         with col3:
+            search_btn = st.button("🔍 검색", type="secondary", use_container_width=True)
+        with col4:
             process_btn = st.button("🚀 검색 & 처리", type="primary", use_container_width=True)
 
         # 검색만 하는 경우
@@ -395,95 +397,91 @@ def render_collect_page():
                 finally:
                     pipeline.close()
 
-        # 검색 후 자동 처리
+        # 검색 후 자동 처리 (병렬)
         if process_btn:
             st.session_state.processing = True
 
-            # 검색
-            pipeline = Pipeline()
             try:
+                # 검색
                 with st.spinner("Europe PMC에서 검색 중..."):
-                    results = pipeline.run_search(query, limit=limit)
+                    client = EuropePMCClient()
+                    results = client.search(query, limit=limit, open_access_only=True)
+                    client.close()
                     st.session_state.search_results = results
 
                 if not results:
                     st.warning("검색 결과가 없습니다")
                 else:
-                    st.info(f"📊 {len(results)}개 논문 파이프라인 처리 중...")
+                    st.info(f"🚀 {len(results)}개 논문 **병렬** 처리 중...")
 
                     # 진행률 표시
                     progress_bar = st.progress(0)
                     status_text = st.empty()
+                    completed_count = 0
+                    total_count = len([r for r in results if r.pmcid])
 
-                    # 각 논문 처리
-                    for idx, paper_info in enumerate(results):
-                        if not paper_info.pmcid:
-                            continue
+                    def on_progress(done, total, msg):
+                        nonlocal completed_count
+                        completed_count = done
+                        progress_bar.progress(done / total if total > 0 else 0)
+                        status_text.text(f"{msg} ({done}/{total})")
 
-                        status_text.text(f"처리 중: {paper_info.pmcid} ({idx+1}/{len(results)})")
-                        start_time = datetime.now()
+                    # 병렬 처리 실행
+                    start_time = datetime.now()
 
-                        try:
-                            if save_to_db:
-                                result = asyncio.run(pipeline.run_single_async(
-                                    query=query,
-                                    pmcid=paper_info.pmcid,
-                                    save_to_db=True,
-                                    save_to_s3=save_to_s3,
-                                    paper_info=paper_info,
-                                ))
-                            else:
-                                result = pipeline.run_single(
-                                    query=query,
-                                    pmcid=paper_info.pmcid,
-                                    save_to_s3=save_to_s3,
-                                    save_to_db=False,
-                                    paper_info=paper_info,
-                                )
+                    async def run_parallel():
+                        pipeline = AsyncPipeline(
+                            max_concurrent=max_concurrent,
+                            on_progress=on_progress,
+                        )
+                        return await pipeline.run_batch(
+                            query=query,
+                            paper_infos=results,
+                            save_to_db=save_to_db,
+                            save_to_s3=save_to_s3,
+                        )
 
-                            duration = datetime.now() - start_time
-
-                            # 히스토리에 추가
-                            st.session_state.processed_papers.append({
-                                "pmcid": paper_info.pmcid,
-                                "pmid": paper_info.pmid,
-                                "title": paper_info.title,
-                                "success": result.success,
-                                "error": result.error,
-                                "authors": len(result.paper.authors) if result.paper else 0,
-                                "sections": len(result.paper.sections) if result.paper else 0,
-                                "duration": format_duration(int(duration.total_seconds() * 1000)),
-                                "paper": result.paper,
-                                "steps": result.steps,
-                            })
-
-                        except Exception as e:
-                            st.session_state.processed_papers.append({
-                                "pmcid": paper_info.pmcid,
-                                "pmid": paper_info.pmid,
-                                "title": paper_info.title,
-                                "success": False,
-                                "error": str(e),
-                                "authors": 0,
-                                "sections": 0,
-                                "duration": "N/A",
-                                "paper": None,
-                                "steps": [],
-                            })
-
-                        progress_bar.progress((idx + 1) / len(results))
+                    batch_result: BatchResult = asyncio.run(run_parallel())
+                    total_duration = datetime.now() - start_time
 
                     status_text.empty()
                     progress_bar.empty()
 
+                    # 결과를 히스토리에 추가
+                    paper_info_map = {p.pmcid: p for p in results if p.pmcid}
+                    for r in batch_result.results:
+                        paper_info = paper_info_map.get(r.pmcid)
+                        st.session_state.processed_papers.append({
+                            "pmcid": r.pmcid,
+                            "pmid": paper_info.pmid if paper_info else None,
+                            "title": paper_info.title if paper_info else r.pmcid,
+                            "success": r.success,
+                            "error": r.error,
+                            "authors": len(r.paper.authors) if r.paper else 0,
+                            "sections": len(r.paper.sections) if r.paper else 0,
+                            "duration": format_duration(sum(s.duration_ms or 0 for s in r.steps)),
+                            "paper": r.paper,
+                            "steps": r.steps,
+                        })
+
                     # 결과 요약
-                    success_count = sum(1 for p in st.session_state.processed_papers[-len(results):] if p["success"])
-                    st.success(f"✅ 완료: {success_count}/{len(results)}개 성공")
+                    st.success(
+                        f"✅ 완료: {batch_result.success}/{batch_result.total}개 성공 "
+                        f"({batch_result.duration_sec:.1f}초, 병렬 처리)"
+                    )
+
+                    # 순차 대비 속도 비교 표시
+                    estimated_sequential = batch_result.total * 5  # 논문당 약 5초 가정
+                    if batch_result.duration_sec > 0:
+                        speedup = estimated_sequential / batch_result.duration_sec
+                        if speedup > 1.5:
+                            st.info(f"⚡ 순차 처리 대비 약 **{speedup:.1f}배** 빠름 (예상 {estimated_sequential}초 → 실제 {batch_result.duration_sec:.1f}초)")
 
             except Exception as e:
                 st.error(f"오류 발생: {e}")
+                import traceback
+                st.code(traceback.format_exc())
             finally:
-                pipeline.close()
                 st.session_state.processing = False
 
         # 검색 결과 표시
