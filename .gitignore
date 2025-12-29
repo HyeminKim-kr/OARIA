@@ -2,6 +2,7 @@
 .mcp.json
 .claude/
 CLAUDE.md
+claude.md
 
 # Python
 __pycache__/
