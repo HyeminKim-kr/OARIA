@@ -1,6 +1,7 @@
 # 민감 정보 포함
 .mcp.json
 .claude/
+CLAUDE.md
 
 # Python
 __pycache__/
@@ -9,6 +10,24 @@ __pycache__/
 .venv/
 venv/
 .env
+.env.local
+.env*.local
+
+# Node.js
+node_modules/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+.pnpm-debug.log*
+
+# NestJS
+dist/
+*.tsbuildinfo
+
+# NextJS
+.next/
+out/
+build/
 
 # IDE
 .idea/
@@ -18,3 +37,11 @@ venv/
 # OS
 .DS_Store
 Thumbs.db
+
+# Testing
+coverage/
+.nyc_output/
+
+# Misc
+*.log
+*.local

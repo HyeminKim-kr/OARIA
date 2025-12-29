@@ -87,7 +87,16 @@ class EuropePMCClient:
     _client: httpx.AsyncClient | None = field(default=None, repr=False)
 
     async def __aenter__(self):
-        self._client = httpx.AsyncClient(timeout=self.timeout)
+        # Connection pool 설정: 동시 요청 수에 맞게 충분한 연결 확보
+        limits = httpx.Limits(
+            max_connections=self.max_concurrent + 10,
+            max_keepalive_connections=self.max_concurrent,
+        )
+        self._client = httpx.AsyncClient(
+            timeout=self.timeout,
+            limits=limits,
+            http2=False,  # HTTP/1.1 사용 (더 안정적)
+        )
         return self
 
     async def __aexit__(self, exc_type, exc_val, exc_tb):

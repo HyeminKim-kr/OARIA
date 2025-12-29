@@ -488,6 +488,21 @@ async def _phase_search(
     return total_registered
 
 
+def check_paper_exists(conn, pmcid: str, pmid: str | None) -> bool:
+    """papers 테이블에 이미 존재하는지 확인"""
+    with conn.cursor() as cur:
+        # pmcid 또는 pmid로 확인
+        cur.execute(
+            """
+            SELECT 1 FROM papers
+            WHERE pmcid = %s OR (pmid IS NOT NULL AND pmid = %s)
+            LIMIT 1
+            """,
+            (pmcid, pmid),
+        )
+        return cur.fetchone() is not None
+
+
 async def _process_single_article(
     client: EuropePMCClient,
     parser: XMLParser,
@@ -508,6 +523,13 @@ async def _process_single_article(
     xml = None
 
     try:
+        # 이미 수집된 논문인지 확인 (중복 수집 방지)
+        with pool.connection() as conn:
+            if check_paper_exists(conn, pmcid, pmid):
+                logger.info("paper_already_exists", pmcid=pmcid, pmid=pmid)
+                update_article_status(conn, job_id, pmcid, "completed")
+                return True  # 이미 있으면 성공으로 처리
+
         # downloading - Pool에서 연결 획득하여 상태 업데이트
         with pool.connection() as conn:
             update_article_status(conn, job_id, pmcid, "downloading")
