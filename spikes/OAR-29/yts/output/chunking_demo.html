@@ -1,0 +1,763 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>OAR-29: 청킹 시각화 데모</title>
+    <style>
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+        }
+        body {
+            font-family: 'Pretendard', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            background: #f8fafc;
+            color: #1e293b;
+            line-height: 1.6;
+        }
+        .container {
+            max-width: 1400px;
+            margin: 0 auto;
+            padding: 2rem;
+        }
+        header {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            padding: 3rem 2rem;
+            margin-bottom: 2rem;
+            border-radius: 1rem;
+        }
+        header h1 {
+            font-size: 2rem;
+            margin-bottom: 0.5rem;
+        }
+        header p {
+            opacity: 0.9;
+        }
+        .step {
+            background: white;
+            border-radius: 1rem;
+            padding: 2rem;
+            margin-bottom: 2rem;
+            box-shadow: 0 4px 6px -1px rgba(0,0,0,0.1);
+        }
+        .step-header {
+            display: flex;
+            align-items: center;
+            gap: 1rem;
+            margin-bottom: 1.5rem;
+            padding-bottom: 1rem;
+            border-bottom: 2px solid #e2e8f0;
+        }
+        .step-number {
+            background: #667eea;
+            color: white;
+            width: 3rem;
+            height: 3rem;
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-weight: bold;
+            font-size: 1.25rem;
+        }
+        .step-title {
+            font-size: 1.5rem;
+            font-weight: 600;
+        }
+        .stats-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 1rem;
+            margin-bottom: 1.5rem;
+        }
+        .stat-card {
+            background: #f1f5f9;
+            padding: 1.25rem;
+            border-radius: 0.75rem;
+            text-align: center;
+        }
+        .stat-value {
+            font-size: 2rem;
+            font-weight: bold;
+            color: #667eea;
+        }
+        .stat-label {
+            color: #64748b;
+            font-size: 0.875rem;
+        }
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            margin-top: 1rem;
+        }
+        th, td {
+            padding: 0.75rem 1rem;
+            text-align: left;
+            border-bottom: 1px solid #e2e8f0;
+        }
+        th {
+            background: #f8fafc;
+            font-weight: 600;
+            color: #475569;
+        }
+        tr:hover {
+            background: #f8fafc;
+        }
+        .section-tag {
+            display: inline-block;
+            padding: 0.25rem 0.75rem;
+            border-radius: 9999px;
+            font-size: 0.75rem;
+            font-weight: 600;
+            text-transform: uppercase;
+        }
+        .chunk-preview {
+            font-family: 'JetBrains Mono', monospace;
+            font-size: 0.8rem;
+            background: #f1f5f9;
+            padding: 0.5rem;
+            border-radius: 0.5rem;
+            max-width: 400px;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            white-space: nowrap;
+        }
+        .fulltext-preview {
+            font-family: 'JetBrains Mono', monospace;
+            font-size: 0.8rem;
+            background: #1e293b;
+            color: #e2e8f0;
+            padding: 1.5rem;
+            border-radius: 0.75rem;
+            max-height: 400px;
+            overflow-y: auto;
+            white-space: pre-wrap;
+            word-break: break-word;
+        }
+        .highlight {
+            background: #fef08a;
+            padding: 0 2px;
+            border-radius: 2px;
+        }
+        .section-block {
+            margin-bottom: 1rem;
+            border-left: 4px solid;
+            padding-left: 1rem;
+        }
+        .valid {
+            color: #16a34a;
+        }
+        .invalid {
+            color: #dc2626;
+        }
+        .chunk-card {
+            background: #f8fafc;
+            border-radius: 0.75rem;
+            padding: 1rem;
+            margin-bottom: 1rem;
+            border-left: 4px solid #667eea;
+        }
+        .chunk-card-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 0.75rem;
+        }
+        .chunk-id {
+            font-weight: 600;
+            font-family: monospace;
+        }
+        .chunk-meta {
+            display: flex;
+            gap: 1rem;
+            font-size: 0.875rem;
+            color: #64748b;
+        }
+        .chunk-text {
+            font-size: 0.875rem;
+            color: #475569;
+            background: white;
+            padding: 1rem;
+            border-radius: 0.5rem;
+            max-height: 150px;
+            overflow-y: auto;
+        }
+        .tabs {
+            display: flex;
+            gap: 0.5rem;
+            margin-bottom: 1rem;
+        }
+        .tab {
+            padding: 0.5rem 1rem;
+            border: none;
+            background: #e2e8f0;
+            border-radius: 0.5rem;
+            cursor: pointer;
+            font-weight: 500;
+        }
+        .tab.active {
+            background: #667eea;
+            color: white;
+        }
+        .tab-content {
+            display: none;
+        }
+        .tab-content.active {
+            display: block;
+        }
+        .verification-badge {
+            display: inline-flex;
+            align-items: center;
+            gap: 0.25rem;
+            padding: 0.25rem 0.5rem;
+            border-radius: 0.25rem;
+            font-size: 0.75rem;
+            font-weight: 600;
+        }
+        .verification-badge.pass {
+            background: #dcfce7;
+            color: #16a34a;
+        }
+        .verification-badge.fail {
+            background: #fee2e2;
+            color: #dc2626;
+        }
+        .flow-diagram {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 1rem;
+            padding: 2rem;
+            background: #f8fafc;
+            border-radius: 0.75rem;
+            margin: 1rem 0;
+            flex-wrap: wrap;
+        }
+        .flow-box {
+            background: white;
+            padding: 1rem 1.5rem;
+            border-radius: 0.5rem;
+            text-align: center;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+            min-width: 120px;
+        }
+        .flow-arrow {
+            font-size: 1.5rem;
+            color: #667eea;
+        }
+        footer {
+            text-align: center;
+            padding: 2rem;
+            color: #64748b;
+            font-size: 0.875rem;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <header>
+            <h1>OAR-29: 텍스트 청킹 시각화 데모</h1>
+            <p>논문 전문을 RAG 검색에 최적화된 청크로 분할하는 과정</p>
+            <p style="margin-top: 0.5rem; font-size: 0.875rem; opacity: 0.8;">
+                생성 시각: 2025-12-30 05:33:46
+            </p>
+        </header>
+
+        <!-- Step 1: 원본 데이터 -->
+        <div class="step">
+            <div class="step-header">
+                <div class="step-number">1</div>
+                <div class="step-title">원본 Fulltext 로드</div>
+            </div>
+
+            <div class="stats-grid">
+                <div class="stat-card">
+                    <div class="stat-value">PMC12345678</div>
+                    <div class="stat-label">Paper ID</div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-value">8,609</div>
+                    <div class="stat-label">총 문자 수</div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-value">1,719</div>
+                    <div class="stat-label">총 토큰 수</div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-value">7</div>
+                    <div class="stat-label">섹션 수</div>
+                </div>
+            </div>
+
+            <h4 style="margin-bottom: 0.5rem;">논문 제목</h4>
+            <p style="color: #475569; margin-bottom: 1rem;">Immunotherapy Response Prediction in Non-Small Cell Lung Cancer Using Machine Learning</p>
+
+            <h4 style="margin-bottom: 0.5rem;">Fulltext 미리보기 (처음 2000자)</h4>
+            <div class="fulltext-preview">[TITLE] Immunotherapy Response Prediction in Non-Small Cell Lung Cancer Using Machine Learning
+
+[ABSTRACT]
+Background: Immune checkpoint inhibitors have revolutionized the treatment of non-small cell lung cancer (NSCLC). However, only a subset of patients respond to these therapies. Identifying predictive biomarkers is crucial for patient selection.
+
+Methods: We analyzed data from 500 NSCLC patients treated with pembrolizumab or nivolumab between 2018 and 2023. Machine learning models were trained to predict treatment response based on clinical and molecular features.
+
+Results: Our random forest model achieved an AUC of 0.85 for predicting treatment response. PD-L1 expression, tumor mutational burden, and smoking history were the most important features.
+
+Conclusions: Machine learning can effectively predict immunotherapy response in NSCLC patients, potentially improving patient selection and treatment outcomes.
+
+[INTRODUCTION]
+Non-small cell lung cancer (NSCLC) accounts for approximately 85% of all lung cancer cases and remains a leading cause of cancer-related mortality worldwide. The introduction of immune checkpoint inhibitors (ICIs), particularly those targeting the PD-1/PD-L1 pathway, has significantly improved outcomes for patients with advanced NSCLC.
+
+Despite the remarkable success of immunotherapy, only 20-30% of unselected NSCLC patients respond to ICI monotherapy. This highlights the urgent need for predictive biomarkers to identify patients who are most likely to benefit from these treatments while sparing non-responders from potential toxicities and treatment delays.
+
+PD-L1 expression, measured by immunohistochemistry, is currently the most widely used biomarker for selecting patients for ICI therapy. However, its predictive value is imperfect, as some PD-L1-negative patients respond to treatment while some PD-L1-high patients do not. Other potential biomarkers, including tumor mutational burden (TMB), microsatellite instability, and gene expression si...</div>
+        </div>
+
+        <!-- Step 2: 섹션 분리 -->
+        <div class="step">
+            <div class="step-header">
+                <div class="step-number">2</div>
+                <div class="step-title">섹션 분리</div>
+            </div>
+
+            <div class="flow-diagram">
+                <div class="flow-box">
+                    <div style="font-size: 2rem;">📄</div>
+                    <div>Fulltext</div>
+                </div>
+                <div class="flow-arrow">→</div>
+                <div class="flow-box">
+                    <div style="font-size: 2rem;">✂️</div>
+                    <div>섹션 분리</div>
+                </div>
+                <div class="flow-arrow">→</div>
+                <div class="flow-box" style="border-top: 3px solid #f5f5f5"><div style="font-size: 1.5rem;">📑</div><div>title</div></div> <div class="flow-box" style="border-top: 3px solid #e3f2fd"><div style="font-size: 1.5rem;">📑</div><div>abstract</div></div> <div class="flow-box" style="border-top: 3px solid #f3e5f5"><div style="font-size: 1.5rem;">📑</div><div>introduction</div></div> <div class="flow-box" style="border-top: 3px solid #e8f5e9"><div style="font-size: 1.5rem;">📑</div><div>methods</div></div> <div class="flow-box" style="border-top: 3px solid #fff3e0"><div style="font-size: 1.5rem;">📑</div><div>results</div></div>
+            </div>
+
+            <table>
+                <thead>
+                    <tr>
+                        <th>순서</th>
+                        <th>섹션</th>
+                        <th>길이 (문자)</th>
+                        <th>Offset 범위</th>
+                        <th>미리보기</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    
+                    <tr>
+                        <td>1</td>
+                        <td><span class="section-tag" style="background: #f5f5f5">title</span></td>
+                        <td>86자</td>
+                        <td><code>7 ~ 93</code></td>
+                        <td><div class="chunk-preview"> Immunotherapy Response Prediction in Non-Small Cell Lung Cancer Using Machine L...</div></td>
+                    </tr>
+                    
+                    <tr>
+                        <td>2</td>
+                        <td><span class="section-tag" style="background: #e3f2fd">abstract</span></td>
+                        <td>818자</td>
+                        <td><code>106 ~ 924</code></td>
+                        <td><div class="chunk-preview">
+Background: Immune checkpoint inhibitors have revolutionized the treatment of n...</div></td>
+                    </tr>
+                    
+                    <tr>
+                        <td>3</td>
+                        <td><span class="section-tag" style="background: #f3e5f5">introduction</span></td>
+                        <td>1,633자</td>
+                        <td><code>941 ~ 2,574</code></td>
+                        <td><div class="chunk-preview">
+Non-small cell lung cancer (NSCLC) accounts for approximately 85% of all lung c...</div></td>
+                    </tr>
+                    
+                    <tr>
+                        <td>4</td>
+                        <td><span class="section-tag" style="background: #e8f5e9">methods</span></td>
+                        <td>1,993자</td>
+                        <td><code>2,586 ~ 4,579</code></td>
+                        <td><div class="chunk-preview">
+Study Population and Data Collection
+
+We conducted a retrospective analysis of ...</div></td>
+                    </tr>
+                    
+                    <tr>
+                        <td>5</td>
+                        <td><span class="section-tag" style="background: #fff3e0">results</span></td>
+                        <td>1,907자</td>
+                        <td><code>4,591 ~ 6,498</code></td>
+                        <td><div class="chunk-preview">
+Patient Characteristics
+
+Of the 500 patients included in the analysis, 285 (57%...</div></td>
+                    </tr>
+                    
+                    <tr>
+                        <td>6</td>
+                        <td><span class="section-tag" style="background: #fce4ec">discussion</span></td>
+                        <td>1,716자</td>
+                        <td><code>6,513 ~ 8,229</code></td>
+                        <td><div class="chunk-preview">
+In this study, we developed and validated machine learning models to predict im...</div></td>
+                    </tr>
+                    
+                    <tr>
+                        <td>7</td>
+                        <td><span class="section-tag" style="background: #e0f7fa">conclusion</span></td>
+                        <td>363자</td>
+                        <td><code>8,244 ~ 8,607</code></td>
+                        <td><div class="chunk-preview">
+Machine learning can effectively predict immunotherapy response in NSCLC patien...</div></td>
+                    </tr>
+                    
+                </tbody>
+            </table>
+        </div>
+
+        <!-- Step 3: 청킹 -->
+        <div class="step">
+            <div class="step-header">
+                <div class="step-number">3</div>
+                <div class="step-title">섹션별 Recursive Chunking</div>
+            </div>
+
+            <div class="stats-grid">
+                <div class="stat-card">
+                    <div class="stat-value">7</div>
+                    <div class="stat-label">총 청크 수</div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-value">242</div>
+                    <div class="stat-label">평균 토큰/청크</div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-value">700</div>
+                    <div class="stat-label">목표 토큰</div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-value">100</div>
+                    <div class="stat-label">오버랩 토큰</div>
+                </div>
+            </div>
+
+            <h4 style="margin: 1rem 0;">섹션별 청크 분포</h4>
+            <div style="display: flex; gap: 0.5rem; flex-wrap: wrap; margin-bottom: 1.5rem;">
+                <div style="background: #f5f5f5; padding: 0.5rem 1rem; border-radius: 0.5rem;"><span style="font-weight: 600;">title</span>: 1개</div><div style="background: #e3f2fd; padding: 0.5rem 1rem; border-radius: 0.5rem;"><span style="font-weight: 600;">abstract</span>: 1개</div><div style="background: #f3e5f5; padding: 0.5rem 1rem; border-radius: 0.5rem;"><span style="font-weight: 600;">introduction</span>: 1개</div><div style="background: #e8f5e9; padding: 0.5rem 1rem; border-radius: 0.5rem;"><span style="font-weight: 600;">methods</span>: 1개</div><div style="background: #fff3e0; padding: 0.5rem 1rem; border-radius: 0.5rem;"><span style="font-weight: 600;">results</span>: 1개</div><div style="background: #fce4ec; padding: 0.5rem 1rem; border-radius: 0.5rem;"><span style="font-weight: 600;">discussion</span>: 1개</div><div style="background: #e0f7fa; padding: 0.5rem 1rem; border-radius: 0.5rem;"><span style="font-weight: 600;">conclusion</span>: 1개</div>
+            </div>
+
+            <h4 style="margin: 1rem 0;">청크 상세</h4>
+            <div class="tabs">
+                <button class="tab active" onclick="showSection('title')">title (1)</button><button class="tab" onclick="showSection('abstract')">abstract (1)</button><button class="tab" onclick="showSection('introduction')">introduction (1)</button><button class="tab" onclick="showSection('methods')">methods (1)</button><button class="tab" onclick="showSection('results')">results (1)</button><button class="tab" onclick="showSection('discussion')">discussion (1)</button><button class="tab" onclick="showSection('conclusion')">conclusion (1)</button>
+            </div>
+
+            <div id="section-title" class="tab-content active">
+            <div class="chunk-card" style="border-left-color: #999999">
+                <div class="chunk-card-header">
+                    <span class="chunk-id">pmc:PMC12345678|title|0</span>
+                    <div class="chunk-meta">
+                        <span>🔢 15 토큰</span>
+                        <span>📍 7 ~ 93</span>
+                    </div>
+                </div>
+                <div class="chunk-text"> Immunotherapy Response Prediction in Non-Small Cell Lung Cancer Using Machine Learnin</div>
+            </div>
+            </div><div id="section-abstract" class="tab-content">
+            <div class="chunk-card" style="border-left-color: #e3f299">
+                <div class="chunk-card-header">
+                    <span class="chunk-id">pmc:PMC12345678|abstract|0</span>
+                    <div class="chunk-meta">
+                        <span>🔢 158 토큰</span>
+                        <span>📍 106 ~ 924</span>
+                    </div>
+                </div>
+                <div class="chunk-text">
+Background: Immune checkpoint inhibitors have revolutionized the treatment of non-small cell lung cancer (NSCLC). However, only a subset of patients respond to these therapies. Identifying predictive biomarkers is crucial for patient selection.
+
+Methods: We analyzed data from 500 NSCLC patients treated with pembrolizumab or nivolumab between 2018 and 2023. Machine learning models were trained to predict treatment response based on clinical and molecular features.
+
+Results: Our random forest mod...</div>
+            </div>
+            </div><div id="section-introduction" class="tab-content">
+            <div class="chunk-card" style="border-left-color: #f3e599">
+                <div class="chunk-card-header">
+                    <span class="chunk-id">pmc:PMC12345678|introduction|0</span>
+                    <div class="chunk-meta">
+                        <span>🔢 301 토큰</span>
+                        <span>📍 941 ~ 2,574</span>
+                    </div>
+                </div>
+                <div class="chunk-text">
+Non-small cell lung cancer (NSCLC) accounts for approximately 85% of all lung cancer cases and remains a leading cause of cancer-related mortality worldwide. The introduction of immune checkpoint inhibitors (ICIs), particularly those targeting the PD-1/PD-L1 pathway, has significantly improved outcomes for patients with advanced NSCLC.
+
+Despite the remarkable success of immunotherapy, only 20-30% of unselected NSCLC patients respond to ICI monotherapy. This highlights the urgent need for predic...</div>
+            </div>
+            </div><div id="section-methods" class="tab-content">
+            <div class="chunk-card" style="border-left-color: #e89999">
+                <div class="chunk-card-header">
+                    <span class="chunk-id">pmc:PMC12345678|methods|0</span>
+                    <div class="chunk-meta">
+                        <span>🔢 384 토큰</span>
+                        <span>📍 2,586 ~ 4,579</span>
+                    </div>
+                </div>
+                <div class="chunk-text">
+Study Population and Data Collection
+
+We conducted a retrospective analysis of 500 patients with advanced NSCLC who received first-line pembrolizumab or nivolumab at our institution between January 2018 and December 2023. Patients were eligible if they had histologically confirmed stage IIIB or IV NSCLC, had received at least two cycles of ICI therapy, and had available baseline clinical and molecular data.
+
+Clinical variables collected included age, sex, smoking history, Eastern Cooperative On...</div>
+            </div>
+            </div><div id="section-results" class="tab-content">
+            <div class="chunk-card" style="border-left-color: #fff399">
+                <div class="chunk-card-header">
+                    <span class="chunk-id">pmc:PMC12345678|results|0</span>
+                    <div class="chunk-meta">
+                        <span>🔢 485 토큰</span>
+                        <span>📍 4,591 ~ 6,498</span>
+                    </div>
+                </div>
+                <div class="chunk-text">
+Patient Characteristics
+
+Of the 500 patients included in the analysis, 285 (57%) were male, and the median age was 65 years (range: 38-89). The majority of patients (72%) had adenocarcinoma histology, and 68% had a smoking history. PD-L1 expression was ≥50% in 35% of patients, 1-49% in 40%, and &lt;1% in 25%.
+
+After a median follow-up of 18 months, 165 patients (33%) achieved an objective response (15 complete responses, 150 partial responses), while 335 patients (67%) were classified as non-respo...</div>
+            </div>
+            </div><div id="section-discussion" class="tab-content">
+            <div class="chunk-card" style="border-left-color: #fce499">
+                <div class="chunk-card-header">
+                    <span class="chunk-id">pmc:PMC12345678|discussion|0</span>
+                    <div class="chunk-meta">
+                        <span>🔢 295 토큰</span>
+                        <span>📍 6,513 ~ 8,229</span>
+                    </div>
+                </div>
+                <div class="chunk-text">
+In this study, we developed and validated machine learning models to predict immunotherapy response in NSCLC patients. Our random forest model achieved an AUC of 0.85, outperforming single biomarkers such as PD-L1 expression alone.
+
+The superior performance of our multi-variable model highlights the complex biology underlying immunotherapy response. While PD-L1 expression remains an important predictor, our results suggest that integrating additional clinical and molecular features can substant...</div>
+            </div>
+            </div><div id="section-conclusion" class="tab-content">
+            <div class="chunk-card" style="border-left-color: #99f799">
+                <div class="chunk-card-header">
+                    <span class="chunk-id">pmc:PMC12345678|conclusion|0</span>
+                    <div class="chunk-meta">
+                        <span>🔢 54 토큰</span>
+                        <span>📍 8,244 ~ 8,607</span>
+                    </div>
+                </div>
+                <div class="chunk-text">
+Machine learning can effectively predict immunotherapy response in NSCLC patients by integrating multiple clinical and molecular features. Our model could potentially improve patient selection for immunotherapy, leading to better outcomes and more efficient use of healthcare resources. Prospective validation studies are warranted before clinical implementation</div>
+            </div>
+            </div>
+        </div>
+
+        <!-- Step 4: Offset 검증 -->
+        <div class="step">
+            <div class="step-header">
+                <div class="step-number">4</div>
+                <div class="step-title">Offset 검증 (근거 재현 테스트)</div>
+            </div>
+
+            <div class="stats-grid">
+                <div class="stat-card">
+                    <div class="stat-value" style="color: #16a34a">7/7</div>
+                    <div class="stat-label">검증 통과</div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-value">✅</div>
+                    <div class="stat-label">모든 offset 정확</div>
+                </div>
+            </div>
+
+            <p style="margin: 1rem 0; color: #64748b;">
+                각 청크의 <code>offset_start</code>와 <code>offset_end</code>로 원문에서 추출한 텍스트가
+                저장된 청크 텍스트와 일치하는지 검증합니다.
+            </p>
+
+            <div style="background: #f1f5f9; padding: 1rem; border-radius: 0.5rem; font-family: monospace; font-size: 0.875rem;">
+                <div style="color: #64748b; margin-bottom: 0.5rem;"># 검증 로직</div>
+                <div>extracted = fulltext[chunk.offset_start : chunk.offset_end]</div>
+                <div>assert extracted == chunk.text  <span style="color: #16a34a;"># ✅ 통과</span></div>
+            </div>
+
+            <h4 style="margin: 1.5rem 0 1rem;">검증 결과 샘플 (처음 10개)</h4>
+            <table>
+                <thead>
+                    <tr>
+                        <th>Chunk ID</th>
+                        <th>Offset</th>
+                        <th>결과</th>
+                        <th>저장된 텍스트</th>
+                        <th>추출된 텍스트</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    
+                    <tr>
+                        <td><code>pmc:PMC12345678|title|0</code></td>
+                        <td><code>7 ~ 93</code></td>
+                        <td><span class="verification-badge pass">✅ PASS</span></td>
+                        <td><div class="chunk-preview"> Immunotherapy Response Prediction in Non-Small Ce...</div></td>
+                        <td><div class="chunk-preview"> Immunotherapy Response Prediction in Non-Small Ce...</div></td>
+                    </tr>
+                    
+                    <tr>
+                        <td><code>pmc:PMC12345678|abstract|0</code></td>
+                        <td><code>106 ~ 924</code></td>
+                        <td><span class="verification-badge pass">✅ PASS</span></td>
+                        <td><div class="chunk-preview">
+Background: Immune checkpoint inhibitors have rev...</div></td>
+                        <td><div class="chunk-preview">
+Background: Immune checkpoint inhibitors have rev...</div></td>
+                    </tr>
+                    
+                    <tr>
+                        <td><code>pmc:PMC12345678|introduction|0</code></td>
+                        <td><code>941 ~ 2,574</code></td>
+                        <td><span class="verification-badge pass">✅ PASS</span></td>
+                        <td><div class="chunk-preview">
+Non-small cell lung cancer (NSCLC) accounts for a...</div></td>
+                        <td><div class="chunk-preview">
+Non-small cell lung cancer (NSCLC) accounts for a...</div></td>
+                    </tr>
+                    
+                    <tr>
+                        <td><code>pmc:PMC12345678|methods|0</code></td>
+                        <td><code>2,586 ~ 4,579</code></td>
+                        <td><span class="verification-badge pass">✅ PASS</span></td>
+                        <td><div class="chunk-preview">
+Study Population and Data Collection
+
+We conducte...</div></td>
+                        <td><div class="chunk-preview">
+Study Population and Data Collection
+
+We conducte...</div></td>
+                    </tr>
+                    
+                    <tr>
+                        <td><code>pmc:PMC12345678|results|0</code></td>
+                        <td><code>4,591 ~ 6,498</code></td>
+                        <td><span class="verification-badge pass">✅ PASS</span></td>
+                        <td><div class="chunk-preview">
+Patient Characteristics
+
+Of the 500 patients incl...</div></td>
+                        <td><div class="chunk-preview">
+Patient Characteristics
+
+Of the 500 patients incl...</div></td>
+                    </tr>
+                    
+                    <tr>
+                        <td><code>pmc:PMC12345678|discussion|0</code></td>
+                        <td><code>6,513 ~ 8,229</code></td>
+                        <td><span class="verification-badge pass">✅ PASS</span></td>
+                        <td><div class="chunk-preview">
+In this study, we developed and validated machine...</div></td>
+                        <td><div class="chunk-preview">
+In this study, we developed and validated machine...</div></td>
+                    </tr>
+                    
+                    <tr>
+                        <td><code>pmc:PMC12345678|conclusion|0</code></td>
+                        <td><code>8,244 ~ 8,607</code></td>
+                        <td><span class="verification-badge pass">✅ PASS</span></td>
+                        <td><div class="chunk-preview">
+Machine learning can effectively predict immunoth...</div></td>
+                        <td><div class="chunk-preview">
+Machine learning can effectively predict immunoth...</div></td>
+                    </tr>
+                    
+                </tbody>
+            </table>
+        </div>
+
+        <!-- Step 5: 최종 요약 -->
+        <div class="step">
+            <div class="step-header">
+                <div class="step-number">5</div>
+                <div class="step-title">최종 요약</div>
+            </div>
+
+            <div class="flow-diagram" style="background: linear-gradient(135deg, #667eea20 0%, #764ba220 100%);">
+                <div class="flow-box">
+                    <div style="font-size: 2rem;">📄</div>
+                    <div style="font-weight: 600;">8,609자</div>
+                    <div style="font-size: 0.75rem; color: #64748b;">원본 Fulltext</div>
+                </div>
+                <div class="flow-arrow">→</div>
+                <div class="flow-box">
+                    <div style="font-size: 2rem;">📑</div>
+                    <div style="font-weight: 600;">7개</div>
+                    <div style="font-size: 0.75rem; color: #64748b;">섹션</div>
+                </div>
+                <div class="flow-arrow">→</div>
+                <div class="flow-box">
+                    <div style="font-size: 2rem;">✂️</div>
+                    <div style="font-weight: 600;">7개</div>
+                    <div style="font-size: 0.75rem; color: #64748b;">청크</div>
+                </div>
+                <div class="flow-arrow">→</div>
+                <div class="flow-box" style="border: 2px solid #16a34a;">
+                    <div style="font-size: 2rem;">✅</div>
+                    <div style="font-weight: 600;">7/7</div>
+                    <div style="font-size: 0.75rem; color: #64748b;">Offset 검증</div>
+                </div>
+            </div>
+
+            <h4 style="margin: 1.5rem 0 1rem;">청킹 설정</h4>
+            <table>
+                <tbody>
+                    <tr><td><strong>청킹 전략</strong></td><td>Section + Recursive Character Text Splitter</td></tr>
+                    <tr><td><strong>목표 청크 크기</strong></td><td>700 토큰 (600-800 범위)</td></tr>
+                    <tr><td><strong>오버랩</strong></td><td>100 토큰 (~14%)</td></tr>
+                    <tr><td><strong>분할 우선순위</strong></td><td><code>["\n\n", "\n", ". ", " "]</code></td></tr>
+                    <tr><td><strong>Offset 기준</strong></td><td>char index (UTF-8 decoded str)</td></tr>
+                </tbody>
+            </table>
+
+            <h4 style="margin: 1.5rem 0 1rem;">다음 단계</h4>
+            <ul style="list-style: none; padding: 0;">
+                <li style="padding: 0.5rem 0; border-bottom: 1px solid #e2e8f0;">
+                    <span style="margin-right: 0.5rem;">1️⃣</span>
+                    임베딩 생성 (<code>[TITLE][SECTION][TEXT]</code> prefix 적용)
+                </li>
+                <li style="padding: 0.5rem 0; border-bottom: 1px solid #e2e8f0;">
+                    <span style="margin-right: 0.5rem;">2️⃣</span>
+                    Weaviate에 청크 + 벡터 저장
+                </li>
+                <li style="padding: 0.5rem 0; border-bottom: 1px solid #e2e8f0;">
+                    <span style="margin-right: 0.5rem;">3️⃣</span>
+                    검색 시 Parent 확장 (S3에서 ±500자)
+                </li>
+                <li style="padding: 0.5rem 0;">
+                    <span style="margin-right: 0.5rem;">4️⃣</span>
+                    LLM 답변 생성 + 근거 하이라이트
+                </li>
+            </ul>
+        </div>
+
+        <footer>
+            <p>OAR-29: 텍스트 Chunker 구현 | OAR-11 Evidence RAG 시스템</p>
+            <p>Generated by chunking demo script</p>
+        </footer>
+    </div>
+
+    <script>
+        function showSection(sectionName) {
+            // 모든 탭 비활성화
+            document.querySelectorAll('.tab').forEach(tab => tab.classList.remove('active'));
+            document.querySelectorAll('.tab-content').forEach(content => content.classList.remove('active'));
+
+            // 선택된 탭 활성화
+            event.target.classList.add('active');
+            document.getElementById('section-' + sectionName).classList.add('active');
+        }
+    </script>
+</body>
+</html>

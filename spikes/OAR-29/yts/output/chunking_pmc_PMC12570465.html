@@ -1,0 +1,1129 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>OAR-29: 청킹 시각화 데모</title>
+    <style>
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+        }
+        body {
+            font-family: 'Pretendard', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            background: #f8fafc;
+            color: #1e293b;
+            line-height: 1.6;
+        }
+        .container {
+            max-width: 1400px;
+            margin: 0 auto;
+            padding: 2rem;
+        }
+        header {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            padding: 3rem 2rem;
+            margin-bottom: 2rem;
+            border-radius: 1rem;
+        }
+        header h1 {
+            font-size: 2rem;
+            margin-bottom: 0.5rem;
+        }
+        header p {
+            opacity: 0.9;
+        }
+        .step {
+            background: white;
+            border-radius: 1rem;
+            padding: 2rem;
+            margin-bottom: 2rem;
+            box-shadow: 0 4px 6px -1px rgba(0,0,0,0.1);
+        }
+        .step-header {
+            display: flex;
+            align-items: center;
+            gap: 1rem;
+            margin-bottom: 1.5rem;
+            padding-bottom: 1rem;
+            border-bottom: 2px solid #e2e8f0;
+        }
+        .step-number {
+            background: #667eea;
+            color: white;
+            width: 3rem;
+            height: 3rem;
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-weight: bold;
+            font-size: 1.25rem;
+        }
+        .step-title {
+            font-size: 1.5rem;
+            font-weight: 600;
+        }
+        .stats-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 1rem;
+            margin-bottom: 1.5rem;
+        }
+        .stat-card {
+            background: #f1f5f9;
+            padding: 1.25rem;
+            border-radius: 0.75rem;
+            text-align: center;
+        }
+        .stat-value {
+            font-size: 2rem;
+            font-weight: bold;
+            color: #667eea;
+        }
+        .stat-label {
+            color: #64748b;
+            font-size: 0.875rem;
+        }
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            margin-top: 1rem;
+        }
+        th, td {
+            padding: 0.75rem 1rem;
+            text-align: left;
+            border-bottom: 1px solid #e2e8f0;
+        }
+        th {
+            background: #f8fafc;
+            font-weight: 600;
+            color: #475569;
+        }
+        tr:hover {
+            background: #f8fafc;
+        }
+        .section-tag {
+            display: inline-block;
+            padding: 0.25rem 0.75rem;
+            border-radius: 9999px;
+            font-size: 0.75rem;
+            font-weight: 600;
+            text-transform: uppercase;
+        }
+        .chunk-preview {
+            font-family: 'JetBrains Mono', monospace;
+            font-size: 0.8rem;
+            background: #f1f5f9;
+            padding: 0.5rem;
+            border-radius: 0.5rem;
+            max-width: 400px;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            white-space: nowrap;
+        }
+        .fulltext-preview {
+            font-family: 'JetBrains Mono', monospace;
+            font-size: 0.8rem;
+            background: #1e293b;
+            color: #e2e8f0;
+            padding: 1.5rem;
+            border-radius: 0.75rem;
+            max-height: 400px;
+            overflow-y: auto;
+            white-space: pre-wrap;
+            word-break: break-word;
+        }
+        .highlight {
+            background: #fef08a;
+            padding: 0 2px;
+            border-radius: 2px;
+        }
+        .section-block {
+            margin-bottom: 1rem;
+            border-left: 4px solid;
+            padding-left: 1rem;
+        }
+        .valid {
+            color: #16a34a;
+        }
+        .invalid {
+            color: #dc2626;
+        }
+        .chunk-card {
+            background: #f8fafc;
+            border-radius: 0.75rem;
+            padding: 1rem;
+            margin-bottom: 1rem;
+            border-left: 4px solid #667eea;
+        }
+        .chunk-card-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 0.75rem;
+        }
+        .chunk-id {
+            font-weight: 600;
+            font-family: monospace;
+        }
+        .chunk-meta {
+            display: flex;
+            gap: 1rem;
+            font-size: 0.875rem;
+            color: #64748b;
+        }
+        .chunk-text {
+            font-size: 0.875rem;
+            color: #475569;
+            background: white;
+            padding: 1rem;
+            border-radius: 0.5rem;
+            max-height: 150px;
+            overflow-y: auto;
+        }
+        .tabs {
+            display: flex;
+            gap: 0.5rem;
+            margin-bottom: 1rem;
+        }
+        .tab {
+            padding: 0.5rem 1rem;
+            border: none;
+            background: #e2e8f0;
+            border-radius: 0.5rem;
+            cursor: pointer;
+            font-weight: 500;
+        }
+        .tab.active {
+            background: #667eea;
+            color: white;
+        }
+        .tab-content {
+            display: none;
+        }
+        .tab-content.active {
+            display: block;
+        }
+        .verification-badge {
+            display: inline-flex;
+            align-items: center;
+            gap: 0.25rem;
+            padding: 0.25rem 0.5rem;
+            border-radius: 0.25rem;
+            font-size: 0.75rem;
+            font-weight: 600;
+        }
+        .verification-badge.pass {
+            background: #dcfce7;
+            color: #16a34a;
+        }
+        .verification-badge.fail {
+            background: #fee2e2;
+            color: #dc2626;
+        }
+        .flow-diagram {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 1rem;
+            padding: 2rem;
+            background: #f8fafc;
+            border-radius: 0.75rem;
+            margin: 1rem 0;
+            flex-wrap: wrap;
+        }
+        .flow-box {
+            background: white;
+            padding: 1rem 1.5rem;
+            border-radius: 0.5rem;
+            text-align: center;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+            min-width: 120px;
+        }
+        .flow-arrow {
+            font-size: 1.5rem;
+            color: #667eea;
+        }
+        footer {
+            text-align: center;
+            padding: 2rem;
+            color: #64748b;
+            font-size: 0.875rem;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <header>
+            <h1>OAR-29: 텍스트 청킹 시각화 데모</h1>
+            <p>논문 전문을 RAG 검색에 최적화된 청크로 분할하는 과정</p>
+            <p style="margin-top: 0.5rem; font-size: 0.875rem; opacity: 0.8;">
+                생성 시각: 2025-12-30 06:33:35
+            </p>
+        </header>
+
+        <!-- Step 1: 원본 데이터 -->
+        <div class="step">
+            <div class="step-header">
+                <div class="step-number">1</div>
+                <div class="step-title">원본 Fulltext 로드</div>
+            </div>
+
+            <div class="stats-grid">
+                <div class="stat-card">
+                    <div class="stat-value">PMC12570465</div>
+                    <div class="stat-label">Paper ID</div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-value">114,116</div>
+                    <div class="stat-label">총 문자 수</div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-value">25,716</div>
+                    <div class="stat-label">총 토큰 수</div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-value">8</div>
+                    <div class="stat-label">섹션 수</div>
+                </div>
+            </div>
+
+            <h4 style="margin-bottom: 0.5rem;">논문 제목</h4>
+            <p style="color: #475569; margin-bottom: 1rem;">The neuro-immune axis in cancer: from mechanisms to therapeutic opportunities</p>
+
+            <h4 style="margin-bottom: 0.5rem;">Fulltext 미리보기 (처음 2000자)</h4>
+            <div class="fulltext-preview">[TITLE] The neuro-immune axis in cancer: from mechanisms to therapeutic opportunities
+
+[ABSTRACT]
+In recent years, neural mechanisms involved in tumor initiation, progression, and immune regulation have garnered growing attention, fueling the rapid advancement of the burgeoning interdisciplinary domain of neuro-oncology. As a central component of physiological homeostasis, the neurophysiological system also exerts significant influence on the development and dynamics of the tumor microenvironment via complex neuro-immune signaling. Studies have shown that neurotransmitters, neuropeptides, and their mediated signaling pathways can directly or indirectly affect the functional state of tumor-associated immune cells, notably B cells, T cells, macrophages, myeloid-derived suppressor cells, and dendritic cells, thereby contributing to tumor immune evasion. This review systematically summarizes recent advances in neuroimmune interactions within the tumor microenvironment, highlighting the therapeutic potential of neural targets such as β-adrenergic and acetylcholine receptors. It also evaluates the repurposing potential of existing neuroactive drugs in cancer immunotherapy and their future application prospects. Although research in this field is still in its early stages, a deeper understanding of neuro-immune interaction mechanisms is expected to provide new ideas and theoretical foundations for innovative cancer treatment strategies.
+
+[INTRODUCTION]
+In recent years, the pivotal function of the tumor microenvironment (TME) in tumor initiation, progression, and therapeutic response has been widely recognized [1, 2]. The TME is composed of tumor cells, fibroblasts, immune cells, the extracellular matrix, vascular endothelial cells, and signaling molecules, forming a highly dynamic and complex ecosystem [3, 4]. Traditional oncological investigations have primarily centered around the interaction between tumors and host immunity, particularly enhancing T cell responses throu...</div>
+        </div>
+
+        <!-- Step 2: 섹션 분리 -->
+        <div class="step">
+            <div class="step-header">
+                <div class="step-number">2</div>
+                <div class="step-title">섹션 분리</div>
+            </div>
+
+            <div class="flow-diagram">
+                <div class="flow-box">
+                    <div style="font-size: 2rem;">📄</div>
+                    <div>Fulltext</div>
+                </div>
+                <div class="flow-arrow">→</div>
+                <div class="flow-box">
+                    <div style="font-size: 2rem;">✂️</div>
+                    <div>섹션 분리</div>
+                </div>
+                <div class="flow-arrow">→</div>
+                <div class="flow-box" style="border-top: 3px solid #e3f2fd"><div style="font-size: 1.5rem;">📑</div><div>abstract</div></div> <div class="flow-box" style="border-top: 3px solid #f3e5f5"><div style="font-size: 1.5rem;">📑</div><div>introduction</div></div> <div class="flow-box" style="border-top: 3px solid #f5f5f5"><div style="font-size: 1.5rem;">📑</div><div>direct local neural input regulation</div></div> <div class="flow-box" style="border-top: 3px solid #f5f5f5"><div style="font-size: 1.5rem;">📑</div><div>cns neurotransmitter-mediated peripheral immune regulation</div></div> <div class="flow-box" style="border-top: 3px solid #f5f5f5"><div style="font-size: 1.5rem;">📑</div><div>hormone-mediated systemic immune modulation</div></div>
+            </div>
+
+            <table>
+                <thead>
+                    <tr>
+                        <th>순서</th>
+                        <th>섹션</th>
+                        <th>길이 (문자)</th>
+                        <th>Offset 범위</th>
+                        <th>미리보기</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    
+                    <tr>
+                        <td>1</td>
+                        <td><span class="section-tag" style="background: #e3f2fd">abstract</span></td>
+                        <td>1,355자</td>
+                        <td><code>98 ~ 1,453</code></td>
+                        <td><div class="chunk-preview">In recent years, neural mechanisms involved in tumor initiation, progression, an...</div></td>
+                    </tr>
+                    
+                    <tr>
+                        <td>2</td>
+                        <td><span class="section-tag" style="background: #f3e5f5">introduction</span></td>
+                        <td>12,395자</td>
+                        <td><code>1,470 ~ 13,865</code></td>
+                        <td><div class="chunk-preview">In recent years, the pivotal function of the tumor microenvironment (TME) in tum...</div></td>
+                    </tr>
+                    
+                    <tr>
+                        <td>3</td>
+                        <td><span class="section-tag" style="background: #f5f5f5">direct local neural input regulation</span></td>
+                        <td>23,120자</td>
+                        <td><code>13,906 ~ 37,026</code></td>
+                        <td><div class="chunk-preview">Sympathetic nervous systemThe sympathetic nervous system influences the developm...</div></td>
+                    </tr>
+                    
+                    <tr>
+                        <td>4</td>
+                        <td><span class="section-tag" style="background: #f5f5f5">cns neurotransmitter-mediated peripheral immune regulation</span></td>
+                        <td>28,335자</td>
+                        <td><code>37,089 ~ 65,424</code></td>
+                        <td><div class="chunk-preview">The glutamate systemGlu is the principal excitatory neurotransmitter in the mamm...</div></td>
+                    </tr>
+                    
+                    <tr>
+                        <td>5</td>
+                        <td><span class="section-tag" style="background: #f5f5f5">hormone-mediated systemic immune modulation</span></td>
+                        <td>13,142자</td>
+                        <td><code>65,472 ~ 78,614</code></td>
+                        <td><div class="chunk-preview">Hypothalamic-pituitary-adrenal axisAmong these, the hypothalamic-pituitary-adren...</div></td>
+                    </tr>
+                    
+                    <tr>
+                        <td>6</td>
+                        <td><span class="section-tag" style="background: #f5f5f5">regulation of neural signaling by the immune system and tumors</span></td>
+                        <td>4,495자</td>
+                        <td><code>78,681 ~ 83,176</code></td>
+                        <td><div class="chunk-preview">The nervous system plays a regulatory role in immune responses during infection ...</div></td>
+                    </tr>
+                    
+                    <tr>
+                        <td>7</td>
+                        <td><span class="section-tag" style="background: #f5f5f5">emerging cancer therapies targeting the neuro-immune axis</span></td>
+                        <td>27,175자</td>
+                        <td><code>83,238 ~ 110,413</code></td>
+                        <td><div class="chunk-preview">ICIs in combination with neuromodulation tumor denervationImmune checkpoint mole...</div></td>
+                    </tr>
+                    
+                    <tr>
+                        <td>8</td>
+                        <td><span class="section-tag" style="background: #fce4ec">discussion</span></td>
+                        <td>3,674자</td>
+                        <td><code>110,440 ~ 114,114</code></td>
+                        <td><div class="chunk-preview">The neuro-immune axis plays a critical role in cancer initiation, progression, a...</div></td>
+                    </tr>
+                    
+                </tbody>
+            </table>
+        </div>
+
+        <!-- Step 3: 청킹 -->
+        <div class="step">
+            <div class="step-header">
+                <div class="step-number">3</div>
+                <div class="step-title">섹션별 Recursive Chunking</div>
+            </div>
+
+            <div class="stats-grid">
+                <div class="stat-card">
+                    <div class="stat-value">43</div>
+                    <div class="stat-label">총 청크 수</div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-value">596</div>
+                    <div class="stat-label">평균 토큰/청크</div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-value">700</div>
+                    <div class="stat-label">목표 토큰</div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-value">100</div>
+                    <div class="stat-label">오버랩 토큰</div>
+                </div>
+            </div>
+
+            <h4 style="margin: 1rem 0;">섹션별 청크 분포</h4>
+            <div style="display: flex; gap: 0.5rem; flex-wrap: wrap; margin-bottom: 1.5rem;">
+                <div style="background: #e3f2fd; padding: 0.5rem 1rem; border-radius: 0.5rem;"><span style="font-weight: 600;">abstract</span>: 1개</div><div style="background: #f3e5f5; padding: 0.5rem 1rem; border-radius: 0.5rem;"><span style="font-weight: 600;">introduction</span>: 6개</div><div style="background: #f5f5f5; padding: 0.5rem 1rem; border-radius: 0.5rem;"><span style="font-weight: 600;">direct local neural input regulation</span>: 8개</div><div style="background: #f5f5f5; padding: 0.5rem 1rem; border-radius: 0.5rem;"><span style="font-weight: 600;">cns neurotransmitter-mediated peripheral immune regulation</span>: 10개</div><div style="background: #f5f5f5; padding: 0.5rem 1rem; border-radius: 0.5rem;"><span style="font-weight: 600;">hormone-mediated systemic immune modulation</span>: 5개</div><div style="background: #f5f5f5; padding: 0.5rem 1rem; border-radius: 0.5rem;"><span style="font-weight: 600;">regulation of neural signaling by the immune system and tumors</span>: 2개</div><div style="background: #f5f5f5; padding: 0.5rem 1rem; border-radius: 0.5rem;"><span style="font-weight: 600;">emerging cancer therapies targeting the neuro-immune axis</span>: 10개</div><div style="background: #fce4ec; padding: 0.5rem 1rem; border-radius: 0.5rem;"><span style="font-weight: 600;">discussion</span>: 1개</div>
+            </div>
+
+            <h4 style="margin: 1rem 0;">청크 상세</h4>
+            <div class="tabs">
+                <button class="tab active" onclick="showSection('abstract')">abstract (1)</button><button class="tab" onclick="showSection('introduction')">introduction (6)</button><button class="tab" onclick="showSection('direct local neural input regulation')">direct local neural input regulation (8)</button><button class="tab" onclick="showSection('cns neurotransmitter-mediated peripheral immune regulation')">cns neurotransmitter-mediated peripheral immune regulation (10)</button><button class="tab" onclick="showSection('hormone-mediated systemic immune modulation')">hormone-mediated systemic immune modulation (5)</button><button class="tab" onclick="showSection('regulation of neural signaling by the immune system and tumors')">regulation of neural signaling by the immune system and tumors (2)</button><button class="tab" onclick="showSection('emerging cancer therapies targeting the neuro-immune axis')">emerging cancer therapies targeting the neuro-immune axis (10)</button><button class="tab" onclick="showSection('discussion')">discussion (1)</button>
+            </div>
+
+            <div id="section-abstract" class="tab-content active">
+            <div class="chunk-card" style="border-left-color: #e3f299">
+                <div class="chunk-card-header">
+                    <span class="chunk-id">pmc:PMC12570465|abstract|0</span>
+                    <div class="chunk-meta">
+                        <span>🔢 231 토큰</span>
+                        <span>📍 98 ~ 1,453</span>
+                    </div>
+                </div>
+                <div class="chunk-text">In recent years, neural mechanisms involved in tumor initiation, progression, and immune regulation have garnered growing attention, fueling the rapid advancement of the burgeoning interdisciplinary domain of neuro-oncology. As a central component of physiological homeostasis, the neurophysiological system also exerts significant influence on the development and dynamics of the tumor microenvironment via complex neuro-immune signaling. Studies have shown that neurotransmitters, neuropeptides, an...</div>
+            </div>
+            </div><div id="section-introduction" class="tab-content">
+            <div class="chunk-card" style="border-left-color: #f3e599">
+                <div class="chunk-card-header">
+                    <span class="chunk-id">pmc:PMC12570465|introduction|0</span>
+                    <div class="chunk-meta">
+                        <span>🔢 697 토큰</span>
+                        <span>📍 1,470 ~ 4,954</span>
+                    </div>
+                </div>
+                <div class="chunk-text">In recent years, the pivotal function of the tumor microenvironment (TME) in tumor initiation, progression, and therapeutic response has been widely recognized [1, 2]. The TME is composed of tumor cells, fibroblasts, immune cells, the extracellular matrix, vascular endothelial cells, and signaling molecules, forming a highly dynamic and complex ecosystem [3, 4]. Traditional oncological investigations have primarily centered around the interaction between tumors and host immunity, particularly en...</div>
+            </div>
+            
+            <div class="chunk-card" style="border-left-color: #f3e599">
+                <div class="chunk-card-header">
+                    <span class="chunk-id">pmc:PMC12570465|introduction|1</span>
+                    <div class="chunk-meta">
+                        <span>🔢 316 토큰</span>
+                        <span>📍 4,954 ~ 6,352</span>
+                    </div>
+                </div>
+                <div class="chunk-text">1B; Tables 1 and 2).Hormone-mediated systemic immune modulation: The nervous system can activate endocrine glands (such as the ovaries, testes, pancreas, and thyroid) to secrete hormones that circulate through the bloodstream to peripheral organs like the lungs, liver, and intestines, thereby systemically modulating immune cell function [15, 16] (Fig. 1C; Tables 1 and 2). Fig. 1Regulatory mechanisms of the neuro-immune axis in tumors. The nervous system participates in tumor-related immune regul...</div>
+            </div>
+            
+            <div class="chunk-card" style="border-left-color: #f3e599">
+                <div class="chunk-card-header">
+                    <span class="chunk-id">pmc:PMC12570465|introduction|2</span>
+                    <div class="chunk-meta">
+                        <span>🔢 700 토큰</span>
+                        <span>📍 6,352 ~ 9,034</span>
+                    </div>
+                </div>
+                <div class="chunk-text">These hormones act on peripheral tissues such as the lungs, liver, and intestines, thereby systemically regulating immune cell function Table 1Neurotransmitters and pituitary-regulated peripheral hormones regulating immune cells and the tumor microenvironmentSignal typeSourceImmune cell affectedEffectCancer contextReferencesAutonomic neurotransmitterNorepinephrineT cellsAnti-inflammatoryNo [17-20]Autonomic neurotransmitterNorepinephrineDendritic cellsAnti-inflammatoryYes [21]Autonomic neurotrans...</div>
+            </div>
+            
+            <div class="chunk-card" style="border-left-color: #f3e599">
+                <div class="chunk-card-header">
+                    <span class="chunk-id">pmc:PMC12570465|introduction|3</span>
+                    <div class="chunk-meta">
+                        <span>🔢 689 토큰</span>
+                        <span>📍 9,034 ~ 11,359</span>
+                    </div>
+                </div>
+                <div class="chunk-text">neurotransmitterGlutamateMDSCsPro-tumoralYes [71]CNS neurotransmitterGlutamateMacrophagesPro-inflammatoryNo [72]CNS neurotransmitterGlutamateT cellsPro-inflammatoryNo [73-75]CNS neurotransmitterGlutamateT cellsAnti-inflammatoryNo [76]CNS neurotransmitterSerotoninTumor cellsPro-tumoralYes [77]CNS neurotransmitterSerotoninT cellsAnti-inflammatoryYes [78]CNS neurotransmitterSerotoninCD8⁺ T cellsPro-inflammatoryYes [79]CNS neurotransmitterSerotoninMacrophagesAnti-inflammatoryNo [80, 81]CNS neurotran...</div>
+            </div>
+            
+            <div class="chunk-card" style="border-left-color: #f3e599">
+                <div class="chunk-card-header">
+                    <span class="chunk-id">pmc:PMC12570465|introduction|4</span>
+                    <div class="chunk-meta">
+                        <span>🔢 673 토큰</span>
+                        <span>📍 11,359 ~ 13,593</span>
+                    </div>
+                </div>
+                <div class="chunk-text">[127]HormoneMelatoninMacrophagesPro-inflammatoryYes [127] Table 2Overview of neural receptors involved in tumor immune regulationReceptor (Ligand)Immune cells affectedModel (Human/Mouse)Tissue nicheCancer relevanceReferencesβ2-AR (NE)PDAC cellsHumanTMETumor cells evade immune recognition [35]β2-AR (NE)MacrophagesHuman/MouseTMEPromotes tumor immunosuppressive phenotype [36-42]β2-AR (NE)MDSCHuman/MouseTMEPromotes tumor immunosuppressive phenotype [24-29]β2-AR (NE)CD8⁺ T cellsMouseTMESuppresses ant...</div>
+            </div>
+            
+            <div class="chunk-card" style="border-left-color: #f3e599">
+                <div class="chunk-card-header">
+                    <span class="chunk-id">pmc:PMC12570465|introduction|5</span>
+                    <div class="chunk-meta">
+                        <span>🔢 45 토큰</span>
+                        <span>📍 13,593 ~ 13,865</span>
+                    </div>
+                </div>
+                <div class="chunk-text">It focuses on elucidating the molecular mechanisms of neuro-immune interactions, assessing the therapeutic potential of existing neuromodulatory drugs in anti-tumor treatment, and exploring future directions for their synergistic application with immunotherapy strategies.</div>
+            </div>
+            </div><div id="section-direct local neural input regulation" class="tab-content">
+            <div class="chunk-card" style="border-left-color: #999999">
+                <div class="chunk-card-header">
+                    <span class="chunk-id">pmc:PMC12570465|direct local neural input regulation|0</span>
+                    <div class="chunk-meta">
+                        <span>🔢 639 토큰</span>
+                        <span>📍 13,906 ~ 16,847</span>
+                    </div>
+                </div>
+                <div class="chunk-text">Sympathetic nervous systemThe sympathetic nervous system influences the development, distribution, and functional state of immune cells in peripheral immune organs (like the lymph nodes, bone marrow, and spleen) through the release of catecholamine neurotransmitters, including NE and epinephrine (E), particularly under stress conditions (Fig. 2A). Studies have shown that sympathetic nerve terminals are widely distributed in T cell-rich regions of the spleen and lymph nodes, where they regulate T...</div>
+            </div>
+            
+            <div class="chunk-card" style="border-left-color: #999999">
+                <div class="chunk-card-header">
+                    <span class="chunk-id">pmc:PMC12570465|direct local neural input regulation|1</span>
+                    <div class="chunk-meta">
+                        <span>🔢 684 토큰</span>
+                        <span>📍 16,847 ~ 19,568</span>
+                    </div>
+                </div>
+                <div class="chunk-text">Overall, stress activates the sympathetic-adrenal signaling axis, promoting the accumulation of immunosuppressive cells such as MDSCs and Tregs in the TME, while impairing the function of effector immune cells like CD8⁺ T cells and NK cells.At the molecular level, NE primarily mediates immunosuppressive effects through the β2-AR expressed on various immune cells [133]. In pancreatic cancer cells, norepinephrine stimulation downregulates MHC-I and costimulatory molecule B7-1 while upregulating im...</div>
+            </div>
+            
+            <div class="chunk-card" style="border-left-color: #999999">
+                <div class="chunk-card-header">
+                    <span class="chunk-id">pmc:PMC12570465|direct local neural input regulation|2</span>
+                    <div class="chunk-meta">
+                        <span>🔢 686 토큰</span>
+                        <span>📍 19,568 ~ 22,656</span>
+                    </div>
+                </div>
+                <div class="chunk-text">In melanoma and fibrosarcoma models, propranolol combined with anti-PD-1 antibody and IL-2 treatment increased T cell infiltration, reduced MDSCs density, and enhanced PD-L1 expression in tumor-associated macrophages (TAMs), improving immunotherapy efficacy [137]. Propranolol also alleviated T cell exhaustion by reducing the expression of PD-1, FOXP3, and LAG3, boosting cytotoxicity, and enhancing glucose uptake and glycolytic function [138, 139]. However, the application of β-blockers in colore...</div>
+            </div>
+            
+            <div class="chunk-card" style="border-left-color: #999999">
+                <div class="chunk-card-header">
+                    <span class="chunk-id">pmc:PMC12570465|direct local neural input regulation|3</span>
+                    <div class="chunk-meta">
+                        <span>🔢 653 토큰</span>
+                        <span>📍 22,656 ~ 25,140</span>
+                    </div>
+                </div>
+                <div class="chunk-text">Each subunit contains four conserved transmembrane domains, with a variable cytoplasmic loop between the third and fourth domains and N- and C-terminal regions extracellularly. When ACh or other agonists, such as nicotine, bind to nAChRs (mainly the α7 subunit) on the surface of immune cells, the receptor undergoes a conformational change, allowing a limited influx of cations such as calcium (Ca²⁺) into the cell, which triggers intracellular signaling [150-152]. This Ca²⁺ influx can activate cal...</div>
+            </div>
+            
+            <div class="chunk-card" style="border-left-color: #999999">
+                <div class="chunk-card-header">
+                    <span class="chunk-id">pmc:PMC12570465|direct local neural input regulation|4</span>
+                    <div class="chunk-meta">
+                        <span>🔢 676 토큰</span>
+                        <span>📍 25,140 ~ 28,192</span>
+                    </div>
+                </div>
+                <div class="chunk-text">Conversely, subsequent studies suggested that ACh released by the vagus nerve can suppress CD8⁺ T cell activity via the M3 receptor (M3R), and selective deletion of the Chrm3 gene significantly inhibited liver tumor growth [51] (Fig. 3E). Furthermore, activation of mAChRs in Tregs can enhance their function and promote peripheral tissue infiltration, thereby preventing excessive immune responses [56]. However, mAChR expression in MDSCs is relatively low, and their functional role remains unclear...</div>
+            </div>
+            
+            <div class="chunk-card" style="border-left-color: #999999">
+                <div class="chunk-card-header">
+                    <span class="chunk-id">pmc:PMC12570465|direct local neural input regulation|5</span>
+                    <div class="chunk-meta">
+                        <span>🔢 691 토큰</span>
+                        <span>📍 28,192 ~ 31,357</span>
+                    </div>
+                </div>
+                <div class="chunk-text">(E) In cancer cells, acetylcholine enhances pro-inflammatory cytokine expression and inhibits tumor growth Somatic nervous systemNociceptors are a class of sensory nerve fibers capable of detecting harmful stimuli and playing critical roles in regulating immune and inflammatory responses [159]. Their terminals are distributed in peripheral tissues and, upon pathological stimulation, release a variety of neuropeptides, including Substance P and calcitonin gene-related peptide (CGRP) [160]. These ...</div>
+            </div>
+            
+            <div class="chunk-card" style="border-left-color: #999999">
+                <div class="chunk-card-header">
+                    <span class="chunk-id">pmc:PMC12570465|direct local neural input regulation|6</span>
+                    <div class="chunk-meta">
+                        <span>🔢 699 토큰</span>
+                        <span>📍 31,357 ~ 34,420</span>
+                    </div>
+                </div>
+                <div class="chunk-text">In macrophages, CGRP further promotes polarization toward the immunosuppressive M2 phenotype, inhibits the expression of NLRP3 inflammasomes and pro-IL-1β in M1 macrophages, and reduces pro-inflammatory responses, showing tissue-protective effects in acute lung injury models [61] (Fig. 4H). However, CGRP also exhibits pro-inflammatory properties under certain pathological conditions. It can promote the recruitment of eosinophils and enhance T cell adhesion, thereby exacerbating local inflammatio...</div>
+            </div>
+            
+            <div class="chunk-card" style="border-left-color: #999999">
+                <div class="chunk-card-header">
+                    <span class="chunk-id">pmc:PMC12570465|direct local neural input regulation|7</span>
+                    <div class="chunk-meta">
+                        <span>🔢 649 토큰</span>
+                        <span>📍 34,420 ~ 37,026</span>
+                    </div>
+                </div>
+                <div class="chunk-text">Recent studies have shown that EGCs also exhibit pro-tumorigenic effects in gastrointestinal cancers [173] (Fig. 5C). Under inflammatory stimuli, EGCs undergo morphological changes and upregulate GFAP expression [174]. In AOM/DSS and Apc^Min/+ mouse models, GFAP⁺ EGCs play a key pro-tumorigenic role in the early stages of colorectal cancer development [175]. Specific depletion of GFAP⁺ EGCs significantly reduces tumor number and size, suggesting their promoting role in tumor initiation. CRC cell...</div>
+            </div>
+            </div><div id="section-cns neurotransmitter-mediated peripheral immune regulation" class="tab-content">
+            <div class="chunk-card" style="border-left-color: #999999">
+                <div class="chunk-card-header">
+                    <span class="chunk-id">pmc:PMC12570465|cns neurotransmitter-mediated peripheral immune regulation|0</span>
+                    <div class="chunk-meta">
+                        <span>🔢 691 토큰</span>
+                        <span>📍 37,089 ~ 39,932</span>
+                    </div>
+                </div>
+                <div class="chunk-text">The glutamate systemGlu is the principal excitatory neurotransmitter in the mammalian central nervous system, and its extracellular concentration is tightly regulated to prevent excitotoxicity. As a non-essential amino acid, glutamate not only participates in various metabolic processes, but can also be converted into α-ketoglutarate (α-KG) in the tricarboxylic acid (TCA) cycle via glutaminase (GLS), glutamate dehydrogenase (GDH), and aspartate aminotransferase (AAT) [183, 184]. In addition, glu...</div>
+            </div>
+            
+            <div class="chunk-card" style="border-left-color: #999999">
+                <div class="chunk-card-header">
+                    <span class="chunk-id">pmc:PMC12570465|cns neurotransmitter-mediated peripheral immune regulation|1</span>
+                    <div class="chunk-meta">
+                        <span>🔢 692 토큰</span>
+                        <span>📍 39,932 ~ 42,917</span>
+                    </div>
+                </div>
+                <div class="chunk-text">Its deficiency leads to upregulated cAMP levels, which in turn enhance the antitumor responses of CD8⁺ T cells and NK cells, alongside elevated expression of pCREB and IFNGR1 [67, 192]. Interestingly, pharmacological inhibition of mGluR4 using the selective antagonist MSOP in wild-type mice mimics the immune-enhancing effects seen in Grm4⁻/⁻ mice, further validating mGluR4 as a critical negative regulator of antitumor immunity [67]. In RAW264.7 macrophages, overexpression of mGluR5 has been show...</div>
+            </div>
+            
+            <div class="chunk-card" style="border-left-color: #999999">
+                <div class="chunk-card-header">
+                    <span class="chunk-id">pmc:PMC12570465|cns neurotransmitter-mediated peripheral immune regulation|2</span>
+                    <div class="chunk-meta">
+                        <span>🔢 651 토큰</span>
+                        <span>📍 42,917 ~ 46,143</span>
+                    </div>
+                </div>
+                <div class="chunk-text">Although these findings were obtained in non-tumor models, they provide valuable insights for studies conducted in the context of cancer. (Fig. 6)In addition to direct regulation at the receptor level, glutamate and its metabolic pathways indirectly modulate antitumor immunity by influencing immune cell metabolism. Following T-cell activation, the expression of excitatory Amino Acid Transporters (EAATs) and SLC1A5 is upregulated to enhance glutamine/glutamate uptake, which is essential for T-cel...</div>
+            </div>
+            
+            <div class="chunk-card" style="border-left-color: #999999">
+                <div class="chunk-card-header">
+                    <span class="chunk-id">pmc:PMC12570465|cns neurotransmitter-mediated peripheral immune regulation|3</span>
+                    <div class="chunk-meta">
+                        <span>🔢 698 토큰</span>
+                        <span>📍 46,143 ~ 48,901</span>
+                    </div>
+                </div>
+                <div class="chunk-text">Glutamine can be converted to glutamate via glutaminase (GLS), and subsequently transformed into α-ketoglutarate (α-KG) through glutamate dehydrogenase (GDH) or aminotransferases (AAT), feeding into the TCA cycle to maintain metabolic homeostasis. Inhibition of xCT (xCTi) can block the AKT/STAT6 signaling pathway, suppress M2 macrophage polarization, and enhance the efficacy of immunotherapy. Glutamate regulates immune cell function through activation of two receptor types: Ionotropic glutamate ...</div>
+            </div>
+            
+            <div class="chunk-card" style="border-left-color: #999999">
+                <div class="chunk-card-header">
+                    <span class="chunk-id">pmc:PMC12570465|cns neurotransmitter-mediated peripheral immune regulation|4</span>
+                    <div class="chunk-meta">
+                        <span>🔢 666 토큰</span>
+                        <span>📍 48,901 ~ 51,942</span>
+                    </div>
+                </div>
+                <div class="chunk-text">They are divided into seven major classes (5-HTR1 through 5-HTR7). Although serotonin is primarily recognized for its function as a neurotransmitter in the CNS, accumulating evidence indicates that it also has important biological functions in the immune system. Peripheral serotonin can be taken up and stored by platelets, where it modulates both inflammatory processes and immune function. For instance, in mouse orthotopic xenograft models of gastric and pancreatic cancers, 5-HT originating from...</div>
+            </div>
+            
+            <div class="chunk-card" style="border-left-color: #999999">
+                <div class="chunk-card-header">
+                    <span class="chunk-id">pmc:PMC12570465|cns neurotransmitter-mediated peripheral immune regulation|5</span>
+                    <div class="chunk-meta">
+                        <span>🔢 684 토큰</span>
+                        <span>📍 51,942 ~ 54,628</span>
+                    </div>
+                </div>
+                <div class="chunk-text">In liver cancer models, 5-HT activates hepatic stellate cells (HSCs), inducing the secretion of TGF-β1, which enhances pro-tumor functions of neutrophils and macrophages [202, 203] (Fig. 7E). Notably, newly developed 5-HT-loaded nanoparticles can target myeloperoxidase activity and effectively inhibit neutrophil-mediated lung tumor metastasis [204, 205]. Taken together, serotonin signaling exhibits an overall immunosuppressive tendency across multiple immune cell types, thereby facilitating tumo...</div>
+            </div>
+            
+            <div class="chunk-card" style="border-left-color: #999999">
+                <div class="chunk-card-header">
+                    <span class="chunk-id">pmc:PMC12570465|cns neurotransmitter-mediated peripheral immune regulation|6</span>
+                    <div class="chunk-meta">
+                        <span>🔢 660 토큰</span>
+                        <span>📍 54,628 ~ 57,452</span>
+                    </div>
+                </div>
+                <div class="chunk-text">Selective serotonin reuptake inhibitors (SSRIs) can effectively enhance T cell-mediated anti-tumor immune responses. Over 95% of 5-HT is stored in the gut, with small amounts present in the central nervous system and blood. Its roles in tumor immunity include: (A). Platelet-released 5-HT promotes histone serotonylation via tissue transglutaminase 2 (TGM2), upregulating PD-L1 expression in cancer cells and facilitating immune evasion. (B). CD8⁺ T cells sense 5-HT via 5-HTR5 and 5-HTR7, modulating...</div>
+            </div>
+            
+            <div class="chunk-card" style="border-left-color: #999999">
+                <div class="chunk-card-header">
+                    <span class="chunk-id">pmc:PMC12570465|cns neurotransmitter-mediated peripheral immune regulation|7</span>
+                    <div class="chunk-meta">
+                        <span>🔢 670 토큰</span>
+                        <span>📍 57,452 ~ 60,407</span>
+                    </div>
+                </div>
+                <div class="chunk-text">In TAMs, DA activates D4R to enhance the anti-tumor efficacy of gemcitabine in pancreatic ductal adenocarcinoma and reduces the number of CD206⁺ M2 macrophages. This effect may be mediated through the cAMP/PKA pathway leading to downregulation of IL-1 expression, without significantly affecting TNF-α levels [89]. DA also inhibits TAM recruitment and reduces the expression of pro-inflammatory factors such as IL-6 and TNF-α. Dopaminergic agonists (e.g., bromocriptine) can induce apoptosis in breas...</div>
+            </div>
+            
+            <div class="chunk-card" style="border-left-color: #999999">
+                <div class="chunk-card-header">
+                    <span class="chunk-id">pmc:PMC12570465|cns neurotransmitter-mediated peripheral immune regulation|8</span>
+                    <div class="chunk-meta">
+                        <span>🔢 696 토큰</span>
+                        <span>📍 60,407 ~ 63,954</span>
+                    </div>
+                </div>
+                <div class="chunk-text">GABA exerts its biological functions mainly through two classes of receptors: the ligand-gated ionotropic GABA_A receptors, which mediate neuronal inhibition by facilitating chloride (Cl⁻) influx, and the G protein-coupled metabotropic GABA_B receptors, which participate in various signaling pathways via coupling with Gi proteins (Fig. 9). In recent years, GABA has attracted increasing attention as a potential “oncometabolite” involved in the initiation, progression, and metastasis of various ca...</div>
+            </div>
+            
+            <div class="chunk-card" style="border-left-color: #999999">
+                <div class="chunk-card-header">
+                    <span class="chunk-id">pmc:PMC12570465|cns neurotransmitter-mediated peripheral immune regulation|9</span>
+                    <div class="chunk-meta">
+                        <span>🔢 299 토큰</span>
+                        <span>📍 63,954 ~ 65,424</span>
+                    </div>
+                </div>
+                <div class="chunk-text">As our understanding of the expression of GABAergic components in immune cells and their role in inflammation deepens [219], future research may enable more precise anti-tumor immune regulation strategies through selective targeting of different GABA receptor subtypes or their downstream signaling components. Although no GABA-related drugs have yet been approved for cancer therapy, existing evidence suggests that many GABAergic drugs-shown to have immunomodulatory potential in other disease mode...</div>
+            </div>
+            </div><div id="section-hormone-mediated systemic immune modulation" class="tab-content">
+            <div class="chunk-card" style="border-left-color: #999999">
+                <div class="chunk-card-header">
+                    <span class="chunk-id">pmc:PMC12570465|hormone-mediated systemic immune modulation|0</span>
+                    <div class="chunk-meta">
+                        <span>🔢 644 토큰</span>
+                        <span>📍 65,472 ~ 68,182</span>
+                    </div>
+                </div>
+                <div class="chunk-text">Hypothalamic-pituitary-adrenal axisAmong these, the hypothalamic-pituitary-adrenal (HPA) axis is the central regulatory pathway of stress response. When the body is under stress, this axis is activated, leading to the secretion of glucocorticoids (e.g., cortisol). Elevated glucocorticoid levels in both circulation and the TME can act on various immune cells via nuclear receptors (glucocorticoid receptor, GR) or membrane receptors (e.g., GPR97), inducing widespread transcriptional reprogramming a...</div>
+            </div>
+            
+            <div class="chunk-card" style="border-left-color: #999999">
+                <div class="chunk-card-header">
+                    <span class="chunk-id">pmc:PMC12570465|hormone-mediated systemic immune modulation|1</span>
+                    <div class="chunk-meta">
+                        <span>🔢 673 토큰</span>
+                        <span>📍 68,182 ~ 71,016</span>
+                    </div>
+                </div>
+                <div class="chunk-text">In MDSCs, GR signaling enhances immunosuppressive activity by downregulating HIF-1α, glycolysis-related genes (e.g., Glut1, Eno1, Mct4), and inflammatory mediators (e.g., Tnf, Il1b) [105, 232]. In NK cells, glucocorticoids suppress cytotoxicity by reducing histone acetylation at promoter/enhancer regions of PRF, GZMB, and IFNγ, and upregulate immune checkpoint PD-1, limiting IFNγ production [106, 233]. In neutrophils, glucocorticoids promote bone marrow egress by downregulating endothelial adhes...</div>
+            </div>
+            
+            <div class="chunk-card" style="border-left-color: #999999">
+                <div class="chunk-card-header">
+                    <span class="chunk-id">pmc:PMC12570465|hormone-mediated systemic immune modulation|2</span>
+                    <div class="chunk-meta">
+                        <span>🔢 661 토큰</span>
+                        <span>📍 71,016 ~ 73,857</span>
+                    </div>
+                </div>
+                <div class="chunk-text">AR inhibits CD8⁺ T cell cytotoxicity by repressing expression of key effector genes such as GZMB and IFNγ, whose open chromatin regions contain androgen response elements (AREs) [111]. AR also promotes the exhausted T cell phenotype (Tpe) and impairs stem-like properties of CD8⁺ T cells through epigenetic remodeling and increased accessibility to transcription factor targets (e.g., FOS, RUNX, IRF4) [112]. In bladder cancer, male CD8⁺ T cells more readily maintain TCF1 expression and develop a Tp...</div>
+            </div>
+            
+            <div class="chunk-card" style="border-left-color: #999999">
+                <div class="chunk-card-header">
+                    <span class="chunk-id">pmc:PMC12570465|hormone-mediated systemic immune modulation|3</span>
+                    <div class="chunk-meta">
+                        <span>🔢 685 토큰</span>
+                        <span>📍 73,857 ~ 76,605</span>
+                    </div>
+                </div>
+                <div class="chunk-text">Testosterone, through the androgen receptor (AR), regulates T cell gene expression by suppressing GZMB and IFN-γ, while activating TCF1, FOS, RUNX, and IRF4, enhancing the Tpex phenotype. The AR antagonist Enzalutamide can block this pathway. (B). Estradiol (E2), via ERα, upregulates PD-L1 expression on tumor cells and activates the STAT/Arg1/IL-10 and JAK2/STAT3 pathways, promoting the accumulation of M2 macrophages and myeloid-derived suppressor cells (MDSCs), thus enhancing immune suppression...</div>
+            </div>
+            
+            <div class="chunk-card" style="border-left-color: #999999">
+                <div class="chunk-card-header">
+                    <span class="chunk-id">pmc:PMC12570465|hormone-mediated systemic immune modulation|4</span>
+                    <div class="chunk-meta">
+                        <span>🔢 473 토큰</span>
+                        <span>📍 76,605 ~ 78,614</span>
+                    </div>
+                </div>
+                <div class="chunk-text">TSHR inhibitors can block this signaling and suppress the pro-tumor effects mediated by TSH MelatoninAdditionally, melatonin (MLT), an endogenous hormone secreted by the pineal gland, has shown potential to enhance T cell function and increase sensitivity to immunotherapy (Fig. 13). Studies demonstrate that MLT boosts NK cell activity activated by local radiofrequency ablation (RFA) and exerts synergistic antitumor effects when combined with RFA. It can also reverse the Warburg effect, lowering ...</div>
+            </div>
+            </div><div id="section-regulation of neural signaling by the immune system and tumors" class="tab-content">
+            <div class="chunk-card" style="border-left-color: #999999">
+                <div class="chunk-card-header">
+                    <span class="chunk-id">pmc:PMC12570465|regulation of neural signaling by the immune system and tumors|0</span>
+                    <div class="chunk-meta">
+                        <span>🔢 690 토큰</span>
+                        <span>📍 78,681 ~ 82,239</span>
+                    </div>
+                </div>
+                <div class="chunk-text">The nervous system plays a regulatory role in immune responses during infection and inflammation [246]. Conversely, the immune system can also modulate nervous system function by releasing various signaling molecules, even influencing the growth and extension of nerve fibers. In certain cases, these changes may permeate into tumor tissues [231, 247]. During inflammatory responses, leukocyte infiltration is accompanied by the release of pain-associated mediators, which induce neuroplastic changes...</div>
+            </div>
+            
+            <div class="chunk-card" style="border-left-color: #999999">
+                <div class="chunk-card-header">
+                    <span class="chunk-id">pmc:PMC12570465|regulation of neural signaling by the immune system and tumors|1</span>
+                    <div class="chunk-meta">
+                        <span>🔢 186 토큰</span>
+                        <span>📍 82,239 ~ 83,176</span>
+                    </div>
+                </div>
+                <div class="chunk-text">This α-MSH, induced by tumors, promotes the generation of MDSCs in the bone marrow, thereby inhibiting the host’s antitumor immune response [257]. Conversely, recent research has shown that various types of murine peripheral tumors frequently secrete galectin-3 and leukemia inhibitory factor, which can also be detectable in the plasma of certain patients with solid tumors. These tumor-secreted signals act synergistically to stimulate the paraventricular nucleus (PVN) of the hypothalamus, thereby...</div>
+            </div>
+            </div><div id="section-emerging cancer therapies targeting the neuro-immune axis" class="tab-content">
+            <div class="chunk-card" style="border-left-color: #999999">
+                <div class="chunk-card-header">
+                    <span class="chunk-id">pmc:PMC12570465|emerging cancer therapies targeting the neuro-immune axis|0</span>
+                    <div class="chunk-meta">
+                        <span>🔢 672 토큰</span>
+                        <span>📍 83,238 ~ 86,481</span>
+                    </div>
+                </div>
+                <div class="chunk-text">ICIs in combination with neuromodulation tumor denervationImmune checkpoint molecules are considered one of the primary mechanisms by which cancers evade immune surveillance. Notably, molecules such as PD-1 and its ligand PD-L1 can be expressed on tumor-associated nerves within the TME, leading to T cell functional suppression and promoting tumor progression [262]. Therapeutic strategies directed at these molecules seek to boost antitumor immune responses within the TME, thereby inhibiting tumor...</div>
+            </div>
+            
+            <div class="chunk-card" style="border-left-color: #999999">
+                <div class="chunk-card-header">
+                    <span class="chunk-id">pmc:PMC12570465|emerging cancer therapies targeting the neuro-immune axis|1</span>
+                    <div class="chunk-meta">
+                        <span>🔢 400 토큰</span>
+                        <span>📍 86,481 ~ 88,588</span>
+                    </div>
+                </div>
+                <div class="chunk-text">In summary, neural modulation can enhance ICI-mediated antitumor immune responses through multiple pathways, representing a promising strategy to improve immunotherapy efficacy. However, the optimal dose, timing, and combination regimen require further clinical validation. Given the substantial interindividual heterogeneity in neural activity, biomarkers reflecting neuro-immune status are urgently needed to identify patients most likely to benefit. Repurposing neuroactive drugsThe repurposing of...</div>
+            </div>
+            
+            <div class="chunk-card" style="border-left-color: #999999">
+                <div class="chunk-card-header">
+                    <span class="chunk-id">pmc:PMC12570465|emerging cancer therapies targeting the neuro-immune axis|2</span>
+                    <div class="chunk-meta">
+                        <span>🔢 686 토큰</span>
+                        <span>📍 88,588 ~ 90,563</span>
+                    </div>
+                </div>
+                <div class="chunk-text">Table 3Neuro-immune-targeted therapeutic agents with cancer relevanceDrugTargetCancer type(s)StageReferencesStatusPropranololβ-ARsOvarian, primary peritoneal, or fallopian tube cancerPhase 1NCT01504126CompletedPropranololβ-ARsOvarian cancerPhase 1NCT01308944CompletedPropranololβ-ARsColorectal cancerPhase 1NCT03245554Unknown statusPropranololβ-ARsColorectal cancerPhase 3NCT00888797CompletedPropranololβ-ARsGastric cancerPhase 2NCT04005365Unknown statusPropranololβ-ARsEsophageal adenocarcinomaPhase...</div>
+            </div>
+            
+            <div class="chunk-card" style="border-left-color: #999999">
+                <div class="chunk-card-header">
+                    <span class="chunk-id">pmc:PMC12570465|emerging cancer therapies targeting the neuro-immune axis|3</span>
+                    <div class="chunk-meta">
+                        <span>🔢 628 토큰</span>
+                        <span>📍 90,563 ~ 92,833</span>
+                    </div>
+                </div>
+                <div class="chunk-text">1NCT03572283OngoingBethanecholmAChRsPancreatic cancerPhase 2NCT05241249RecruitingLidocaineVGSCBreast cancerPhase 2NCT02839668CompletedLidocaineVGSCNSCLCNot ApplicableChiCTR2000030629OngoingLidocaineVGSCPancreatic cancerNot ApplicableNCT03245346RecruitingLidocaineVGSCPancreatic cancerNot ApplicableNCT05470166CompletedLidocaineVGSCOvarian cancerNot ApplicableNCT05450055Not Yet RecruitingLidocaineVGSCColorectal cancerPhase 3NCT00236249CompletedLidocaineVGSCColorectal cancerPhase 1NCT02786329Unknown...</div>
+            </div>
+            
+            <div class="chunk-card" style="border-left-color: #999999">
+                <div class="chunk-card-header">
+                    <span class="chunk-id">pmc:PMC12570465|emerging cancer therapies targeting the neuro-immune axis|4</span>
+                    <div class="chunk-meta">
+                        <span>🔢 687 토큰</span>
+                        <span>📍 92,833 ~ 96,024</span>
+                    </div>
+                </div>
+                <div class="chunk-text">In a phase I clinical trial including 14 patients with advanced esophageal cancer, according to RECIST v1.1 criteria, 8 patients achieved stable disease (57.1%) and 1 patient achieved a partial response (7.1%), with target lesions shrinking by 51.16% at 6 weeks and reaching a 54.65% reduction over 6 months [281, 282]. Although these studies demonstrate the potential of anti-tumor neurogenesis interventions to inhibit neural invasion, reduce metastasis, and enhance chemotherapy and immunotherapy ...</div>
+            </div>
+            
+            <div class="chunk-card" style="border-left-color: #999999">
+                <div class="chunk-card-header">
+                    <span class="chunk-id">pmc:PMC12570465|emerging cancer therapies targeting the neuro-immune axis|5</span>
+                    <div class="chunk-meta">
+                        <span>🔢 696 토큰</span>
+                        <span>📍 96,024 ~ 99,574</span>
+                    </div>
+                </div>
+                <div class="chunk-text">Studies in Apc^(Min/+) mice further indicate that peripheral innervation of the small intestine plays a key regulatory role in tumor development. Notably, disruption of vagal innervation, rather than sympathetic denervation, effectively suppresses tumor growth [288]. Chemical denervation also demonstrates antitumor potential. For instance, benzalkonium chloride (BAC) treatment of rat stomachs significantly reduces the number of myenteric neurons, increases gastric mucosal area, and decreases bot...</div>
+            </div>
+            
+            <div class="chunk-card" style="border-left-color: #999999">
+                <div class="chunk-card-header">
+                    <span class="chunk-id">pmc:PMC12570465|emerging cancer therapies targeting the neuro-immune axis|6</span>
+                    <div class="chunk-meta">
+                        <span>🔢 695 토큰</span>
+                        <span>📍 99,574 ~ 102,793</span>
+                    </div>
+                </div>
+                <div class="chunk-text">Notably, the affinity between BDNF-CAR T or NTF4-CAR T and their natural ligand receptor is lower than that of typical antigen-antibody interactions, which may reduce off-target risks [299-301]. Experiments indicate that both CAR-T types do not affect T cell proliferation and show no significant toxicity toward low- or non-TRKB-expressing tumor cells and normal cells. Public database analyses indicate high amino acid homology of TRKB and its ligands BDNF and NTF4 between humans and mice (92%, 10...</div>
+            </div>
+            
+            <div class="chunk-card" style="border-left-color: #999999">
+                <div class="chunk-card-header">
+                    <span class="chunk-id">pmc:PMC12570465|emerging cancer therapies targeting the neuro-immune axis|7</span>
+                    <div class="chunk-meta">
+                        <span>🔢 679 토큰</span>
+                        <span>📍 102,793 ~ 106,396</span>
+                    </div>
+                </div>
+                <div class="chunk-text">Both endogenous and ex vivo expanded NSCs, including the HB1.F3.CD21 line, exhibit pronounced tumor-tropic behavior [309, 310]. In murine models, NSCs implanted in the contralateral hemisphere can migrate across the brain midline to reach tumor sites. Notably, CRAd-S-pk7 modifications can further enhance NSC tumor homing via upregulation of CXCR4 and VEGFR2 [305]. Extensive studies have demonstrated that even without viral cargo, NSCs administered intravenously can actively migrate to tumors, su...</div>
+            </div>
+            
+            <div class="chunk-card" style="border-left-color: #999999">
+                <div class="chunk-card-header">
+                    <span class="chunk-id">pmc:PMC12570465|emerging cancer therapies targeting the neuro-immune axis|8</span>
+                    <div class="chunk-meta">
+                        <span>🔢 677 토큰</span>
+                        <span>📍 106,396 ~ 110,012</span>
+                    </div>
+                </div>
+                <div class="chunk-text">Both clinical and preclinical studies have demonstrated that behavioral interventions such as exercise can modulate the immune system and enhance therapeutic efficacy during chemotherapy [322, 323]. In patients, exercise is associated not only with mitigation of cancer- and treatment-related side effects but also with improvements in mental and physical well-being and overall self-reported quality of life [324-326]. Furthermore, behavioral interventions-including regular physical activity, stres...</div>
+            </div>
+            
+            <div class="chunk-card" style="border-left-color: #999999">
+                <div class="chunk-card-header">
+                    <span class="chunk-id">pmc:PMC12570465|emerging cancer therapies targeting the neuro-immune axis|9</span>
+                    <div class="chunk-meta">
+                        <span>🔢 63 토큰</span>
+                        <span>📍 110,012 ~ 110,413</span>
+                    </div>
+                </div>
+                <div class="chunk-text">These findings indicate that circadian rhythms not only influence clinical responses to immunotherapy but also provide a rationale for developing novel circadian-based immunotherapeutic strategies. Future research is needed to elucidate how circadian components regulate interactions between cancer cells and the immune system, thereby optimizing the design and application of immunotherapy protocols.</div>
+            </div>
+            </div><div id="section-discussion" class="tab-content">
+            <div class="chunk-card" style="border-left-color: #fce499">
+                <div class="chunk-card-header">
+                    <span class="chunk-id">pmc:PMC12570465|discussion|0</span>
+                    <div class="chunk-meta">
+                        <span>🔢 603 토큰</span>
+                        <span>📍 110,440 ~ 114,114</span>
+                    </div>
+                </div>
+                <div class="chunk-text">The neuro-immune axis plays a critical role in cancer initiation, progression, and immune evasion, particularly in shaping the tumor microenvironment and regulating T cell and myeloid immune cell functions. Nevertheless, this field faces several challenges and unresolved questions. First, neuro-immune interactions may exhibit high heterogeneity across different tumor types and tissue contexts, complicating the generalizability of neural intervention strategies. Second, targeting neural signaling...</div>
+            </div>
+            </div>
+        </div>
+
+        <!-- Step 4: Offset 검증 -->
+        <div class="step">
+            <div class="step-header">
+                <div class="step-number">4</div>
+                <div class="step-title">Offset 검증 (근거 재현 테스트)</div>
+            </div>
+
+            <div class="stats-grid">
+                <div class="stat-card">
+                    <div class="stat-value" style="color: #16a34a">43/43</div>
+                    <div class="stat-label">검증 통과</div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-value">✅</div>
+                    <div class="stat-label">모든 offset 정확</div>
+                </div>
+            </div>
+
+            <p style="margin: 1rem 0; color: #64748b;">
+                각 청크의 <code>offset_start</code>와 <code>offset_end</code>로 원문에서 추출한 텍스트가
+                저장된 청크 텍스트와 일치하는지 검증합니다.
+            </p>
+
+            <div style="background: #f1f5f9; padding: 1rem; border-radius: 0.5rem; font-family: monospace; font-size: 0.875rem;">
+                <div style="color: #64748b; margin-bottom: 0.5rem;"># 검증 로직</div>
+                <div>extracted = fulltext[chunk.offset_start : chunk.offset_end]</div>
+                <div>assert extracted == chunk.text  <span style="color: #16a34a;"># ✅ 통과</span></div>
+            </div>
+
+            <h4 style="margin: 1.5rem 0 1rem;">검증 결과 샘플 (처음 10개)</h4>
+            <table>
+                <thead>
+                    <tr>
+                        <th>Chunk ID</th>
+                        <th>Offset</th>
+                        <th>결과</th>
+                        <th>저장된 텍스트</th>
+                        <th>추출된 텍스트</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    
+                    <tr>
+                        <td><code>pmc:PMC12570465|abstract|0</code></td>
+                        <td><code>98 ~ 1,453</code></td>
+                        <td><span class="verification-badge pass">✅ PASS</span></td>
+                        <td><div class="chunk-preview">In recent years, neural mechanisms involved in tum...</div></td>
+                        <td><div class="chunk-preview">In recent years, neural mechanisms involved in tum...</div></td>
+                    </tr>
+                    
+                    <tr>
+                        <td><code>pmc:PMC12570465|introduction|0</code></td>
+                        <td><code>1,470 ~ 4,954</code></td>
+                        <td><span class="verification-badge pass">✅ PASS</span></td>
+                        <td><div class="chunk-preview">In recent years, the pivotal function of the tumor...</div></td>
+                        <td><div class="chunk-preview">In recent years, the pivotal function of the tumor...</div></td>
+                    </tr>
+                    
+                    <tr>
+                        <td><code>pmc:PMC12570465|introduction|1</code></td>
+                        <td><code>4,954 ~ 6,352</code></td>
+                        <td><span class="verification-badge pass">✅ PASS</span></td>
+                        <td><div class="chunk-preview">1B; Tables 1 and 2).Hormone-mediated systemic immu...</div></td>
+                        <td><div class="chunk-preview">1B; Tables 1 and 2).Hormone-mediated systemic immu...</div></td>
+                    </tr>
+                    
+                    <tr>
+                        <td><code>pmc:PMC12570465|introduction|2</code></td>
+                        <td><code>6,352 ~ 9,034</code></td>
+                        <td><span class="verification-badge pass">✅ PASS</span></td>
+                        <td><div class="chunk-preview">These hormones act on peripheral tissues such as t...</div></td>
+                        <td><div class="chunk-preview">These hormones act on peripheral tissues such as t...</div></td>
+                    </tr>
+                    
+                    <tr>
+                        <td><code>pmc:PMC12570465|introduction|3</code></td>
+                        <td><code>9,034 ~ 11,359</code></td>
+                        <td><span class="verification-badge pass">✅ PASS</span></td>
+                        <td><div class="chunk-preview">neurotransmitterGlutamateMDSCsPro-tumoralYes [71]C...</div></td>
+                        <td><div class="chunk-preview">neurotransmitterGlutamateMDSCsPro-tumoralYes [71]C...</div></td>
+                    </tr>
+                    
+                    <tr>
+                        <td><code>pmc:PMC12570465|introduction|4</code></td>
+                        <td><code>11,359 ~ 13,593</code></td>
+                        <td><span class="verification-badge pass">✅ PASS</span></td>
+                        <td><div class="chunk-preview">[127]HormoneMelatoninMacrophagesPro-inflammatoryYe...</div></td>
+                        <td><div class="chunk-preview">[127]HormoneMelatoninMacrophagesPro-inflammatoryYe...</div></td>
+                    </tr>
+                    
+                    <tr>
+                        <td><code>pmc:PMC12570465|introduction|5</code></td>
+                        <td><code>13,593 ~ 13,865</code></td>
+                        <td><span class="verification-badge pass">✅ PASS</span></td>
+                        <td><div class="chunk-preview">It focuses on elucidating the molecular mechanisms...</div></td>
+                        <td><div class="chunk-preview">It focuses on elucidating the molecular mechanisms...</div></td>
+                    </tr>
+                    
+                    <tr>
+                        <td><code>pmc:PMC12570465|direct local neural input regulation|0</code></td>
+                        <td><code>13,906 ~ 16,847</code></td>
+                        <td><span class="verification-badge pass">✅ PASS</span></td>
+                        <td><div class="chunk-preview">Sympathetic nervous systemThe sympathetic nervous ...</div></td>
+                        <td><div class="chunk-preview">Sympathetic nervous systemThe sympathetic nervous ...</div></td>
+                    </tr>
+                    
+                    <tr>
+                        <td><code>pmc:PMC12570465|direct local neural input regulation|1</code></td>
+                        <td><code>16,847 ~ 19,568</code></td>
+                        <td><span class="verification-badge pass">✅ PASS</span></td>
+                        <td><div class="chunk-preview">Overall, stress activates the sympathetic-adrenal ...</div></td>
+                        <td><div class="chunk-preview">Overall, stress activates the sympathetic-adrenal ...</div></td>
+                    </tr>
+                    
+                    <tr>
+                        <td><code>pmc:PMC12570465|direct local neural input regulation|2</code></td>
+                        <td><code>19,568 ~ 22,656</code></td>
+                        <td><span class="verification-badge pass">✅ PASS</span></td>
+                        <td><div class="chunk-preview">In melanoma and fibrosarcoma models, propranolol c...</div></td>
+                        <td><div class="chunk-preview">In melanoma and fibrosarcoma models, propranolol c...</div></td>
+                    </tr>
+                    
+                </tbody>
+            </table>
+        </div>
+
+        <!-- Step 5: 최종 요약 -->
+        <div class="step">
+            <div class="step-header">
+                <div class="step-number">5</div>
+                <div class="step-title">최종 요약</div>
+            </div>
+
+            <div class="flow-diagram" style="background: linear-gradient(135deg, #667eea20 0%, #764ba220 100%);">
+                <div class="flow-box">
+                    <div style="font-size: 2rem;">📄</div>
+                    <div style="font-weight: 600;">114,116자</div>
+                    <div style="font-size: 0.75rem; color: #64748b;">원본 Fulltext</div>
+                </div>
+                <div class="flow-arrow">→</div>
+                <div class="flow-box">
+                    <div style="font-size: 2rem;">📑</div>
+                    <div style="font-weight: 600;">8개</div>
+                    <div style="font-size: 0.75rem; color: #64748b;">섹션</div>
+                </div>
+                <div class="flow-arrow">→</div>
+                <div class="flow-box">
+                    <div style="font-size: 2rem;">✂️</div>
+                    <div style="font-weight: 600;">43개</div>
+                    <div style="font-size: 0.75rem; color: #64748b;">청크</div>
+                </div>
+                <div class="flow-arrow">→</div>
+                <div class="flow-box" style="border: 2px solid #16a34a;">
+                    <div style="font-size: 2rem;">✅</div>
+                    <div style="font-weight: 600;">43/43</div>
+                    <div style="font-size: 0.75rem; color: #64748b;">Offset 검증</div>
+                </div>
+            </div>
+
+            <h4 style="margin: 1.5rem 0 1rem;">청킹 설정</h4>
+            <table>
+                <tbody>
+                    <tr><td><strong>청킹 전략</strong></td><td>Section + Recursive Character Text Splitter</td></tr>
+                    <tr><td><strong>목표 청크 크기</strong></td><td>700 토큰 (600-800 범위)</td></tr>
+                    <tr><td><strong>오버랩</strong></td><td>100 토큰 (~14%)</td></tr>
+                    <tr><td><strong>분할 우선순위</strong></td><td><code>["\n\n", "\n", ". ", " "]</code></td></tr>
+                    <tr><td><strong>Offset 기준</strong></td><td>char index (UTF-8 decoded str)</td></tr>
+                </tbody>
+            </table>
+
+            <h4 style="margin: 1.5rem 0 1rem;">다음 단계</h4>
+            <ul style="list-style: none; padding: 0;">
+                <li style="padding: 0.5rem 0; border-bottom: 1px solid #e2e8f0;">
+                    <span style="margin-right: 0.5rem;">1️⃣</span>
+                    임베딩 생성 (<code>[TITLE][SECTION][TEXT]</code> prefix 적용)
+                </li>
+                <li style="padding: 0.5rem 0; border-bottom: 1px solid #e2e8f0;">
+                    <span style="margin-right: 0.5rem;">2️⃣</span>
+                    Weaviate에 청크 + 벡터 저장
+                </li>
+                <li style="padding: 0.5rem 0; border-bottom: 1px solid #e2e8f0;">
+                    <span style="margin-right: 0.5rem;">3️⃣</span>
+                    검색 시 Parent 확장 (S3에서 ±500자)
+                </li>
+                <li style="padding: 0.5rem 0;">
+                    <span style="margin-right: 0.5rem;">4️⃣</span>
+                    LLM 답변 생성 + 근거 하이라이트
+                </li>
+            </ul>
+        </div>
+
+        <footer>
+            <p>OAR-29: 텍스트 Chunker 구현 | OAR-11 Evidence RAG 시스템</p>
+            <p>Generated by chunking demo script</p>
+        </footer>
+    </div>
+
+    <script>
+        function showSection(sectionName) {
+            // 모든 탭 비활성화
+            document.querySelectorAll('.tab').forEach(tab => tab.classList.remove('active'));
+            document.querySelectorAll('.tab-content').forEach(content => content.classList.remove('active'));
+
+            // 선택된 탭 활성화
+            event.target.classList.add('active');
+            document.getElementById('section-' + sectionName).classList.add('active');
+        }
+    </script>
+</body>
+</html>
