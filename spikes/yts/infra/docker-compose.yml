@@ -1,0 +1,84 @@
+# 암 논문 수집 서비스 인프라
+# spikes/yts/infra/docker-compose.yml
+
+services:
+  # ========================================
+  # PostgreSQL 16
+  # ========================================
+  postgres:
+    image: postgres:16-alpine
+    container_name: yts-postgres
+    environment:
+      POSTGRES_DB: oaria
+      POSTGRES_USER: oaria
+      POSTGRES_PASSWORD: oaria_dev_2024
+    ports:
+      - "15432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      - ./init:/docker-entrypoint-initdb.d
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U oaria -d oaria"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    restart: unless-stopped
+
+  # ========================================
+  # MinIO (S3 호환 Object Storage)
+  # ========================================
+  minio:
+    image: minio/minio:latest
+    container_name: yts-minio
+    command: server /data --console-address ":9001"
+    environment:
+      MINIO_ROOT_USER: minioadmin
+      MINIO_ROOT_PASSWORD: minioadmin_2024
+    ports:
+      - "19000:9000"   # S3 API
+      - "19001:9001"   # Web Console
+    volumes:
+      - minio_data:/data
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:9000/minio/health/live"]
+      interval: 30s
+      timeout: 20s
+      retries: 3
+    restart: unless-stopped
+
+  # MinIO 초기 버킷 생성
+  minio-init:
+    image: minio/mc:latest
+    container_name: yts-minio-init
+    depends_on:
+      minio:
+        condition: service_healthy
+    entrypoint: >
+      /bin/sh -c "
+      mc alias set myminio http://minio:9000 minioadmin minioadmin_2024;
+      mc mb myminio/oaria-papers --ignore-existing;
+      mc anonymous set download myminio/oaria-papers;
+      echo '✅ Bucket oaria-papers created';
+      "
+
+  # ========================================
+  # Redis (Celery Broker)
+  # ========================================
+  redis:
+    image: redis:7-alpine
+    container_name: yts-redis
+    ports:
+      - "16379:6379"
+    volumes:
+      - redis_data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    restart: unless-stopped
+
+volumes:
+  postgres_data:
+  minio_data:
+  redis_data:
