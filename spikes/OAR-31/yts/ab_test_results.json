@@ -1,0 +1,217 @@
+[
+  {
+    "question": "What is the mechanism of EGFR inhibitors in lung cancer treatment?",
+    "strategy_a": [
+      {
+        "section": "combining platinum-based drugs with targeted therapies",
+        "content_preview": "Through this targeting, they disrupt ligand binding, impede subsequent activation, and block downstr",
+        "token_count": 453,
+        "distance": 0.532035231590271
+      },
+      {
+        "section": "combining platinum-based drugs with targeted therapies",
+        "content_preview": "Molecularly targeted small molecule drugs represent a cornerstone in cancer treatment due to their g",
+        "token_count": 487,
+        "distance": 0.5389613509178162
+      },
+      {
+        "section": "combining platinum-based drugs with targeted therapies",
+        "content_preview": "developed an anti-tissue factor (TF) antibody fragment-antigen binding (Fab') conjugated to polymeri",
+        "token_count": 465,
+        "distance": 0.5436360836029053
+      }
+    ],
+    "strategy_b": [
+      {
+        "section": "combining platinum-based drugs with targeted therapies",
+        "content_preview": "Molecularly targeted small molecule drugs represent a cornerstone in cancer treatment due to their g",
+        "token_count": 665,
+        "distance": 0.5365568399429321
+      },
+      {
+        "section": "combining platinum-based drugs with targeted therapies",
+        "content_preview": "Furthermore, due to their complementary mechanisms of action, the combined use of methoxyamine, a ba",
+        "token_count": 677,
+        "distance": 0.542854905128479
+      },
+      {
+        "section": "combining platinum-based drugs with targeted therapies",
+        "content_preview": "Schematic illustration of the method for preparing oxaliplatin (L-OH)-loaded liposomes linked to eit",
+        "token_count": 676,
+        "distance": 0.5504902601242065
+      }
+    ]
+  },
+  {
+    "question": "How does PD-L1 expression affect immunotherapy response?",
+    "strategy_a": [
+      {
+        "section": "combining platinum-based drugs with immunotherapy",
+        "content_preview": "The advent of frontline immunotherapy in clinical trials rapidly changed the treatment landscape, es",
+        "token_count": 493,
+        "distance": 0.45045560598373413
+      },
+      {
+        "section": "combining platinum-based drugs with immunotherapy",
+        "content_preview": "Additionally, in the KEYNOTE-859 phase III trial assessing patients with locally advanced or metasta",
+        "token_count": 445,
+        "distance": 0.46489405632019043
+      },
+      {
+        "section": "combining platinum-based drugs with immunotherapy",
+        "content_preview": "Amongst 57 patients who completed 35 cycles of pembrolizumab/chemotherapy, the ORR was 86.0% and the",
+        "token_count": 496,
+        "distance": 0.47574466466903687
+      }
+    ],
+    "strategy_b": [
+      {
+        "section": "combining platinum-based drugs with immunotherapy",
+        "content_preview": "The advent of frontline immunotherapy in clinical trials rapidly changed the treatment landscape, es",
+        "token_count": 663,
+        "distance": 0.4323310852050781
+      },
+      {
+        "section": "combining platinum-based drugs with immunotherapy",
+        "content_preview": "In the intent-to-treat (ITT) population, the 5-year OS rate was approximately 20% with pembrolizumab",
+        "token_count": 691,
+        "distance": 0.44353944063186646
+      },
+      {
+        "section": "combining platinum-based drugs with immunotherapy",
+        "content_preview": "18.7%; NCT03875235) [113]. In another intriguing approach, anti-CTLA-4 mAb, ipilimumab, was added to",
+        "token_count": 687,
+        "distance": 0.4685906171798706
+      }
+    ]
+  },
+  {
+    "question": "What are the side effects of chemotherapy in breast cancer patients?",
+    "strategy_a": [
+      {
+        "section": "platinum/cytotoxic combinations",
+        "content_preview": "For this reason, a subsequent study was conducted to examine the addition of irinotecan to the cispl",
+        "token_count": 463,
+        "distance": 0.5456106662750244
+      },
+      {
+        "section": "platinum/cytotoxic combinations",
+        "content_preview": "carboplatin/paclitaxel-induced grade 3/4 neutropenia in approximately 50% of patients), many regimen",
+        "token_count": 230,
+        "distance": 0.557928204536438
+      },
+      {
+        "section": "comparative effectiveness of platinum-based combination strategies in different malignancies",
+        "content_preview": "Encouragingly, combinations with veliparib or HER-targeting agents like panitumumab and patritumab d",
+        "token_count": 435,
+        "distance": 0.5910314321517944
+      }
+    ],
+    "strategy_b": [
+      {
+        "section": "platinum/cytotoxic combinations",
+        "content_preview": "Although the combination of carboplatin and amrubicin (a topoisomerase inhibitor) demonstrated clini",
+        "token_count": 325,
+        "distance": 0.5490998029708862
+      },
+      {
+        "section": "platinum/cytotoxic combinations",
+        "content_preview": "This combination demonstrated an objective response rate (ORR) of 33%, a mPFS of 7.2 months and a me",
+        "token_count": 664,
+        "distance": 0.5573006868362427
+      },
+      {
+        "section": "combining platinum-based drugs with targeted therapies",
+        "content_preview": "Furthermore, due to their complementary mechanisms of action, the combined use of methoxyamine, a ba",
+        "token_count": 677,
+        "distance": 0.5766316652297974
+      }
+    ]
+  },
+  {
+    "question": "What is the role of BRCA mutations in ovarian cancer?",
+    "strategy_a": [
+      {
+        "section": "ddr analysis: prognostic role in different stages of pca",
+        "content_preview": "Analyzing 1211 PCa patients enrolled in AS, the study found that the incidence of tumor staging upgr",
+        "token_count": 488,
+        "distance": 0.3977516293525696
+      },
+      {
+        "section": "ddr analysis: prognostic role in different stages of pca",
+        "content_preview": "These data suggest that DDR gene mutations are relatively common and occur independently of ethnicit",
+        "token_count": 432,
+        "distance": 0.42310285568237305
+      },
+      {
+        "section": "ddr analysis: prognostic role in different stages of pca",
+        "content_preview": "conducted a retrospective analysis on PCa patients, which revealed that BRCA1/2 mutations were more ",
+        "token_count": 481,
+        "distance": 0.4357060194015503
+      }
+    ],
+    "strategy_b": [
+      {
+        "section": "ddr analysis: prognostic role in different stages of pca",
+        "content_preview": "in a retrospective cohort of 380 patients with localized hormone-sensitive PCa found that BRCA mutat",
+        "token_count": 700,
+        "distance": 0.3984639048576355
+      },
+      {
+        "section": "ddr analysis: prognostic role in different stages of pca",
+        "content_preview": "The incidence of PCa detected at biopsy was 5.2% in BRCA2 carriers compared to 3.0% in non-carriers.",
+        "token_count": 685,
+        "distance": 0.41727685928344727
+      },
+      {
+        "section": "ddr analysis: prognostic role in different stages of pca",
+        "content_preview": "2.1. IncidenceThe incidence of PVs in various DDR genes among PCa patients has been reported in mult",
+        "token_count": 684,
+        "distance": 0.43853867053985596
+      }
+    ]
+  },
+  {
+    "question": "How effective is CAR-T therapy for leukemia?",
+    "strategy_a": [
+      {
+        "section": "discussion",
+        "content_preview": "As for ADCs, antibody-toxin conjugates such as scFv78-Fc-saporin, and hMP-E-8.3-duocarmycin were eff",
+        "token_count": 474,
+        "distance": 0.4650111198425293
+      },
+      {
+        "section": "discussion",
+        "content_preview": "Regrettably, there have been no reports on CAR-T therapy using other CD248-specific antibodies, whic",
+        "token_count": 395,
+        "distance": 0.5148566961288452
+      },
+      {
+        "section": "combining platinum-based drugs with immunotherapy",
+        "content_preview": "Another anti-CTLA-4 mAb, tremelimumab, was added to durvalumab/cisplatin/5-FU treatment where manage",
+        "token_count": 491,
+        "distance": 0.5370833873748779
+      }
+    ],
+    "strategy_b": [
+      {
+        "section": "discussion",
+        "content_preview": "Additionally, shikonin (SHK)-loaded, scFv78Fc-armed poly (lactic-co-glycolic acid) (PLGA) NPs, namel",
+        "token_count": 696,
+        "distance": 0.5202900767326355
+      },
+      {
+        "section": "combining platinum-based drugs with immunotherapy",
+        "content_preview": "18.7%; NCT03875235) [113]. In another intriguing approach, anti-CTLA-4 mAb, ipilimumab, was added to",
+        "token_count": 687,
+        "distance": 0.531510055065155
+      },
+      {
+        "section": "platinum/cytotoxic combinations",
+        "content_preview": "Although the combination of carboplatin and amrubicin (a topoisomerase inhibitor) demonstrated clini",
+        "token_count": 325,
+        "distance": 0.5653343200683594
+      }
+    ]
+  }
+]

@@ -1,0 +1,190 @@
+{
+  "synthetic_qas": [
+    {
+      "chunk_id": "pmc:PMC11851859|ddr analysis: prognostic role in different stages of pca|3",
+      "section": "ddr analysis: prognostic role in different stages of pca",
+      "question": "What association was found between BRCA1/2 mutations and high-grade prostate cancer in the retrospective analysis?",
+      "answer": "BRCA1/2 mutations were more frequently associated with high-grade disease (Gleason score ≥8, p = 0.00003) compared to non-carriers."
+    },
+    {
+      "chunk_id": "pmc:PMC11851859|purpose for experimental design: personal experience|7",
+      "section": "purpose for experimental design: personal experience",
+      "question": "What specific mutations have been isolated in the non-metastatic high-risk prostate cancer population according to the text?",
+      "answer": "Different Tier I-III variants have been isolated, such as PTEN, ATM, BRCA1, KMT2D, RB1, and FOXA1."
+    },
+    {
+      "chunk_id": "pmc:PMC12167724|introduction|1",
+      "section": "introduction",
+      "question": "What are the goals of developing second- and third-generation cisplatin analogues?",
+      "answer": "The specific goals of developing second- and third-generation cisplatin analogues include reducing toxicity, improving stability, and broadening the range of activity compared to cisplatin."
+    },
+    {
+      "chunk_id": "pmc:PMC12167724|other therapeutic strategies for platinum-based drugs|1",
+      "section": "other therapeutic strategies for platinum-based drugs",
+      "question": "What is the formulation NC-6004 and how does it compare to cisplatin alone in terms of nephrotoxicity?",
+      "answer": "NC-6004 is a poly(glutamic acid) (PGlu)-based polymeric micelle containing cisplatin. In early-phase trials involving patients with advanced solid tumours, NC-6004 demonstrated reduced nephrotoxicity compared to cisplatin alone."
+    },
+    {
+      "chunk_id": "pmc:PMC12167724|combining platinum-based drugs with immunotherapy|4",
+      "section": "combining platinum-based drugs with immunotherapy",
+      "question": "What were the outcomes regarding mPFS and mOS in patients with advanced malignant melanoma treated with pelareorep in combination with carboplatin/paclitaxel?",
+      "answer": "The mPFS was 5.2 months and the mOS was 10.9 months with a 1-year OS rate of 43%."
+    },
+    {
+      "chunk_id": "pmc:PMC11851859|how to detect|1",
+      "section": "how to detect",
+      "question": "What challenges are associated with processing bone biopsy samples for genomic analysis?",
+      "answer": "Processing bone biopsy samples, which typically requires decalcification, can lead to reduced DNA yield and quality."
+    },
+    {
+      "chunk_id": "pmc:PMC12167724|platinum/cytotoxic combinations|3",
+      "section": "platinum/cytotoxic combinations",
+      "question": "What was the pathologic complete response rate achieved by the platinum/docetaxel combination in triple-negative breast cancer patients?",
+      "answer": "52%"
+    },
+    {
+      "chunk_id": "pmc:PMC12372284|methods|6",
+      "section": "methods",
+      "question": "What classification systems were applied for BRCA and COAD cancer types according to the given text?",
+      "answer": "For BRCA, PAM50-based subtypes were applied (Luminal A, Luminal B, Basal, HER2), and for COAD, Consensus Molecular Subtype 1-4 (CMS1-4) were classified based on Guinney et al."
+    },
+    {
+      "chunk_id": "pmc:PMC12018388|discussion|1",
+      "section": "discussion",
+      "question": "How does CD248 expression vary among different tumor subtypes, specifically in ovarian cancer?",
+      "answer": "CD248 mRNA levels in OV are lower than in normal samples, but IHC results indicate that CD248 is upregulated in endometrioid adenocarcinoma subtype, which accounts for approximately 10%-20% of OV cases."
+    },
+    {
+      "chunk_id": "pmc:PMC12372284|supplementary information|0",
+      "section": "supplementary information",
+      "question": "What type of supplementary material is provided in this document?",
+      "answer": "Supplementary Material 1."
+    }
+  ],
+  "retrieval_results": [
+    {
+      "question": "What association was found between BRCA1/2 mutations and high-grade prostate cancer in the retrospective analysis?",
+      "gt_chunk": "pmc:PMC11851859|ddr analysis: prognostic role in different stages of pca|3",
+      "a_hit": true,
+      "a_rank": 3,
+      "b_hit": true,
+      "b_rank": 2
+    },
+    {
+      "question": "What specific mutations have been isolated in the non-metastatic high-risk prostate cancer population according to the text?",
+      "gt_chunk": "pmc:PMC11851859|purpose for experimental design: personal experience|7",
+      "a_hit": true,
+      "a_rank": 2,
+      "b_hit": true,
+      "b_rank": 1
+    },
+    {
+      "question": "What are the goals of developing second- and third-generation cisplatin analogues?",
+      "gt_chunk": "pmc:PMC12167724|introduction|1",
+      "a_hit": true,
+      "a_rank": 1,
+      "b_hit": true,
+      "b_rank": 1
+    },
+    {
+      "question": "What is the formulation NC-6004 and how does it compare to cisplatin alone in terms of nephrotoxicity?",
+      "gt_chunk": "pmc:PMC12167724|other therapeutic strategies for platinum-based drugs|1",
+      "a_hit": true,
+      "a_rank": 1,
+      "b_hit": true,
+      "b_rank": 1
+    },
+    {
+      "question": "What were the outcomes regarding mPFS and mOS in patients with advanced malignant melanoma treated with pelareorep in combination with carboplatin/paclitaxel?",
+      "gt_chunk": "pmc:PMC12167724|combining platinum-based drugs with immunotherapy|4",
+      "a_hit": true,
+      "a_rank": 1,
+      "b_hit": true,
+      "b_rank": 2
+    },
+    {
+      "question": "What challenges are associated with processing bone biopsy samples for genomic analysis?",
+      "gt_chunk": "pmc:PMC11851859|how to detect|1",
+      "a_hit": true,
+      "a_rank": 4,
+      "b_hit": true,
+      "b_rank": 3
+    },
+    {
+      "question": "What was the pathologic complete response rate achieved by the platinum/docetaxel combination in triple-negative breast cancer patients?",
+      "gt_chunk": "pmc:PMC12167724|platinum/cytotoxic combinations|3",
+      "a_hit": true,
+      "a_rank": 2,
+      "b_hit": true,
+      "b_rank": 2
+    },
+    {
+      "question": "What classification systems were applied for BRCA and COAD cancer types according to the given text?",
+      "gt_chunk": "pmc:PMC12372284|methods|6",
+      "a_hit": false,
+      "a_rank": -1,
+      "b_hit": false,
+      "b_rank": -1
+    },
+    {
+      "question": "How does CD248 expression vary among different tumor subtypes, specifically in ovarian cancer?",
+      "gt_chunk": "pmc:PMC12018388|discussion|1",
+      "a_hit": true,
+      "a_rank": 4,
+      "b_hit": false,
+      "b_rank": -1
+    },
+    {
+      "question": "What type of supplementary material is provided in this document?",
+      "gt_chunk": "pmc:PMC12372284|supplementary information|0",
+      "a_hit": true,
+      "a_rank": 1,
+      "b_hit": true,
+      "b_rank": 1
+    }
+  ],
+  "e2e_results": [
+    {
+      "question": "What association was found between BRCA1/2 mutations and high-grade prostate cancer in the retrospective analysis?",
+      "answer_a": "정보 없음",
+      "answer_b": "BRCA2 변이가 있는 환자들은 비변이가 있는 환자들에 비해 고위험 또는 중간위험의 전립선암(PCa) 사례가 77%로 더 높았으며, ISUP 1등급(저위험) 질병의 비율은 비변이자에서 73%에서 BRCA2 변이자에서는 37%로 감소했습니다. 이는 BRCA 변이 보유자가 더 공격적인 형태의 질병을 가질 수 있음을 시사합니다.",
+      "winner": "B",
+      "reason": "답변 B는 BRCA2 변이와 고위험 전립선암 간의 연관성을 구체적으로 설명하고 있으며, 통계적 데이터와 함께 변이자의 질병 형태에 대한 정보를 제공하여 질문에 정확하고 완전하게 답하고 있습니다. 반면, 답변 A는 정보가 전혀 없어 평가할 수 없습니다."
+    },
+    {
+      "question": "What specific mutations have been isolated in the non-metastatic high-risk prostate cancer population according to the text?",
+      "answer_a": "비전이성 고위험 전립선암 집단에서 분리된 특정 돌연변이는 PTEN, ATM, BRCA1, KMT2D, RB1, 및 FOXA1입니다.",
+      "answer_b": "비전이성 고위험 전립선암(non-metastatic high-risk PCa) 집단에서 분리된 특정 변이는 PTEN, ATM, BRCA1, KMT2D, RB1, FOXA1입니다.",
+      "winner": "TIE",
+      "reason": "두 답변 모두 비전이성 고위험 전립선암 집단에서 분리된 특정 돌연변이를 정확하게 나열하고 있으며, 정보의 완전성과 명확성 측면에서도 차이가 없습니다. 따라서 두 답변 모두 동등하게 평가됩니다."
+    },
+    {
+      "question": "What are the goals of developing second- and third-generation cisplatin analogues?",
+      "answer_a": "두 번째 및 세 번째 세대 시스플라틴 유사체 개발의 목표는 독성 감소, 안정성 향상, 그리고 시스플라틴에 비해 활성 범위를 넓히는 것입니다.",
+      "answer_b": "Second- and third-generation cisplatin analogues were developed to overcome the drawbacks of cisplatin, particularly its significant off-target toxicity and the acquisition of resistance that leads to therapeutic failure and poor prognosis.",
+      "winner": "B",
+      "reason": "답변 B는 시스플라틴의 단점을 구체적으로 언급하며, 독성 및 내성 문제를 강조하여 개발 목표를 보다 명확하고 포괄적으로 설명하고 있습니다. 반면, 답변 A는 목표를 간단히 나열하지만 구체적인 문제를 다루지 않아 정보가 부족합니다."
+    },
+    {
+      "question": "What is the formulation NC-6004 and how does it compare to cisplatin alone in terms of nephrotoxicity?",
+      "answer_a": "NC-6004는 cisplatin을 포함하는 폴리(glutamic acid) 기반의 고분자 미셀입니다. 초기 단계의 시험에서 NC-6004는 단독 cisplatin에 비해 신독성이 감소하는 효과를 보였습니다.",
+      "answer_b": "NC-6004는 폴리(glutamic acid) (PGlu) 기반의 고분자 미셀로, cisplatin을 포함하고 있습니다. NC-6004는 cisplatin 단독 사용에 비해 신독성(nephrotoxicity)이 감소된 것으로 나타났습니다.",
+      "winner": "TIE",
+      "reason": "두 답변 모두 NC-6004의 구성과 cisplatin 단독 사용에 비해 신독성이 감소한다는 점에서 정확하고 완전한 정보를 제공합니다. 또한 두 답변 모두 이해하기 쉽게 작성되어 있어 명확성에서도 차이가 없습니다."
+    },
+    {
+      "question": "What were the outcomes regarding mPFS and mOS in patients with advanced malignant melanoma treated with pelareorep in combination with carboplatin/paclitaxel?",
+      "answer_a": "환자들이 pelareorep와 carboplatin/paclitaxel 조합으로 치료받았을 때, mPFS는 5.2개월, mOS는 10.9개월이었습니다.",
+      "answer_b": "정보 없음",
+      "winner": "A",
+      "reason": "답변 A는 질문에 대한 구체적인 수치를 제공하여 mPFS와 mOS에 대한 정보를 정확하고 완전하게 전달하고 있습니다. 반면, 답변 B는 정보가 전혀 없어 평가할 수 없습니다."
+    }
+  ],
+  "summary": {
+    "retrieval_hit_rate_a": 0.9,
+    "retrieval_hit_rate_b": 0.8,
+    "e2e_a_wins": 1,
+    "e2e_b_wins": 2,
+    "e2e_ties": 2
+  }
+}

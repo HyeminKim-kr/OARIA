@@ -1,0 +1,36 @@
+version: '3.8'
+
+services:
+  weaviate:
+    image: semitechnologies/weaviate:1.28.0
+    container_name: oaria-weaviate
+    ports:
+      - "8080:8080"   # REST API
+      - "50051:50051" # gRPC
+    environment:
+      # 기본 설정
+      QUERY_DEFAULTS_LIMIT: 25
+      AUTHENTICATION_ANONYMOUS_ACCESS_ENABLED: 'true'
+      PERSISTENCE_DATA_PATH: '/var/lib/weaviate'
+
+      # 벡터라이저 비활성화 (BYOV - Bring Your Own Vectors)
+      DEFAULT_VECTORIZER_MODULE: 'none'
+      ENABLE_MODULES: ''
+
+      # 클러스터 설정
+      CLUSTER_HOSTNAME: 'node1'
+
+      # 로깅
+      LOG_LEVEL: 'info'
+    volumes:
+      - weaviate_data:/var/lib/weaviate
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8080/v1/.well-known/ready"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+volumes:
+  weaviate_data:
+    name: oaria_weaviate_data

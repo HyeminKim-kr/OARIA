@@ -1,0 +1,47 @@
+[
+  {
+    "question": "What is the relationship between BRCA mutations and prostate cancer prognosis?",
+    "context_w_length": 8316,
+    "context_s_length": 8308,
+    "answer_w": "BRCA mutations, particularly BRCA2, are associated with a more aggressive form of prostate cancer (PCa) and higher risks of disease progression. In studies, BRCA2 mutation carriers showed a higher incidence of high- or intermediate-risk PCa compared to non-carriers, with 77% of BRCA2 carriers classified as high- or intermediate-risk versus 40% of non-carriers. Additionally, BRCA2 carriers had a higher rate of tumor staging upgrades during active surveillance, indicating a worse prognosis. Overall, the presence of BRCA mutations suggests a need for more tailored treatment strategies due to the potential for more aggressive disease.",
+    "answer_s": "BRCA mutations, particularly BRCA2, are associated with a more aggressive form of prostate cancer (PCa) and a higher incidence of high- or intermediate-risk cases. In the IMPACT study, BRCA2 carriers had a higher detection rate of PCa at biopsy (5.2% vs. 3.0% in non-carriers) and a greater likelihood of being classified as high- or intermediate-risk (77% vs. 40%). Additionally, BRCA2 carriers showed a higher incidence of tumor staging upgrades during active surveillance compared to non-carriers. These findings suggest that BRCA mutations may negatively impact prognosis and should be considered when selecting treatment options.",
+    "winner": "TIE",
+    "reason": "두 답변 모두 BRCA2 변이가 전립선암의 예후에 미치는 영향을 정확하게 설명하고 있으며, 관련된 통계와 연구 결과를 제공하고 있습니다. 답변 W는 치료 전략의 필요성을 강조하고, 답변 S는 IMPACT 연구를 언급하여 구체적인 데이터를 제공합니다. 두 답변 모두 명확하고 이해하기 쉬운 정보를 제공하므로 동점으로 평가합니다."
+  },
+  {
+    "question": "How does PD-L1 expression affect immunotherapy response rates?",
+    "context_w_length": 10352,
+    "context_s_length": 10342,
+    "answer_w": "PD-L1 expression affects immunotherapy response rates by correlating with greater efficacy in patients. Specifically, in the context provided, the benefit of pembrolizumab was observed to be greater in patients with a tumour proportion score (TPS) ≥ 50%.",
+    "answer_s": "PD-L1 expression affects immunotherapy response rates by correlating with greater efficacy in patients. Specifically, in the context provided, pembrolizumab showed improved outcomes in patients with a tumour proportion score (TPS) ≥ 50%.",
+    "winner": "TIE",
+    "reason": "두 답변 모두 PD-L1 발현이 면역요법 반응률에 미치는 영향을 정확하게 설명하고 있으며, 특히 pembrolizumab의 효과가 TPS ≥ 50%인 환자에서 더 크다는 점을 명확히 하고 있습니다. 따라서 두 답변 모두 동일한 수준의 정확성과 명확성을 가지고 있습니다."
+  },
+  {
+    "question": "What are the mechanisms of platinum-based drug resistance?",
+    "context_w_length": 38055,
+    "context_s_length": 38025,
+    "answer_w": "플래티넘 기반 약물 저항성의 메커니즘은 주로 대체 세포 생존 경로의 선택 편향을 통해 발생합니다. 이는 지속적인 또는 장기적인 시스플라틴 치료로 인해 발생하며, 결과적으로 치료 실패와 불량한 예후로 이어집니다. 추가적인 구체적인 메커니즘에 대한 정보는 제공되지 않았습니다.",
+    "answer_s": "플래티넘 기반 약물 저항성의 메커니즘은 주로 대체 세포 생존 경로의 선택 편향을 통해 발생하며, 이는 지속적이거나 장기적인 시스플라틴 치료로 인해 발생합니다. 이로 인해 치료 실패와 불량한 예후가 초래됩니다.",
+    "winner": "TIE",
+    "reason": "두 답변 모두 동일한 내용을 전달하고 있으며, 정확성, 완전성, 명확성 측면에서 차이가 없습니다. 따라서 어느 답변이 더 나은지 판단할 수 없습니다."
+  },
+  {
+    "question": "What is the role of CD248 in tumor microenvironment?",
+    "context_w_length": 14897,
+    "context_s_length": 15995,
+    "answer_w": "CD248 plays a significant role in the tumor microenvironment (TME) by being primarily expressed by stromal cells, particularly perivascular cancer-associated fibroblasts (CAFs) and pericytes. It is positively associated with the infiltration of CAFs, immune cells (such as macrophages and monocytes), endothelial cells, and hematopoietic stem cells. CD248-expressing CAFs influence immune cell dynamics by driving the recruitment and polarization of macrophages, while also suppressing CD8+ T cell infiltration. Additionally, CD248 enhances tumor angiogenesis through the upregulation of proangiogenic factors via the Wnt/β-catenin signaling pathway. Overall, CD248's role in the TME is complex and involves intricate interactions among various cell types.",
+    "answer_s": "CD248 plays a significant role in the tumor microenvironment (TME) by being primarily expressed by stromal cells, particularly perivascular cancer-associated fibroblasts (CAFs) and pericytes. It is positively associated with the infiltration of CAFs and immune cells such as macrophages and monocytes, while negatively related to the infiltration of CD4+ T cells, CD8+ T cells, and regulatory T cells (Tregs). CD248-expressing CAFs are involved in recruiting and polarizing macrophages, influencing immune responses, and physically blocking CD8+ T cell infiltration. Overall, CD248 contributes to the modulation of the immune landscape within tumors.",
+    "winner": "W",
+    "reason": "답변 W는 CD248의 역할을 더 포괄적으로 설명하며, 특히 Wnt/β-catenin 신호 경로를 통한 혈관 신생의 촉진과 같은 구체적인 메커니즘을 언급합니다. 또한, CD8+ T 세포 침투 억제에 대한 설명이 더 명확하고 상세합니다. 반면, 답변 S는 CD4+ T 세포와 Tregs에 대한 언급이 있지만, 전반적으로 정보의 깊이가 부족합니다."
+  },
+  {
+    "question": "How effective is the combination of carboplatin and paclitaxel?",
+    "context_w_length": 7648,
+    "context_s_length": 7642,
+    "answer_w": "The combination of carboplatin and paclitaxel has demonstrated clinical efficacy, particularly in treating advanced ovarian cancer and non-small cell lung cancer (NSCLC). In a phase III trial for patients with partially platinum-sensitive ovarian cancer, the carboplatin/paclitaxel regimen resulted in a median progression-free survival (mPFS) of 9.4 months. However, a carboplatin/pegylated liposomal doxorubicin (PLD) combination showed a longer mPFS of 11.3 months, suggesting that while carboplatin and paclitaxel are effective, there may be more favorable alternatives available.",
+    "answer_s": "카보플라틴과 파클리탁셀의 조합은 진행성 난소암 및 비소세포 폐암(NSCLC) 치료에 FDA 승인을 받았으며, 임상 연구에서 효과가 입증되었습니다. 특히, 카보플라틴/PLD 조합이 카보플라틴/파클리탁셀 조합에 비해 중간 무진행 생존 기간(mPFS)이 11.3개월로 더 길어졌다는 결과가 있어, 카보플라틴/파클리탁셀 조합의 효과는 긍정적입니다.",
+    "winner": "W",
+    "reason": "답변 W는 임상 연구 결과를 구체적으로 제시하며, 카보플라틴과 파클리탁셀 조합의 효과를 명확하게 설명하고 있습니다. 또한, 다른 조합과의 비교를 통해 상대적인 효과를 강조하여 정보의 완전성을 높이고 있습니다. 반면, 답변 S는 FDA 승인 언급은 있으나, 구체적인 임상 결과나 비교 정보를 제공하지 않아 상대적으로 덜 완전합니다."
+  }
+]
