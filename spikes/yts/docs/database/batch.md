@@ -2,13 +2,17 @@
 
 > **논문 수집 배치 작업 관련 테이블**
 >
-> **Last Updated**: 2025-12-31
+> **Last Updated**: 2026-01-01
+>
+> **Owner**: Backend (Alembic)
 
 ---
 
 ## 개요
 
 Europe PMC에서 논문을 수집하는 배치 작업을 관리하는 테이블 그룹입니다.
+
+> **마이그레이션**: 모든 테이블은 `backend/alembic`에서 관리됩니다.
 
 | 테이블 | 설명 |
 |--------|------|
@@ -208,6 +212,7 @@ CREATE INDEX idx_jobs_query ON collection_jobs (query_id, created_at);
 | **pmcid** | `VARCHAR(20)` | NO | - | PubMed Central ID |
 | pmid | `VARCHAR(20)` | YES | - | PubMed ID |
 | doi | `VARCHAR(100)` | YES | - | DOI |
+| metadata | `JSONB` | YES | - | 검색 메타데이터 (pub_types, comment_corrections) |
 | status | `VARCHAR(20)` | YES | `'pending'` | 상태 |
 | attempt_count | `INT` | YES | `0` | 시도 횟수 |
 | max_attempts | `INT` | YES | `3` | 최대 시도 횟수 |

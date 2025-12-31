@@ -2,9 +2,7 @@
 
 > **사용자, 관리자, 인증 관련 테이블**
 >
-> **Last Updated**: 2025-12-31 (admin_users: deactivated_by/deactivated_at 추가)
->
-> **Status**: 구현 완료
+> **Last Updated**: 2026-01-01
 
 ---
 
@@ -12,13 +10,17 @@
 
 서비스 사용자와 관리자를 분리하고, 소셜 로그인 및 JWT refresh token을 관리하는 테이블 구조입니다.
 
-| 테이블 | 설명 | 대상 |
-|--------|------|------|
-| `users` | 서비스 사용자 | Frontend (서비스) |
-| `admin_users` | 관리자 | Admin Backend |
-| `social_accounts` | 소셜 로그인 연동 | users 전용 |
-| `user_refresh_tokens` | 사용자 JWT refresh token | Frontend |
-| `admin_refresh_tokens` | 관리자 JWT refresh token | Admin |
+### 소유권 분리
+
+| 테이블 | Owner | Migration Tool | 설명 |
+|--------|-------|----------------|------|
+| `users` | Backend | Alembic | 서비스 사용자 |
+| `social_accounts` | Backend | Alembic | 소셜 로그인 연동 |
+| `user_refresh_tokens` | Backend | Alembic | 사용자 JWT refresh token |
+| `admin_users` | Admin Backend | TypeORM | 관리자 |
+| `admin_refresh_tokens` | Admin Backend | TypeORM | 관리자 JWT refresh token |
+
+> **중요**: users 관련 테이블은 Alembic, admin 관련 테이블은 TypeORM에서 관리됩니다.
 
 ---
 

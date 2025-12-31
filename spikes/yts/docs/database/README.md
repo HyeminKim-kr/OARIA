@@ -2,7 +2,25 @@
 
 > **YTS (Your Tumor Scholar) 데이터베이스 스키마 문서**
 >
-> **Last Updated**: 2025-12-31
+> **Last Updated**: 2026-01-01
+
+---
+
+## 스키마 소유권
+
+> **중요**: 각 테이블은 하나의 마이그레이션 도구에서만 관리됩니다.
+
+| Owner | Migration Tool | Tables |
+|-------|----------------|--------|
+| **Backend (FastAPI)** | Alembic | papers, paper_*, search_queries, collection_jobs, article_*, batch_*, watermarks, users, social_accounts, user_refresh_tokens |
+| **Admin Backend (NestJS)** | TypeORM | admin_users, admin_refresh_tokens |
+
+### 마이그레이션 원칙
+
+1. **단일 소유권**: 각 테이블은 반드시 하나의 도구에서만 관리
+2. **Alembic 우선**: 대부분의 핵심 테이블은 Backend Alembic에서 관리
+3. **Admin 분리**: Admin 인증 관련 테이블만 TypeORM에서 관리
+4. **infra/init 최소화**: extensions만 유지 (pg_trgm 등)
 
 ---
 
@@ -31,12 +49,12 @@
 
 ## 테이블 분류
 
-| 분류 | 테이블 | 설명 | 문서 |
-|------|--------|------|------|
-| **논문** | `papers`, `paper_authors`, `paper_sections` | 논문 메타데이터 및 저자, 섹션 정보 | [papers.md](./papers.md) |
-| **인증/사용자** | `users`, `social_accounts`, `user_refresh_tokens` | 서비스 사용자, 소셜 로그인, JWT | [users.md](./users.md) |
-| **인증/관리자** | `admin_users`, `admin_refresh_tokens` | 관리자, JWT | [users.md](./users.md) |
-| **배치** | `search_queries`, `collection_jobs`, `article_jobs` 등 | 논문 수집 배치 작업 관리 | [batch.md](./batch.md) |
+| 분류 | 테이블 | Owner | 문서 |
+|------|--------|-------|------|
+| **논문** | `papers`, `paper_authors`, `paper_sections`, `paper_relations` | Alembic | [papers.md](./papers.md) |
+| **인증/사용자** | `users`, `social_accounts`, `user_refresh_tokens` | Alembic | [users.md](./users.md) |
+| **인증/관리자** | `admin_users`, `admin_refresh_tokens` | TypeORM | [users.md](./users.md) |
+| **배치** | `search_queries`, `collection_jobs`, `article_jobs` 등 | Alembic | [batch.md](./batch.md) |
 
 ---
 
@@ -60,7 +78,9 @@ postgresql://oaria:oaria_dev_2024@localhost:15432/oaria
 
 ## 마이그레이션
 
-### Alembic (Backend)
+### Alembic (Backend) - Primary
+
+대부분의 테이블은 Alembic에서 관리합니다.
 
 ```bash
 cd spikes/yts/backend
@@ -75,18 +95,34 @@ uv run alembic revision --autogenerate -m "description"
 uv run alembic history
 ```
 
-### Docker Init Scripts
+**관리 테이블**: papers, paper_*, search_queries, collection_jobs, article_*, batch_*, watermarks, users, social_accounts, user_refresh_tokens
 
-`docker-compose.yml`의 PostgreSQL 컨테이너는 `./infra/init` 폴더의 SQL 파일을 초기화 시 실행합니다.
+### TypeORM (Admin Backend)
+
+Admin 인증 테이블만 TypeORM에서 관리합니다.
+
+```bash
+cd spikes/yts/admin/backend
+
+# 마이그레이션 실행
+npm run migration:run
+
+# 새 마이그레이션 생성
+npm run migration:generate -- src/migrations/Description
+```
+
+**관리 테이블**: admin_users, admin_refresh_tokens
+
+### Docker Init Scripts (Minimal)
+
+PostgreSQL extensions만 초기화합니다. 테이블 생성은 Alembic/TypeORM에서 담당.
 
 ```
 infra/init/
-├── 01-schema.sql           # 기본 스키마 (papers, batch jobs 등)
-└── 02-embedding-columns.sql # 임베딩 관련 컬럼 추가
+└── 00-extensions.sql    # pg_trgm 등 extensions만
 ```
 
-> **주의**: `docker-entrypoint-initdb.d`는 볼륨이 **처음 생성될 때만** 실행됩니다.
-> 기존 볼륨이 있으면 Alembic 마이그레이션을 사용하세요.
+> **주의**: 테이블 생성 SQL은 더 이상 infra/init에 두지 않습니다.
 
 ---
 
