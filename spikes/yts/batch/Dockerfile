@@ -43,14 +43,7 @@ RUN uv pip install --system --no-cache \
     "openai>=1.0.0"
 
 # 소스코드 복사 (빌드 컨텍스트: spikes/)
-# batch 소스
 COPY yts/batch/src/ ./src/
-
-# OAR-29 (Chunker) 소스
-COPY OAR-29/yts/src/ ./spikes/OAR-29/yts/src/
-
-# OAR-31 (Vector Store) 소스
-COPY OAR-31/yts/src/ ./spikes/OAR-31/yts/src/
 
 # 환경 변수 기본값
 ENV PYTHONUNBUFFERED=1 \
