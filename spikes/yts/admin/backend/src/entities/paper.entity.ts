@@ -9,6 +9,8 @@ import {
 import { PaperAuthor } from './paper-author.entity';
 
 export type PaperStatus = 'collected' | 'chunked' | 'indexed';
+export type EmbeddingStatusValue = 'pending' | 'processing' | 'completed' | 'failed';
+export type EmbeddingStatus = EmbeddingStatusValue | null;
 
 @Entity('papers')
 export class Paper {
@@ -80,6 +82,19 @@ export class Paper {
 
   @Column({ name: 'indexed_at', type: 'timestamptz', nullable: true })
   indexedAt: Date | null;
+
+  // 임베딩 관련 컬럼
+  @Column({ name: 'embedding_status', type: 'varchar', length: 20, nullable: true })
+  embeddingStatus: EmbeddingStatus;
+
+  @Column({ name: 'embedding_chunk_count', type: 'int', default: 0 })
+  embeddingChunkCount: number;
+
+  @Column({ name: 'embedding_error', type: 'text', nullable: true })
+  embeddingError: string | null;
+
+  @Column({ name: 'embedding_at', type: 'timestamptz', nullable: true })
+  embeddingAt: Date | null;
 
   @CreateDateColumn({ name: 'created_at', type: 'timestamptz' })
   createdAt: Date;

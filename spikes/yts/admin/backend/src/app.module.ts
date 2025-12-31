@@ -2,10 +2,16 @@ import { Module } from '@nestjs/common';
 import { ConfigModule, ConfigService } from '@nestjs/config';
 import { TypeOrmModule } from '@nestjs/typeorm';
 import { ScheduleModule } from '@nestjs/schedule';
+import { APP_GUARD } from '@nestjs/core';
 import { SearchQueriesModule } from './modules/search-queries/search-queries.module';
 import { CollectionJobsModule } from './modules/collection-jobs/collection-jobs.module';
 import { PapersModule } from './modules/papers/papers.module';
 import { SchedulerModule } from './modules/scheduler/scheduler.module';
+import { AuthModule } from './modules/auth/auth.module';
+import { AdminUsersModule } from './modules/admin-users/admin-users.module';
+import { SystemModule } from './modules/system/system.module';
+import { JwtAuthGuard } from './modules/auth/guards';
+import { RolesGuard } from './modules/auth/guards';
 
 @Module({
   imports: [
@@ -35,11 +41,30 @@ import { SchedulerModule } from './modules/scheduler/scheduler.module';
       }),
     }),
 
+    // Auth
+    AuthModule,
+    AdminUsersModule,
+
     // Feature Modules
     SearchQueriesModule,
     CollectionJobsModule,
     PapersModule,
     SchedulerModule,
+
+    // System Monitoring
+    SystemModule,
+  ],
+  providers: [
+    // Global JWT Guard - 모든 엔드포인트에 적용
+    {
+      provide: APP_GUARD,
+      useClass: JwtAuthGuard,
+    },
+    // Global Roles Guard
+    {
+      provide: APP_GUARD,
+      useClass: RolesGuard,
+    },
   ],
 })
 export class AppModule {}
