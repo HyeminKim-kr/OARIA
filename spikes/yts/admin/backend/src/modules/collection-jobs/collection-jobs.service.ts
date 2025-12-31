@@ -1,10 +1,27 @@
-import { Injectable, NotFoundException } from '@nestjs/common';
+import { Injectable, NotFoundException, BadRequestException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { ConfigService } from '@nestjs/config';
 import Redis from 'ioredis';
-import { CollectionJob, JobStatus, JobType } from '../../entities/collection-job.entity';
-import { ArticleError, ErrorStage } from '../../entities/article-error.entity';
+import { CollectionJob, JobStatus } from '../../entities/collection-job.entity';
+import { ArticleError } from '../../entities/article-error.entity';
+import {
+  JobSearchOptions,
+  JobErrorOptions,
+  JobStats,
+  JobErrorStats,
+  TaskTriggerResult,
+  JobStatusEnum,
+} from './types';
+
+// Re-export types for external use
+export {
+  JobSearchOptions,
+  JobErrorOptions,
+  JobStats,
+  JobErrorStats,
+  TaskTriggerResult,
+} from './types';
 
 @Injectable()
 export class CollectionJobsService {
@@ -24,11 +41,7 @@ export class CollectionJobsService {
     });
   }
 
-  async findAll(options?: {
-    status?: JobStatus;
-    jobType?: JobType;
-    limit?: number;
-  }): Promise<CollectionJob[]> {
+  async findAll(options?: JobSearchOptions): Promise<CollectionJob[]> {
     const query = this.repository
       .createQueryBuilder('job')
       .leftJoinAndSelect('job.searchQuery', 'searchQuery')
@@ -60,13 +73,13 @@ export class CollectionJobsService {
 
   async getRunningJobs(): Promise<CollectionJob[]> {
     return this.repository.find({
-      where: { status: 'running' as JobStatus },
+      where: { status: JobStatusEnum.RUNNING as JobStatus },
       relations: ['searchQuery'],
       order: { startedAt: 'DESC' },
     });
   }
 
-  async triggerBackfill(queryId: string): Promise<{ taskId: string }> {
+  async triggerBackfill(queryId: string): Promise<TaskTriggerResult> {
     // Celery 태스크 트리거 (Redis LPUSH)
     // 참고: queryId 존재 검증은 Controller에서 수행됨
     const taskId = this.generateTaskId();
@@ -101,28 +114,28 @@ export class CollectionJobsService {
 
   async cancelJob(id: string): Promise<CollectionJob> {
     const job = await this.findOne(id);
-    if (job.status !== 'running' && job.status !== 'pending') {
-      throw new Error('Only running or pending jobs can be cancelled');
+    if (job.status !== JobStatusEnum.RUNNING && job.status !== JobStatusEnum.PENDING) {
+      throw new BadRequestException('Only running or pending jobs can be cancelled');
     }
 
-    job.status = 'cancelled';
+    job.status = JobStatusEnum.CANCELLED as JobStatus;
     job.completedAt = new Date();
     return this.repository.save(job);
   }
 
-  async retryJob(id: string): Promise<{ taskId: string; newJobTriggered: boolean }> {
+  async retryJob(id: string): Promise<TaskTriggerResult> {
     const job = await this.findOne(id);
 
-    if (job.status !== 'failed' && job.status !== 'cancelled') {
-      throw new Error('Only failed or cancelled jobs can be retried');
+    if (job.status !== JobStatusEnum.FAILED && job.status !== JobStatusEnum.CANCELLED) {
+      throw new BadRequestException('Only failed or cancelled jobs can be retried');
     }
 
     if (!job.queryId) {
-      throw new Error('Job has no associated query_id');
+      throw new BadRequestException('Job has no associated query_id');
     }
 
     // 기존 job을 'retried' 상태로 변경 (자동 Retry 대상에서 제외)
-    job.status = 'retried' as any;
+    job.status = JobStatusEnum.RETRIED as JobStatus;
     job.attemptCount = (job.attemptCount || 0) + 1;
     await this.repository.save(job);
 
@@ -135,20 +148,20 @@ export class CollectionJobsService {
     };
   }
 
-  async resumeJob(id: string): Promise<{ taskId: string; resumed: boolean }> {
+  async resumeJob(id: string): Promise<TaskTriggerResult> {
     const job = await this.findOne(id);
 
     // partial 또는 failed 상태만 resume 가능
-    if (job.status !== 'partial' && job.status !== 'failed') {
-      throw new Error('Only partial or failed jobs can be resumed');
+    if (job.status !== JobStatusEnum.PARTIAL && job.status !== JobStatusEnum.FAILED) {
+      throw new BadRequestException('Only partial or failed jobs can be resumed');
     }
 
     if (!job.queryId) {
-      throw new Error('Job has no associated query_id');
+      throw new BadRequestException('Job has no associated query_id');
     }
 
     // job을 running으로 변경
-    job.status = 'running';
+    job.status = JobStatusEnum.RUNNING as JobStatus;
     job.lockedAt = new Date();
     await this.repository.save(job);
 
@@ -182,21 +195,14 @@ export class CollectionJobsService {
     return { taskId, resumed: true };
   }
 
-  async getStats(): Promise<{
-    total: number;
-    pending: number;
-    running: number;
-    completed: number;
-    failed: number;
-    todayCollected: number;
-  }> {
+  async getStats(): Promise<JobStats> {
     const [total, pending, running, completed, failed, todayStats] =
       await Promise.all([
         this.repository.count(),
-        this.repository.count({ where: { status: 'pending' as JobStatus } }),
-        this.repository.count({ where: { status: 'running' as JobStatus } }),
-        this.repository.count({ where: { status: 'completed' as JobStatus } }),
-        this.repository.count({ where: { status: 'failed' as JobStatus } }),
+        this.repository.count({ where: { status: JobStatusEnum.PENDING as JobStatus } }),
+        this.repository.count({ where: { status: JobStatusEnum.RUNNING as JobStatus } }),
+        this.repository.count({ where: { status: JobStatusEnum.COMPLETED as JobStatus } }),
+        this.repository.count({ where: { status: JobStatusEnum.FAILED as JobStatus } }),
         this.repository
           .createQueryBuilder('job')
           .select('SUM(job.success_count)', 'todayCollected')
@@ -224,11 +230,7 @@ export class CollectionJobsService {
 
   async getJobErrors(
     jobId: string,
-    options?: {
-      stage?: ErrorStage;
-      limit?: number;
-      offset?: number;
-    },
+    options?: JobErrorOptions,
   ): Promise<{ errors: ArticleError[]; total: number }> {
     const query = this.articleErrorRepository
       .createQueryBuilder('error')
@@ -252,11 +254,7 @@ export class CollectionJobsService {
     return { errors, total };
   }
 
-  async getJobErrorStats(jobId: string): Promise<{
-    total: number;
-    byStage: Record<string, number>;
-    byCode: Record<string, number>;
-  }> {
+  async getJobErrorStats(jobId: string): Promise<JobErrorStats> {
     const [stageStats, codeStats, total] = await Promise.all([
       this.articleErrorRepository
         .createQueryBuilder('error')

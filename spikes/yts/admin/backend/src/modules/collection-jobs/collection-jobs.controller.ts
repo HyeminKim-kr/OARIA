@@ -7,10 +7,23 @@ import {
   Query,
   ParseUUIDPipe,
 } from '@nestjs/common';
-import { ApiTags, ApiOperation, ApiQuery } from '@nestjs/swagger';
+import { ApiTags } from '@nestjs/swagger';
 import { CollectionJobsService } from './collection-jobs.service';
-import { JobStatus, JobType } from '../../entities/collection-job.entity';
-import { ErrorStage } from '../../entities/article-error.entity';
+import { CollectionJob } from '../../entities/collection-job.entity';
+import { ArticleError } from '../../entities/article-error.entity';
+import { JobStats, JobErrorStats, TaskTriggerResult } from './types';
+import { FindAllJobsQueryDto, GetJobErrorsQueryDto } from './dto';
+import {
+  ApiJobsFindAll,
+  ApiJobsGetRunning,
+  ApiJobsGetStats,
+  ApiJobsFindOne,
+  ApiJobsCancel,
+  ApiJobsRetry,
+  ApiJobsResume,
+  ApiJobsGetErrors,
+  ApiJobsGetErrorStats,
+} from './swagger';
 
 @ApiTags('Collection Jobs')
 @Controller('collection-jobs')
@@ -18,51 +31,48 @@ export class CollectionJobsController {
   constructor(private readonly service: CollectionJobsService) {}
 
   @Get()
-  @ApiOperation({ summary: '배치 작업 목록' })
-  @ApiQuery({ name: 'status', required: false, enum: ['pending', 'running', 'completed', 'failed', 'delayed', 'cancelled'] })
-  @ApiQuery({ name: 'jobType', required: false, enum: ['backfill', 'incremental', 'repair'] })
-  @ApiQuery({ name: 'limit', required: false, type: Number })
-  findAll(
-    @Query('status') status?: JobStatus,
-    @Query('jobType') jobType?: JobType,
-    @Query('limit') limit?: number,
-  ) {
-    return this.service.findAll({ status, jobType, limit: limit ? +limit : 50 });
+  @ApiJobsFindAll()
+  findAll(@Query() query: FindAllJobsQueryDto): Promise<CollectionJob[]> {
+    return this.service.findAll({
+      status: query.status,
+      jobType: query.jobType,
+      limit: query.limit ?? 50,
+    });
   }
 
   @Get('running')
-  @ApiOperation({ summary: '실행 중인 작업' })
-  getRunningJobs() {
+  @ApiJobsGetRunning()
+  getRunningJobs(): Promise<CollectionJob[]> {
     return this.service.getRunningJobs();
   }
 
   @Get('stats')
-  @ApiOperation({ summary: '배치 작업 통계' })
-  getStats() {
+  @ApiJobsGetStats()
+  getStats(): Promise<JobStats> {
     return this.service.getStats();
   }
 
   @Get(':id')
-  @ApiOperation({ summary: '배치 작업 상세' })
-  findOne(@Param('id', ParseUUIDPipe) id: string) {
+  @ApiJobsFindOne()
+  findOne(@Param('id', ParseUUIDPipe) id: string): Promise<CollectionJob> {
     return this.service.findOne(id);
   }
 
   @Patch(':id/cancel')
-  @ApiOperation({ summary: '작업 취소' })
-  cancelJob(@Param('id', ParseUUIDPipe) id: string) {
+  @ApiJobsCancel()
+  cancelJob(@Param('id', ParseUUIDPipe) id: string): Promise<CollectionJob> {
     return this.service.cancelJob(id);
   }
 
   @Post(':id/retry')
-  @ApiOperation({ summary: 'Failed job 재시도 (새 Job 생성)' })
-  retryJob(@Param('id', ParseUUIDPipe) id: string) {
+  @ApiJobsRetry()
+  retryJob(@Param('id', ParseUUIDPipe) id: string): Promise<TaskTriggerResult> {
     return this.service.retryJob(id);
   }
 
   @Post(':id/resume')
-  @ApiOperation({ summary: 'Partial/Failed job 재개 (기존 Job 이어서)' })
-  resumeJob(@Param('id', ParseUUIDPipe) id: string) {
+  @ApiJobsResume()
+  resumeJob(@Param('id', ParseUUIDPipe) id: string): Promise<TaskTriggerResult> {
     return this.service.resumeJob(id);
   }
 
@@ -71,26 +81,21 @@ export class CollectionJobsController {
   // ============================================================
 
   @Get(':id/errors')
-  @ApiOperation({ summary: 'Job 에러 목록' })
-  @ApiQuery({ name: 'stage', required: false, enum: ['search', 'download', 'parse', 'save'] })
-  @ApiQuery({ name: 'limit', required: false, type: Number })
-  @ApiQuery({ name: 'offset', required: false, type: Number })
+  @ApiJobsGetErrors()
   getJobErrors(
     @Param('id', ParseUUIDPipe) id: string,
-    @Query('stage') stage?: ErrorStage,
-    @Query('limit') limit?: number,
-    @Query('offset') offset?: number,
-  ) {
+    @Query() query: GetJobErrorsQueryDto,
+  ): Promise<{ errors: ArticleError[]; total: number }> {
     return this.service.getJobErrors(id, {
-      stage,
-      limit: limit ? +limit : 100,
-      offset: offset ? +offset : 0,
+      stage: query.stage,
+      limit: query.limit ?? 100,
+      offset: query.offset ?? 0,
     });
   }
 
   @Get(':id/errors/stats')
-  @ApiOperation({ summary: 'Job 에러 통계' })
-  getJobErrorStats(@Param('id', ParseUUIDPipe) id: string) {
+  @ApiJobsGetErrorStats()
+  getJobErrorStats(@Param('id', ParseUUIDPipe) id: string): Promise<JobErrorStats> {
     return this.service.getJobErrorStats(id);
   }
 }
