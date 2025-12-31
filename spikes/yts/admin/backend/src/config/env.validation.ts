@@ -1,23 +1,23 @@
-import { plainToInstance, Transform } from 'class-transformer';
-import {
-  IsString,
-  IsNumber,
-  IsOptional,
-  IsEnum,
-  validateSync,
-  IsNotEmpty,
-  ValidateIf,
-} from 'class-validator';
+import { plainToInstance } from 'class-transformer';
+import { validateSync } from 'class-validator';
 
-/**
- * 환경 타입
- */
-export enum NodeEnv {
-  Development = 'development',
-  Production = 'production',
-  Staging = 'staging',
-  Test = 'test',
-}
+import {
+  NodeEnv,
+  AppConfig,
+  APP_DEFAULTS,
+  DatabaseConfig,
+  DATABASE_DEFAULTS,
+  RedisConfig,
+  REDIS_DEFAULTS,
+  S3Config,
+  S3_DEFAULTS,
+  AuthConfig,
+  AUTH_DEFAULTS,
+  WeaviateConfig,
+  WEAVIATE_DEFAULTS,
+  FlowerConfig,
+  FLOWER_DEFAULTS,
+} from './env';
 
 /**
  * 로컬 환경인지 확인
@@ -27,204 +27,140 @@ function isLocalEnvironment(nodeEnv: string | undefined): boolean {
 }
 
 /**
- * 환경변수 검증 스키마
- *
- * - development/test: 디폴트 값 사용 가능
- * - production/staging: 모든 필수 값 명시 필요
+ * 로컬 환경 디폴트 값 (중앙 관리)
  */
-export class EnvironmentVariables {
-  // ─────────────────────────────────────────────────────────────
+const LOCAL_DEFAULTS: Record<string, string | number> = {
+  ...APP_DEFAULTS,
+  ...DATABASE_DEFAULTS,
+  ...REDIS_DEFAULTS,
+  ...S3_DEFAULTS,
+  ...AUTH_DEFAULTS,
+  ...WEAVIATE_DEFAULTS,
+  ...FLOWER_DEFAULTS,
+};
+
+/**
+ * 환경변수 검증 스키마
+ * - 모든 필드 필수 (IsOptional 사용 안함)
+ * - 로컬 환경: LOCAL_DEFAULTS 적용 후 검증
+ * - 프로덕션/스테이징: 디폴트 없이 검증 (누락 시 에러)
+ */
+export class EnvironmentVariables
+  implements AppConfig, DatabaseConfig, RedisConfig, S3Config, AuthConfig, WeaviateConfig, FlowerConfig
+{
   // App
-  // ─────────────────────────────────────────────────────────────
+  NODE_ENV: NodeEnv;
+  PORT: number;
 
-  @IsEnum(NodeEnv)
-  @IsOptional()
-  NODE_ENV: NodeEnv = NodeEnv.Development;
+  // Database
+  DB_HOST: string;
+  DB_PORT: number;
+  DB_USER: string;
+  DB_PASSWORD: string;
+  DB_NAME: string;
 
-  @Transform(({ value }) => parseInt(value, 10))
-  @IsNumber()
-  @IsOptional()
-  PORT: number = 13000;
+  // Redis
+  REDIS_HOST: string;
+  REDIS_PORT: number;
 
-  // ─────────────────────────────────────────────────────────────
-  // Database - 프로덕션에서 필수
-  // ─────────────────────────────────────────────────────────────
+  // S3
+  S3_ENDPOINT: string;
+  S3_ACCESS_KEY: string;
+  S3_SECRET_KEY: string;
+  S3_BUCKET: string;
 
-  @ValidateIf((o) => !isLocalEnvironment(o.NODE_ENV))
-  @IsString()
-  @IsNotEmpty({ message: 'DB_HOST is required in production/staging' })
-  DB_HOST?: string;
+  // Auth
+  JWT_SECRET: string;
+  JWT_ACCESS_EXPIRES: string;
+  JWT_REFRESH_EXPIRES_DAYS: string;
+  GOOGLE_CLIENT_ID: string;
+  GOOGLE_CLIENT_SECRET: string;
+  GOOGLE_CALLBACK_URL: string;
+  SUPER_ADMIN_EMAIL: string;
+  ADMIN_FRONTEND_URL: string;
 
-  @ValidateIf((o) => !isLocalEnvironment(o.NODE_ENV))
-  @Transform(({ value }) => (value ? parseInt(value, 10) : undefined))
-  @IsNumber({}, { message: 'DB_PORT must be a number' })
-  DB_PORT?: number;
+  // Weaviate
+  WEAVIATE_HOST: string;
+  WEAVIATE_PORT: number;
 
-  @ValidateIf((o) => !isLocalEnvironment(o.NODE_ENV))
-  @IsString()
-  @IsNotEmpty({ message: 'DB_USER is required in production/staging' })
-  DB_USER?: string;
+  // Flower
+  FLOWER_HOST: string;
+  FLOWER_PORT: number;
+  FLOWER_USER: string;
+  FLOWER_PASSWORD: string;
+}
 
-  @ValidateIf((o) => !isLocalEnvironment(o.NODE_ENV))
-  @IsString()
-  @IsNotEmpty({ message: 'DB_PASSWORD is required in production/staging' })
-  DB_PASSWORD?: string;
+/**
+ * 로컬 환경에서 디폴트 값 적용
+ */
+function applyLocalDefaults(config: Record<string, unknown>): Record<string, unknown> {
+  const nodeEnv = config.NODE_ENV as string | undefined;
 
-  @ValidateIf((o) => !isLocalEnvironment(o.NODE_ENV))
-  @IsString()
-  @IsNotEmpty({ message: 'DB_NAME is required in production/staging' })
-  DB_NAME?: string;
+  // 프로덕션/스테이징에서는 디폴트 적용 안함
+  if (!isLocalEnvironment(nodeEnv)) {
+    return config;
+  }
 
-  // ─────────────────────────────────────────────────────────────
-  // Redis - 프로덕션에서 필수
-  // ─────────────────────────────────────────────────────────────
+  // 로컬 환경: 디폴트 값 적용 (사용자 값이 우선)
+  const merged: Record<string, unknown> = { ...LOCAL_DEFAULTS };
 
-  @ValidateIf((o) => !isLocalEnvironment(o.NODE_ENV))
-  @IsString()
-  @IsNotEmpty({ message: 'REDIS_HOST is required in production/staging' })
-  REDIS_HOST?: string;
+  for (const [key, value] of Object.entries(config)) {
+    if (value !== undefined && value !== '') {
+      merged[key] = value;
+    }
+  }
 
-  @ValidateIf((o) => !isLocalEnvironment(o.NODE_ENV))
-  @Transform(({ value }) => (value ? parseInt(value, 10) : undefined))
-  @IsNumber({}, { message: 'REDIS_PORT must be a number' })
-  REDIS_PORT?: number;
+  return merged;
+}
 
-  // ─────────────────────────────────────────────────────────────
-  // S3/MinIO - 프로덕션에서 필수
-  // ─────────────────────────────────────────────────────────────
+/**
+ * 개별 Config 클래스 검증
+ */
+function validateConfig<T extends object>(
+  ConfigClass: new () => T,
+  config: Record<string, unknown>,
+): string[] {
+  const instance = plainToInstance(ConfigClass, config, {
+    enableImplicitConversion: true,
+  });
 
-  @ValidateIf((o) => !isLocalEnvironment(o.NODE_ENV))
-  @IsString()
-  @IsNotEmpty({ message: 'S3_ENDPOINT is required in production/staging' })
-  S3_ENDPOINT?: string;
+  const errors = validateSync(instance, {
+    skipMissingProperties: false,
+  });
 
-  @ValidateIf((o) => !isLocalEnvironment(o.NODE_ENV))
-  @IsString()
-  @IsNotEmpty({ message: 'S3_ACCESS_KEY is required in production/staging' })
-  S3_ACCESS_KEY?: string;
-
-  @ValidateIf((o) => !isLocalEnvironment(o.NODE_ENV))
-  @IsString()
-  @IsNotEmpty({ message: 'S3_SECRET_KEY is required in production/staging' })
-  S3_SECRET_KEY?: string;
-
-  @ValidateIf((o) => !isLocalEnvironment(o.NODE_ENV))
-  @IsString()
-  @IsNotEmpty({ message: 'S3_BUCKET is required in production/staging' })
-  S3_BUCKET?: string;
-
-  // ─────────────────────────────────────────────────────────────
-  // Auth - JWT (모든 환경에서 필수)
-  // ─────────────────────────────────────────────────────────────
-
-  @ValidateIf((o) => !isLocalEnvironment(o.NODE_ENV))
-  @IsString()
-  @IsNotEmpty({ message: 'JWT_SECRET is required in production/staging' })
-  JWT_SECRET?: string;
-
-  @IsString()
-  @IsOptional()
-  JWT_ACCESS_EXPIRES?: string;
-
-  @IsString()
-  @IsOptional()
-  JWT_REFRESH_EXPIRES_DAYS?: string;
-
-  // ─────────────────────────────────────────────────────────────
-  // Auth - Google OAuth (프로덕션에서 필수)
-  // ─────────────────────────────────────────────────────────────
-
-  @ValidateIf((o) => !isLocalEnvironment(o.NODE_ENV))
-  @IsString()
-  @IsNotEmpty({ message: 'GOOGLE_CLIENT_ID is required in production/staging' })
-  GOOGLE_CLIENT_ID?: string;
-
-  @ValidateIf((o) => !isLocalEnvironment(o.NODE_ENV))
-  @IsString()
-  @IsNotEmpty({ message: 'GOOGLE_CLIENT_SECRET is required in production/staging' })
-  GOOGLE_CLIENT_SECRET?: string;
-
-  @ValidateIf((o) => !isLocalEnvironment(o.NODE_ENV))
-  @IsString()
-  @IsNotEmpty({ message: 'GOOGLE_CALLBACK_URL is required in production/staging' })
-  GOOGLE_CALLBACK_URL?: string;
-
-  @IsString()
-  @IsOptional()
-  SUPER_ADMIN_EMAIL?: string;
-
-  // ─────────────────────────────────────────────────────────────
-  // Frontend URL - 프로덕션에서 필수
-  // ─────────────────────────────────────────────────────────────
-
-  @ValidateIf((o) => !isLocalEnvironment(o.NODE_ENV))
-  @IsString()
-  @IsNotEmpty({ message: 'ADMIN_FRONTEND_URL is required in production/staging' })
-  ADMIN_FRONTEND_URL?: string;
-
-  // ─────────────────────────────────────────────────────────────
-  // Weaviate - 프로덕션에서 필수
-  // ─────────────────────────────────────────────────────────────
-
-  @ValidateIf((o) => !isLocalEnvironment(o.NODE_ENV))
-  @IsString()
-  @IsNotEmpty({ message: 'WEAVIATE_HOST is required in production/staging' })
-  WEAVIATE_HOST?: string;
-
-  @ValidateIf((o) => !isLocalEnvironment(o.NODE_ENV))
-  @Transform(({ value }) => (value ? parseInt(value, 10) : undefined))
-  @IsNumber({}, { message: 'WEAVIATE_PORT must be a number' })
-  WEAVIATE_PORT?: number;
-
-  // ─────────────────────────────────────────────────────────────
-  // Flower (Celery Monitoring) - 프로덕션에서 필수
-  // ─────────────────────────────────────────────────────────────
-
-  @ValidateIf((o) => !isLocalEnvironment(o.NODE_ENV))
-  @IsString()
-  @IsNotEmpty({ message: 'FLOWER_HOST is required in production/staging' })
-  FLOWER_HOST?: string;
-
-  @ValidateIf((o) => !isLocalEnvironment(o.NODE_ENV))
-  @Transform(({ value }) => (value ? parseInt(value, 10) : undefined))
-  @IsNumber({}, { message: 'FLOWER_PORT must be a number' })
-  FLOWER_PORT?: number;
-
-  @ValidateIf((o) => !isLocalEnvironment(o.NODE_ENV))
-  @IsString()
-  @IsNotEmpty({ message: 'FLOWER_USER is required in production/staging' })
-  FLOWER_USER?: string;
-
-  @ValidateIf((o) => !isLocalEnvironment(o.NODE_ENV))
-  @IsString()
-  @IsNotEmpty({ message: 'FLOWER_PASSWORD is required in production/staging' })
-  FLOWER_PASSWORD?: string;
+  return errors.flatMap((error) => {
+    const constraints = error.constraints ? Object.values(error.constraints) : ['validation failed'];
+    return constraints.map((c) => `  - ${error.property}: ${c}`);
+  });
 }
 
 /**
  * 환경변수 검증 함수
- *
  * ConfigModule.forRoot({ validate }) 에 전달
  */
 export function validate(config: Record<string, unknown>): EnvironmentVariables {
-  const validatedConfig = plainToInstance(EnvironmentVariables, config, {
-    enableImplicitConversion: true,
-  });
+  // 1. 로컬 환경이면 디폴트 적용
+  const configWithDefaults = applyLocalDefaults(config);
 
-  const errors = validateSync(validatedConfig, {
-    skipMissingProperties: false,
-  });
+  // 2. 각 Config 클래스별 검증
+  const allErrors: string[] = [
+    ...validateConfig(AppConfig, configWithDefaults),
+    ...validateConfig(DatabaseConfig, configWithDefaults),
+    ...validateConfig(RedisConfig, configWithDefaults),
+    ...validateConfig(S3Config, configWithDefaults),
+    ...validateConfig(AuthConfig, configWithDefaults),
+    ...validateConfig(WeaviateConfig, configWithDefaults),
+    ...validateConfig(FlowerConfig, configWithDefaults),
+  ];
 
-  if (errors.length > 0) {
-    const nodeEnv = config.NODE_ENV || 'development';
-    const errorMessages = errors
-      .map((error) => {
-        const constraints = error.constraints
-          ? Object.values(error.constraints).join(', ')
-          : 'validation failed';
-        return `  - ${error.property}: ${constraints}`;
-      })
-      .join('\n');
+  // 3. 에러가 있으면 throw
+  if (allErrors.length > 0) {
+    const nodeEnv = configWithDefaults.NODE_ENV || 'unknown';
+    const isLocal = isLocalEnvironment(nodeEnv as string);
+
+    const hint = isLocal
+      ? 'Check LOCAL_DEFAULTS in env/*.config.ts or your .env file.'
+      : 'All environment variables must be explicitly set in production/staging.';
 
     throw new Error(
       `\n` +
@@ -235,12 +171,18 @@ export function validate(config: Record<string, unknown>): EnvironmentVariables 
         `NODE_ENV: ${nodeEnv}\n` +
         `\n` +
         `Missing or invalid environment variables:\n` +
-        `${errorMessages}\n` +
+        `${allErrors.join('\n')}\n` +
         `\n` +
-        `Please check your .env file or environment configuration.\n` +
+        `${hint}\n` +
         `========================================\n`,
     );
   }
 
-  return validatedConfig;
+  // 4. 검증된 설정 반환
+  return plainToInstance(EnvironmentVariables, configWithDefaults, {
+    enableImplicitConversion: true,
+  });
 }
+
+// Re-export
+export { NodeEnv };
