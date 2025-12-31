@@ -9,10 +9,22 @@ import {
   ParseUUIDPipe,
   Logger,
 } from '@nestjs/common';
-import { ApiTags, ApiOperation, ApiResponse } from '@nestjs/swagger';
+import { ApiTags } from '@nestjs/swagger';
 import { SearchQueriesService } from './search-queries.service';
 import { CollectionJobsService } from '../collection-jobs/collection-jobs.service';
-import { CreateSearchQueryDto, UpdateSearchQueryDto, SearchQueryResponseDto, PreviewQueryDto, PreviewResponseDto } from './dto';
+import { CreateSearchQueryDto, UpdateSearchQueryDto, PreviewQueryDto } from './dto';
+import {
+  ApiQueriesFindAll,
+  ApiQueriesFindActive,
+  ApiQueriesGetStats,
+  ApiQueriesFindOne,
+  ApiQueriesPreview,
+  ApiQueriesCreate,
+  ApiQueriesUpdate,
+  ApiQueriesToggle,
+  ApiQueriesRemove,
+  ApiQueriesTriggerBackfill,
+} from './swagger';
 
 @ApiTags('Search Queries')
 @Controller('search-queries')
@@ -25,40 +37,37 @@ export class SearchQueriesController {
   ) {}
 
   @Get()
-  @ApiOperation({ summary: '검색 쿼리 목록 조회' })
-  @ApiResponse({ status: 200, type: [SearchQueryResponseDto] })
+  @ApiQueriesFindAll()
   findAll() {
     return this.service.findAll();
   }
 
   @Get('active')
-  @ApiOperation({ summary: '활성 검색 쿼리 목록' })
+  @ApiQueriesFindActive()
   findActive() {
     return this.service.findActive();
   }
 
   @Get('stats')
-  @ApiOperation({ summary: '검색 쿼리 통계' })
+  @ApiQueriesGetStats()
   getStats() {
     return this.service.getStats();
   }
 
   @Post('preview')
-  @ApiOperation({ summary: 'Europe PMC 검색 결과 미리보기' })
-  @ApiResponse({ status: 200, type: PreviewResponseDto })
+  @ApiQueriesPreview()
   preview(@Body() dto: PreviewQueryDto) {
     return this.service.preview(dto);
   }
 
   @Get(':id')
-  @ApiOperation({ summary: '검색 쿼리 상세 조회' })
+  @ApiQueriesFindOne()
   findOne(@Param('id', ParseUUIDPipe) id: string) {
     return this.service.findOne(id);
   }
 
   @Post()
-  @ApiOperation({ summary: '검색 쿼리 생성' })
-  @ApiResponse({ status: 201, type: SearchQueryResponseDto })
+  @ApiQueriesCreate()
   async create(@Body() dto: CreateSearchQueryDto) {
     const query = await this.service.create(dto);
 
@@ -77,7 +86,7 @@ export class SearchQueriesController {
   }
 
   @Patch(':id')
-  @ApiOperation({ summary: '검색 쿼리 수정' })
+  @ApiQueriesUpdate()
   update(
     @Param('id', ParseUUIDPipe) id: string,
     @Body() dto: UpdateSearchQueryDto,
@@ -86,19 +95,19 @@ export class SearchQueriesController {
   }
 
   @Patch(':id/toggle')
-  @ApiOperation({ summary: '활성/비활성 토글' })
+  @ApiQueriesToggle()
   toggleActive(@Param('id', ParseUUIDPipe) id: string) {
     return this.service.toggleActive(id);
   }
 
   @Delete(':id')
-  @ApiOperation({ summary: '검색 쿼리 삭제' })
+  @ApiQueriesRemove()
   remove(@Param('id', ParseUUIDPipe) id: string) {
     return this.service.remove(id);
   }
 
   @Post(':id/backfill')
-  @ApiOperation({ summary: 'Backfill 실행 트리거' })
+  @ApiQueriesTriggerBackfill()
   async triggerBackfill(@Param('id', ParseUUIDPipe) id: string) {
     // 쿼리 존재 확인
     await this.service.findOne(id);

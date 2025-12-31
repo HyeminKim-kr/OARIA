@@ -2,8 +2,9 @@ import { Injectable, Logger } from '@nestjs/common';
 import { Cron, CronExpression } from '@nestjs/schedule';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository, LessThan, IsNull, Or, Not } from 'typeorm';
-import { CollectionJob } from '../../entities/collection-job.entity';
+import { CollectionJob, JobStatus } from '../../entities/collection-job.entity';
 import { CollectionJobsService } from '../collection-jobs/collection-jobs.service';
+import { JobStatusEnum } from '../collection-jobs/types';
 
 @Injectable()
 export class SchedulerService {
@@ -27,7 +28,7 @@ export class SchedulerService {
    * - running 상태인데 locked_at이 10분 이상 지났거나 NULL인 job → failed로 변경
    */
   @Cron(CronExpression.EVERY_5_MINUTES)
-  async handleStaleJobs() {
+  async handleStaleJobs(): Promise<void> {
     this.logger.debug('Checking for stale jobs...');
 
     const cutoffTime = new Date();
@@ -36,7 +37,7 @@ export class SchedulerService {
     // running 상태이면서 locked_at이 NULL이거나 timeout 이전인 job 조회
     const staleJobs = await this.jobRepository.find({
       where: {
-        status: 'running' as any,
+        status: JobStatusEnum.RUNNING as JobStatus,
         lockedAt: Or(IsNull(), LessThan(cutoffTime)),
       },
     });
@@ -50,7 +51,7 @@ export class SchedulerService {
 
     for (const job of staleJobs) {
       // stale job을 failed로 변경 (재시도 가능하도록)
-      job.status = 'failed' as any;
+      job.status = JobStatusEnum.FAILED as JobStatus;
       job.lastErrorCode = 'STALE_JOB';
       job.lastErrorMessage = `Job was stale (no heartbeat for ${this.HEARTBEAT_TIMEOUT_MINUTES} minutes)`;
       job.lastErrorAt = new Date();
@@ -71,7 +72,7 @@ export class SchedulerService {
    * - 24시간 이상 pending인 job → 자동 취소
    */
   @Cron(CronExpression.EVERY_HOUR)
-  async handleStalePendingJobs() {
+  async handleStalePendingJobs(): Promise<void> {
     this.logger.debug('Checking for stale pending jobs...');
 
     const cutoffTime = new Date();
@@ -79,7 +80,7 @@ export class SchedulerService {
 
     const stalePendingJobs = await this.jobRepository.find({
       where: {
-        status: 'pending' as any,
+        status: JobStatusEnum.PENDING as JobStatus,
         createdAt: LessThan(cutoffTime),
       },
     });
@@ -91,7 +92,7 @@ export class SchedulerService {
     this.logger.warn(`Found ${stalePendingJobs.length} stale pending job(s), cancelling...`);
 
     for (const job of stalePendingJobs) {
-      job.status = 'cancelled' as any;
+      job.status = JobStatusEnum.CANCELLED as JobStatus;
       job.lastErrorCode = 'STALE_PENDING';
       job.lastErrorMessage = 'Job was pending for more than 24 hours';
       job.completedAt = new Date();
@@ -105,7 +106,7 @@ export class SchedulerService {
    * - failed 상태 + attempt_count < 3 + 쿨다운(1시간) 지남 + queryId 있음
    */
   @Cron(CronExpression.EVERY_30_MINUTES)
-  async handleAutoRetry() {
+  async handleAutoRetry(): Promise<void> {
     this.logger.debug('Checking for jobs to auto-retry...');
 
     const cooldownTime = new Date();
@@ -114,7 +115,7 @@ export class SchedulerService {
     // failed 상태 + attempt_count < MAX_AUTO_RETRY + 쿨다운 지남 + queryId 있음
     const retryableJobs = await this.jobRepository.find({
       where: {
-        status: 'failed' as any,
+        status: JobStatusEnum.FAILED as JobStatus,
         attemptCount: LessThan(this.MAX_AUTO_RETRY),
         completedAt: LessThan(cooldownTime),
         queryId: Not(IsNull()),
@@ -138,7 +139,8 @@ export class SchedulerService {
           attemptCount: job.attemptCount + 1,
         });
       } catch (error) {
-        this.logger.error(`Failed to auto-retry job ${job.id}: ${error.message}`);
+        const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+        this.logger.error(`Failed to auto-retry job ${job.id}: ${errorMessage}`);
       }
     }
   }
