@@ -1,5 +1,7 @@
 import { DashboardStats } from '@/components/dashboard/DashboardStats';
+import { EmbeddingStats } from '@/components/dashboard/EmbeddingStats';
 import { RecentJobs } from '@/components/dashboard/RecentJobs';
+import { SystemStatus } from '@/components/dashboard/SystemStatus';
 
 export default function HomePage() {
   return (
@@ -10,7 +12,9 @@ export default function HomePage() {
           Cancer Paper Collection Service Overview
         </p>
       </div>
+      <SystemStatus />
       <DashboardStats />
+      <EmbeddingStats />
       <RecentJobs />
     </div>
   );

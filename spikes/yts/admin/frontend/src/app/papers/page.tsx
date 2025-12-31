@@ -1,22 +1,105 @@
 'use client';
 
-import { useQuery } from '@tanstack/react-query';
-import { Search, ExternalLink } from 'lucide-react';
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+import { Search, ExternalLink, Box, AlertCircle, CheckCircle2, Loader2, Clock, Play, RotateCcw } from 'lucide-react';
 import Link from 'next/link';
-import { papersApi } from '@/lib/api';
+import { papersApi, EmbeddingStatus } from '@/lib/api';
 import { formatDate, formatNumber } from '@/lib/utils';
 import { StatusBadge } from '@/components/ui/StatusBadge';
 import { useState } from 'react';
+
+type EmbeddingStatusFilter = 'all' | 'not_started' | 'pending' | 'processing' | 'completed' | 'failed';
+
+function EmbeddingStatusBadge({ status, chunkCount }: { status: EmbeddingStatus; chunkCount?: number }) {
+  if (!status) {
+    return (
+      <span className="inline-flex items-center gap-1 rounded bg-gray-100 px-2 py-0.5 text-xs text-gray-600">
+        <Clock className="h-3 w-3" />
+        미시작
+      </span>
+    );
+  }
+
+  const config = {
+    pending: { bg: 'bg-yellow-50', text: 'text-yellow-700', icon: Clock, label: '대기' },
+    processing: { bg: 'bg-blue-50', text: 'text-blue-700', icon: Loader2, label: '처리중' },
+    completed: { bg: 'bg-green-50', text: 'text-green-700', icon: CheckCircle2, label: '완료' },
+    failed: { bg: 'bg-red-50', text: 'text-red-700', icon: AlertCircle, label: '실패' },
+  }[status];
+
+  const Icon = config.icon;
+
+  return (
+    <span className={`inline-flex items-center gap-1 rounded px-2 py-0.5 text-xs ${config.bg} ${config.text}`}>
+      <Icon className={`h-3 w-3 ${status === 'processing' ? 'animate-spin' : ''}`} />
+      {config.label}
+      {status === 'completed' && chunkCount !== undefined && (
+        <span className="ml-1 font-medium">({chunkCount})</span>
+      )}
+    </span>
+  );
+}
 
 export default function PapersPage() {
   const [page, setPage] = useState(1);
   const [search, setSearch] = useState('');
   const [searchInput, setSearchInput] = useState('');
+  const [embeddingFilter, setEmbeddingFilter] = useState<EmbeddingStatusFilter>('all');
   const limit = 20;
 
+  const queryClient = useQueryClient();
+
   const { data, isLoading } = useQuery({
-    queryKey: ['papers', page, search],
-    queryFn: () => papersApi.getAll({ page, limit, search: search || undefined }),
+    queryKey: ['papers', page, search, embeddingFilter],
+    queryFn: () => papersApi.getAll({
+      page,
+      limit,
+      search: search || undefined,
+      embeddingStatus: embeddingFilter === 'all' ? undefined : embeddingFilter,
+    }),
+    // 처리중인 논문이 있으면 5초마다 갱신
+    refetchInterval: (query) => {
+      const items = query.state.data?.items;
+      if (items?.some((p) => p.embeddingStatus === 'processing' || p.embeddingStatus === 'pending')) {
+        return 5000;
+      }
+      return false;
+    },
+  });
+
+  const { data: stats } = useQuery({
+    queryKey: ['papers', 'stats'],
+    queryFn: () => papersApi.getStats(),
+    // 처리중인 논문이 있으면 10초마다 갱신
+    refetchInterval: (query) => {
+      const embedding = query.state.data?.embedding;
+      if (embedding?.processing && embedding.processing > 0) {
+        return 10000;
+      }
+      return false;
+    },
+  });
+
+  const embedAllMutation = useMutation({
+    mutationFn: () => papersApi.triggerEmbedAll(),
+    onSuccess: (data) => {
+      alert(`임베딩 태스크가 시작되었습니다.\nTask ID: ${data.taskId}\n대기 논문: ${data.pendingCount}개`);
+      queryClient.invalidateQueries({ queryKey: ['papers'] });
+    },
+    onError: (error: any) => {
+      alert(`오류: ${error.response?.data?.message || error.message}`);
+    },
+  });
+
+  const reembedMutation = useMutation({
+    mutationFn: () => papersApi.triggerReembed(),
+    onSuccess: (data) => {
+      alert(`재임베딩 태스크가 시작되었습니다.\nTask ID: ${data.taskId}\n실패 논문: ${data.failedCount}개`);
+      queryClient.invalidateQueries({ queryKey: ['papers'] });
+    },
+    onError: (error: any) => {
+      alert(`오류: ${error.response?.data?.message || error.message}`);
+    },
   });
 
   const handleSearch = (e: React.FormEvent) => {
@@ -27,11 +110,42 @@ export default function PapersPage() {
 
   return (
     <div className="space-y-6">
-      <div>
-        <h1 className="text-2xl font-bold text-gray-900">Papers</h1>
-        <p className="mt-1 text-sm text-gray-500">
-          Browse collected cancer research papers
-        </p>
+      <div className="flex items-center justify-between">
+        <div>
+          <h1 className="text-2xl font-bold text-gray-900">Papers</h1>
+          <p className="mt-1 text-sm text-gray-500">
+            Browse collected cancer research papers
+          </p>
+        </div>
+        <div className="flex gap-2">
+          <button
+            onClick={() => embedAllMutation.mutate()}
+            disabled={embedAllMutation.isPending || !stats?.embedding?.notStarted}
+            className="inline-flex items-center gap-2 rounded-md bg-green-600 px-4 py-2 text-sm font-medium text-white hover:bg-green-700 disabled:opacity-50"
+          >
+            {embedAllMutation.isPending ? (
+              <Loader2 className="h-4 w-4 animate-spin" />
+            ) : (
+              <Play className="h-4 w-4" />
+            )}
+            임베딩 시작
+            {stats?.embedding?.notStarted ? ` (${stats.embedding.notStarted})` : ''}
+          </button>
+          {stats?.embedding?.failed ? (
+            <button
+              onClick={() => reembedMutation.mutate()}
+              disabled={reembedMutation.isPending}
+              className="inline-flex items-center gap-2 rounded-md bg-orange-600 px-4 py-2 text-sm font-medium text-white hover:bg-orange-700 disabled:opacity-50"
+            >
+              {reembedMutation.isPending ? (
+                <Loader2 className="h-4 w-4 animate-spin" />
+              ) : (
+                <RotateCcw className="h-4 w-4" />
+              )}
+              재시도 ({stats.embedding.failed})
+            </button>
+          ) : null}
+        </div>
       </div>
 
       <form onSubmit={handleSearch} className="flex gap-2">
@@ -52,6 +166,36 @@ export default function PapersPage() {
           Search
         </button>
       </form>
+
+      {/* 임베딩 상태 필터 */}
+      <div className="flex items-center gap-2">
+        <span className="text-sm text-gray-500">임베딩 상태:</span>
+        <div className="flex gap-1">
+          {[
+            { value: 'all', label: '전체' },
+            { value: 'not_started', label: '미시작' },
+            { value: 'pending', label: '대기' },
+            { value: 'processing', label: '처리중' },
+            { value: 'completed', label: '완료' },
+            { value: 'failed', label: '실패' },
+          ].map((option) => (
+            <button
+              key={option.value}
+              onClick={() => {
+                setEmbeddingFilter(option.value as EmbeddingStatusFilter);
+                setPage(1);
+              }}
+              className={`rounded-md px-3 py-1 text-xs font-medium transition-colors ${
+                embeddingFilter === option.value
+                  ? 'bg-blue-600 text-white'
+                  : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+              }`}
+            >
+              {option.label}
+            </button>
+          ))}
+        </div>
+      </div>
 
       {isLoading ? (
         <div className="animate-pulse space-y-4">
@@ -85,6 +229,10 @@ export default function PapersPage() {
                           {paper.journal && <span>{paper.journal}</span>}
                           {paper.year && <span>({paper.year})</span>}
                           <StatusBadge status={paper.status} />
+                          <EmbeddingStatusBadge
+                            status={paper.embeddingStatus}
+                            chunkCount={paper.embeddingChunkCount}
+                          />
                         </div>
                         {paper.abstract && (
                           <p className="mt-2 line-clamp-2 text-sm text-gray-600">

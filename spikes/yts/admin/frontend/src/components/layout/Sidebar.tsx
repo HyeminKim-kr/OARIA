@@ -7,20 +7,33 @@ import {
   Search,
   FileText,
   Clock,
-  Settings,
+  Users,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
+import { useAuth } from '@/contexts/AuthContext';
 
-const navigation = [
-  { name: 'Dashboard', href: '/', icon: LayoutDashboard },
-  { name: 'Search Queries', href: '/queries', icon: Search },
-  { name: 'Collection Jobs', href: '/jobs', icon: Clock },
-  { name: 'Papers', href: '/papers', icon: FileText },
-  { name: 'Settings', href: '/settings', icon: Settings },
+interface NavItem {
+  name: string;
+  href: string;
+  icon: React.ComponentType<{ className?: string }>;
+  superAdminOnly?: boolean;
+}
+
+const navigation: NavItem[] = [
+  { name: '대시보드', href: '/', icon: LayoutDashboard },
+  { name: '검색 쿼리', href: '/queries', icon: Search },
+  { name: '수집 작업', href: '/jobs', icon: Clock },
+  { name: '논문 목록', href: '/papers', icon: FileText },
+  { name: '관리자 관리', href: '/admin-users', icon: Users, superAdminOnly: true },
 ];
 
 export function Sidebar() {
   const pathname = usePathname();
+  const { isSuperAdmin } = useAuth();
+
+  const filteredNavigation = navigation.filter(
+    (item) => !item.superAdminOnly || isSuperAdmin
+  );
 
   return (
     <div className="flex h-full w-64 flex-col bg-gray-900">
@@ -28,7 +41,7 @@ export function Sidebar() {
         <h1 className="text-xl font-bold text-white">OARIA Admin</h1>
       </div>
       <nav className="flex-1 space-y-1 px-3 py-4">
-        {navigation.map((item) => {
+        {filteredNavigation.map((item) => {
           const isActive = pathname === item.href;
           return (
             <Link

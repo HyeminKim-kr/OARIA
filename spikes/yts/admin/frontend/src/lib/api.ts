@@ -59,6 +59,8 @@ export interface CollectionJob {
   durationMs: number | null;
 }
 
+export type EmbeddingStatus = 'pending' | 'processing' | 'completed' | 'failed' | null;
+
 export interface Paper {
   id: string;
   paperId: string;
@@ -74,6 +76,10 @@ export interface Paper {
   sourceUrl: string | null;
   isOpenAccess: boolean;
   status: 'collected' | 'chunked' | 'indexed';
+  embeddingStatus: EmbeddingStatus;
+  embeddingChunkCount: number;
+  embeddingError: string | null;
+  embeddingAt: string | null;
   createdAt: string;
   updatedAt: string;
 }
@@ -84,6 +90,23 @@ export interface PaginatedResponse<T> {
   page: number;
   limit: number;
   totalPages: number;
+}
+
+export interface PaperStats {
+  total: number;
+  collected: number;
+  chunked: number;
+  indexed: number;
+  byYear: { year: number; count: number }[];
+  recentCount: number;
+  embedding: {
+    notStarted: number;
+    pending: number;
+    processing: number;
+    completed: number;
+    failed: number;
+    totalChunks: number;
+  };
 }
 
 export interface DashboardStats {
@@ -156,10 +179,75 @@ export interface PaperFulltext {
   rawXml: string | null;
 }
 
+export interface EmbedTriggerResponse {
+  taskId: string;
+  pendingCount?: number;
+  failedCount?: number;
+}
+
+// System Types
+export interface ServiceStatus {
+  name: string;
+  status: 'healthy' | 'unhealthy' | 'unknown';
+  latency?: number;
+  message?: string;
+  details?: Record<string, unknown>;
+}
+
+export interface SystemHealth {
+  status: 'healthy' | 'degraded' | 'unhealthy';
+  timestamp: string;
+  services: ServiceStatus[];
+}
+
+export interface CeleryWorker {
+  name: string;
+  status: string;
+  active: number;
+  processed: number;
+  queues: string[];
+}
+
+export interface CeleryQueue {
+  name: string;
+  pending: number;
+}
+
+export interface TriggerResult {
+  success: boolean;
+  taskId?: string;
+  message?: string;
+}
+
+export const systemApi = {
+  getHealth: () => api.get<SystemHealth>('/system/health').then((res) => res.data),
+  getWorkers: () => api.get<{ workers: CeleryWorker[] }>('/system/workers').then((res) => res.data),
+  getQueues: () => api.get<{ queues: CeleryQueue[] }>('/system/queues').then((res) => res.data),
+  triggerEmbedding: (limit?: number) =>
+    api.post<TriggerResult>('/system/trigger/embedding', { limit }).then((res) => res.data),
+  triggerReembedding: (limit?: number) =>
+    api.post<TriggerResult>('/system/trigger/reembedding', { limit }).then((res) => res.data),
+};
+
 export const papersApi = {
-  getAll: (params?: { page?: number; limit?: number; search?: string; status?: string }) =>
-    api.get<PaginatedResponse<Paper>>('/papers', { params }).then((res) => res.data),
+  getAll: (params?: {
+    page?: number;
+    limit?: number;
+    search?: string;
+    status?: string;
+    embeddingStatus?: 'not_started' | 'pending' | 'processing' | 'completed' | 'failed';
+  }) => api.get<PaginatedResponse<Paper>>('/papers', { params }).then((res) => res.data),
   getOne: (id: string) => api.get<Paper>(`/papers/${id}`).then((res) => res.data),
   getFulltext: (id: string) => api.get<PaperFulltext>(`/papers/${id}/fulltext`).then((res) => res.data),
-  getStats: () => api.get<DashboardStats>('/papers/stats').then((res) => res.data),
+  getStats: () => api.get<PaperStats>('/papers/stats').then((res) => res.data),
+
+  // 임베딩 관련
+  triggerEmbedAll: (limit?: number) =>
+    api.post<EmbedTriggerResponse>('/papers/embed/all', null, { params: { limit } }).then((res) => res.data),
+  triggerEmbedByQuery: (queryId: string, limit?: number) =>
+    api.post<EmbedTriggerResponse>(`/papers/embed/query/${queryId}`, null, { params: { limit } }).then((res) => res.data),
+  triggerEmbedPaper: (id: string) =>
+    api.post<EmbedTriggerResponse>(`/papers/${id}/embed`).then((res) => res.data),
+  triggerReembed: (queryId?: string) =>
+    api.post<EmbedTriggerResponse>('/papers/embed/retry', null, { params: { queryId } }).then((res) => res.data),
 };
