@@ -14,25 +14,25 @@ export function DashboardStats() {
   const statItems = [
     {
       name: 'Total Papers',
-      value: stats?.totalPapers ?? 0,
+      value: stats?.total ?? 0,
       icon: FileText,
       color: 'bg-blue-500',
     },
     {
-      name: 'Search Queries',
-      value: stats?.totalQueries ?? 0,
+      name: 'Indexed',
+      value: stats?.indexed ?? 0,
       icon: Search,
       color: 'bg-green-500',
     },
     {
-      name: 'Active Jobs',
-      value: stats?.activeJobs ?? 0,
+      name: 'Recent (7 days)',
+      value: stats?.recentCount ?? 0,
       icon: Clock,
       color: 'bg-yellow-500',
     },
     {
-      name: 'Completed Today',
-      value: stats?.completedJobsToday ?? 0,
+      name: 'Embedded',
+      value: stats?.embedding?.completed ?? 0,
       icon: CheckCircle,
       color: 'bg-purple-500',
     },
