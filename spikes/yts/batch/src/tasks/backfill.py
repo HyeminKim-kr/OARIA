@@ -24,6 +24,9 @@ from ..parsers import XMLParser
 from ..storage import DatabaseStorage, S3Storage
 from ..storage.error_storage import ArticleError, ErrorStorage
 
+# 체이닝: 수집 완료 후 임베딩 트리거
+from .embed import run_embed
+
 logger = structlog.get_logger()
 
 # 모듈 레벨 Connection Pool (Celery 워커에서 재사용)
@@ -741,6 +744,16 @@ def run_backfill(self, query_id: str) -> dict:
 
     try:
         result = asyncio.run(run_backfill_async(query_id))
+
+        # 체이닝: 수집 성공 시 임베딩 자동 트리거
+        if result.get("completed", 0) > 0:
+            run_embed.delay(query_id)
+            logger.info(
+                "embed_triggered_after_backfill",
+                query_id=query_id,
+                collected_count=result.get("completed"),
+            )
+
         return result
 
     except Exception as e:
@@ -770,6 +783,17 @@ def run_backfill_resume(self, query_id: str, job_id: str) -> dict:
 
     try:
         result = asyncio.run(run_backfill_async(query_id, resume_job_id=job_id))
+
+        # 체이닝: 수집 성공 시 임베딩 자동 트리거
+        if result.get("completed", 0) > 0:
+            run_embed.delay(query_id)
+            logger.info(
+                "embed_triggered_after_backfill_resume",
+                query_id=query_id,
+                job_id=job_id,
+                collected_count=result.get("completed"),
+            )
+
         return result
 
     except Exception as e:
