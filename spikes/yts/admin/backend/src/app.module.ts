@@ -12,13 +12,15 @@ import { AdminUsersModule } from './modules/admin-users/admin-users.module';
 import { SystemModule } from './modules/system/system.module';
 import { JwtAuthGuard } from './modules/auth/guards';
 import { RolesGuard } from './modules/auth/guards';
+import { validate } from './config';
 
 @Module({
   imports: [
-    // Config
+    // Config - 환경변수 검증 포함
     ConfigModule.forRoot({
       isGlobal: true,
       envFilePath: '.env',
+      validate,
     }),
 
     // Schedule
