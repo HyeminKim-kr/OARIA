@@ -7,10 +7,10 @@ from .refresh_token import UserRefreshToken
 from .paper import Paper, PaperAuthor, PaperSection, PaperRelation
 from .batch import (
     SearchQuery,
-    CollectionJob,
-    ArticleJob,
-    ArticleError,
-    BatchJobLog,
+    BatchJob,
+    BatchArticle,
+    BatchError,
+    BatchLog,
     BatchFailedItem,
     Watermark,
 )
@@ -29,10 +29,10 @@ __all__ = [
     "PaperRelation",
     # Batch
     "SearchQuery",
-    "CollectionJob",
-    "ArticleJob",
-    "ArticleError",
-    "BatchJobLog",
+    "BatchJob",
+    "BatchArticle",
+    "BatchError",
+    "BatchLog",
     "BatchFailedItem",
     "Watermark",
 ]

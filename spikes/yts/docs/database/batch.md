@@ -14,13 +14,17 @@ Europe PMC에서 논문을 수집하는 배치 작업을 관리하는 테이블 
 
 > **마이그레이션**: 모든 테이블은 `backend/alembic`에서 관리됩니다.
 
+### 명명 규칙
+
+모든 배치 관련 테이블은 `batch_` 접두사를 사용합니다.
+
 | 테이블 | 설명 |
 |--------|------|
 | `search_queries` | 검색 쿼리 정의 (무엇을 수집할지) |
-| `collection_jobs` | 배치 작업 큐 (수집 작업 상태) |
-| `article_jobs` | 개별 논문 수집 상태 |
-| `article_errors` | 아티클 에러 로그 |
-| `batch_job_logs` | 배치 실행 로그 |
+| `batch_jobs` | 배치 작업 큐 (수집 작업 상태) |
+| `batch_articles` | 개별 논문 수집 상태 |
+| `batch_errors` | 아티클 에러 로그 |
+| `batch_logs` | 배치 실행 로그 |
 | `batch_failed_items` | 실패 항목 추적 |
 | `watermarks` | 증분 수집 상태 |
 
@@ -40,7 +44,7 @@ Europe PMC에서 논문을 수집하는 배치 작업을 관리하는 테이블 
          │ 1:N
          ▼
 ┌──────────────────┐       ┌──────────────────┐
-│  collection_jobs │───────│  batch_job_logs  │
+│    batch_jobs    │───────│   batch_logs     │
 ├──────────────────┤  1:N  ├──────────────────┤
 │ id (PK)          │       │ job_id (FK)      │
 │ query_id (FK)    │       │ level            │
@@ -51,9 +55,9 @@ Europe PMC에서 논문을 수집하는 배치 작업을 관리하는 테이블 
     ┌────┴────┐
     ▼         ▼
 ┌──────────────────┐  ┌──────────────────┐
-│   article_jobs   │  │  article_errors  │
+│  batch_articles  │  │   batch_errors   │
 ├──────────────────┤  ├──────────────────┤
-│ batch_job_id(FK) │  │ job_id (FK)      │
+│ job_id (FK)      │  │ job_id (FK)      │
 │ pmcid            │  │ pmcid            │
 │ status           │  │ error_code       │
 └──────────────────┘  └──────────────────┘
@@ -128,9 +132,11 @@ INSERT INTO search_queries (name, query, description, priority) VALUES
 
 ---
 
-## collection_jobs (배치 작업 큐)
+## batch_jobs (배치 작업 큐)
 
 논문 수집 배치 작업의 상태를 관리합니다.
+
+> **이전 이름**: `collection_jobs` → `batch_jobs`로 통일 (2026-01-01)
 
 ### 컬럼 정의
 
@@ -187,32 +193,34 @@ INSERT INTO search_queries (name, query, description, priority) VALUES
 ### 인덱스
 
 ```sql
-CREATE INDEX idx_jobs_pending ON collection_jobs (priority, created_at)
+CREATE INDEX idx_batch_jobs_pending ON batch_jobs (priority, created_at)
     WHERE status IN ('pending', 'delayed');
-CREATE INDEX idx_jobs_delayed ON collection_jobs (next_run_at)
+CREATE INDEX idx_batch_jobs_delayed ON batch_jobs (next_run_at)
     WHERE status = 'delayed';
-CREATE INDEX idx_jobs_stale_lock ON collection_jobs (locked_at)
+CREATE INDEX idx_batch_jobs_stale_lock ON batch_jobs (locked_at)
     WHERE status = 'running';
-CREATE INDEX idx_jobs_type ON collection_jobs (job_type, status);
-CREATE INDEX idx_jobs_query ON collection_jobs (query_id, created_at);
+CREATE INDEX idx_batch_jobs_type ON batch_jobs (job_type, status);
+CREATE INDEX idx_batch_jobs_query ON batch_jobs (query_id, created_at);
 ```
 
 ---
 
-## article_jobs (개별 논문 상태)
+## batch_articles (개별 논문 상태)
 
 배치 작업 내 개별 논문의 수집 상태를 추적합니다.
+
+> **이전 이름**: `article_jobs` → `batch_articles`로 통일 (2026-01-01)
 
 ### 컬럼 정의
 
 | 컬럼 | 타입 | Nullable | 기본값 | 설명 |
 |------|------|----------|--------|------|
 | **id** | `UUID` | NO | `gen_random_uuid()` | Primary Key |
-| **batch_job_id** | `UUID` | NO | - | FK → collection_jobs.id |
+| **job_id** | `UUID` | NO | - | FK → batch_jobs.id |
 | **pmcid** | `VARCHAR(20)` | NO | - | PubMed Central ID |
 | pmid | `VARCHAR(20)` | YES | - | PubMed ID |
 | doi | `VARCHAR(100)` | YES | - | DOI |
-| metadata | `JSONB` | YES | - | 검색 메타데이터 (pub_types, comment_corrections) |
+| metadata | `JSONB` | YES | - | 검색 메타데이터 (pub_types 등) |
 | status | `VARCHAR(20)` | YES | `'pending'` | 상태 |
 | attempt_count | `INT` | YES | `0` | 시도 횟수 |
 | max_attempts | `INT` | YES | `3` | 최대 시도 횟수 |
@@ -233,18 +241,26 @@ CREATE INDEX idx_jobs_query ON collection_jobs (query_id, created_at);
 | `completed` | 완료 |
 | `failed` | 실패 |
 
+### 제약 조건
+
+```sql
+UNIQUE(job_id, pmcid)  -- 같은 작업 내 논문 중복 방지
+```
+
 ---
 
-## article_errors (아티클 에러 로그)
+## batch_errors (에러 로그)
 
 개별 논문 수집 중 발생한 에러를 기록합니다.
+
+> **이전 이름**: `article_errors` → `batch_errors`로 통일 (2026-01-01)
 
 ### 컬럼 정의
 
 | 컬럼 | 타입 | Nullable | 기본값 | 설명 |
 |------|------|----------|--------|------|
 | **id** | `UUID` | NO | `gen_random_uuid()` | Primary Key |
-| job_id | `UUID` | YES | - | FK → collection_jobs.id |
+| job_id | `UUID` | YES | - | FK → batch_jobs.id |
 | pmcid | `VARCHAR(20)` | YES | - | PMC ID |
 | pmid | `VARCHAR(20)` | YES | - | PubMed ID |
 | doi | `VARCHAR(100)` | YES | - | DOI |
@@ -277,16 +293,18 @@ CREATE INDEX idx_jobs_query ON collection_jobs (query_id, created_at);
 
 ---
 
-## batch_job_logs (배치 실행 로그)
+## batch_logs (실행 로그)
 
 배치 작업 실행 중 로그를 기록합니다.
+
+> **이전 이름**: `batch_job_logs` → `batch_logs`로 간소화 (2026-01-01)
 
 ### 컬럼 정의
 
 | 컬럼 | 타입 | Nullable | 기본값 | 설명 |
 |------|------|----------|--------|------|
 | **id** | `UUID` | NO | `gen_random_uuid()` | Primary Key |
-| job_id | `UUID` | YES | - | FK → collection_jobs.id |
+| job_id | `UUID` | YES | - | FK → batch_jobs.id |
 | **level** | `VARCHAR(10)` | NO | - | 로그 레벨 |
 | **message** | `TEXT` | NO | - | 로그 메시지 |
 | details | `JSONB` | YES | - | 추가 정보 |
@@ -311,7 +329,7 @@ CREATE INDEX idx_jobs_query ON collection_jobs (query_id, created_at);
 | 컬럼 | 타입 | Nullable | 기본값 | 설명 |
 |------|------|----------|--------|------|
 | **id** | `UUID` | NO | `gen_random_uuid()` | Primary Key |
-| job_id | `UUID` | YES | - | FK → collection_jobs.id |
+| job_id | `UUID` | YES | - | FK → batch_jobs.id |
 | **item_type** | `VARCHAR(20)` | NO | - | 항목 유형 |
 | item_id | `VARCHAR(100)` | YES | - | 항목 ID |
 | error_code | `VARCHAR(20)` | YES | - | 에러 코드 |
@@ -343,13 +361,26 @@ CREATE INDEX idx_jobs_query ON collection_jobs (query_id, created_at);
 
 ---
 
+## 테이블 이름 변경 이력
+
+> **2026-01-01**: 명명 규칙 통일 (`batch_*` 접두사)
+
+| 이전 이름 | 새 이름 | 이유 |
+|----------|--------|------|
+| `collection_jobs` | `batch_jobs` | 업계 표준 용어, 범용성 |
+| `article_jobs` | `batch_articles` | `batch_*` 통일 |
+| `article_errors` | `batch_errors` | `batch_*` 통일 |
+| `batch_job_logs` | `batch_logs` | 간소화 |
+
+---
+
 ## 쿼리 예시
 
 ### 대기 중인 작업 조회 (우선순위순)
 
 ```sql
 SELECT *
-FROM collection_jobs
+FROM batch_jobs
 WHERE status IN ('pending', 'delayed')
   AND (next_run_at IS NULL OR next_run_at <= NOW())
 ORDER BY priority, created_at
@@ -367,7 +398,7 @@ SELECT
     processed_count,
     total_count,
     ROUND(processed_count::numeric / NULLIF(total_count, 0) * 100, 2) as progress_pct
-FROM collection_jobs
+FROM batch_jobs
 WHERE status = 'running';
 ```
 
@@ -375,7 +406,7 @@ WHERE status = 'running';
 
 ```sql
 SELECT pmcid, stage, error_code, error_message, created_at
-FROM article_errors
+FROM batch_errors
 WHERE job_id = 'xxx-xxx-xxx'
 ORDER BY created_at DESC;
 ```
@@ -387,10 +418,10 @@ SELECT
     sq.name,
     sq.query,
     sq.total_collected,
-    COUNT(DISTINCT cj.id) as job_count,
-    MAX(cj.completed_at) as last_job_at
+    COUNT(DISTINCT bj.id) as job_count,
+    MAX(bj.completed_at) as last_job_at
 FROM search_queries sq
-LEFT JOIN collection_jobs cj ON sq.id = cj.query_id
+LEFT JOIN batch_jobs bj ON sq.id = bj.query_id
 WHERE sq.is_active = TRUE
 GROUP BY sq.id
 ORDER BY sq.priority;

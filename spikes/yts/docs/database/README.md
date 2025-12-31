@@ -12,7 +12,7 @@
 
 | Owner | Migration Tool | Tables |
 |-------|----------------|--------|
-| **Backend (FastAPI)** | Alembic | papers, paper_*, search_queries, collection_jobs, article_*, batch_*, watermarks, users, social_accounts, user_refresh_tokens |
+| **Backend (FastAPI)** | Alembic | papers, paper_*, batch_*, search_queries, watermarks, users, social_accounts, user_refresh_tokens |
 | **Admin Backend (NestJS)** | TypeORM | admin_users, admin_refresh_tokens |
 
 ### 마이그레이션 원칙
@@ -40,7 +40,7 @@
 ├─────────────┤       ├─────────────┤       ├─────────────┤
 │ paper_chunks│       │ papers      │       │ 원문 XML    │
 │ - dense vec │       │ users       │       │ 정규화 텍스트│
-│ - metadata  │       │ batch jobs  │       │             │
+│ - metadata  │       │ batch_*     │       │             │
 └─────────────┘       └─────────────┘       └─────────────┘
    벡터 검색            메타데이터              파일 스토리지
 ```
@@ -49,12 +49,27 @@
 
 ## 테이블 분류
 
+### 구현 완료 ✅
+
 | 분류 | 테이블 | Owner | 문서 |
 |------|--------|-------|------|
 | **논문** | `papers`, `paper_authors`, `paper_sections`, `paper_relations` | Alembic | [papers.md](./papers.md) |
 | **인증/사용자** | `users`, `social_accounts`, `user_refresh_tokens` | Alembic | [users.md](./users.md) |
 | **인증/관리자** | `admin_users`, `admin_refresh_tokens` | TypeORM | [users.md](./users.md) |
-| **배치** | `search_queries`, `collection_jobs`, `article_jobs` 등 | Alembic | [batch.md](./batch.md) |
+| **배치** | `search_queries`, `batch_jobs`, `batch_articles` 등 | Alembic | [batch.md](./batch.md) |
+
+### 미구현 (예정) 📋
+
+> **OAR-20 설계 기반** - 챗봇 MVP 구현 시 추가 예정
+
+| 분류 | 테이블 | 용도 | 구현 시점 |
+|------|--------|------|----------|
+| **대화** | `conversations` | 대화 세션 관리 | 챗봇 MVP |
+| **대화** | `messages` | 대화 메시지 저장 | 챗봇 MVP |
+| **답변** | `answer_logs` | 답변 + 근거 (재현용) | 챗봇 MVP |
+| **피드백** | `feedbacks` | 사용자 피드백 | 챗봇 이후 |
+
+**예정 스키마 위치**: `spikes/OAR-20/yts/docs/postgresql-스키마-설계-v2.5.md`
 
 ---
 
@@ -95,7 +110,7 @@ uv run alembic revision --autogenerate -m "description"
 uv run alembic history
 ```
 
-**관리 테이블**: papers, paper_*, search_queries, collection_jobs, article_*, batch_*, watermarks, users, social_accounts, user_refresh_tokens
+**관리 테이블**: papers, paper_*, batch_*, search_queries, watermarks, users, social_accounts, user_refresh_tokens
 
 ### TypeORM (Admin Backend)
 
@@ -134,7 +149,7 @@ infra/init/
                     ├─────────────────┤
                     │ id (PK)         │
                     │ email           │
-                    │ password_hash   │
+                    │ google_id       │
                     │ role            │
                     └────────┬────────┘
                              │ 1:N
@@ -155,21 +170,21 @@ infra/init/
     ┌────┴────┐                    │ 1:N
     │ 1:N     │ 1:N                ▼
     ▼         ▼           ┌──────────────────┐
-┌─────────────┐           │ collection_jobs  │
+┌─────────────┐           │   batch_jobs     │
 │   social_   │           ├──────────────────┤
 │  accounts   │           │ id (PK)          │
 └─────────────┘           │ query_id (FK)    │
 ┌─────────────┐           │ status           │
 │user_refresh_│           └────────┬─────────┘
 │   tokens    │                    │ 1:N
-└─────────────┘                    ▼
-                          ┌──────────────────┐
-┌─────────────────┐       │   article_jobs   │
-│     papers      │       └──────────────────┘
-├─────────────────┤
-│ id (PK)         │
-│ paper_id        │
-│ title           │
+└─────────────┘               ┌────┴────┐
+                              ▼         ▼
+┌─────────────────┐  ┌──────────────┐  ┌─────────────┐
+│     papers      │  │batch_articles│  │batch_errors │
+├─────────────────┤  └──────────────┘  └─────────────┘
+│ id (PK)         │  ┌──────────────┐  ┌──────────────────┐
+│ paper_id        │  │ batch_logs   │  │batch_failed_items│
+│ title           │  └──────────────┘  └──────────────────┘
 └────────┬────────┘
          │
          │ 1:N
@@ -182,8 +197,28 @@ infra/init/
 
 ---
 
+## 미구현 테이블 (챗봇 MVP)
+
+> OAR-20 설계 기반, 챗봇 기능 구현 시 추가
+
+```
+┌─────────────────┐       ┌─────────────────┐       ┌─────────────────┐
+│     users       │──────▶│  conversations  │──────▶│    messages     │
+└─────────────────┘  1:N  └─────────────────┘  1:N  └─────────────────┘
+                                  │
+                                  │ 1:N
+                                  ▼
+                          ┌─────────────────┐       ┌─────────────────┐
+                          │   answer_logs   │──────▶│   feedbacks     │
+                          │ (근거 저장)      │  1:N  │ (피드백)         │
+                          └─────────────────┘       └─────────────────┘
+```
+
+---
+
 ## 관련 문서
 
 - [papers.md](./papers.md) - 논문 관련 테이블
 - [users.md](./users.md) - 사용자/인증 관련 테이블
 - [batch.md](./batch.md) - 배치 작업 관련 테이블
+- [OAR-20 스키마 설계](../../OAR-20/yts/docs/postgresql-스키마-설계-v2.5.md) - 미구현 테이블 상세 설계
