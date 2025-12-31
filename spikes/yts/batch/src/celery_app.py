@@ -1,6 +1,7 @@
 """Celery 앱 설정"""
 
 from celery import Celery
+from celery.schedules import crontab
 
 from .config import settings
 
@@ -8,7 +9,7 @@ app = Celery(
     "oaria_batch",
     broker=settings.redis.url,
     backend=settings.redis.url,
-    include=["src.tasks.backfill"],
+    include=["src.tasks.backfill", "src.tasks.embed"],
 )
 
 # Celery 설정
@@ -28,19 +29,25 @@ app.conf.update(
         "src.tasks.backfill.*": {"queue": "backfill"},
         "src.tasks.incremental.*": {"queue": "incremental"},
         "src.tasks.repair.*": {"queue": "repair"},
+        "src.tasks.embed.*": {"queue": "embed"},
     },
     # 기본 큐
     task_default_queue="backfill",
+    # Celery Beat 스케줄
+    beat_schedule={
+        # 매시간 새 논문 임베딩 (최대 50개씩)
+        "embed-hourly": {
+            "task": "src.tasks.embed.run_embed",
+            "schedule": crontab(minute=0),  # 매시 정각
+            "args": [None, 50],  # query_id=None, limit=50
+            "options": {"queue": "embed"},
+        },
+        # 매일 새벽 3시 실패한 논문 재임베딩
+        "reembed-daily": {
+            "task": "src.tasks.embed.run_reembed",
+            "schedule": crontab(hour=3, minute=0),
+            "args": [None, None],  # query_id=None, limit=None (전체)
+            "options": {"queue": "embed"},
+        },
+    },
 )
-
-# Celery Beat 스케줄 (나중에 활성화)
-# app.conf.beat_schedule = {
-#     'incremental-daily': {
-#         'task': 'src.tasks.incremental.run_incremental',
-#         'schedule': crontab(hour=3, minute=0),
-#     },
-#     'repair-weekly': {
-#         'task': 'src.tasks.repair.run_repair',
-#         'schedule': crontab(hour=2, minute=0, day_of_week=0),
-#     },
-# }

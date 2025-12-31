@@ -68,6 +68,29 @@ class APIConfig(BaseSettings):
     model_config = {"extra": "ignore"}
 
 
+class WeaviateConfig(BaseSettings):
+    """Weaviate 벡터 DB 설정"""
+
+    host: str = Field(default="localhost", alias="WEAVIATE_HOST")
+    port: int = Field(default=8080, alias="WEAVIATE_PORT")
+
+    model_config = {"extra": "ignore"}
+
+
+class OpenAIConfig(BaseSettings):
+    """OpenAI API 설정 (임베딩용)"""
+
+    api_key: str | None = Field(default=None, alias="OPENAI_API_KEY")
+    embedding_model: str = Field(
+        default="text-embedding-3-small", alias="OPENAI_EMBEDDING_MODEL"
+    )
+    embedding_dimensions: int = Field(
+        default=1536, alias="OPENAI_EMBEDDING_DIMENSIONS"
+    )
+
+    model_config = {"extra": "ignore"}
+
+
 class Config(BaseSettings):
     """통합 설정"""
 
@@ -75,6 +98,8 @@ class Config(BaseSettings):
     s3: S3Config = Field(default_factory=S3Config)
     redis: RedisConfig = Field(default_factory=RedisConfig)
     api: APIConfig = Field(default_factory=APIConfig)
+    weaviate: WeaviateConfig = Field(default_factory=WeaviateConfig)
+    openai: OpenAIConfig = Field(default_factory=OpenAIConfig)
 
     model_config = {"extra": "ignore"}
 
@@ -86,6 +111,8 @@ class Config(BaseSettings):
             s3=S3Config(),
             redis=RedisConfig(),
             api=APIConfig(),
+            weaviate=WeaviateConfig(),
+            openai=OpenAIConfig(),
         )
 
 
