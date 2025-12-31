@@ -10,6 +10,8 @@ import asyncio
 from dataclasses import dataclass, field
 from typing import AsyncIterator
 
+import re
+
 import httpx
 import structlog
 
@@ -27,6 +29,16 @@ logger = structlog.get_logger()
 
 
 @dataclass
+class CommentCorrection:
+    """논문 관계 정보 (정정/철회/코멘트)"""
+
+    id: str              # 관련 논문 PMID
+    type: str            # 관계 타입 (Erratum for, Retraction of 등)
+    source: str = ""     # 출처 (MED 등)
+    reference: str = ""  # 참조 문자열
+
+
+@dataclass
 class SearchResult:
     """검색 결과"""
 
@@ -35,6 +47,8 @@ class SearchResult:
     doi: str | None = None
     title: str = ""
     is_open_access: bool = True
+    pub_types: list[str] = field(default_factory=list)
+    comment_corrections: list[CommentCorrection] = field(default_factory=list)
 
 
 @dataclass
@@ -202,6 +216,30 @@ class EuropePMCClient:
             if not pmcid:
                 continue
 
+            # pubTypeList 추출
+            pub_types = []
+            pub_type_list = item.get("pubTypeList", {}).get("pubType", [])
+            if isinstance(pub_type_list, list):
+                pub_types = pub_type_list
+            elif isinstance(pub_type_list, str):
+                pub_types = [pub_type_list]
+
+            # commentCorrectionList 추출
+            comment_corrections = []
+            cc_list = item.get("commentCorrectionList", {}).get("commentCorrection", [])
+            if isinstance(cc_list, dict):
+                cc_list = [cc_list]
+            for cc in cc_list:
+                if cc.get("id"):
+                    comment_corrections.append(
+                        CommentCorrection(
+                            id=cc.get("id", ""),
+                            type=cc.get("type", ""),
+                            source=cc.get("source", ""),
+                            reference=cc.get("reference", ""),
+                        )
+                    )
+
             results.append(
                 SearchResult(
                     pmcid=pmcid,
@@ -209,6 +247,8 @@ class EuropePMCClient:
                     doi=item.get("doi"),
                     title=item.get("title", ""),
                     is_open_access=item.get("isOpenAccess") == "Y",
+                    pub_types=pub_types,
+                    comment_corrections=comment_corrections,
                 )
             )
 

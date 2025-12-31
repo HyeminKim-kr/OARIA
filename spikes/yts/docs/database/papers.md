@@ -2,7 +2,7 @@
 
 > **논문 메타데이터 및 관련 테이블**
 >
-> **Last Updated**: 2025-12-31
+> **Last Updated**: 2026-01-01
 
 ---
 
@@ -15,6 +15,7 @@
 | `papers` | 논문 메타데이터 (제목, 초록, 저널 등) |
 | `paper_authors` | 논문 저자 정보 |
 | `paper_sections` | 논문 섹션 오프셋 정보 (청킹용) |
+| `paper_relations` | 논문 간 관계 (정정/철회/코멘트) |
 
 ---
 
@@ -51,6 +52,10 @@
 | embedding_chunk_count | `INTEGER` | YES | `0` | 생성된 청크 수 |
 | embedding_error | `TEXT` | YES | - | 임베딩 에러 메시지 |
 | embedding_at | `TIMESTAMPTZ` | YES | - | 임베딩 완료 시각 |
+| pub_types | `TEXT[]` | YES | - | 논문 유형 (research-article, review 등) |
+| has_correction | `BOOLEAN` | YES | `FALSE` | 정정(Correction) 존재 여부 |
+| has_erratum | `BOOLEAN` | YES | `FALSE` | 오류정정(Erratum) 존재 여부 |
+| has_retraction | `BOOLEAN` | YES | `FALSE` | 철회(Retraction) 여부 |
 | created_at | `TIMESTAMPTZ` | YES | `NOW()` | 생성 시각 |
 | updated_at | `TIMESTAMPTZ` | YES | `NOW()` | 수정 시각 |
 
@@ -118,9 +123,76 @@ CREATE TABLE papers (
     status VARCHAR(20) DEFAULT 'collected',
     chunked_at TIMESTAMPTZ,
     indexed_at TIMESTAMPTZ,
+    embedding_status VARCHAR(20),
+    embedding_chunk_count INTEGER DEFAULT 0,
+    embedding_error TEXT,
+    embedding_at TIMESTAMPTZ,
+    pub_types TEXT[],
+    has_correction BOOLEAN DEFAULT FALSE,
+    has_erratum BOOLEAN DEFAULT FALSE,
+    has_retraction BOOLEAN DEFAULT FALSE,
     created_at TIMESTAMPTZ DEFAULT NOW(),
     updated_at TIMESTAMPTZ DEFAULT NOW()
 );
+```
+
+---
+
+## paper_relations (논문 관계)
+
+논문 간의 관계(정정, 철회, 코멘트 등)를 저장합니다.
+
+### 컬럼 정의
+
+| 컬럼 | 타입 | Nullable | 기본값 | 설명 |
+|------|------|----------|--------|------|
+| **id** | `UUID` | NO | `gen_random_uuid()` | Primary Key |
+| **source_pmid** | `TEXT` | NO | - | 관계 출처 논문 PMID (Correction/Retraction) |
+| **target_pmid** | `TEXT` | NO | - | 대상 논문 PMID (원문) |
+| **relation_type** | `TEXT` | NO | - | 정규화된 관계 타입 |
+| raw_type | `TEXT` | YES | - | 원본 관계 문자열 |
+| reference | `TEXT` | YES | - | 참조 문자열 |
+| created_at | `TIMESTAMPTZ` | YES | `NOW()` | 생성 시각 |
+
+### relation_type 값
+
+| 값 | 설명 | 플래그 |
+|----|------|--------|
+| `retraction` | 철회 | has_retraction=true |
+| `erratum` | 오류정정 | has_erratum=true |
+| `correction` | 정정 | has_correction=true |
+| `comment` | 코멘트 | (플래그 없음) |
+
+### 인덱스
+
+```sql
+-- 유니크 제약 (멱등성)
+CREATE UNIQUE INDEX uq_paper_relations
+ON paper_relations(source_pmid, target_pmid, relation_type);
+
+-- 조회용 인덱스
+CREATE INDEX idx_paper_relations_target ON paper_relations(target_pmid);
+CREATE INDEX idx_paper_relations_source ON paper_relations(source_pmid);
+```
+
+### DDL
+
+```sql
+CREATE TABLE paper_relations (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    source_pmid TEXT NOT NULL,
+    target_pmid TEXT NOT NULL,
+    relation_type TEXT NOT NULL,
+    raw_type TEXT,
+    reference TEXT,
+    created_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+CREATE UNIQUE INDEX uq_paper_relations
+ON paper_relations(source_pmid, target_pmid, relation_type);
+
+CREATE INDEX idx_paper_relations_target ON paper_relations(target_pmid);
+CREATE INDEX idx_paper_relations_source ON paper_relations(source_pmid);
 ```
 
 ---

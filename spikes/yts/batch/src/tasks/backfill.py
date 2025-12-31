@@ -18,7 +18,14 @@ from psycopg_pool import ConnectionPool
 import structlog
 
 from ..celery_app import app
-from ..collectors import EuropePMCClient
+from ..collectors import (
+    EuropePMCClient,
+    should_collect,
+    should_embed,
+    parse_comment_correction,
+    CollectAction,
+    determine_collect_action,
+)
 from ..config import settings
 from ..parsers import XMLParser
 from ..storage import DatabaseStorage, S3Storage
@@ -76,19 +83,38 @@ def batch_upsert_article_jobs(
     job_id: str,
     articles: list[dict],
 ) -> int:
-    """article_jobs에 배치로 논문 등록"""
+    """article_jobs에 배치로 논문 등록
+
+    Args:
+        conn: DB 연결
+        job_id: 배치 작업 ID
+        articles: 논문 목록 (pmcid, pmid, doi, metadata 포함)
+
+    Returns:
+        등록된 논문 수
+    """
     if not articles:
         return 0
 
     with conn.cursor() as cur:
         # psycopg3에서는 executemany 사용
+        # metadata 컬럼 추가 (JSONB)
         cur.executemany(
             """
-            INSERT INTO article_jobs (batch_job_id, pmcid, pmid, doi, status)
-            VALUES (%s, %s, %s, %s, 'pending')
+            INSERT INTO article_jobs (batch_job_id, pmcid, pmid, doi, status, metadata)
+            VALUES (%s, %s, %s, %s, 'pending', %s)
             ON CONFLICT (batch_job_id, pmcid) DO NOTHING
             """,
-            [(job_id, a["pmcid"], a.get("pmid"), a.get("doi")) for a in articles],
+            [
+                (
+                    job_id,
+                    a["pmcid"],
+                    a.get("pmid"),
+                    a.get("doi"),
+                    json.dumps(a.get("metadata")) if a.get("metadata") else None,
+                )
+                for a in articles
+            ],
         )
         conn.commit()
         return len(articles)
@@ -147,7 +173,7 @@ def get_pending_articles(
     with conn.cursor() as cur:
         cur.execute(
             """
-            SELECT pmcid, pmid, doi
+            SELECT pmcid, pmid, doi, metadata
             FROM article_jobs
             WHERE batch_job_id = %s
               AND status = 'pending'
@@ -158,7 +184,12 @@ def get_pending_articles(
             (job_id, limit),
         )
         return [
-            {"pmcid": row[0], "pmid": row[1], "doi": row[2]}
+            {
+                "pmcid": row[0],
+                "pmid": row[1],
+                "doi": row[2],
+                "metadata": row[3] if row[3] else {},
+            }
             for row in cur.fetchall()
         ]
 
@@ -413,14 +444,18 @@ async def _phase_search(
     job_id: str,
     pmc_query: str,
     search_query: dict,
-) -> int:
+) -> dict:
     """Phase 1: 검색하여 article_jobs에 등록
 
     OAR-19 스타일: Connection Pool 사용
+    pubType 기반 필터링 적용
+
+    Returns:
+        dict: {registered: int, dropped: int, total_searched: int}
     """
     logger.info("search_phase_started", job_id=job_id)
 
-    total_registered = 0
+    stats = {"registered": 0, "dropped": 0, "total_searched": 0}
     page_batch = []
     batch_size = 100
 
@@ -429,16 +464,43 @@ async def _phase_search(
             pmc_query,
             max_results=search_query.get("max_results"),
         ):
+            stats["total_searched"] += 1
+
+            # pubType 필터링: DROP 타입은 제외
+            if not should_collect(result.pub_types):
+                stats["dropped"] += 1
+                logger.debug(
+                    "article_dropped_by_pub_type",
+                    pmcid=result.pmcid,
+                    pub_types=result.pub_types,
+                )
+                continue
+
+            # comment_corrections를 dict 리스트로 변환
+            cc_list = [
+                {
+                    "id": cc.id,
+                    "type": cc.type,
+                    "source": cc.source,
+                    "reference": cc.reference,
+                }
+                for cc in result.comment_corrections
+            ]
+
             page_batch.append({
                 "pmcid": result.pmcid,
                 "pmid": result.pmid,
                 "doi": result.doi,
+                "metadata": {
+                    "pub_types": result.pub_types,
+                    "comment_corrections": cc_list,
+                },
             })
 
             if len(page_batch) >= batch_size:
                 with pool.connection() as conn:
                     batch_upsert_article_jobs(conn, job_id, page_batch)
-                    total_registered += len(page_batch)
+                    stats["registered"] += len(page_batch)
 
                     update_job_progress(
                         conn,
@@ -446,17 +508,19 @@ async def _phase_search(
                         processed=0,
                         success=0,
                         failed=0,
-                        total=total_registered,
+                        total=stats["registered"],
                         checkpoint={
                             "phase": "search",
-                            "registered": total_registered,
+                            "registered": stats["registered"],
+                            "dropped": stats["dropped"],
+                            "total_searched": stats["total_searched"],
                             "last_pmcid": result.pmcid,
                         },
                     )
 
                 logger.info(
                     "search_phase_progress",
-                    registered=total_registered,
+                    **stats,
                 )
 
                 page_batch = []
@@ -465,7 +529,7 @@ async def _phase_search(
         if page_batch:
             with pool.connection() as conn:
                 batch_upsert_article_jobs(conn, job_id, page_batch)
-                total_registered += len(page_batch)
+                stats["registered"] += len(page_batch)
 
     # 검색 완료 체크포인트
     with pool.connection() as conn:
@@ -475,20 +539,20 @@ async def _phase_search(
             processed=0,
             success=0,
             failed=0,
-            total=total_registered,
+            total=stats["registered"],
             checkpoint={
                 "phase": "collect",
-                "total_articles": total_registered,
+                **stats,
             },
         )
 
     logger.info(
         "search_phase_completed",
         job_id=job_id,
-        total_registered=total_registered,
+        **stats,
     )
 
-    return total_registered
+    return stats
 
 
 def check_paper_exists(conn, pmcid: str, pmid: str | None) -> bool:
@@ -519,10 +583,12 @@ async def _process_single_article(
     """단일 논문 처리 (병렬 처리용)
 
     OAR-19 스타일: Connection Pool에서 연결 획득/반환
+    pubType 및 관계 처리 포함
     """
     pmcid = article["pmcid"]
     pmid = article.get("pmid")
     doi = article.get("doi")
+    metadata = article.get("metadata", {})
     xml = None
 
     try:
@@ -621,6 +687,9 @@ async def _process_single_article(
             )
             raise
 
+        # pub_types 및 관계 처리
+        _process_paper_metadata(db_storage, pmid, metadata)
+
         # completed
         with pool.connection() as conn:
             update_article_status(conn, job_id, pmcid, "completed")
@@ -639,6 +708,41 @@ async def _process_single_article(
                 error_msg=str(e)[:500],
             )
         return False
+
+
+def _process_paper_metadata(
+    db_storage: DatabaseStorage,
+    pmid: str | None,
+    metadata: dict,
+) -> None:
+    """논문 메타데이터 처리 (pub_types, 관계)
+
+    Args:
+        db_storage: DB 저장소
+        pmid: 현재 논문 PMID
+        metadata: Search API에서 수집한 메타데이터
+    """
+    if not pmid:
+        return
+
+    # 1. pub_types 업데이트
+    pub_types = metadata.get("pub_types", [])
+    if pub_types:
+        db_storage.update_paper_pub_types(pmid, pub_types)
+
+    # 2. 관계 처리
+    comment_corrections = metadata.get("comment_corrections", [])
+    if comment_corrections:
+        # 관계 파싱
+        parsed_relations = []
+        for cc in comment_corrections:
+            parsed = parse_comment_correction(cc, pmid)
+            if parsed:
+                parsed_relations.append(parsed)
+
+        # 관계 저장 및 플래그 업데이트
+        if parsed_relations:
+            db_storage.process_paper_relations(pmid, parsed_relations)
 
 
 async def _phase_collect(

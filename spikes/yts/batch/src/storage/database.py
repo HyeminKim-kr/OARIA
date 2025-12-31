@@ -224,3 +224,217 @@ class DatabaseStorage:
         if not text:
             return None
         return hashlib.sha256(text.encode("utf-8")).hexdigest()
+
+    # ============================================================
+    # 논문 관계 처리 (paper_relations, flags)
+    # ============================================================
+
+    def update_paper_pub_types(self, pmid: str, pub_types: list[str]) -> None:
+        """논문의 pub_types 업데이트
+
+        Args:
+            pmid: 논문 PMID
+            pub_types: pubType 배열
+        """
+        if not pmid or not pub_types:
+            return
+
+        with self._pool.connection() as conn:
+            with conn.cursor() as cur:
+                cur.execute(
+                    """
+                    UPDATE papers
+                    SET pub_types = %s, updated_at = NOW()
+                    WHERE pmid = %s
+                    """,
+                    (pub_types, pmid),
+                )
+                conn.commit()
+
+    def save_paper_relation(
+        self,
+        source_pmid: str,
+        target_pmid: str,
+        relation_type: str,
+        raw_type: str | None = None,
+        reference: str | None = None,
+    ) -> bool:
+        """논문 관계 저장 (UPSERT)
+
+        Args:
+            source_pmid: 관계 출처 논문 PMID (Correction/Retraction 문서)
+            target_pmid: 대상 논문 PMID (원문)
+            relation_type: 정규화된 관계 타입 (retraction, erratum, correction, comment)
+            raw_type: 원본 관계 문자열
+            reference: 참조 문자열
+
+        Returns:
+            bool: 성공 여부
+        """
+        with self._pool.connection() as conn:
+            try:
+                with conn.cursor() as cur:
+                    cur.execute(
+                        """
+                        INSERT INTO paper_relations (
+                            source_pmid, target_pmid, relation_type,
+                            raw_type, reference
+                        ) VALUES (
+                            %s, %s, %s, %s, %s
+                        )
+                        ON CONFLICT (source_pmid, target_pmid, relation_type)
+                        DO UPDATE SET
+                            raw_type = EXCLUDED.raw_type,
+                            reference = EXCLUDED.reference
+                        """,
+                        (source_pmid, target_pmid, relation_type, raw_type, reference),
+                    )
+                    conn.commit()
+
+                logger.debug(
+                    "relation_saved",
+                    source_pmid=source_pmid,
+                    target_pmid=target_pmid,
+                    relation_type=relation_type,
+                )
+                return True
+
+            except Exception as e:
+                conn.rollback()
+                logger.error(
+                    "relation_save_failed",
+                    source_pmid=source_pmid,
+                    target_pmid=target_pmid,
+                    relation_type=relation_type,
+                    error=str(e),
+                )
+                return False
+
+    def update_paper_flag(
+        self,
+        pmid: str,
+        flag_column: str,
+        value: bool = True,
+    ) -> bool:
+        """논문 플래그 업데이트 (UPSERT 방식)
+
+        원문이 아직 수집되지 않았어도 플래그를 설정할 수 있도록
+        해당 pmid의 레코드가 없으면 무시
+
+        Args:
+            pmid: 대상 논문 PMID
+            flag_column: 플래그 컬럼명 (has_retraction, has_erratum, has_correction)
+            value: 플래그 값 (기본 True)
+
+        Returns:
+            bool: 업데이트 성공 여부
+        """
+        if flag_column not in ("has_retraction", "has_erratum", "has_correction"):
+            logger.warning("invalid_flag_column", flag_column=flag_column)
+            return False
+
+        with self._pool.connection() as conn:
+            try:
+                with conn.cursor() as cur:
+                    # 동적 SQL 구성 (안전한 컬럼명)
+                    sql = f"""
+                        UPDATE papers
+                        SET {flag_column} = %s, updated_at = NOW()
+                        WHERE pmid = %s
+                    """
+                    cur.execute(sql, (value, pmid))
+                    updated = cur.rowcount > 0
+                    conn.commit()
+
+                if updated:
+                    logger.debug(
+                        "flag_updated",
+                        pmid=pmid,
+                        flag_column=flag_column,
+                        value=value,
+                    )
+                else:
+                    logger.debug(
+                        "flag_update_skipped_no_paper",
+                        pmid=pmid,
+                        flag_column=flag_column,
+                    )
+
+                return updated
+
+            except Exception as e:
+                conn.rollback()
+                logger.error(
+                    "flag_update_failed",
+                    pmid=pmid,
+                    flag_column=flag_column,
+                    error=str(e),
+                )
+                return False
+
+    def process_paper_relations(
+        self,
+        current_pmid: str,
+        relations: list,  # list[ParsedRelation]
+    ) -> dict:
+        """논문 관계 일괄 처리
+
+        Args:
+            current_pmid: 현재 논문 PMID
+            relations: ParsedRelation 리스트
+
+        Returns:
+            dict: 처리 통계 {saved: int, flagged: int}
+        """
+        from ..collectors.pub_type_filter import (
+            RelationDirection,
+            RelationType,
+            get_flag_column,
+        )
+
+        stats = {"saved": 0, "flagged": 0}
+
+        for rel in relations:
+            # 1. 관계 저장
+            # 방향에 따라 source/target 결정
+            if rel.direction == RelationDirection.OUTWARD:
+                # 현재 문서가 Correction, target이 원문
+                source = current_pmid
+                target = rel.target_pmid
+            else:
+                # 현재 문서가 원문, target이 Correction
+                source = rel.target_pmid
+                target = current_pmid
+
+            saved = self.save_paper_relation(
+                source_pmid=source,
+                target_pmid=target,
+                relation_type=rel.relation_type.value,
+                raw_type=rel.raw_type,
+                reference=rel.reference,
+            )
+            if saved:
+                stats["saved"] += 1
+
+            # 2. 플래그 업데이트 (comment 제외)
+            flag_column = get_flag_column(rel.relation_type)
+            if flag_column:
+                # 원문에 플래그 설정
+                if rel.direction == RelationDirection.OUTWARD:
+                    # 현재 문서가 Correction → target(원문)에 플래그
+                    flagged = self.update_paper_flag(rel.target_pmid, flag_column)
+                else:
+                    # 현재 문서가 원문 → 현재 문서에 플래그
+                    flagged = self.update_paper_flag(current_pmid, flag_column)
+
+                if flagged:
+                    stats["flagged"] += 1
+
+        if stats["saved"] > 0 or stats["flagged"] > 0:
+            logger.info(
+                "relations_processed",
+                current_pmid=current_pmid,
+                **stats,
+            )
+
+        return stats
