@@ -16,11 +16,14 @@ import { ChatSidebar } from "@/components/chat/ChatSidebar";
 const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
 
 interface Reference {
-  id: string;
+  paper_id: string;
+  chunk_id: string;
   title: string;
   journal: string;
   year: number;
   section: string;
+  snippet: string;
+  distance: number;
 }
 
 interface Message {
@@ -306,27 +309,35 @@ export default function AskPage() {
                             References
                           </span>
                         </div>
-                        <div className="space-y-2">
+                        <div className="space-y-3">
                           {message.references.map((ref, idx) => (
                             <div
-                              key={`${ref.id}-${idx}`}
-                              className="flex items-start gap-3 p-3 rounded-lg bg-[var(--oaria-border)]/20 hover:bg-[var(--oaria-border)]/40 transition-colors group cursor-pointer"
+                              key={`${ref.paper_id}-${ref.section}-${idx}`}
+                              className="p-4 rounded-lg bg-[var(--oaria-border)]/20 hover:bg-[var(--oaria-border)]/40 transition-colors group cursor-pointer"
                             >
-                              <span className="flex-shrink-0 w-6 h-6 rounded-full bg-[var(--oaria-teal)]/20 text-[var(--oaria-teal)] text-xs font-medium flex items-center justify-center">
-                                {idx + 1}
-                              </span>
-                              <div className="flex-1 min-w-0">
-                                <div className="font-[family-name:var(--font-dm-sans)] text-sm font-medium text-[var(--foreground)] group-hover:text-[var(--oaria-teal)] transition-colors line-clamp-1">
-                                  {ref.title}
-                                </div>
-                                <div className="font-[family-name:var(--font-dm-sans)] text-xs text-[var(--oaria-tagline)] mt-0.5">
-                                  {ref.journal} ({ref.year}) · {ref.section}
+                              <div className="flex items-start gap-3">
+                                <span className="flex-shrink-0 w-6 h-6 rounded-full bg-[var(--oaria-teal)]/20 text-[var(--oaria-teal)] text-xs font-medium flex items-center justify-center">
+                                  {idx + 1}
+                                </span>
+                                <div className="flex-1 min-w-0">
+                                  <div className="flex items-start justify-between gap-2">
+                                    <div className="font-[family-name:var(--font-dm-sans)] text-sm font-medium text-[var(--foreground)] group-hover:text-[var(--oaria-teal)] transition-colors">
+                                      {ref.title}
+                                    </div>
+                                    <ExternalLink
+                                      size={14}
+                                      className="flex-shrink-0 text-[var(--oaria-text-secondary)] opacity-0 group-hover:opacity-100 transition-opacity mt-0.5"
+                                    />
+                                  </div>
+                                  <div className="font-[family-name:var(--font-dm-sans)] text-xs text-[var(--oaria-tagline)] mt-1">
+                                    {ref.journal} ({ref.year}) · {ref.section}
+                                  </div>
+                                  {/* 근거 텍스트 (snippet) */}
+                                  <div className="font-[family-name:var(--font-dm-sans)] text-sm text-[var(--oaria-text-secondary)] mt-2 line-clamp-3 leading-relaxed">
+                                    {ref.snippet}
+                                  </div>
                                 </div>
                               </div>
-                              <ExternalLink
-                                size={14}
-                                className="text-[var(--oaria-text-secondary)] opacity-0 group-hover:opacity-100 transition-opacity"
-                              />
                             </div>
                           ))}
                         </div>
