@@ -3,9 +3,9 @@
 import { useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { useAuth } from "@/contexts/AuthContext";
-import { Sidebar } from "@/components/layout/Sidebar";
+import { Header } from "@/components/layout/Header";
 
-export default function ChatLayout({
+export default function MainLayout({
   children,
 }: {
   children: React.ReactNode;
@@ -32,9 +32,9 @@ export default function ChatLayout({
   }
 
   return (
-    <div className="min-h-screen bg-[var(--background)] flex">
-      <Sidebar />
-      <main className="flex-1 ml-72">{children}</main>
+    <div className="min-h-screen bg-[var(--background)]">
+      <Header />
+      <main className="pt-16">{children}</main>
     </div>
   );
 }

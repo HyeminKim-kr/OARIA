@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import Link from "next/link";
 import {
   Search,
   Paperclip,
@@ -60,9 +61,8 @@ const mockPapers = [
 ];
 
 
-export default function ChatPage() {
+export default function MainPage() {
   const [query, setQuery] = useState("");
-  const [searchMode, setSearchMode] = useState<"ask" | "search">("ask");
   const [activeTab, setActiveTab] = useState<"papers" | "agents">("papers");
   const [activeFilter, setActiveFilter] = useState<"recent" | "recommended" | "bookmark">(
     "recent"
@@ -75,64 +75,45 @@ export default function ChatPage() {
   };
 
   return (
-    <div className="h-full overflow-y-auto">
-      <div style={{ padding: "40px 160px" }}>
-        {/* Search Section - 전체 너비 사용 */}
-        <div className="mb-10">
-            <h1 className="font-[family-name:var(--font-outfit)] text-3xl md:text-4xl font-bold text-center mb-6">
-              {searchMode === "ask" ? "Ask AI about research..." : "Search papers..."}
-            </h1>
+    <div className="h-full flex flex-col overflow-hidden">
+      {/* Header with Toggle - Fixed */}
+      <div className="bg-[var(--background)]">
+        <div className="flex items-center justify-center py-4">
+          {/* Ask/Search Toggle */}
+          <div className="inline-flex items-center bg-[var(--oaria-border)]/50 rounded-full p-1">
+            <Link
+              href="/ask"
+              className="flex items-center gap-2 px-4 py-2 rounded-full text-sm font-medium text-[var(--oaria-text-secondary)] hover:text-[var(--foreground)] transition-all"
+            >
+              <MessageSquare size={16} />
+              Ask AI
+            </Link>
+            <button
+              type="button"
+              className="flex items-center gap-2 px-4 py-2 rounded-full text-sm font-medium bg-[var(--oaria-teal)] text-white shadow-sm"
+            >
+              <Search size={16} />
+              Search Papers
+            </button>
+          </div>
+        </div>
+      </div>
 
-            {/* Ask/Search Toggle */}
-            <div className="flex items-center justify-center mb-4">
-              <div className="inline-flex items-center bg-[var(--oaria-border)]/30 rounded-full p-1">
-                <button
-                  type="button"
-                  onClick={() => setSearchMode("ask")}
-                  className={`flex items-center gap-2 px-4 py-2 rounded-full text-sm font-medium transition-all ${
-                    searchMode === "ask"
-                      ? "bg-[var(--oaria-teal)] text-white shadow-sm"
-                      : "text-[var(--oaria-text-secondary)] hover:text-[var(--foreground)]"
-                  }`}
-                >
-                  <MessageSquare size={16} />
-                  Ask AI
-                </button>
-                <button
-                  type="button"
-                  onClick={() => setSearchMode("search")}
-                  className={`flex items-center gap-2 px-4 py-2 rounded-full text-sm font-medium transition-all ${
-                    searchMode === "search"
-                      ? "bg-[var(--oaria-teal)] text-white shadow-sm"
-                      : "text-[var(--oaria-text-secondary)] hover:text-[var(--foreground)]"
-                  }`}
-                >
-                  <Search size={16} />
-                  Search Papers
-                </button>
-              </div>
-            </div>
-
-            {/* Search Input */}
-            <form onSubmit={handleSubmit}>
+      {/* Scrollable Content */}
+      <div className="flex-1 overflow-y-auto">
+        <div className="max-w-5xl mx-auto px-6 py-6">
+          {/* Search Input */}
+          <form onSubmit={handleSubmit} className="mb-8">
               <div
-                className="relative bg-[var(--background)] border border-[var(--oaria-border)] rounded-2xl shadow-lg hover:border-[var(--oaria-teal)]/50 focus-within:border-[var(--oaria-teal)] focus-within:ring-2 focus-within:ring-[var(--oaria-teal)]/20 transition-all"
+                className="relative bg-[var(--background)] border-2 border-[var(--oaria-border-strong)] rounded-2xl shadow-lg hover:border-[var(--oaria-teal)]/50 focus-within:border-[var(--oaria-teal)] focus-within:ring-2 focus-within:ring-[var(--oaria-teal)]/20 transition-all"
               >
               <div className="flex items-center px-6 py-6">
-                {searchMode === "ask" ? (
-                  <MessageSquare size={24} className="text-[var(--oaria-teal)] mr-4" />
-                ) : (
-                  <Search size={24} className="text-[var(--oaria-tagline)] mr-4" />
-                )}
+                <Search size={24} className="text-[var(--oaria-tagline)] mr-4" />
                 <input
                   type="text"
                   value={query}
                   onChange={(e) => setQuery(e.target.value)}
-                  placeholder={
-                    searchMode === "ask"
-                      ? "폐암 면역치료 최신 연구 동향 알려줘..."
-                      : "Search by title, author, PMID..."
-                  }
+                  placeholder="Search by title, author, PMID..."
                   className="flex-1 bg-transparent font-[family-name:var(--font-dm-sans)] text-lg outline-none placeholder:text-[var(--oaria-tagline)]"
                 />
               </div>
@@ -162,30 +143,29 @@ export default function ChatPage() {
               </div>
               </div>
             </form>
-          </div>
 
           {/* Tabs */}
-          <div className="flex items-center justify-center gap-6 mb-4 border-b border-[var(--oaria-border)]">
+          <div className="flex items-center justify-center gap-6 mb-4 border-b-2 border-[var(--oaria-border-strong)]">
             <button
               onClick={() => setActiveTab("papers")}
-              className={`flex items-center gap-2 px-4 py-3 font-[family-name:var(--font-dm-sans)] text-sm font-medium border-b-2 transition-colors ${
+              className={`flex items-center gap-2 px-4 py-3 font-[family-name:var(--font-dm-sans)] text-base font-medium border-b-2 transition-colors ${
                 activeTab === "papers"
                   ? "border-[var(--oaria-teal)] text-[var(--oaria-teal)]"
                   : "border-transparent text-[var(--oaria-text-secondary)] hover:text-[var(--foreground)]"
               }`}
             >
-              <FileText size={18} />
+              <FileText size={20} />
               Papers
             </button>
             <button
               onClick={() => setActiveTab("agents")}
-              className={`flex items-center gap-2 px-4 py-3 font-[family-name:var(--font-dm-sans)] text-sm font-medium border-b-2 transition-colors ${
+              className={`flex items-center gap-2 px-4 py-3 font-[family-name:var(--font-dm-sans)] text-base font-medium border-b-2 transition-colors ${
                 activeTab === "agents"
                   ? "border-[var(--oaria-teal)] text-[var(--oaria-teal)]"
                   : "border-transparent text-[var(--oaria-text-secondary)] hover:text-[var(--foreground)]"
               }`}
             >
-              <Bot size={18} />
+              <Bot size={20} />
               에이전트
             </button>
           </div>
@@ -239,7 +219,7 @@ export default function ChatPage() {
             {mockPapers.map((paper) => (
               <article
                 key={paper.id}
-                className="relative bg-[var(--background)] border border-[var(--oaria-border)] rounded-xl p-5 hover:border-[var(--oaria-teal)]/30 transition-colors group"
+                className="relative bg-[var(--background)] border-2 border-[var(--oaria-border-strong)] rounded-xl p-5 hover:border-[var(--oaria-teal)]/50 transition-colors group"
               >
                 <div className="flex gap-6">
                   <div className="flex-1">
@@ -306,5 +286,6 @@ export default function ChatPage() {
           </div>
         </div>
       </div>
+    </div>
   );
 }

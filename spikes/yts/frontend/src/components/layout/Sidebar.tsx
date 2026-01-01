@@ -16,7 +16,7 @@ import {
 } from "lucide-react";
 
 const mainNavItems = [
-  { href: "/chat", label: "Chat", icon: MessageSquare },
+  { href: "/main", label: "Home", icon: MessageSquare },
   { href: "/papers", label: "Papers", icon: FileText },
   { href: "/library", label: "My Library", icon: Library },
   { href: "/notifications", label: "Notifications", icon: Bell },
@@ -33,10 +33,10 @@ export function Sidebar() {
   const { user, logout } = useAuth();
 
   return (
-    <aside className="fixed left-0 top-0 bottom-0 w-72 bg-[var(--background)] border-r border-[var(--oaria-border)] flex flex-col">
+    <aside className="fixed left-0 top-0 bottom-0 w-72 bg-[var(--background)] border-r-2 border-[var(--oaria-border-strong)] flex flex-col">
       {/* Logo */}
       <div className="p-5">
-        <Link href="/chat" className="flex items-center gap-3">
+        <Link href="/main" className="flex items-center gap-3">
           <svg
             width="40"
             height="40"
@@ -103,7 +103,7 @@ export function Sidebar() {
             <circle cx="31" cy="31" r="6.5" fill="var(--oaria-navy)" />
             <circle cx="31" cy="31" r="3.25" fill="white" />
           </svg>
-          <span className="font-[family-name:var(--font-outfit)] text-xl font-semibold text-[var(--oaria-teal)] tracking-wider">
+          <span className="font-[family-name:var(--font-outfit)] text-2xl font-semibold text-[var(--oaria-teal)] tracking-wider">
             OARIA
           </span>
         </Link>
@@ -119,13 +119,13 @@ export function Sidebar() {
               <li key={item.href}>
                 <Link
                   href={item.href}
-                  className={`flex items-center gap-3 px-4 py-3 rounded-xl font-[family-name:var(--font-dm-sans)] text-sm transition-colors ${
+                  className={`flex items-center gap-3 px-4 py-3 rounded-xl font-[family-name:var(--font-dm-sans)] text-base transition-colors ${
                     isActive
                       ? "bg-[var(--oaria-teal)]/10 text-[var(--oaria-teal)] font-medium"
                       : "text-[var(--oaria-text-secondary)] hover:bg-[var(--oaria-border)]/50 hover:text-[var(--foreground)]"
                   }`}
                 >
-                  <Icon size={20} />
+                  <Icon size={22} />
                   {item.label}
                 </Link>
               </li>
@@ -136,24 +136,24 @@ export function Sidebar() {
 
       {/* Bottom Navigation */}
       <div className="px-4 pb-4">
-        <ul className="space-y-1.5 border-t border-[var(--oaria-border)] pt-4">
+        <ul className="space-y-1.5 border-t-2 border-[var(--oaria-border-strong)] pt-4">
           {bottomNavItems.map((item) => {
             const Icon = item.icon;
             return (
               <li key={item.href}>
                 <Link
                   href={item.href}
-                  className="flex items-center gap-3 px-4 py-3 rounded-xl font-[family-name:var(--font-dm-sans)] text-sm text-[var(--oaria-text-secondary)] hover:bg-[var(--oaria-border)]/50 hover:text-[var(--foreground)] transition-colors"
+                  className="flex items-center gap-3 px-4 py-3 rounded-xl font-[family-name:var(--font-dm-sans)] text-base text-[var(--oaria-text-secondary)] hover:bg-[var(--oaria-border)]/50 hover:text-[var(--foreground)] transition-colors"
                 >
-                  <Icon size={20} />
+                  <Icon size={22} />
                   {item.label}
                 </Link>
               </li>
             );
           })}
           <li>
-            <button className="w-full flex items-center gap-3 px-4 py-3 rounded-xl font-[family-name:var(--font-dm-sans)] text-sm text-[var(--oaria-text-secondary)] hover:bg-[var(--oaria-border)]/50 hover:text-[var(--foreground)] transition-colors">
-              <Moon size={20} />
+            <button className="w-full flex items-center gap-3 px-4 py-3 rounded-xl font-[family-name:var(--font-dm-sans)] text-base text-[var(--oaria-text-secondary)] hover:bg-[var(--oaria-border)]/50 hover:text-[var(--foreground)] transition-colors">
+              <Moon size={22} />
               Dark mode
             </button>
           </li>
@@ -175,10 +175,10 @@ export function Sidebar() {
                 </div>
               )}
               <div className="flex-1 min-w-0">
-                <p className="font-[family-name:var(--font-dm-sans)] text-sm font-medium truncate">
+                <p className="font-[family-name:var(--font-dm-sans)] text-base font-medium truncate">
                   {user.name || "User"}
                 </p>
-                <p className="font-[family-name:var(--font-dm-sans)] text-xs text-[var(--oaria-tagline)] truncate">
+                <p className="font-[family-name:var(--font-dm-sans)] text-sm text-[var(--oaria-tagline)] truncate">
                   {user.email}
                 </p>
               </div>
