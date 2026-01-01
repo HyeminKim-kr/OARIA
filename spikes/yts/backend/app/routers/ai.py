@@ -47,24 +47,15 @@ async def ask_ai(
 
     Returns:
         SSE 스트림:
+        - event: status (진행 상태)
         - event: references (검색된 참조 문헌)
         - event: token (LLM 응답 토큰)
         - event: done (완료, conversation_id 포함)
     """
     import time
 
-    total_start = time.perf_counter()
-
-    # 1. RAG 검색
-    filters = request.filters or {}
-    retrieval_result = rag_service.retrieve(
-        query=request.question,
-        year_from=filters.year_from if hasattr(filters, "year_from") else None,
-        year_to=filters.year_to if hasattr(filters, "year_to") else None,
-        sections=filters.sections if hasattr(filters, "sections") else None,
-    )
-
-    # 2. 대화 생성 또는 조회
+    # 대화 조회 (기존 대화인 경우만 미리 검증)
+    conversation = None
     if request.conversation_id:
         conversation = await db.get(Conversation, request.conversation_id)
         if not conversation or conversation.user_id != current_user.id:
@@ -72,34 +63,55 @@ async def ask_ai(
                 status_code=status.HTTP_404_NOT_FOUND,
                 detail="Conversation not found",
             )
-    else:
-        # 새 대화 생성 (제목은 첫 질문에서 자동 생성)
-        title = request.question[:50] + "..." if len(request.question) > 50 else request.question
-        conversation = Conversation(
-            user_id=current_user.id,
-            title=title,
-        )
-        db.add(conversation)
-        await db.flush()
-
-    # 3. 사용자 메시지 저장
-    user_message = Message(
-        conversation_id=conversation.id,
-        role="user",
-        content=request.question,
-    )
-    db.add(user_message)
-    await db.flush()
 
     async def generate_sse():
         """SSE 스트림 생성"""
         nonlocal conversation
+        total_start = time.perf_counter()
 
-        # References 이벤트 전송
+        # 1. 검색 시작 상태 전송
+        yield f"event: status\ndata: {json.dumps({'step': 'searching', 'message': '관련 논문 검색 중...'}, ensure_ascii=False)}\n\n"
+
+        # 2. RAG 검색
+        filters = request.filters or {}
+        retrieval_result = rag_service.retrieve(
+            query=request.question,
+            year_from=filters.year_from if hasattr(filters, "year_from") else None,
+            year_to=filters.year_to if hasattr(filters, "year_to") else None,
+            sections=filters.sections if hasattr(filters, "sections") else None,
+        )
+
+        # 3. References 이벤트 전송
         references_data = [ref.model_dump() for ref in retrieval_result.references]
         yield f"event: references\ndata: {json.dumps({'references': references_data}, ensure_ascii=False)}\n\n"
 
-        # LLM 스트리밍 응답
+        # 4. 대화 생성 (신규인 경우)
+        if not conversation:
+            title = request.question[:50] + "..." if len(request.question) > 50 else request.question
+            new_conversation = Conversation(
+                user_id=current_user.id,
+                title=title,
+            )
+            db.add(new_conversation)
+            await db.flush()
+            # nonlocal 변수 업데이트를 위해 새 변수 사용
+            conv = new_conversation
+        else:
+            conv = conversation
+
+        # 5. 사용자 메시지 저장
+        user_message = Message(
+            conversation_id=conv.id,
+            role="user",
+            content=request.question,
+        )
+        db.add(user_message)
+        await db.flush()
+
+        # 6. 답변 생성 시작 상태 전송
+        yield f"event: status\ndata: {json.dumps({'step': 'generating', 'message': '답변 생성 중...'}, ensure_ascii=False)}\n\n"
+
+        # 7. LLM 스트리밍 응답
         full_content = ""
         usage = None
 
@@ -114,11 +126,11 @@ async def ask_ai(
                 full_content += chunk.token
                 yield f"event: token\ndata: {json.dumps({'token': chunk.token}, ensure_ascii=False)}\n\n"
 
-        # Assistant 메시지 저장
+        # 8. Assistant 메시지 저장
         total_latency = int((time.perf_counter() - total_start) * 1000)
 
         assistant_message = Message(
-            conversation_id=conversation.id,
+            conversation_id=conv.id,
             role="assistant",
             content=full_content,
             tokens_used=usage.get("total_tokens") if usage else None,
@@ -128,11 +140,11 @@ async def ask_ai(
         db.add(assistant_message)
         await db.flush()
 
-        # Answer Log 저장
+        # 9. Answer Log 저장
         evidence_data = [ref.model_dump() for ref in retrieval_result.references]
         answer_log = AnswerLog(
             message_id=assistant_message.id,
-            conversation_id=conversation.id,
+            conversation_id=conv.id,
             user_id=current_user.id,
             question=request.question,
             answer=full_content,
@@ -150,9 +162,9 @@ async def ask_ai(
         db.add(answer_log)
         await db.commit()
 
-        # Done 이벤트 전송
+        # 10. Done 이벤트 전송
         done_data = {
-            "conversation_id": str(conversation.id),
+            "conversation_id": str(conv.id),
             "message_id": str(assistant_message.id),
         }
         yield f"event: done\ndata: {json.dumps(done_data)}\n\n"
