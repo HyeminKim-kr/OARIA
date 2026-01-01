@@ -57,7 +57,7 @@ class Settings(BaseSettings):
 
     # Weaviate
     weaviate_host: str = Field(default="localhost", description="Weaviate 호스트")
-    weaviate_port: int = Field(default=8080, description="Weaviate 포트")
+    weaviate_port: int = Field(default=18080, description="Weaviate 포트")
 
     # OpenAI
     openai_api_key: str = Field(default="", description="OpenAI API 키")
