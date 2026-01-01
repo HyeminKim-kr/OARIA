@@ -85,14 +85,7 @@ async def ask_ai(
             filters.sections if hasattr(filters, "sections") else None,
         )
 
-        # 3. References 이벤트 전송
-        references_data = [ref.model_dump() for ref in retrieval_result.references]
-        yield {
-            "event": "references",
-            "data": json.dumps({"references": references_data}, ensure_ascii=False),
-        }
-
-        # 4. 대화 생성 (신규인 경우)
+        # 3. 대화 생성 (신규인 경우)
         if not conversation:
             title = request.question[:50] + "..." if len(request.question) > 50 else request.question
             new_conversation = Conversation(
@@ -201,7 +194,14 @@ async def ask_ai(
         db.add(answer_log)
         await db.commit()
 
-        # 10. Done 이벤트 전송
+        # 10. References 이벤트 전송 (답변 완료 후)
+        references_data = [ref.model_dump() for ref in retrieval_result.references]
+        yield {
+            "event": "references",
+            "data": json.dumps({"references": references_data}, ensure_ascii=False),
+        }
+
+        # 11. Done 이벤트 전송
         yield {
             "event": "done",
             "data": json.dumps({
