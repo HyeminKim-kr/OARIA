@@ -59,6 +59,14 @@ class Settings(BaseSettings):
     weaviate_host: str = Field(default="localhost", description="Weaviate 호스트")
     weaviate_port: int = Field(default=18080, description="Weaviate 포트")
 
+    # S3/MinIO
+    s3_endpoint_url: str = Field(
+        default="http://localhost:19000", description="S3/MinIO 엔드포인트"
+    )
+    s3_access_key: str = Field(default="minioadmin", description="S3 Access Key")
+    s3_secret_key: str = Field(default="minioadmin_2024", description="S3 Secret Key")
+    s3_bucket: str = Field(default="oaria-papers", description="S3 버킷 이름")
+
     # OpenAI
     openai_api_key: str = Field(default="", description="OpenAI API 키")
     openai_embedding_model: str = Field(

@@ -68,3 +68,58 @@ export const authApi = {
   refresh: (refreshToken: string) =>
     api.post("/auth/refresh", { refresh_token: refreshToken }),
 };
+
+/**
+ * 토큰 갱신을 지원하는 fetch wrapper
+ * SSE 스트리밍처럼 axios 대신 native fetch를 써야 할 때 사용
+ */
+export async function fetchWithAuth(
+  url: string,
+  options: RequestInit = {}
+): Promise<Response> {
+  const token = localStorage.getItem("access_token");
+
+  const headers = new Headers(options.headers);
+  if (token) {
+    headers.set("Authorization", `Bearer ${token}`);
+  }
+
+  let response = await fetch(url, { ...options, headers });
+
+  // 401 발생 시 토큰 갱신 시도
+  if (response.status === 401) {
+    const refreshToken = localStorage.getItem("refresh_token");
+    if (!refreshToken) {
+      throw new Error("No refresh token available");
+    }
+
+    try {
+      const refreshResponse = await fetch(`${API_BASE_URL}/auth/refresh`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ refresh_token: refreshToken }),
+      });
+
+      if (!refreshResponse.ok) {
+        throw new Error("Token refresh failed");
+      }
+
+      const data = await refreshResponse.json();
+      localStorage.setItem("access_token", data.access_token);
+      localStorage.setItem("refresh_token", data.refresh_token);
+
+      // 새 토큰으로 원래 요청 재시도
+      headers.set("Authorization", `Bearer ${data.access_token}`);
+      response = await fetch(url, { ...options, headers });
+    } catch (refreshError) {
+      // 갱신 실패 시 로그아웃 처리
+      localStorage.removeItem("access_token");
+      localStorage.removeItem("refresh_token");
+      localStorage.removeItem("user");
+      window.location.href = "/";
+      throw refreshError;
+    }
+  }
+
+  return response;
+}

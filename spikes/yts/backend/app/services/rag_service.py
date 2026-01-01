@@ -126,17 +126,22 @@ class RagService:
             section_text = self._combine_chunks(section_chunks)
 
             # Reference 생성
+            # 매칭된 청크(result)의 오프셋 사용 (하이라이트용)
             first_chunk = section_chunks[0]
+            matched_offset_start = result.get("offsetStart", 0)
+            matched_offset_end = result.get("offsetEnd", 0)
+            matched_content = result.get("content", "")
+
             ref = Reference(
                 paper_id=paper_id,
-                chunk_id=first_chunk.get("chunkId", ""),
+                chunk_id=result.get("chunkId", first_chunk.get("chunkId", "")),
                 title=first_chunk.get("title", ""),
                 journal=first_chunk.get("journal"),
                 year=first_chunk.get("year"),
                 section=section,
-                snippet=section_text[:500] + "..." if len(section_text) > 500 else section_text,
-                offset_start=first_chunk.get("offsetStart", 0),
-                offset_end=section_chunks[-1].get("offsetEnd", 0),
+                snippet=matched_content[:500] + "..." if len(matched_content) > 500 else matched_content,
+                offset_start=matched_offset_start,
+                offset_end=matched_offset_end,
                 text_version=first_chunk.get("textVersion", "v1"),
                 distance=result.get("score", result.get("distance", 0.0)),
             )

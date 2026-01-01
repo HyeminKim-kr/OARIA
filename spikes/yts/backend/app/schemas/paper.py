@@ -94,3 +94,38 @@ class PaperStats(BaseModel):
     total: int
     by_year: list[dict]
     recent_count: int  # 최근 7일
+
+
+# ============================================================
+# Section Text (모달 하이라이트용)
+# ============================================================
+class ParagraphResponse(BaseModel):
+    """단락 응답"""
+    text: str
+    offset_start: int
+    offset_end: int
+
+
+class SectionTextResponse(BaseModel):
+    """섹션 풀텍스트 응답 (Weaviate에서 조회) - Legacy"""
+
+    paper_id: str
+    section: str
+    title: str
+    journal: Optional[str] = None
+    year: Optional[int] = None
+    text: str  # 섹션 전체 텍스트
+
+
+class SectionContentResponse(BaseModel):
+    """섹션 내용 응답 (S3 XML 기반) - 단락 구분 포함"""
+
+    paper_id: str
+    section: str
+    section_title: str
+    title: str  # 논문 제목
+    journal: Optional[str] = None
+    year: Optional[int] = None
+    paragraphs: list[ParagraphResponse]
+    total_text: str  # 전체 텍스트 (offset 계산용)
+    section_fulltext_offset: int = 0  # fulltext 기준 섹션 시작 위치 (하이라이트 오프셋 변환용)
