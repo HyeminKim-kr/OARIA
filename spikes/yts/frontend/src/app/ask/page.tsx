@@ -13,6 +13,8 @@ import {
 } from "lucide-react";
 import { ChatSidebar } from "@/components/chat/ChatSidebar";
 
+const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
+
 interface Reference {
   id: string;
   title: string;
@@ -27,31 +29,6 @@ interface Message {
   content: string;
   references?: Reference[];
 }
-
-// 임시 응답 데이터 (실제로는 SSE로 스트리밍)
-const mockReferences: Reference[] = [
-  {
-    id: "PMC12345",
-    title: "Immunotherapy Response Prediction in Non-Small Cell Lung Cancer",
-    journal: "Nature Medicine",
-    year: 2025,
-    section: "Results",
-  },
-  {
-    id: "PMC23456",
-    title: "CAR-T Cell Therapy Optimization for Solid Tumors",
-    journal: "Cancer Cell",
-    year: 2025,
-    section: "Discussion",
-  },
-  {
-    id: "PMC34567",
-    title: "Combination Therapy Approaches in Lung Cancer Treatment",
-    journal: "JAMA Oncology",
-    year: 2024,
-    section: "Methods",
-  },
-];
 
 export default function AskPage() {
   const [messages, setMessages] = useState<Message[]>([]);
@@ -83,37 +60,123 @@ export default function AskPage() {
     e.preventDefault();
     if (!input.trim() || isLoading) return;
 
+    const question = input;
     const userMessage: Message = {
       id: Date.now().toString(),
       role: "user",
-      content: input,
+      content: question,
     };
 
     setMessages((prev) => [...prev, userMessage]);
     setInput("");
     setIsLoading(true);
 
-    // 임시: Mock 응답 (실제로는 SSE 스트리밍)
-    setTimeout(() => {
-      const assistantMessage: Message = {
-        id: (Date.now() + 1).toString(),
+    // Assistant 메시지 placeholder 추가
+    const assistantMessageId = (Date.now() + 1).toString();
+    setMessages((prev) => [
+      ...prev,
+      {
+        id: assistantMessageId,
         role: "assistant",
-        content: `최근 폐암 면역치료 연구는 크게 3가지 방향으로 진행되고 있습니다.
+        content: "",
+        references: [],
+      },
+    ]);
 
-**1. PD-L1 발현 기반 반응 예측**
-면역관문억제제(ICI)의 반응을 예측하기 위해 PD-L1 발현 수준과 함께 종양 미세환경(TME) 분석이 활발히 연구되고 있습니다. 특히 딥러닝 기반의 CT 영상 분석이 기존 바이오마커보다 높은 예측 정확도를 보이고 있습니다 [1].
+    try {
+      const token = localStorage.getItem("access_token");
+      const response = await fetch(`${API_BASE_URL}/ai/ask`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          ...(token && { Authorization: `Bearer ${token}` }),
+        },
+        body: JSON.stringify({
+          question,
+          conversation_id: currentConversationId,
+        }),
+      });
 
-**2. CAR-T 세포치료의 고형암 적용**
-혈액암에서 성공적인 결과를 보인 CAR-T 세포치료를 폐암 등 고형암에 적용하기 위한 연구가 진행 중입니다. 주요 과제로는 종양 미세환경의 면역억제, 항원 이질성, T세포 소진 등이 있습니다 [2].
+      if (!response.ok) {
+        throw new Error(`HTTP error! status: ${response.status}`);
+      }
 
-**3. 병용요법 연구**
-화학요법과 면역치료의 조합, 또는 서로 다른 면역관문억제제의 병용이 단독 치료보다 우수한 효과를 보이는 것으로 나타나고 있습니다 [3].`,
-        references: mockReferences,
-      };
+      const reader = response.body?.getReader();
+      const decoder = new TextDecoder();
 
-      setMessages((prev) => [...prev, assistantMessage]);
+      if (!reader) {
+        throw new Error("No response body");
+      }
+
+      let buffer = "";
+
+      while (true) {
+        const { done, value } = await reader.read();
+        if (done) break;
+
+        buffer += decoder.decode(value, { stream: true });
+        const lines = buffer.split("\n");
+        buffer = lines.pop() || "";
+
+        for (const line of lines) {
+          if (line.startsWith("event: ")) {
+            // SSE event type (references, token, done) - data에서 처리
+            continue;
+          }
+
+          if (line.startsWith("data: ")) {
+            const dataStr = line.slice(6);
+            try {
+              const data = JSON.parse(dataStr);
+
+              // references 이벤트
+              if (data.references) {
+                setMessages((prev) =>
+                  prev.map((msg) =>
+                    msg.id === assistantMessageId
+                      ? { ...msg, references: data.references }
+                      : msg
+                  )
+                );
+              }
+
+              // token 이벤트
+              if (data.token) {
+                setMessages((prev) =>
+                  prev.map((msg) =>
+                    msg.id === assistantMessageId
+                      ? { ...msg, content: msg.content + data.token }
+                      : msg
+                  )
+                );
+              }
+
+              // done 이벤트
+              if (data.conversation_id) {
+                setCurrentConversationId(data.conversation_id);
+              }
+            } catch {
+              // JSON 파싱 실패 시 무시
+            }
+          }
+        }
+      }
+    } catch (error) {
+      console.error("Ask AI error:", error);
+      // 에러 시 에러 메시지 표시
+      setMessages((prev) =>
+        prev.map((msg) =>
+          msg.id === assistantMessageId
+            ? {
+                ...msg,
+                content: "죄송합니다. 응답을 생성하는 중 오류가 발생했습니다. 다시 시도해주세요.",
+              }
+            : msg
+        )
+      );
+    } finally {
       setIsLoading(false);
-    }, 1500);
+    }
   };
 
   return (
@@ -216,6 +279,10 @@ export default function AskPage() {
                       }`}
                     >
                       {message.content}
+                      {/* 스트리밍 중 커서 표시 */}
+                      {isLoading && message.role === "assistant" && message.id === messages[messages.length - 1]?.id && message.content && (
+                        <span className="inline-block w-2 h-5 bg-[var(--oaria-teal)] ml-1 animate-pulse" />
+                      )}
                     </div>
 
                     {/* References */}
@@ -233,7 +300,7 @@ export default function AskPage() {
                         <div className="space-y-2">
                           {message.references.map((ref, idx) => (
                             <div
-                              key={ref.id}
+                              key={`${ref.id}-${idx}`}
                               className="flex items-start gap-3 p-3 rounded-lg bg-[var(--oaria-border)]/20 hover:bg-[var(--oaria-border)]/40 transition-colors group cursor-pointer"
                             >
                               <span className="flex-shrink-0 w-6 h-6 rounded-full bg-[var(--oaria-teal)]/20 text-[var(--oaria-teal)] text-xs font-medium flex items-center justify-center">
@@ -260,18 +327,13 @@ export default function AskPage() {
                 </div>
               ))}
 
-              {/* Loading Indicator */}
-              {isLoading && (
-                <div className="flex gap-4">
-                  <div className="w-8 h-8 rounded-full bg-[var(--oaria-teal)] flex-shrink-0 flex items-center justify-center">
-                    <Bot size={18} className="text-white" />
-                  </div>
-                  <div className="flex items-center gap-2 text-[var(--oaria-text-secondary)]">
-                    <Loader2 size={18} className="animate-spin" />
-                    <span className="font-[family-name:var(--font-dm-sans)] text-base">
-                      Searching papers and generating answer...
-                    </span>
-                  </div>
+              {/* Loading Indicator - 스트리밍 시작 전에만 표시 */}
+              {isLoading && messages[messages.length - 1]?.role === "assistant" && !messages[messages.length - 1]?.content && (
+                <div className="flex items-center gap-2 text-[var(--oaria-text-secondary)] ml-11">
+                  <Loader2 size={18} className="animate-spin" />
+                  <span className="font-[family-name:var(--font-dm-sans)] text-base">
+                    Searching papers and generating answer...
+                  </span>
                 </div>
               )}
 
