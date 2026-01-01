@@ -27,6 +27,7 @@ from app.schemas.chat import (
     MessageResponse,
     PaginatedConversations,
     PaginatedMessages,
+    Reference,
 )
 from app.services import rag_service, llm_service
 
@@ -348,7 +349,7 @@ async def list_messages(
     page: int = 1,
     size: int = 50,
 ):
-    """대화의 메시지 목록 조회"""
+    """대화의 메시지 목록 조회 (assistant 메시지에 references 포함)"""
     # 대화 권한 확인
     conversation = await db.get(Conversation, conversation_id)
     if not conversation or conversation.user_id != current_user.id:
@@ -365,9 +366,12 @@ async def list_messages(
     )
     total = (await db.execute(count_query)).scalar() or 0
 
-    # 메시지 목록
+    # 메시지 목록 (AnswerLog 조인)
+    from sqlalchemy.orm import selectinload
+
     query = (
         select(Message)
+        .options(selectinload(Message.answer_log))
         .where(Message.conversation_id == conversation_id)
         .order_by(Message.created_at.asc())
         .offset(offset)
@@ -376,19 +380,41 @@ async def list_messages(
     result = await db.execute(query)
     messages = result.scalars().all()
 
-    items = [
-        MessageResponse(
-            id=m.id,
-            conversation_id=m.conversation_id,
-            role=m.role,
-            content=m.content,
-            tokens_used=m.tokens_used,
-            model=m.model,
-            latency_ms=m.latency_ms,
-            created_at=m.created_at,
+    items = []
+    for m in messages:
+        # assistant 메시지이고 answer_log가 있으면 evidence를 references로 변환
+        references = None
+        if m.role == "assistant" and m.answer_log and m.answer_log.evidence:
+            references = [
+                Reference(
+                    paper_id=e.get("paper_id", ""),
+                    chunk_id=e.get("chunk_id", ""),
+                    title=e.get("title", ""),
+                    journal=e.get("journal"),
+                    year=e.get("year"),
+                    section=e.get("section", ""),
+                    snippet=e.get("snippet", ""),
+                    offset_start=e.get("offset_start", 0),
+                    offset_end=e.get("offset_end", 0),
+                    text_version=e.get("text_version", "v1"),
+                    distance=e.get("distance", 0.0),
+                )
+                for e in m.answer_log.evidence
+            ]
+
+        items.append(
+            MessageResponse(
+                id=m.id,
+                conversation_id=m.conversation_id,
+                role=m.role,
+                content=m.content,
+                tokens_used=m.tokens_used,
+                model=m.model,
+                latency_ms=m.latency_ms,
+                created_at=m.created_at,
+                references=references,
+            )
         )
-        for m in messages
-    ]
 
     pages = (total + size - 1) // size if total > 0 else 0
 

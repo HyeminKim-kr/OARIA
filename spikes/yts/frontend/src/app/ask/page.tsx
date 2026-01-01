@@ -1,7 +1,8 @@
 "use client";
 
-import { useState, useRef, useEffect } from "react";
+import { useState, useRef, useEffect, useCallback } from "react";
 import Link from "next/link";
+import { useSearchParams, useRouter } from "next/navigation";
 import {
   ArrowUp,
   Search,
@@ -13,7 +14,7 @@ import {
 } from "lucide-react";
 import { ChatSidebar } from "@/components/chat/ChatSidebar";
 import { ReferenceModal } from "@/components/chat/ReferenceModal";
-import { fetchWithAuth } from "@/lib/api";
+import { fetchWithAuth, conversationsApi } from "@/lib/api";
 
 const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
 
@@ -38,23 +39,72 @@ interface Message {
 }
 
 export default function AskPage() {
+  const searchParams = useSearchParams();
+  const router = useRouter();
+
   const [messages, setMessages] = useState<Message[]>([]);
   const [input, setInput] = useState("");
   const [isLoading, setIsLoading] = useState(false);
+  const [isLoadingMessages, setIsLoadingMessages] = useState(false);
   const [statusMessage, setStatusMessage] = useState<string>("");
   const [currentConversationId, setCurrentConversationId] = useState<string | undefined>();
   const [selectedReference, setSelectedReference] = useState<Reference | null>(null);
+  const [sidebarRefresh, setSidebarRefresh] = useState(0);
   const messagesEndRef = useRef<HTMLDivElement>(null);
+
+  // URL에서 conversation ID 읽어서 메시지 로드
+  const loadConversation = useCallback(async (id: string) => {
+    setCurrentConversationId(id);
+    setIsLoadingMessages(true);
+    setMessages([]);
+
+    try {
+      const response = await conversationsApi.getMessages(id);
+      const loadedMessages: Message[] = response.data.items.map((m) => ({
+        id: m.id,
+        role: m.role as "user" | "assistant",
+        content: m.content,
+        references: m.references?.map((r) => ({
+          paper_id: r.paper_id,
+          chunk_id: r.chunk_id,
+          title: r.title,
+          journal: r.journal || "",
+          year: r.year || 0,
+          section: r.section,
+          snippet: r.snippet,
+          offset_start: r.offset_start,
+          offset_end: r.offset_end,
+          distance: r.distance,
+        })),
+      }));
+      setMessages(loadedMessages);
+    } catch (error) {
+      console.error("Failed to load messages:", error);
+      // 대화를 찾을 수 없으면 URL에서 제거
+      router.replace("/ask");
+    } finally {
+      setIsLoadingMessages(false);
+    }
+  }, [router]);
+
+  // 페이지 로드 시 URL의 conversation ID로 대화 로드
+  useEffect(() => {
+    const conversationId = searchParams.get("c");
+    if (conversationId && conversationId !== currentConversationId) {
+      loadConversation(conversationId);
+    }
+  }, [searchParams, currentConversationId, loadConversation]);
 
   const handleNewChat = () => {
     setMessages([]);
     setCurrentConversationId(undefined);
+    router.replace("/ask");
   };
 
-  const handleSelectConversation = (id: string) => {
-    setCurrentConversationId(id);
-    // TODO: Load conversation messages
-    setMessages([]);
+  const handleSelectConversation = async (id: string) => {
+    if (id === currentConversationId) return;
+    router.replace(`/ask?c=${id}`);
+    await loadConversation(id);
   };
 
   const scrollToBottom = () => {
@@ -168,6 +218,10 @@ export default function AskPage() {
               // done 이벤트
               if (data.conversation_id) {
                 setCurrentConversationId(data.conversation_id);
+                // URL 업데이트 (새 대화 생성 시)
+                router.replace(`/ask?c=${data.conversation_id}`);
+                // 새 대화가 생성되었으면 사이드바 새로고침
+                setSidebarRefresh((prev) => prev + 1);
               }
             } catch {
               // JSON 파싱 실패 시 무시
@@ -201,6 +255,7 @@ export default function AskPage() {
         currentConversationId={currentConversationId}
         onNewChat={handleNewChat}
         onSelectConversation={handleSelectConversation}
+        refreshTrigger={sidebarRefresh}
       />
 
       {/* Main Content Area - offset by sidebar width on large screens */}
@@ -231,7 +286,13 @@ export default function AskPage() {
       {/* Messages Area */}
       <div className="flex-1 overflow-y-auto">
         <div className="max-w-5xl mx-auto px-6 py-8">
-          {messages.length === 0 ? (
+          {isLoadingMessages ? (
+            // Loading State
+            <div className="flex flex-col items-center justify-center min-h-[400px]">
+              <Loader2 size={32} className="animate-spin text-[var(--oaria-teal)] mb-4" />
+              <p className="text-[var(--oaria-text-secondary)]">대화 내용을 불러오는 중...</p>
+            </div>
+          ) : messages.length === 0 ? (
             // Empty State
             <div className="flex flex-col items-center justify-center min-h-[400px]">
               <div className="w-16 h-16 rounded-full bg-[var(--oaria-teal)]/10 flex items-center justify-center mb-6">

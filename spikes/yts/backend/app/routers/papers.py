@@ -18,13 +18,11 @@ from ..schemas.paper import (
     PaperDetail,
     PaginatedResponse,
     PaperStats,
-    SectionTextResponse,
     SectionContentResponse,
     ParagraphResponse,
 )
 from ..services.weaviate_service import weaviate_service
 from ..services.s3_service import s3_service
-from ..services.xml_section_parser import xml_section_parser
 
 router = APIRouter(prefix="/papers", tags=["papers"])
 
@@ -171,7 +169,7 @@ async def get_section_content(
     paper_id: str,
     section: str,
 ):
-    """논문 섹션 내용 조회 (display.json 우선, XML fallback)
+    """논문 섹션 내용 조회 (display.json 사용)
 
     Reference 클릭 시 모달에 표시
     단락별로 구분된 데이터 반환
@@ -188,7 +186,7 @@ async def get_section_content(
     first_chunk = chunks[0] if chunks else {}
     section_fulltext_offset = int(first_chunk.get("offsetStart", 0))
 
-    # 1. S3에서 display.json 가져오기 (우선)
+    # S3에서 display.json 가져오기
     display_data = await asyncio.to_thread(s3_service.get_display, paper_id)
 
     if display_data:
@@ -196,8 +194,24 @@ async def get_section_content(
         section_data = _find_section_in_display(display_data, section)
 
         if section_data:
-            paragraphs = section_data.get("paragraphs", [])
-            total_text = " ".join(p.get("text", "") for p in paragraphs)
+            raw_paragraphs = section_data.get("paragraphs", [])
+
+            # 문단별 오프셋 계산 (Batch parser와 동일하게 공백으로 연결)
+            paragraph_responses = []
+            current_offset = 0
+
+            for p in raw_paragraphs:
+                text = p.get("text", "")
+                paragraph_responses.append(
+                    ParagraphResponse(
+                        text=text,
+                        offset_start=current_offset,
+                        offset_end=current_offset + len(text),
+                    )
+                )
+                current_offset += len(text) + 1  # +1 for space separator
+
+            total_text = " ".join(p.get("text", "") for p in raw_paragraphs)
 
             return SectionContentResponse(
                 paper_id=paper_id,
@@ -206,69 +220,13 @@ async def get_section_content(
                 title=first_chunk.get("title", ""),
                 journal=first_chunk.get("journal"),
                 year=first_chunk.get("year"),
-                paragraphs=[
-                    ParagraphResponse(
-                        text=p.get("text", ""),
-                        offset_start=0,  # display.json은 오프셋 없음
-                        offset_end=len(p.get("text", "")),
-                    )
-                    for p in paragraphs
-                ],
+                paragraphs=paragraph_responses,
                 total_text=total_text,
                 section_fulltext_offset=section_fulltext_offset,
             )
 
-    # 2. display.json 없으면 raw.xml 파싱 (기존 방식)
-    raw_xml = await asyncio.to_thread(s3_service.get_raw_xml, paper_id)
-
-    if raw_xml:
-        section_content = await asyncio.to_thread(
-            xml_section_parser.parse_section, raw_xml, section
-        )
-
-        if section_content:
-            return SectionContentResponse(
-                paper_id=paper_id,
-                section=section,
-                section_title=section_content.section_title,
-                title=first_chunk.get("title", ""),
-                journal=first_chunk.get("journal"),
-                year=first_chunk.get("year"),
-                paragraphs=[
-                    ParagraphResponse(
-                        text=p.text,
-                        offset_start=p.offset_start,
-                        offset_end=p.offset_end,
-                    )
-                    for p in section_content.paragraphs
-                ],
-                total_text=section_content.total_text,
-                section_fulltext_offset=section_fulltext_offset,
-            )
-
-    # 3. 둘 다 없으면 Weaviate fallback
-    if not chunks:
-        raise HTTPException(status_code=404, detail="Section not found")
-
-    section_text = _combine_chunks(chunks)
-
-    return SectionContentResponse(
-        paper_id=paper_id,
-        section=section,
-        section_title=section.title(),
-        title=first_chunk.get("title", ""),
-        journal=first_chunk.get("journal"),
-        year=first_chunk.get("year"),
-        paragraphs=[
-            ParagraphResponse(
-                text=section_text,
-                offset_start=0,
-                offset_end=len(section_text),
-            )
-        ],
-        total_text=section_text,
-        section_fulltext_offset=section_fulltext_offset,
-    )
+    # display.json 없으면 404
+    raise HTTPException(status_code=404, detail="Section not found (display.json missing)")
 
 
 def _find_section_in_display(display_data: dict, section_name: str) -> dict | None:
@@ -280,33 +238,3 @@ def _find_section_in_display(display_data: dict, section_name: str) -> dict | No
             return sec
 
     return None
-
-
-def _combine_chunks(chunks: list[dict]) -> str:
-    """청크들을 합쳐서 전체 섹션 텍스트 생성 (오버랩 제거)"""
-    if not chunks:
-        return ""
-
-    if len(chunks) == 1:
-        return chunks[0].get("content", "")
-
-    # 첫 청크는 전체 사용
-    combined = chunks[0].get("content", "")
-
-    # 이후 청크들은 overlap 고려하여 추가
-    for i in range(1, len(chunks)):
-        prev_chunk = chunks[i - 1]
-        curr_chunk = chunks[i]
-
-        prev_end = prev_chunk.get("offsetEnd", 0)
-        curr_start = curr_chunk.get("offsetStart", 0)
-        curr_content = curr_chunk.get("content", "")
-
-        # overlap이 있으면 겹치는 부분 제거
-        if curr_start < prev_end:
-            overlap_size = prev_end - curr_start
-            curr_content = curr_content[overlap_size:]
-
-        combined += curr_content
-
-    return combined

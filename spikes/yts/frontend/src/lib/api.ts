@@ -69,6 +69,76 @@ export const authApi = {
     api.post("/auth/refresh", { refresh_token: refreshToken }),
 };
 
+// Conversation Types
+export interface ConversationListItem {
+  id: string;
+  title: string | null;
+  status: string;
+  message_count: number;
+  last_message_at: string | null;
+}
+
+export interface PaginatedConversations {
+  items: ConversationListItem[];
+  total: number;
+  page: number;
+  size: number;
+  pages: number;
+}
+
+export interface MessageReference {
+  paper_id: string;
+  chunk_id: string;
+  title: string;
+  journal: string | null;
+  year: number | null;
+  section: string;
+  snippet: string;
+  offset_start: number;
+  offset_end: number;
+  text_version: string;
+  distance: number;
+}
+
+export interface MessageItem {
+  id: string;
+  conversation_id: string;
+  role: "user" | "assistant" | "system";
+  content: string;
+  tokens_used: number | null;
+  model: string | null;
+  latency_ms: number | null;
+  created_at: string;
+  references: MessageReference[] | null;
+}
+
+export interface PaginatedMessages {
+  items: MessageItem[];
+  total: number;
+  page: number;
+  size: number;
+  pages: number;
+}
+
+export const conversationsApi = {
+  list: (page = 1, size = 20) =>
+    api.get<PaginatedConversations>("/ai/conversations", { params: { page, size } }),
+
+  get: (id: string) =>
+    api.get(`/ai/conversations/${id}`),
+
+  update: (id: string, data: { title?: string; status?: string }) =>
+    api.patch(`/ai/conversations/${id}`, data),
+
+  delete: (id: string) =>
+    api.delete(`/ai/conversations/${id}`),
+
+  getMessages: (conversationId: string, page = 1, size = 50) =>
+    api.get<PaginatedMessages>(`/ai/conversations/${conversationId}/messages`, {
+      params: { page, size },
+    }),
+};
+
 /**
  * 토큰 갱신을 지원하는 fetch wrapper
  * SSE 스트리밍처럼 axios 대신 native fetch를 써야 할 때 사용

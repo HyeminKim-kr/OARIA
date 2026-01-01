@@ -97,7 +97,7 @@ class PaperStats(BaseModel):
 
 
 # ============================================================
-# Section Text (모달 하이라이트용)
+# Section Content (Reference 모달용)
 # ============================================================
 class ParagraphResponse(BaseModel):
     """단락 응답"""
@@ -106,19 +106,8 @@ class ParagraphResponse(BaseModel):
     offset_end: int
 
 
-class SectionTextResponse(BaseModel):
-    """섹션 풀텍스트 응답 (Weaviate에서 조회) - Legacy"""
-
-    paper_id: str
-    section: str
-    title: str
-    journal: Optional[str] = None
-    year: Optional[int] = None
-    text: str  # 섹션 전체 텍스트
-
-
 class SectionContentResponse(BaseModel):
-    """섹션 내용 응답 (S3 XML 기반) - 단락 구분 포함"""
+    """섹션 내용 응답 (S3 display.json 기반)"""
 
     paper_id: str
     section: str
