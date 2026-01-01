@@ -13,6 +13,7 @@ from .base import Base
 if TYPE_CHECKING:
     from .social_account import SocialAccount
     from .refresh_token import UserRefreshToken
+    from .chat import Conversation, AnswerLog
 
 
 class User(Base):
@@ -65,6 +66,15 @@ class User(Base):
         "UserRefreshToken",
         back_populates="user",
         cascade="all, delete-orphan",
+    )
+    conversations: Mapped[list["Conversation"]] = relationship(
+        "Conversation",
+        back_populates="user",
+        cascade="all, delete-orphan",
+    )
+    answer_logs: Mapped[list["AnswerLog"]] = relationship(
+        "AnswerLog",
+        back_populates="user",
     )
 
     def __repr__(self) -> str:
