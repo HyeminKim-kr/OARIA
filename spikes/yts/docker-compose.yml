@@ -108,7 +108,13 @@ services:
       context: ..  # spikes/ 폴더
       dockerfile: yts/batch/Dockerfile
     container_name: yts-celery-backfill
-    command: celery -A src.celery_app worker -Q backfill --loglevel=info --concurrency=2
+    command: celery -A src.celery_app worker -Q backfill --loglevel=info --concurrency=2 -E
+    healthcheck:
+      test: ["CMD-SHELL", "celery -A src.celery_app inspect ping -d celery@$$HOSTNAME || exit 1"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 30s
     environment:
       - DB_HOST=postgres
       - DB_PORT=5432
@@ -132,7 +138,13 @@ services:
       context: ..  # spikes/ 폴더
       dockerfile: yts/batch/Dockerfile
     container_name: yts-celery-embed
-    command: celery -A src.celery_app worker -Q embed --loglevel=info --concurrency=1
+    command: celery -A src.celery_app worker -Q embed --loglevel=info --concurrency=1 -E
+    healthcheck:
+      test: ["CMD-SHELL", "celery -A src.celery_app inspect ping -d celery@$$HOSTNAME || exit 1"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 30s
     environment:
       - DB_HOST=postgres
       - DB_PORT=5432
@@ -162,6 +174,11 @@ services:
       dockerfile: yts/batch/Dockerfile
     container_name: yts-celery-beat
     command: celery -A src.celery_app beat --loglevel=info
+    healthcheck:
+      test: ["CMD-SHELL", "ps aux | grep 'celery.*beat' | grep -v grep || exit 1"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
     environment:
       - DB_HOST=postgres
       - DB_PORT=5432
@@ -181,6 +198,11 @@ services:
       celery -A src.celery_app flower
       --port=5555
       --basic_auth=${FLOWER_USER:-admin}:${FLOWER_PASSWORD:-flower_dev_2024}
+    healthcheck:
+      test: ["CMD-SHELL", "curl -f http://localhost:5555/healthcheck || exit 1"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
     ports:
       - "15555:5555"
     environment:
@@ -188,6 +210,10 @@ services:
       - REDIS_PORT=6379
     depends_on:
       redis:
+        condition: service_healthy
+      celery-worker-backfill:
+        condition: service_healthy
+      celery-worker-embed:
         condition: service_healthy
     restart: unless-stopped
 

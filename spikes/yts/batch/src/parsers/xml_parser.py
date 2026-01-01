@@ -17,28 +17,31 @@ from .preprocess import clean_text, preprocess_fulltext
 
 
 # 섹션 이름 정규화 매핑
+# NOTE: 각 섹션을 고유하게 유지하여 chunk_id 충돌 방지 (batch-07-260101)
+# - 이전: conclusion→discussion, background→introduction, summary→abstract (중복 발생)
+# - 변경: 각 섹션을 별도로 유지
 SECTION_NAME_MAP = {
-    # Abstract 계열
+    # Abstract 계열 - 분리 유지
     "abstract": "abstract",
-    "summary": "abstract",
-    # Introduction 계열
+    "summary": "summary",  # abstract와 분리 (chunk_id 충돌 방지)
+    # Introduction 계열 - 분리 유지
     "introduction": "introduction",
     "intro": "introduction",
-    "background": "introduction",
-    # Methods 계열
+    "background": "background",  # introduction과 분리 (chunk_id 충돌 방지)
+    # Methods 계열 - 분리 유지
     "methods": "methods",
     "method": "methods",
     "materials and methods": "methods",
-    "methodology": "methods",
-    "experimental": "methods",
-    "experimental procedures": "methods",
-    # Results 계열
+    "methodology": "methodology",  # methods와 분리
+    "experimental": "experimental",  # methods와 분리
+    "experimental procedures": "experimental",
+    # Results 계열 - 분리 유지
     "results": "results",
-    "findings": "results",
-    # Discussion 계열
+    "findings": "findings",  # results와 분리
+    # Discussion 계열 - 분리 유지
     "discussion": "discussion",
-    "conclusions": "discussion",
-    "conclusion": "discussion",
+    "conclusion": "conclusion",  # discussion과 분리 (chunk_id 충돌 방지)
+    "conclusions": "conclusion",
     # 기타 (유지)
     "acknowledgements": "acknowledgements",
     "acknowledgments": "acknowledgements",
