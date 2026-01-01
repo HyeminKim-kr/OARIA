@@ -13,6 +13,8 @@ import {
   HardDrive,
   Boxes,
   Flower2,
+  Cog,
+  Cpu,
 } from "lucide-react";
 import { systemApi, SystemHealth, ServiceStatus } from "@/lib/api";
 
@@ -22,6 +24,8 @@ const serviceIcons: Record<string, React.ComponentType<{ className?: string }>> 
   Weaviate: Boxes,
   MinIO: HardDrive,
   "Celery (Flower)": Flower2,
+  "Celery (Backfill)": Cog,
+  "Celery (Embed)": Cpu,
 };
 
 function StatusBadge({ status }: { status: "healthy" | "unhealthy" | "unknown" }) {

@@ -37,6 +37,8 @@ export enum ServiceName {
   WEAVIATE = 'Weaviate',
   MINIO = 'MinIO',
   CELERY_FLOWER = 'Celery (Flower)',
+  CELERY_BACKFILL = 'Celery (Backfill)',
+  CELERY_EMBED = 'Celery (Embed)',
 }
 
 /**

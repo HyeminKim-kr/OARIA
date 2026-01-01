@@ -65,13 +65,18 @@ export class SystemService {
   }
 
   async getSystemHealth(): Promise<SystemHealth> {
-    const services = await Promise.all([
+    // 인프라 서비스 체크
+    const infraServices = await Promise.all([
       this.checkPostgres(),
       this.checkRedis(),
       this.checkWeaviate(),
       this.checkMinio(),
-      this.checkFlower(),
     ]);
+
+    // Celery 워커 상태 체크 (Flower API 통해)
+    const workerServices = await this.checkCeleryWorkers();
+
+    const services = [...infraServices, ...workerServices];
 
     const unhealthyCount = services.filter(
       (s) => s.status === ServiceHealthStatus.UNHEALTHY,
@@ -204,41 +209,132 @@ export class SystemService {
     }
   }
 
-  private async checkFlower(): Promise<ServiceStatus> {
+  /**
+   * Celery 워커들 상태 체크 (Flower API 통해)
+   * - Flower 자체 상태
+   * - 개별 워커 상태 (backfill, embed, beat)
+   */
+  private async checkCeleryWorkers(): Promise<ServiceStatus[]> {
     const start = Date.now();
     const host = this.configService.get('FLOWER_HOST', 'localhost');
     const port = this.configService.get('FLOWER_PORT', 15555);
     const url = `http://${host}:${port}/api/workers`;
 
+    // 워커 이름 → ServiceName 매핑
+    const workerMapping: Record<string, ServiceName> = {
+      backfill: ServiceName.CELERY_BACKFILL,
+      embed: ServiceName.CELERY_EMBED,
+    };
+
+    // 기대하는 워커들
+    const expectedWorkers = [
+      ServiceName.CELERY_BACKFILL,
+      ServiceName.CELERY_EMBED,
+    ];
+
     try {
       const response = await firstValueFrom(
         this.httpService.get(url, { headers: this.getFlowerAuthHeaders() }).pipe(
-          timeout(3000),
+          timeout(5000),
           catchError(() => of(null)),
         ),
       );
 
+      const results: ServiceStatus[] = [];
+
+      // Flower 자체 상태
       if (response?.data) {
-        const workers = Object.keys(response.data);
-        return {
+        results.push({
           name: ServiceName.CELERY_FLOWER,
           status: ServiceHealthStatus.HEALTHY,
           latency: Date.now() - start,
-          details: { workers: workers.length },
-        };
+        });
+
+        // 워커 데이터 파싱
+        const workersData = response.data as Record<string, {
+          status?: boolean;
+          active?: number;
+          stats?: { total?: Record<string, number> };
+        }>;
+
+        // 발견된 워커들 추적
+        const foundWorkers = new Set<ServiceName>();
+
+        for (const [, info] of Object.entries(workersData)) {
+          // 워커 이름에서 타입 추출 (예: "celery@abc123" → queue 이름으로 매핑)
+          // Flower API는 워커 이름을 "celery@hostname" 형태로 반환
+          // 우리는 active_queues를 확인해서 어떤 워커인지 판단해야 함
+          const workerInfo = info as {
+            status?: boolean;
+            active?: number;
+            active_queues?: Array<{ name: string }>;
+          };
+
+          const queues = workerInfo.active_queues?.map(q => q.name) || [];
+
+          for (const queue of queues) {
+            const serviceName = workerMapping[queue];
+            if (serviceName && !foundWorkers.has(serviceName)) {
+              foundWorkers.add(serviceName);
+
+              const isOnline = workerInfo.status !== false;
+              results.push({
+                name: serviceName,
+                status: isOnline ? ServiceHealthStatus.HEALTHY : ServiceHealthStatus.UNHEALTHY,
+                details: {
+                  active: workerInfo.active || 0,
+                  queues,
+                },
+              });
+            }
+          }
+        }
+
+        // 기대하는 워커 중 발견되지 않은 것들은 UNHEALTHY
+        for (const expected of expectedWorkers) {
+          if (!foundWorkers.has(expected)) {
+            results.push({
+              name: expected,
+              status: ServiceHealthStatus.UNHEALTHY,
+              message: 'Worker not found',
+            });
+          }
+        }
+
+      } else {
+        // Flower 응답 없음 - 모든 워커 상태 unknown
+        results.push({
+          name: ServiceName.CELERY_FLOWER,
+          status: ServiceHealthStatus.UNHEALTHY,
+          message: 'No response from Flower',
+        });
+
+        for (const expected of expectedWorkers) {
+          results.push({
+            name: expected,
+            status: ServiceHealthStatus.UNKNOWN,
+            message: 'Cannot check - Flower unavailable',
+          });
+        }
+
       }
 
-      return {
-        name: ServiceName.CELERY_FLOWER,
-        status: ServiceHealthStatus.UNHEALTHY,
-        message: 'No response from Flower',
-      };
+      return results;
+
     } catch (error) {
-      return {
-        name: ServiceName.CELERY_FLOWER,
-        status: ServiceHealthStatus.UNHEALTHY,
-        message: error instanceof Error ? error.message : 'Connection failed',
-      };
+      // Flower 연결 실패
+      return [
+        {
+          name: ServiceName.CELERY_FLOWER,
+          status: ServiceHealthStatus.UNHEALTHY,
+          message: error instanceof Error ? error.message : 'Connection failed',
+        },
+        ...expectedWorkers.map(name => ({
+          name,
+          status: ServiceHealthStatus.UNKNOWN,
+          message: 'Cannot check - Flower unavailable',
+        })),
+      ];
     }
   }
 

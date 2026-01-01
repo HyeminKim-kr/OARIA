@@ -110,8 +110,8 @@ def get_papers_for_embedding(
                        p.title, p.journal, p.year, p.keywords,
                        p.canonical_prefix, p.embedding_status
                 FROM papers p
-                JOIN article_jobs aj ON aj.pmcid = p.pmcid
-                JOIN collection_jobs cj ON cj.id = aj.batch_job_id
+                JOIN batch_articles aj ON aj.pmcid = p.pmcid
+                JOIN batch_jobs cj ON cj.id = aj.job_id
                 WHERE cj.query_id = %s
                   AND (p.embedding_status = %s OR p.embedding_status IS NULL)
                   AND p.canonical_prefix IS NOT NULL
@@ -272,8 +272,8 @@ def count_pending_papers(conn: psycopg.Connection, query_id: Optional[str] = Non
                 """
                 SELECT COUNT(*)
                 FROM papers p
-                JOIN article_jobs aj ON aj.pmcid = p.pmcid
-                JOIN collection_jobs cj ON cj.id = aj.batch_job_id
+                JOIN batch_articles aj ON aj.pmcid = p.pmcid
+                JOIN batch_jobs cj ON cj.id = aj.job_id
                 WHERE cj.query_id = %s
                   AND (p.embedding_status IS NULL OR p.embedding_status = 'pending')
                   AND p.canonical_prefix IS NOT NULL

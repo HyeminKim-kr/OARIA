@@ -20,7 +20,7 @@ export type JobStatus =
   | 'cancelled'
   | 'retried';
 
-@Entity('collection_jobs')
+@Entity('batch_jobs')
 export class CollectionJob {
   @PrimaryGeneratedColumn('uuid')
   id: string;

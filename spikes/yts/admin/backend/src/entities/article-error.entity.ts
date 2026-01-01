@@ -10,7 +10,7 @@ import { CollectionJob } from './collection-job.entity';
 
 export type ErrorStage = 'search' | 'download' | 'parse' | 'save';
 
-@Entity('article_errors')
+@Entity('batch_errors')
 export class ArticleError {
   @PrimaryGeneratedColumn('uuid')
   id: string;

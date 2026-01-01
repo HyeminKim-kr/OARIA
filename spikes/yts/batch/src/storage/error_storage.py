@@ -1,7 +1,7 @@
 """에러 로그 저장소
 
 OAR-19 스타일: Connection Pool 사용
-article_errors 테이블에 에러 로그 저장
+batch_errors 테이블에 에러 로그 저장
 """
 
 import json
@@ -90,7 +90,7 @@ class ErrorStorage:
 
                     cur.execute(
                         """
-                        INSERT INTO article_errors (
+                        INSERT INTO batch_errors (
                             job_id, pmcid, pmid, doi,
                             stage, error_code, error_message, error_detail,
                             raw_response, context
