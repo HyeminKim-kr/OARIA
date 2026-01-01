@@ -9,15 +9,51 @@ from .paper import (
     PaperStats,
     AuthorResponse,
 )
+from .chat import (
+    Reference,
+    AskFilters,
+    AskRequest,
+    AskReferencesEvent,
+    AskTokenEvent,
+    AskDoneEvent,
+    ConversationCreate,
+    ConversationUpdate,
+    ConversationResponse,
+    ConversationListItem,
+    MessageCreate,
+    MessageResponse,
+    AnswerLogResponse,
+    PaginatedConversations,
+    PaginatedMessages,
+)
 
 __all__ = [
+    # Auth
     "TokenResponse",
+    # User
     "UserCreate",
     "UserResponse",
     "UserUpdate",
+    # Paper
     "PaperListItem",
     "PaperDetail",
     "PaginatedResponse",
     "PaperStats",
     "AuthorResponse",
+    # Chat
+    "Reference",
+    "AskFilters",
+    "AskRequest",
+    "AskReferencesEvent",
+    "AskTokenEvent",
+    "AskDoneEvent",
+    "ConversationCreate",
+    "ConversationUpdate",
+    "ConversationResponse",
+    "ConversationListItem",
+    "MessageCreate",
+    "MessageResponse",
+    "AnswerLogResponse",
+    "PaginatedConversations",
+    "PaginatedMessages",
 ]
