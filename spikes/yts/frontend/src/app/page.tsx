@@ -1,9 +1,28 @@
 "use client";
 
+import { useEffect } from "react";
+import { useRouter } from "next/navigation";
 import { useAuth } from "@/contexts/AuthContext";
 
 export default function Home() {
+  const router = useRouter();
   const { isAuthenticated, isLoading, user, login, logout } = useAuth();
+
+  // 로그인 상태면 메인 페이지로 리다이렉트
+  useEffect(() => {
+    if (!isLoading && isAuthenticated) {
+      router.replace("/main");
+    }
+  }, [isAuthenticated, isLoading, router]);
+
+  // 로딩 중이거나 리다이렉트 중일 때 로딩 화면 표시
+  if (isLoading || isAuthenticated) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-[var(--background)]">
+        <div className="w-12 h-12 border-4 border-[var(--oaria-teal)] border-t-transparent rounded-full animate-spin" />
+      </div>
+    );
+  }
 
   return (
     <div className="min-h-screen bg-[var(--background)]">

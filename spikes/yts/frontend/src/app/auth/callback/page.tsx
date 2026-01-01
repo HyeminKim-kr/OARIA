@@ -27,8 +27,8 @@ function AuthCallbackContent() {
 
       try {
         await setTokens(accessToken, refreshToken);
-        // 로그인 성공 시 채팅 페이지로 이동
-        router.replace("/chat");
+        // 로그인 성공 시 메인 페이지로 이동
+        router.replace("/main");
       } catch (error) {
         console.error("Auth callback error:", error);
         router.replace("/?error=auth_failed");
