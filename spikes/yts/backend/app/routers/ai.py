@@ -4,14 +4,16 @@ Ask AI 엔드포인트 (SSE 스트리밍)
 대화 CRUD 엔드포인트
 """
 
+import asyncio
 import json
+import time
 import uuid
 from typing import Annotated
 
 from fastapi import APIRouter, Depends, HTTPException, status
-from fastapi.responses import StreamingResponse
 from sqlalchemy import select, func
 from sqlalchemy.ext.asyncio import AsyncSession
+from sse_starlette.sse import EventSourceResponse
 
 from app.database import get_db
 from app.dependencies import CurrentUser
@@ -52,8 +54,6 @@ async def ask_ai(
         - event: token (LLM 응답 토큰)
         - event: done (완료, conversation_id 포함)
     """
-    import time
-
     # 대화 조회 (기존 대화인 경우만 미리 검증)
     conversation = None
     if request.conversation_id:
@@ -65,25 +65,32 @@ async def ask_ai(
             )
 
     async def generate_sse():
-        """SSE 스트림 생성"""
+        """SSE 스트림 생성 (EventSourceResponse용)"""
         nonlocal conversation
         total_start = time.perf_counter()
 
-        # 1. 검색 시작 상태 전송
-        yield f"event: status\ndata: {json.dumps({'step': 'searching', 'message': '관련 논문 검색 중...'}, ensure_ascii=False)}\n\n"
+        # 1. 검색 시작 상태 전송 (즉시 flush)
+        yield {
+            "event": "status",
+            "data": json.dumps({"step": "searching", "message": "관련 논문 검색 중..."}, ensure_ascii=False),
+        }
 
-        # 2. RAG 검색
+        # 2. RAG 검색 (동기 함수를 별도 스레드에서 실행)
         filters = request.filters or {}
-        retrieval_result = rag_service.retrieve(
-            query=request.question,
-            year_from=filters.year_from if hasattr(filters, "year_from") else None,
-            year_to=filters.year_to if hasattr(filters, "year_to") else None,
-            sections=filters.sections if hasattr(filters, "sections") else None,
+        retrieval_result = await asyncio.to_thread(
+            rag_service.retrieve,
+            request.question,  # query
+            filters.year_from if hasattr(filters, "year_from") else None,
+            filters.year_to if hasattr(filters, "year_to") else None,
+            filters.sections if hasattr(filters, "sections") else None,
         )
 
         # 3. References 이벤트 전송
         references_data = [ref.model_dump() for ref in retrieval_result.references]
-        yield f"event: references\ndata: {json.dumps({'references': references_data}, ensure_ascii=False)}\n\n"
+        yield {
+            "event": "references",
+            "data": json.dumps({"references": references_data}, ensure_ascii=False),
+        }
 
         # 4. 대화 생성 (신규인 경우)
         if not conversation:
@@ -94,7 +101,6 @@ async def ask_ai(
             )
             db.add(new_conversation)
             await db.flush()
-            # nonlocal 변수 업데이트를 위해 새 변수 사용
             conv = new_conversation
         else:
             conv = conversation
@@ -109,22 +115,55 @@ async def ask_ai(
         await db.flush()
 
         # 6. 답변 생성 시작 상태 전송
-        yield f"event: status\ndata: {json.dumps({'step': 'generating', 'message': '답변 생성 중...'}, ensure_ascii=False)}\n\n"
+        yield {
+            "event": "status",
+            "data": json.dumps({"step": "generating", "message": "답변 생성 중..."}, ensure_ascii=False),
+        }
 
-        # 7. LLM 스트리밍 응답
+        # 7. LLM 스트리밍 응답 (동기 제너레이터를 비동기로 처리)
         full_content = ""
         usage = None
 
-        for chunk in llm_service.generate_stream(
-            question=request.question,
-            context=retrieval_result.context,
-            references=retrieval_result.references,
-        ):
+        # 동기 제너레이터를 스레드에서 실행하고 큐로 토큰 전달
+        import queue
+        token_queue: queue.Queue = queue.Queue()
+
+        def run_llm_stream():
+            """별도 스레드에서 LLM 스트리밍 실행"""
+            for chunk in llm_service.generate_stream(
+                question=request.question,
+                context=retrieval_result.context,
+                references=retrieval_result.references,
+            ):
+                token_queue.put(chunk)
+            token_queue.put(None)  # 종료 신호
+
+        # 스레드 시작
+        import threading
+        llm_thread = threading.Thread(target=run_llm_stream)
+        llm_thread.start()
+
+        # 큐에서 토큰 읽어서 yield
+        while True:
+            # 비동기로 큐 확인 (블로킹 방지)
+            try:
+                chunk = await asyncio.to_thread(token_queue.get, timeout=30)
+            except Exception:
+                break
+
+            if chunk is None:  # 종료 신호
+                break
+
             if chunk.is_done:
                 usage = chunk.usage
             elif chunk.token:
                 full_content += chunk.token
-                yield f"event: token\ndata: {json.dumps({'token': chunk.token}, ensure_ascii=False)}\n\n"
+                yield {
+                    "event": "token",
+                    "data": json.dumps({"token": chunk.token}, ensure_ascii=False),
+                }
+
+        llm_thread.join()
 
         # 8. Assistant 메시지 저장
         total_latency = int((time.perf_counter() - total_start) * 1000)
@@ -134,7 +173,7 @@ async def ask_ai(
             role="assistant",
             content=full_content,
             tokens_used=usage.get("total_tokens") if usage else None,
-            model=llm_service._get_client() and "gpt-4o-mini" or "mock",
+            model="gpt-4o-mini" if not llm_service.use_mock else "mock",
             latency_ms=total_latency,
         )
         db.add(assistant_message)
@@ -163,21 +202,15 @@ async def ask_ai(
         await db.commit()
 
         # 10. Done 이벤트 전송
-        done_data = {
-            "conversation_id": str(conv.id),
-            "message_id": str(assistant_message.id),
+        yield {
+            "event": "done",
+            "data": json.dumps({
+                "conversation_id": str(conv.id),
+                "message_id": str(assistant_message.id),
+            }),
         }
-        yield f"event: done\ndata: {json.dumps(done_data)}\n\n"
 
-    return StreamingResponse(
-        generate_sse(),
-        media_type="text/event-stream",
-        headers={
-            "Cache-Control": "no-cache",
-            "Connection": "keep-alive",
-            "X-Accel-Buffering": "no",
-        },
-    )
+    return EventSourceResponse(generate_sse())
 
 
 # ─────────────────────────────────────────────────────────────
