@@ -12,6 +12,8 @@ import {
   MessageSquare,
 } from "lucide-react";
 import { ChatSidebar } from "@/components/chat/ChatSidebar";
+import { ReferenceModal } from "@/components/chat/ReferenceModal";
+import { fetchWithAuth } from "@/lib/api";
 
 const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
 
@@ -23,6 +25,8 @@ interface Reference {
   year: number;
   section: string;
   snippet: string;
+  offset_start: number;
+  offset_end: number;
   distance: number;
 }
 
@@ -39,6 +43,7 @@ export default function AskPage() {
   const [isLoading, setIsLoading] = useState(false);
   const [statusMessage, setStatusMessage] = useState<string>("");
   const [currentConversationId, setCurrentConversationId] = useState<string | undefined>();
+  const [selectedReference, setSelectedReference] = useState<Reference | null>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
 
   const handleNewChat = () => {
@@ -88,12 +93,10 @@ export default function AskPage() {
     ]);
 
     try {
-      const token = localStorage.getItem("access_token");
-      const response = await fetch(`${API_BASE_URL}/ai/ask`, {
+      const response = await fetchWithAuth(`${API_BASE_URL}/ai/ask`, {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
-          ...(token && { Authorization: `Bearer ${token}` }),
         },
         body: JSON.stringify({
           question,
@@ -314,6 +317,7 @@ export default function AskPage() {
                             <div
                               key={`${ref.paper_id}-${ref.section}-${idx}`}
                               className="p-4 rounded-lg bg-[var(--oaria-border)]/20 hover:bg-[var(--oaria-border)]/40 transition-colors group cursor-pointer"
+                              onClick={() => setSelectedReference(ref)}
                             >
                               <div className="flex items-start gap-3">
                                 <span className="flex-shrink-0 w-6 h-6 rounded-full bg-[var(--oaria-teal)]/20 text-[var(--oaria-teal)] text-xs font-medium flex items-center justify-center">
@@ -399,6 +403,14 @@ export default function AskPage() {
         </div>
       </div>
       </div>
+
+      {/* Reference Modal */}
+      {selectedReference && (
+        <ReferenceModal
+          reference={selectedReference}
+          onClose={() => setSelectedReference(null)}
+        />
+      )}
     </div>
   );
 }

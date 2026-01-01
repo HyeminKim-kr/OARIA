@@ -18,7 +18,13 @@ from ..schemas.paper import (
     PaperDetail,
     PaginatedResponse,
     PaperStats,
+    SectionTextResponse,
+    SectionContentResponse,
+    ParagraphResponse,
 )
+from ..services.weaviate_service import weaviate_service
+from ..services.s3_service import s3_service
+from ..services.xml_section_parser import xml_section_parser
 
 router = APIRouter(prefix="/papers", tags=["papers"])
 
@@ -158,3 +164,120 @@ async def get_paper(
         raise HTTPException(status_code=404, detail="Paper not found")
 
     return PaperDetail.model_validate(paper)
+
+
+@router.get("/{paper_id}/sections/{section}", response_model=SectionContentResponse)
+async def get_section_content(
+    paper_id: str,
+    section: str,
+):
+    """논문 섹션 내용 조회 (S3 XML 기반, 단락 구분 포함)
+
+    Reference 클릭 시 모달에 표시
+    단락별로 구분된 데이터 반환
+    """
+    import asyncio
+
+    # 1. S3에서 raw.xml 가져오기
+    raw_xml = await asyncio.to_thread(s3_service.get_raw_xml, paper_id)
+
+    if raw_xml:
+        # 2. XML 파싱하여 섹션 추출
+        section_content = await asyncio.to_thread(
+            xml_section_parser.parse_section, raw_xml, section
+        )
+
+        if section_content:
+            # Weaviate에서 메타데이터 가져오기 (title, journal, year, 섹션 오프셋)
+            chunks = await asyncio.to_thread(
+                weaviate_service.get_chunks_by_paper_and_section,
+                paper_id,
+                section,
+            )
+
+            first_chunk = chunks[0] if chunks else {}
+            # 섹션의 fulltext 시작 오프셋 (첫 번째 청크의 offsetStart)
+            section_fulltext_offset = int(first_chunk.get("offsetStart", 0))
+
+            return SectionContentResponse(
+                paper_id=paper_id,
+                section=section,
+                section_title=section_content.section_title,
+                title=first_chunk.get("title", ""),
+                journal=first_chunk.get("journal"),
+                year=first_chunk.get("year"),
+                paragraphs=[
+                    ParagraphResponse(
+                        text=p.text,
+                        offset_start=p.offset_start,
+                        offset_end=p.offset_end,
+                    )
+                    for p in section_content.paragraphs
+                ],
+                total_text=section_content.total_text,
+                section_fulltext_offset=section_fulltext_offset,
+            )
+
+    # 3. S3에 없으면 Weaviate fallback
+    chunks = await asyncio.to_thread(
+        weaviate_service.get_chunks_by_paper_and_section,
+        paper_id,
+        section,
+    )
+
+    if not chunks:
+        raise HTTPException(status_code=404, detail="Section not found")
+
+    section_text = _combine_chunks(chunks)
+    first_chunk = chunks[0]
+    # Weaviate fallback: 섹션 시작 오프셋
+    section_fulltext_offset = int(first_chunk.get("offsetStart", 0))
+
+    # 단락 구분 없이 전체를 하나의 단락으로
+    return SectionContentResponse(
+        paper_id=paper_id,
+        section=section,
+        section_title=section.title(),
+        title=first_chunk.get("title", ""),
+        journal=first_chunk.get("journal"),
+        year=first_chunk.get("year"),
+        paragraphs=[
+            ParagraphResponse(
+                text=section_text,
+                offset_start=0,
+                offset_end=len(section_text),
+            )
+        ],
+        total_text=section_text,
+        section_fulltext_offset=section_fulltext_offset,
+    )
+
+
+def _combine_chunks(chunks: list[dict]) -> str:
+    """청크들을 합쳐서 전체 섹션 텍스트 생성 (오버랩 제거)"""
+    if not chunks:
+        return ""
+
+    if len(chunks) == 1:
+        return chunks[0].get("content", "")
+
+    # 첫 청크는 전체 사용
+    combined = chunks[0].get("content", "")
+
+    # 이후 청크들은 overlap 고려하여 추가
+    for i in range(1, len(chunks)):
+        prev_chunk = chunks[i - 1]
+        curr_chunk = chunks[i]
+
+        prev_end = prev_chunk.get("offsetEnd", 0)
+        curr_start = curr_chunk.get("offsetStart", 0)
+        curr_content = curr_chunk.get("content", "")
+
+        # overlap이 있으면 겹치는 부분 제거
+        if curr_start < prev_end:
+            overlap_size = prev_end - curr_start
+            curr_content = curr_content[overlap_size:]
+
+        combined += curr_content
+
+    return combined

@@ -34,4 +34,10 @@ dependencies = [
 
     # SSE
     "sse-starlette>=2.0.0",
+
+    # S3/MinIO
+    "boto3>=1.35.0",
+
+    # XML Parsing
+    "lxml>=5.0.0",
 ]
