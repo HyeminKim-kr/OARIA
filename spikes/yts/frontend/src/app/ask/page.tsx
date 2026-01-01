@@ -34,6 +34,7 @@ export default function AskPage() {
   const [messages, setMessages] = useState<Message[]>([]);
   const [input, setInput] = useState("");
   const [isLoading, setIsLoading] = useState(false);
+  const [statusMessage, setStatusMessage] = useState<string>("");
   const [currentConversationId, setCurrentConversationId] = useState<string | undefined>();
   const messagesEndRef = useRef<HTMLDivElement>(null);
 
@@ -129,8 +130,14 @@ export default function AskPage() {
             try {
               const data = JSON.parse(dataStr);
 
+              // status 이벤트 (진행 상태)
+              if (data.step && data.message) {
+                setStatusMessage(data.message);
+              }
+
               // references 이벤트
               if (data.references) {
+                setStatusMessage(""); // 상태 메시지 초기화
                 setMessages((prev) =>
                   prev.map((msg) =>
                     msg.id === assistantMessageId
@@ -142,6 +149,7 @@ export default function AskPage() {
 
               // token 이벤트
               if (data.token) {
+                setStatusMessage(""); // 상태 메시지 초기화
                 setMessages((prev) =>
                   prev.map((msg) =>
                     msg.id === assistantMessageId
@@ -176,6 +184,7 @@ export default function AskPage() {
       );
     } finally {
       setIsLoading(false);
+      setStatusMessage("");
     }
   };
 
@@ -327,12 +336,12 @@ export default function AskPage() {
                 </div>
               ))}
 
-              {/* Loading Indicator - 스트리밍 시작 전에만 표시 */}
-              {isLoading && messages[messages.length - 1]?.role === "assistant" && !messages[messages.length - 1]?.content && (
+              {/* Loading Indicator - 상태 메시지 표시 */}
+              {isLoading && statusMessage && (
                 <div className="flex items-center gap-2 text-[var(--oaria-text-secondary)] ml-11">
-                  <Loader2 size={18} className="animate-spin" />
+                  <Loader2 size={18} className="animate-spin text-[var(--oaria-teal)]" />
                   <span className="font-[family-name:var(--font-dm-sans)] text-base">
-                    Searching papers and generating answer...
+                    {statusMessage}
                   </span>
                 </div>
               )}
