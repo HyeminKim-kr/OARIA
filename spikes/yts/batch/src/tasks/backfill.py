@@ -3,8 +3,8 @@
 OAR-21 설계 기반:
 - search_queries에서 쿼리 조회
 - Europe PMC 검색 → 전문 수집 → 파싱 → 저장
-- collection_jobs 상태 관리
-- article_jobs로 개별 논문 상태 관리
+- batch_jobs 상태 관리
+- batch_articles로 개별 논문 상태 관리
 - 체크포인트 저장 (중단 재개)
 """
 
@@ -66,13 +66,13 @@ def upsert_article_job(
     pmid: str | None = None,
     doi: str | None = None,
 ) -> None:
-    """article_jobs에 논문 등록 (중복 시 무시)"""
+    """batch_articles에 논문 등록 (중복 시 무시)"""
     with conn.cursor() as cur:
         cur.execute(
             """
-            INSERT INTO article_jobs (batch_job_id, pmcid, pmid, doi, status)
+            INSERT INTO batch_articles (job_id, pmcid, pmid, doi, status)
             VALUES (%s, %s, %s, %s, 'pending')
-            ON CONFLICT (batch_job_id, pmcid) DO NOTHING
+            ON CONFLICT (job_id, pmcid) DO NOTHING
             """,
             (job_id, pmcid, pmid, doi),
         )
@@ -83,7 +83,7 @@ def batch_upsert_article_jobs(
     job_id: str,
     articles: list[dict],
 ) -> int:
-    """article_jobs에 배치로 논문 등록
+    """batch_articles에 배치로 논문 등록
 
     Args:
         conn: DB 연결
@@ -101,9 +101,9 @@ def batch_upsert_article_jobs(
         # metadata 컬럼 추가 (JSONB)
         cur.executemany(
             """
-            INSERT INTO article_jobs (batch_job_id, pmcid, pmid, doi, status, metadata)
+            INSERT INTO batch_articles (job_id, pmcid, pmid, doi, status, metadata)
             VALUES (%s, %s, %s, %s, 'pending', %s)
-            ON CONFLICT (batch_job_id, pmcid) DO NOTHING
+            ON CONFLICT (job_id, pmcid) DO NOTHING
             """,
             [
                 (
@@ -128,13 +128,13 @@ def update_article_status(
     error_code: str | None = None,
     error_msg: str | None = None,
 ) -> None:
-    """article_jobs 상태 업데이트"""
+    """batch_articles 상태 업데이트"""
     with conn.cursor() as cur:
         if status == "failed":
             # 실패 시 재시도 설정 (attempt_count < max_attempts이면)
             cur.execute(
                 """
-                UPDATE article_jobs SET
+                UPDATE batch_articles SET
                     status = CASE
                         WHEN attempt_count + 1 < max_attempts THEN 'pending'
                         ELSE 'failed'
@@ -147,17 +147,17 @@ def update_article_status(
                     last_error_code = %s,
                     last_error = %s,
                     updated_at = NOW()
-                WHERE batch_job_id = %s AND pmcid = %s
+                WHERE job_id = %s AND pmcid = %s
                 """,
                 (error_code, error_msg, job_id, pmcid),
             )
         else:
             cur.execute(
                 """
-                UPDATE article_jobs SET
+                UPDATE batch_articles SET
                     status = %s,
                     updated_at = NOW()
-                WHERE batch_job_id = %s AND pmcid = %s
+                WHERE job_id = %s AND pmcid = %s
                 """,
                 (status, job_id, pmcid),
             )
@@ -174,8 +174,8 @@ def get_pending_articles(
         cur.execute(
             """
             SELECT pmcid, pmid, doi, metadata
-            FROM article_jobs
-            WHERE batch_job_id = %s
+            FROM batch_articles
+            WHERE job_id = %s
               AND status = 'pending'
               AND (next_run_at IS NULL OR next_run_at <= NOW())
             ORDER BY created_at
@@ -195,7 +195,7 @@ def get_pending_articles(
 
 
 def get_article_job_stats(conn: psycopg.Connection, job_id: str) -> dict:
-    """article_jobs 통계 조회"""
+    """batch_articles 통계 조회"""
     with conn.cursor() as cur:
         cur.execute(
             """
@@ -205,8 +205,8 @@ def get_article_job_stats(conn: psycopg.Connection, job_id: str) -> dict:
                 COUNT(*) FILTER (WHERE status = 'failed') as failed,
                 COUNT(*) FILTER (WHERE status = 'pending') as pending,
                 COUNT(*) FILTER (WHERE status IN ('downloading', 'parsing', 'saving')) as in_progress
-            FROM article_jobs
-            WHERE batch_job_id = %s
+            FROM batch_articles
+            WHERE job_id = %s
             """,
             (job_id,),
         )
@@ -218,6 +218,19 @@ def get_article_job_stats(conn: psycopg.Connection, job_id: str) -> dict:
             "pending": row[3],
             "in_progress": row[4],
         }
+
+
+def check_job_cancelled(conn: psycopg.Connection, job_id: str) -> bool:
+    """Job이 cancelled 상태인지 확인"""
+    with conn.cursor() as cur:
+        cur.execute(
+            """
+            SELECT status FROM batch_jobs WHERE id = %s
+            """,
+            (job_id,),
+        )
+        row = cur.fetchone()
+        return row is not None and row[0] == "cancelled"
 
 
 def get_db_connection() -> psycopg.Connection:
@@ -263,14 +276,14 @@ def get_search_query(conn: psycopg.Connection, query_id: str) -> dict | None:
 def create_job(
     conn: psycopg.Connection, query_id: str, query_text: str
 ) -> str:
-    """collection_jobs 생성"""
+    """batch_jobs 생성"""
     import socket
     worker_id = socket.gethostname()
 
     with conn.cursor() as cur:
         cur.execute(
             """
-            INSERT INTO collection_jobs (
+            INSERT INTO batch_jobs (
                 job_type, query_id, priority, query, status,
                 locked_at, locked_by, started_at, created_at
             ) VALUES (
@@ -300,7 +313,7 @@ def update_job_progress(
         if checkpoint:
             cur.execute(
                 """
-                UPDATE collection_jobs SET
+                UPDATE batch_jobs SET
                     processed_count = %s,
                     success_count = %s,
                     failed_count = %s,
@@ -315,7 +328,7 @@ def update_job_progress(
         else:
             cur.execute(
                 """
-                UPDATE collection_jobs SET
+                UPDATE batch_jobs SET
                     processed_count = %s,
                     success_count = %s,
                     failed_count = %s,
@@ -336,7 +349,7 @@ def complete_job(
     with conn.cursor() as cur:
         cur.execute(
             """
-            UPDATE collection_jobs SET
+            UPDATE batch_jobs SET
                 status = %s,
                 completed_at = NOW(),
                 updated_at = NOW()
@@ -389,8 +402,8 @@ async def run_backfill_async(query_id: str, resume_job_id: str | None = None) ->
 
     OAR-19/21 설계:
     - Connection Pool 사용 (동시성 안전)
-    - Phase 1 (Search): Europe PMC 검색 → article_jobs에 등록
-    - Phase 2 (Collect): pending 상태 article_jobs 처리
+    - Phase 1 (Search): Europe PMC 검색 → batch_articles에 등록
+    - Phase 2 (Collect): pending 상태 batch_articles 처리
 
     Args:
         query_id: search_queries.id
@@ -429,7 +442,7 @@ async def run_backfill_async(query_id: str, resume_job_id: str | None = None) ->
                 pmc_query=pmc_query,
             )
 
-    # 4. Phase 1: Search - article_jobs에 등록
+    # 4. Phase 1: Search - batch_articles에 등록
     if not resume_job_id:
         await _phase_search(pool, job_id, pmc_query, search_query)
 
@@ -445,7 +458,7 @@ async def _phase_search(
     pmc_query: str,
     search_query: dict,
 ) -> dict:
-    """Phase 1: 검색하여 article_jobs에 등록
+    """Phase 1: 검색하여 batch_articles에 등록
 
     OAR-19 스타일: Connection Pool 사용
     pubType 기반 필터링 적용
@@ -751,7 +764,7 @@ async def _phase_collect(
     query_id: str,
     search_query: dict,
 ) -> dict:
-    """Phase 2: pending 상태 article_jobs 병렬 처리
+    """Phase 2: pending 상태 batch_articles 병렬 처리
 
     OAR-19 스타일: Connection Pool 공유
     - 각 태스크가 pool.connection()으로 연결 획득/반환
@@ -774,6 +787,15 @@ async def _phase_collect(
     try:
         async with EuropePMCClient(max_concurrent=max_concurrent) as client:
             while True:
+                # Job cancelled 상태 체크 (Admin에서 취소 시)
+                with pool.connection() as conn:
+                    if check_job_cancelled(conn, job_id):
+                        logger.info(
+                            "job_cancelled_by_user",
+                            job_id=job_id,
+                        )
+                        break
+
                 # pending 상태 논문 조회
                 with pool.connection() as conn:
                     pending = get_pending_articles(conn, job_id, limit=max_concurrent)
@@ -812,8 +834,19 @@ async def _phase_collect(
         # 최종 통계 및 완료 처리
         with pool.connection() as conn:
             final_stats = get_article_job_stats(conn, job_id)
-            status = "completed" if final_stats["pending"] == 0 else "partial"
-            complete_job(conn, job_id, status)
+
+            # cancelled 상태면 상태 변경하지 않음 (이미 Admin에서 변경됨)
+            if check_job_cancelled(conn, job_id):
+                status = "cancelled"
+                logger.info(
+                    "backfill_stopped_by_cancel",
+                    job_id=job_id,
+                    **final_stats,
+                )
+            else:
+                status = "completed" if final_stats["pending"] == 0 else "partial"
+                complete_job(conn, job_id, status)
+
             update_query_stats(conn, query_id, final_stats["completed"])
 
         result = {
@@ -869,11 +902,11 @@ def run_backfill(self, query_id: str) -> dict:
 def run_backfill_resume(self, query_id: str, job_id: str) -> dict:
     """Backfill Resume 태스크 (Celery)
 
-    기존 job을 이어서 처리 (pending 상태 article_jobs만 처리)
+    기존 job을 이어서 처리 (pending 상태 batch_articles만 처리)
 
     Args:
         query_id: search_queries.id (UUID 문자열)
-        job_id: 재개할 collection_jobs.id
+        job_id: 재개할 batch_jobs.id
 
     Returns:
         실행 결과 dict
