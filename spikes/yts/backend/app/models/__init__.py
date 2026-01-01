@@ -14,6 +14,7 @@ from .batch import (
     BatchFailedItem,
     Watermark,
 )
+from .chat import Conversation, Message, AnswerLog
 
 __all__ = [
     # Base
@@ -35,4 +36,8 @@ __all__ = [
     "BatchLog",
     "BatchFailedItem",
     "Watermark",
+    # Chat
+    "Conversation",
+    "Message",
+    "AnswerLog",
 ]
