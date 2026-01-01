@@ -55,6 +55,22 @@ class Settings(BaseSettings):
     # App
     debug: bool = Field(default=True, description="디버그 모드")
 
+    # Weaviate
+    weaviate_host: str = Field(default="localhost", description="Weaviate 호스트")
+    weaviate_port: int = Field(default=8080, description="Weaviate 포트")
+
+    # OpenAI
+    openai_api_key: str = Field(default="", description="OpenAI API 키")
+    openai_embedding_model: str = Field(
+        default="text-embedding-3-small", description="임베딩 모델"
+    )
+    openai_embedding_dimensions: int = Field(
+        default=1536, description="임베딩 차원"
+    )
+    openai_chat_model: str = Field(
+        default="gpt-4o-mini", description="챗 모델"
+    )
+
     @computed_field
     @property
     def database_url_sync(self) -> str:
