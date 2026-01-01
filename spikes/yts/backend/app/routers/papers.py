@@ -171,34 +171,62 @@ async def get_section_content(
     paper_id: str,
     section: str,
 ):
-    """논문 섹션 내용 조회 (S3 XML 기반, 단락 구분 포함)
+    """논문 섹션 내용 조회 (display.json 우선, XML fallback)
 
     Reference 클릭 시 모달에 표시
     단락별로 구분된 데이터 반환
     """
     import asyncio
 
-    # 1. S3에서 raw.xml 가져오기
+    # Weaviate에서 메타데이터 가져오기 (title, journal, year, 섹션 오프셋)
+    chunks = await asyncio.to_thread(
+        weaviate_service.get_chunks_by_paper_and_section,
+        paper_id,
+        section,
+    )
+
+    first_chunk = chunks[0] if chunks else {}
+    section_fulltext_offset = int(first_chunk.get("offsetStart", 0))
+
+    # 1. S3에서 display.json 가져오기 (우선)
+    display_data = await asyncio.to_thread(s3_service.get_display, paper_id)
+
+    if display_data:
+        # display.json에서 해당 섹션 찾기
+        section_data = _find_section_in_display(display_data, section)
+
+        if section_data:
+            paragraphs = section_data.get("paragraphs", [])
+            total_text = " ".join(p.get("text", "") for p in paragraphs)
+
+            return SectionContentResponse(
+                paper_id=paper_id,
+                section=section,
+                section_title=section_data.get("title", section.title()),
+                title=first_chunk.get("title", ""),
+                journal=first_chunk.get("journal"),
+                year=first_chunk.get("year"),
+                paragraphs=[
+                    ParagraphResponse(
+                        text=p.get("text", ""),
+                        offset_start=0,  # display.json은 오프셋 없음
+                        offset_end=len(p.get("text", "")),
+                    )
+                    for p in paragraphs
+                ],
+                total_text=total_text,
+                section_fulltext_offset=section_fulltext_offset,
+            )
+
+    # 2. display.json 없으면 raw.xml 파싱 (기존 방식)
     raw_xml = await asyncio.to_thread(s3_service.get_raw_xml, paper_id)
 
     if raw_xml:
-        # 2. XML 파싱하여 섹션 추출
         section_content = await asyncio.to_thread(
             xml_section_parser.parse_section, raw_xml, section
         )
 
         if section_content:
-            # Weaviate에서 메타데이터 가져오기 (title, journal, year, 섹션 오프셋)
-            chunks = await asyncio.to_thread(
-                weaviate_service.get_chunks_by_paper_and_section,
-                paper_id,
-                section,
-            )
-
-            first_chunk = chunks[0] if chunks else {}
-            # 섹션의 fulltext 시작 오프셋 (첫 번째 청크의 offsetStart)
-            section_fulltext_offset = int(first_chunk.get("offsetStart", 0))
-
             return SectionContentResponse(
                 paper_id=paper_id,
                 section=section,
@@ -218,22 +246,12 @@ async def get_section_content(
                 section_fulltext_offset=section_fulltext_offset,
             )
 
-    # 3. S3에 없으면 Weaviate fallback
-    chunks = await asyncio.to_thread(
-        weaviate_service.get_chunks_by_paper_and_section,
-        paper_id,
-        section,
-    )
-
+    # 3. 둘 다 없으면 Weaviate fallback
     if not chunks:
         raise HTTPException(status_code=404, detail="Section not found")
 
     section_text = _combine_chunks(chunks)
-    first_chunk = chunks[0]
-    # Weaviate fallback: 섹션 시작 오프셋
-    section_fulltext_offset = int(first_chunk.get("offsetStart", 0))
 
-    # 단락 구분 없이 전체를 하나의 단락으로
     return SectionContentResponse(
         paper_id=paper_id,
         section=section,
@@ -251,6 +269,17 @@ async def get_section_content(
         total_text=section_text,
         section_fulltext_offset=section_fulltext_offset,
     )
+
+
+def _find_section_in_display(display_data: dict, section_name: str) -> dict | None:
+    """display.json에서 섹션 찾기"""
+    sections = display_data.get("sections", [])
+
+    for sec in sections:
+        if sec.get("name") == section_name:
+            return sec
+
+    return None
 
 
 def _combine_chunks(chunks: list[dict]) -> str:

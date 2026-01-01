@@ -211,15 +211,26 @@ export class PapersService {
     const paper = await this.findOne(id);
 
     if (!paper.canonicalPrefix) {
-      return { fulltext: null, rawXml: null };
+      return { fulltext: null, rawXml: null, display: null };
     }
 
-    const [fulltext, rawXml] = await Promise.all([
+    const [fulltext, rawXml, displayJson] = await Promise.all([
       this.getS3Object(`${paper.canonicalPrefix}/fulltext.txt`),
       this.getS3Object(`${paper.canonicalPrefix}/raw.xml`),
+      this.getS3Object(`${paper.canonicalPrefix}/display.json`),
     ]);
 
-    return { fulltext, rawXml };
+    // display.json 파싱
+    let display = null;
+    if (displayJson) {
+      try {
+        display = JSON.parse(displayJson);
+      } catch {
+        display = null;
+      }
+    }
+
+    return { fulltext, rawXml, display };
   }
 
   private async getS3Object(key: string): Promise<string | null> {

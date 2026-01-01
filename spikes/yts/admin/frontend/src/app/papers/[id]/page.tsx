@@ -79,7 +79,7 @@ export default function PaperDetailPage() {
   const router = useRouter();
   const queryClient = useQueryClient();
   const id = params.id as string;
-  const [activeTab, setActiveTab] = useState<'fulltext' | 'xml'>('fulltext');
+  const [activeTab, setActiveTab] = useState<'fulltext' | 'display' | 'xml'>('fulltext');
 
   const { data: paper, isLoading: paperLoading } = useQuery({
     queryKey: ['paper', id],
@@ -235,7 +235,7 @@ export default function PaperDetailPage() {
         />
       </div>
 
-      {/* Fulltext / XML Tabs */}
+      {/* Fulltext / Display / XML Tabs */}
       <div className="rounded-lg bg-white shadow">
         <div className="border-b border-gray-200">
           <nav className="flex">
@@ -249,6 +249,22 @@ export default function PaperDetailPage() {
             >
               <FileText className="h-4 w-4" />
               Full Text
+            </button>
+            <button
+              onClick={() => setActiveTab('display')}
+              className={`flex items-center gap-2 px-6 py-3 text-sm font-medium ${
+                activeTab === 'display'
+                  ? 'border-b-2 border-green-500 text-green-600'
+                  : 'text-gray-500 hover:text-gray-700'
+              }`}
+            >
+              <Layers className="h-4 w-4" />
+              Display
+              {fulltext?.display && (
+                <span className="ml-1 text-xs bg-green-100 text-green-700 px-1.5 py-0.5 rounded">
+                  {fulltext.display.sections?.length || 0}
+                </span>
+              )}
             </button>
             <button
               onClick={() => setActiveTab('xml')}
@@ -279,6 +295,35 @@ export default function PaperDetailPage() {
             ) : (
               <p className="text-gray-500 text-center py-8">
                 Full text not available
+              </p>
+            )
+          ) : activeTab === 'display' ? (
+            fulltext?.display ? (
+              <div className="max-h-[600px] overflow-auto space-y-6">
+                {fulltext.display.sections.map((section, sIdx) => (
+                  <div key={sIdx} className="border rounded-lg overflow-hidden">
+                    <div className="bg-gray-100 px-4 py-2 flex items-center gap-2">
+                      <span className="text-xs font-mono bg-blue-100 text-blue-700 px-2 py-0.5 rounded">
+                        {section.name}
+                      </span>
+                      <span className="font-medium text-gray-900">{section.title}</span>
+                      <span className="text-xs text-gray-500">
+                        ({section.paragraphs?.length || 0} paragraphs)
+                      </span>
+                    </div>
+                    <div className="p-4 space-y-3">
+                      {section.paragraphs?.map((para, pIdx) => (
+                        <p key={pIdx} className="text-sm text-gray-700 leading-relaxed">
+                          {para.text}
+                        </p>
+                      ))}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            ) : (
+              <p className="text-gray-500 text-center py-8">
+                Display data not available (논문 재수집 필요)
               </p>
             )
           ) : fulltext?.rawXml ? (

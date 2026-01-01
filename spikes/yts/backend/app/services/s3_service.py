@@ -1,7 +1,9 @@
 """S3/MinIO 서비스
 
-논문 원문(XML) 조회
+논문 원문(XML, display) 조회
 """
+
+import json
 
 import boto3
 from botocore.exceptions import ClientError
@@ -63,6 +65,29 @@ class S3Service:
                 Key=key,
             )
             return response["Body"].read().decode("utf-8")
+        except ClientError as e:
+            if e.response["Error"]["Code"] == "NoSuchKey":
+                return None
+            raise
+
+    def get_display(self, paper_id: str) -> dict | None:
+        """논문 display.json 조회 (가독성용 섹션/문단 구조)
+
+        Args:
+            paper_id: 논문 ID
+
+        Returns:
+            display 딕셔너리 또는 None
+        """
+        safe_id = paper_id.replace(":", "_")
+        key = f"canonical/{safe_id}/display.json"
+
+        try:
+            response = self._client.get_object(
+                Bucket=self._bucket,
+                Key=key,
+            )
+            return json.loads(response["Body"].read().decode("utf-8"))
         except ClientError as e:
             if e.response["Error"]["Code"] == "NoSuchKey":
                 return None

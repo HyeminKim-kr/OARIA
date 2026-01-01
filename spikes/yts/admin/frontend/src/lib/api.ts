@@ -174,9 +174,24 @@ export const collectionJobsApi = {
     api.get<ErrorStats>(`/collection-jobs/${id}/errors/stats`).then((res) => res.data),
 };
 
+export interface DisplayParagraph {
+  text: string;
+}
+
+export interface DisplaySection {
+  name: string;
+  title: string;
+  paragraphs: DisplayParagraph[];
+}
+
+export interface DisplayData {
+  sections: DisplaySection[];
+}
+
 export interface PaperFulltext {
   fulltext: string | null;
   rawXml: string | null;
+  display: DisplayData | null;
 }
 
 export interface EmbedTriggerResponse {

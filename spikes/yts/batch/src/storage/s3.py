@@ -1,9 +1,10 @@
 """S3/MinIO 저장소
 
-논문 원문(XML, fulltext) 저장
+논문 원문(XML, fulltext, display) 저장
 """
 
-from dataclasses import dataclass, field
+import json
+from dataclasses import asdict, dataclass, field
 
 import boto3
 import structlog
@@ -64,12 +65,24 @@ class S3Storage:
                 content_type="text/plain; charset=utf-8",
             )
 
+        # 3. display.json 저장 (가독성용 섹션/문단 구조)
+        if paper.display_sections:
+            display_data = {
+                "sections": [asdict(sec) for sec in paper.display_sections]
+            }
+            self._put_object(
+                key=f"{prefix}/display.json",
+                body=json.dumps(display_data, ensure_ascii=False, indent=2),
+                content_type="application/json; charset=utf-8",
+            )
+
         logger.info(
             "paper_saved_s3",
             paper_id=paper.paper_id,
             prefix=prefix,
             has_xml=paper.raw_xml is not None,
             has_fulltext=paper.fulltext is not None,
+            has_display=bool(paper.display_sections),
         )
 
         return prefix
@@ -104,6 +117,19 @@ class S3Storage:
                 Key=f"{prefix}/raw.xml",
             )
             return response["Body"].read().decode("utf-8")
+        except ClientError as e:
+            if e.response["Error"]["Code"] == "NoSuchKey":
+                return None
+            raise
+
+    def get_display(self, prefix: str) -> dict | None:
+        """display.json 조회 (가독성용 섹션/문단 구조)"""
+        try:
+            response = self._client.get_object(
+                Bucket=self.bucket,
+                Key=f"{prefix}/display.json",
+            )
+            return json.loads(response["Body"].read().decode("utf-8"))
         except ClientError as e:
             if e.response["Error"]["Code"] == "NoSuchKey":
                 return None

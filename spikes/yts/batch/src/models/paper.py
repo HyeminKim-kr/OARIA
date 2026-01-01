@@ -17,13 +17,32 @@ class Author:
 
 @dataclass
 class Section:
-    """논문 섹션"""
+    """논문 섹션 (임베딩용 - fulltext 오프셋)"""
 
     name: str  # abstract, introduction, methods, results, discussion
     title: str | None
     order: int
     offset_start: int
     offset_end: int
+
+
+@dataclass
+class DisplayParagraph:
+    """디스플레이용 문단 (가독성)"""
+
+    text: str
+
+
+@dataclass
+class DisplaySection:
+    """디스플레이용 섹션 (가독성)
+
+    Note: fulltext 오프셋은 Weaviate에서 조회 (section_fulltext_offset)
+    """
+
+    name: str
+    title: str
+    paragraphs: list[DisplayParagraph] = field(default_factory=list)
 
 
 @dataclass
@@ -48,6 +67,9 @@ class Paper:
 
     # 섹션
     sections: list[Section] = field(default_factory=list)
+
+    # 디스플레이용 섹션 (가독성 + fulltext 오프셋)
+    display_sections: list[DisplaySection] = field(default_factory=list)
 
     # 원문
     fulltext: str | None = None

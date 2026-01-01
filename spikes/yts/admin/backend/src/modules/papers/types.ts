@@ -81,9 +81,27 @@ export interface EmbedTriggerResult {
 }
 
 /**
+ * Display JSON 섹션
+ */
+export interface DisplayParagraph {
+  text: string;
+}
+
+export interface DisplaySection {
+  name: string;
+  title: string;
+  paragraphs: DisplayParagraph[];
+}
+
+export interface DisplayData {
+  sections: DisplaySection[];
+}
+
+/**
  * 전문 조회 결과
  */
 export interface FulltextResult {
   fulltext: string | null;
   rawXml: string | null;
+  display: DisplayData | null;
 }

@@ -12,7 +12,7 @@ from dataclasses import dataclass
 
 from lxml import etree
 
-from ..models import Author, Paper, Section
+from ..models import Author, DisplayParagraph, DisplaySection, Paper, Section
 from .preprocess import clean_text, preprocess_fulltext
 
 
@@ -105,7 +105,7 @@ class XMLParser:
         authors = self._parse_authors(root)
 
         # 섹션 및 fulltext 추출
-        sections, fulltext = self._extract_sections(root)
+        sections, display_sections, fulltext = self._extract_sections(root)
 
         return Paper(
             paper_id=Paper.create_paper_id(metadata.get("pmcid"), metadata.get("pmid")),
@@ -119,6 +119,7 @@ class XMLParser:
             keywords=metadata.get("keywords", []),
             authors=authors,
             sections=sections,
+            display_sections=display_sections,
             fulltext=fulltext,
             raw_xml=xml_content,
             raw_xml_hash=raw_xml_hash,
@@ -232,9 +233,19 @@ class XMLParser:
 
         return authors
 
-    def _extract_sections(self, root: etree._Element) -> tuple[list[Section], str]:
-        """XML에서 섹션 추출 및 fulltext 생성"""
+    def _extract_sections(
+        self, root: etree._Element
+    ) -> tuple[list[Section], list[DisplaySection], str]:
+        """XML에서 섹션 추출 및 fulltext 생성
+
+        Returns:
+            tuple: (sections, display_sections, fulltext)
+            - sections: 임베딩용 섹션 (fulltext 오프셋)
+            - display_sections: 디스플레이용 섹션 (문단 구분)
+            - fulltext: 전체 텍스트
+        """
         sections = []
+        display_sections = []
         text_parts = []
         current_offset = 0
 
@@ -267,6 +278,14 @@ class XMLParser:
                     order=len(sections) + 1,
                     offset_start=offset_start,
                     offset_end=current_offset - 2,
+                ))
+
+                # Display: Abstract는 <p> 태그 기준으로 문단 분리
+                abstract_paragraphs = self._extract_paragraphs(abstract_elem)
+                display_sections.append(DisplaySection(
+                    name="abstract",
+                    title="Abstract",
+                    paragraphs=abstract_paragraphs,
                 ))
 
         # Body 섹션 추출
@@ -318,5 +337,64 @@ class XMLParser:
                     offset_end=current_offset - 2,
                 ))
 
+                # Display: 각 자식 요소를 문단으로 처리
+                display_paragraphs = self._extract_paragraphs_from_sec(sec)
+                display_sections.append(DisplaySection(
+                    name=sec_name,
+                    title=sec_title or sec_name.title(),
+                    paragraphs=display_paragraphs,
+                ))
+
         fulltext = "".join(text_parts)
-        return sections, fulltext
+        return sections, display_sections, fulltext
+
+    def _extract_paragraphs(self, elem: etree._Element) -> list[DisplayParagraph]:
+        """요소 내의 <p> 태그들을 문단으로 추출"""
+        paragraphs = []
+
+        # <p> 태그들 찾기
+        p_elements = elem.findall(".//p")
+
+        if not p_elements:
+            # <p> 태그가 없으면 전체 텍스트를 하나의 문단으로
+            text = clean_text(extract_text_from_element(elem))
+            if text:
+                paragraphs.append(DisplayParagraph(text=text))
+        else:
+            for p_elem in p_elements:
+                text = clean_text(extract_text_from_element(p_elem))
+                if text:
+                    paragraphs.append(DisplayParagraph(text=text))
+
+        return paragraphs
+
+    def _extract_paragraphs_from_sec(self, sec: etree._Element) -> list[DisplayParagraph]:
+        """섹션의 자식 요소들을 문단으로 추출
+
+        Note: 모든 자식 요소를 처리하여 fulltext와 일관성 유지
+        """
+        paragraphs = []
+
+        for child in sec:
+            if child.tag == "title":
+                continue
+
+            # 중첩 섹션이면 재귀 처리
+            if child.tag == "sec":
+                # 중첩 섹션 제목 추가
+                nested_title_elem = child.find("title")
+                if nested_title_elem is not None:
+                    nested_title = clean_text(extract_text_from_element(nested_title_elem))
+                    if nested_title:
+                        paragraphs.append(DisplayParagraph(text=f"**{nested_title}**"))
+
+                # 중첩 섹션 내용 추가
+                nested_paragraphs = self._extract_paragraphs_from_sec(child)
+                paragraphs.extend(nested_paragraphs)
+            else:
+                # 일반 요소 (p, table-wrap, list, fig 등)
+                text = clean_text(extract_text_from_element(child))
+                if text:
+                    paragraphs.append(DisplayParagraph(text=text))
+
+        return paragraphs
