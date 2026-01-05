@@ -54,16 +54,28 @@ docker-compose logs -f
 # 1. 인프라만 실행
 docker-compose up -d postgres redis minio weaviate minio-init
 
-# 2. 배치 워커 로컬 실행
+# 2. DB 마이그레이션 (최초 1회)
+cd backend && uv sync && uv run alembic upgrade head
+cd admin/backend && npm install && npm run migration:run
+
+# 3. 배치 워커 로컬 실행
 cd batch
 uv run celery -A src.celery_app worker -Q backfill,embed --loglevel=info
 
-# 3. Admin 백엔드 로컬 실행
+# 4. Admin 백엔드 로컬 실행
 cd admin/backend
-npm install && npm run start:dev
+npm run start:dev
 
-# 4. Admin 프론트엔드 로컬 실행
+# 5. Admin 프론트엔드 로컬 실행
 cd admin/frontend
+npm install && npm run dev
+
+# 6. User 백엔드 로컬 실행
+cd backend
+uv run uvicorn app.main:app --reload --port 8000
+
+# 7. User 프론트엔드 로컬 실행
+cd frontend
 npm install && npm run dev
 ```
 
@@ -71,9 +83,12 @@ npm install && npm run dev
 
 | 서비스 | URL | 설명 |
 |--------|-----|------|
+| User Frontend | http://localhost:3000 | 사용자 UI |
+| User API | http://localhost:8000 | FastAPI 백엔드 |
+| User API Docs | http://localhost:8000/docs | Swagger UI |
 | Admin UI | http://localhost:13001 | 어드민 대시보드 |
-| Admin API | http://localhost:13000 | REST API |
-| Swagger | http://localhost:13000/api | API 문서 |
+| Admin API | http://localhost:13000 | NestJS 백엔드 |
+| Admin API Docs | http://localhost:13000/api | Swagger UI |
 | Flower | http://localhost:15555 | Celery 모니터링 |
 | MinIO Console | http://localhost:19001 | 오브젝트 스토리지 |
 | Weaviate | http://localhost:18080 | 벡터 DB |
@@ -146,6 +161,24 @@ OPENAI_API_KEY=sk-your-openai-api-key-here
 - `REDIS_URL` - Redis 연결 문자열
 - `S3_ENDPOINT`, `S3_ACCESS_KEY`, `S3_SECRET_KEY` - MinIO 설정
 - `WEAVIATE_HOST`, `WEAVIATE_PORT` - Weaviate 설정
+
+## DB 마이그레이션
+
+### User Backend (Alembic)
+```bash
+cd backend
+uv sync                           # 의존성 설치
+uv run alembic upgrade head       # 마이그레이션 실행
+uv run alembic revision --autogenerate -m "description"  # 새 마이그레이션 생성
+```
+
+### Admin Backend (TypeORM)
+```bash
+cd admin/backend
+npm install                       # 의존성 설치
+npm run migration:run             # 마이그레이션 실행
+npm run migration:generate -- src/migrations/Description  # 새 마이그레이션 생성
+```
 
 ## 트러블슈팅
 
