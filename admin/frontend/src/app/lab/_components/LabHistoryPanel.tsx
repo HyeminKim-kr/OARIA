@@ -204,6 +204,72 @@ export function LabHistoryPanel({
                             )}
                           </div>
                         )}
+
+                        {log.testType === 'compare' &&
+                          'withReranker' in selectedLogDetail.results &&
+                          'withoutReranker' in selectedLogDetail.results && (
+                            <div className="max-h-[400px] space-y-3 overflow-y-auto">
+                              {/* Reranker OFF */}
+                              <div>
+                                <p className="mb-2 text-xs font-medium text-gray-600">
+                                  Reranker OFF (
+                                  {selectedLogDetail.results.withoutReranker.chunks?.length ?? 0}개)
+                                </p>
+                                <div className="space-y-1">
+                                  {selectedLogDetail.results.withoutReranker.chunks
+                                    ?.slice(0, 3)
+                                    .map((chunk, idx) => (
+                                      <div
+                                        key={idx}
+                                        className="rounded bg-gray-50 p-2 text-xs"
+                                      >
+                                        <div className="flex items-center gap-2">
+                                          <span className="rounded bg-gray-200 px-1.5 py-0.5 text-gray-600">
+                                            #{idx + 1}
+                                          </span>
+                                          <span className="text-gray-500">
+                                            score: {chunk.score?.toFixed(4) ?? '-'}
+                                          </span>
+                                        </div>
+                                        <p className="mt-1 line-clamp-1 text-gray-700">
+                                          {chunk.paperTitle}
+                                        </p>
+                                      </div>
+                                    ))}
+                                </div>
+                              </div>
+
+                              {/* Reranker ON */}
+                              <div>
+                                <p className="mb-2 text-xs font-medium text-green-600">
+                                  Reranker ON (
+                                  {selectedLogDetail.results.withReranker.chunks?.length ?? 0}개)
+                                </p>
+                                <div className="space-y-1">
+                                  {selectedLogDetail.results.withReranker.chunks
+                                    ?.slice(0, 3)
+                                    .map((chunk, idx) => (
+                                      <div
+                                        key={idx}
+                                        className="rounded bg-green-50 p-2 text-xs"
+                                      >
+                                        <div className="flex items-center gap-2">
+                                          <span className="rounded bg-green-200 px-1.5 py-0.5 text-green-700">
+                                            #{idx + 1}
+                                          </span>
+                                          <span className="text-green-600">
+                                            rerank: {chunk.rerankScore?.toFixed(4) ?? '-'}
+                                          </span>
+                                        </div>
+                                        <p className="mt-1 line-clamp-1 text-gray-700">
+                                          {chunk.paperTitle}
+                                        </p>
+                                      </div>
+                                    ))}
+                                </div>
+                              </div>
+                            </div>
+                          )}
                       </div>
                     ) : null}
                   </div>
