@@ -154,13 +154,13 @@ export function LabHistoryPanel({
                                   <span className="rounded bg-blue-100 px-1.5 py-0.5 text-blue-700">
                                     #{idx + 1}
                                   </span>
-                                  {chunk.rerankScore !== undefined ? (
+                                  {chunk.rerankScore != null ? (
                                     <span className="text-green-600">
                                       rerank: {chunk.rerankScore.toFixed(4)}
                                     </span>
                                   ) : (
                                     <span className="text-gray-500">
-                                      score: {chunk.score.toFixed(4)}
+                                      score: {chunk.score?.toFixed(4) ?? '-'}
                                     </span>
                                   )}
                                 </div>

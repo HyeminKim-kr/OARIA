@@ -173,7 +173,7 @@ export function LabSearchResults({
                       ) : (
                         <Tooltip content="유사도 점수 (0~1, 높을수록 관련성 높음)">
                           <span className="cursor-help rounded bg-green-100 px-2 py-0.5 text-xs text-green-700">
-                            score: {chunk.score.toFixed(4)}
+                            score: {chunk.score?.toFixed(4) ?? '-'}
                           </span>
                         </Tooltip>
                       )}

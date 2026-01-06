@@ -55,7 +55,7 @@ export function LabCompareResults({ compareResults, isLoading }: LabCompareResul
                       -
                     </span>
                     <span className="rounded bg-gray-100 px-1.5 py-0.5 text-xs text-gray-500">
-                      원본: {chunk.score.toFixed(4)}
+                      원본: {chunk.score?.toFixed(4) ?? '-'}
                     </span>
                   </div>
                   <p className="mt-1 line-clamp-2 text-sm text-gray-700">{chunk.paperTitle}</p>
@@ -110,9 +110,9 @@ export function LabCompareResults({ compareResults, isLoading }: LabCompareResul
                         #{index + 1}
                       </span>
                       <span className={cn('rounded px-1.5 py-0.5 text-xs', style.bg, style.text)}>
-                        rerank: {score.toFixed(4)}
+                        rerank: {score?.toFixed(4) ?? '-'}
                       </span>
-                      {chunk.originalScore !== undefined && (
+                      {chunk.originalScore != null && (
                         <span className="rounded bg-gray-100 px-1.5 py-0.5 text-xs text-gray-500">
                           원본: {chunk.originalScore.toFixed(4)}
                         </span>

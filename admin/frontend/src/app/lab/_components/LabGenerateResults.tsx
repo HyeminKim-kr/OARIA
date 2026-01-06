@@ -138,7 +138,7 @@ export function LabGenerateResults({
                 <div className="flex-1">
                   <div className="font-medium text-gray-900">{ref.title}</div>
                   <div className="mt-1 text-xs text-gray-500">
-                    섹션: {ref.section} | score: {ref.score.toFixed(4)}
+                    섹션: {ref.section} | score: {ref.score?.toFixed(4) ?? '-'}
                   </div>
                   <div className="mt-2 rounded bg-gray-50 p-2 text-sm text-gray-600">
                     {ref.content.length > 300
