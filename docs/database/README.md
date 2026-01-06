@@ -2,7 +2,7 @@
 
 > **YTS (Your Tumor Scholar) 데이터베이스 스키마 문서**
 >
-> **Last Updated**: 2026-01-01
+> **Last Updated**: 2026-01-06
 
 ---
 
@@ -13,7 +13,7 @@
 | Owner | Migration Tool | Tables |
 |-------|----------------|--------|
 | **Backend (FastAPI)** | Alembic | papers, paper_*, batch_*, search_queries, watermarks, users, social_accounts, user_refresh_tokens |
-| **Admin Backend (NestJS)** | TypeORM | admin_users, admin_refresh_tokens |
+| **Admin Backend (NestJS)** | TypeORM | admin_users, admin_refresh_tokens, lab_feedbacks |
 
 ### 마이그레이션 원칙
 
@@ -58,12 +58,13 @@
 | **인증/관리자** | `admin_users`, `admin_refresh_tokens` | TypeORM | [users.md](./users.md) |
 | **배치** | `search_queries`, `batch_jobs`, `batch_articles` 등 | Alembic | [batch.md](./batch.md) |
 | **챗봇** | `conversations`, `messages`, `answer_logs` | Alembic | [chat.md](./chat.md) |
+| **RAG Lab** | `lab_feedbacks` | TypeORM | [chat.md](./chat.md) |
 
 ### 미구현 (예정) 📋
 
 | 분류 | 테이블 | 용도 | 구현 시점 |
 |------|--------|------|----------|
-| **피드백** | `feedbacks` | 사용자 피드백 (👍/👎) | 챗봇 고도화 |
+| **사용자 피드백** | `feedbacks` | 사용자 피드백 (👍/👎) | 챗봇 고도화 |
 
 **예정 스키마 위치**: `spikes/OAR-20/yts/docs/postgresql-스키마-설계-v2.5.md`
 
@@ -122,7 +123,7 @@ npm run migration:run
 npm run migration:generate -- src/migrations/Description
 ```
 
-**관리 테이블**: admin_users, admin_refresh_tokens
+**관리 테이블**: admin_users, admin_refresh_tokens, lab_feedbacks
 
 ### Docker Init Scripts (Minimal)
 
@@ -149,10 +150,12 @@ infra/init/
                     │ role            │
                     └────────┬────────┘
                              │ 1:N
-                             ▼
-                    ┌─────────────────────┐
-                    │ admin_refresh_tokens│
-                    └─────────────────────┘
+                    ┌────────┴────────┐
+                    ▼                 ▼
+        ┌─────────────────────┐  ┌───────────────┐
+        │ admin_refresh_tokens│  │ lab_feedbacks │
+        └─────────────────────┘  │ (테스트 피드백)│
+                                 └───────────────┘
 
 ┌─────────────────┐       ┌──────────────────┐
 │     users       │       │  search_queries  │
@@ -201,11 +204,11 @@ infra/init/
 
 ## 미구현 테이블 (향후 예정)
 
-> 피드백 기능 구현 시 추가
+> 사용자 피드백 기능 구현 시 추가 (Lab 피드백은 구현 완료)
 
 ```
 ┌─────────────────┐
-│   answer_logs   │──1:N──▶ feedbacks (👍/👎 피드백)
+│   answer_logs   │──1:N──▶ feedbacks (사용자 👍/👎 피드백)
 └─────────────────┘
 ```
 

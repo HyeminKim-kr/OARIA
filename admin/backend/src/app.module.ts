@@ -10,6 +10,7 @@ import { SchedulerModule } from './modules/scheduler/scheduler.module';
 import { AuthModule } from './modules/auth/auth.module';
 import { AdminUsersModule } from './modules/admin-users/admin-users.module';
 import { SystemModule } from './modules/system/system.module';
+import { LabModule } from './modules/lab/lab.module';
 import { JwtAuthGuard } from './modules/auth/guards';
 import { RolesGuard } from './modules/auth/guards';
 import { validate } from './config';
@@ -55,6 +56,9 @@ import { validate } from './config';
 
     // System Monitoring
     SystemModule,
+
+    // RAG Lab (품질 테스트)
+    LabModule,
   ],
   providers: [
     // Global JWT Guard - 모든 엔드포인트에 적용

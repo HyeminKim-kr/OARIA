@@ -31,6 +31,7 @@ dependencies = [
     # AI/RAG
     "weaviate-client>=4.0.0",
     "openai>=1.0.0",
+    "sentence-transformers>=3.0.0",  # Reranker (BGE)
 
     # SSE
     "sse-starlette>=2.0.0",

@@ -5,7 +5,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from starlette.middleware.sessions import SessionMiddleware
 
 from .config import settings
-from .routers import auth_router, papers_router, ai_router
+from .routers import auth_router, papers_router, ai_router, lab_router
 
 app = FastAPI(
     title="OARIA API",
@@ -35,6 +35,7 @@ app.add_middleware(
 app.include_router(auth_router)
 app.include_router(papers_router)
 app.include_router(ai_router)
+app.include_router(lab_router)  # RAG Lab (품질 테스트)
 
 
 @app.get("/")

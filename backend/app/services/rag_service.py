@@ -1,9 +1,10 @@
 """RAG 서비스
 
-Parent Retrieval 패턴:
-1. 작은 청크로 벡터 검색 (정밀한 의미 매칭)
-2. 검색된 청크의 부모 섹션 전체를 가져옴 (완전한 문맥)
-3. LLM에 전체 섹션 컨텍스트 제공
+Parent Retrieval 패턴 + Reranker:
+1. 작은 청크로 벡터 검색 (정밀한 의미 매칭) - 넉넉하게 가져옴
+2. Reranker로 재정렬 (Cross-Encoder 기반 정확한 관련성 점수)
+3. 검색된 청크의 부모 섹션 전체를 가져옴 (완전한 문맥)
+4. LLM에 전체 섹션 컨텍스트 제공
 
 참고: docs/backend/retrieval-strategy.md
 """
@@ -14,6 +15,7 @@ from typing import Any
 from app.schemas.chat import Reference
 from app.services.embedding_service import embedding_service
 from app.services.weaviate_service import weaviate_service
+from app.services.reranker_service import reranker_service
 
 
 @dataclass
@@ -23,6 +25,7 @@ class RetrievalResult:
     references: list[Reference]
     context: str  # LLM에 전달할 컨텍스트
     search_latency_ms: int
+    rerank_latency_ms: int | None = None  # Reranker 소요 시간
 
 
 class RagService:
@@ -32,9 +35,13 @@ class RagService:
         self,
         top_k: int = 5,
         alpha: float = 0.5,  # 하이브리드 검색 비중
+        use_reranker: bool = True,  # Reranker 사용 여부
+        rerank_top_k: int = 20,  # Reranker 전 검색 개수
     ):
         self.top_k = top_k
         self.alpha = alpha
+        self.use_reranker = use_reranker
+        self.rerank_top_k = rerank_top_k
 
     def retrieve(
         self,
@@ -42,6 +49,8 @@ class RagService:
         year_from: int | None = None,
         year_to: int | None = None,
         sections: list[str] | None = None,
+        use_reranker: bool | None = None,  # None이면 인스턴스 설정 사용
+        min_score: float | None = None,  # Reranker 최소 점수 임계값
     ) -> RetrievalResult:
         """질문에 대한 관련 문서 검색
 
@@ -50,6 +59,8 @@ class RagService:
             year_from: 연도 필터 (이상)
             year_to: 연도 필터 (이하)
             sections: 섹션 필터
+            use_reranker: Reranker 사용 여부 (None이면 인스턴스 설정 사용)
+            min_score: Reranker 최소 점수 임계값
 
         Returns:
             검색 결과 (참조 목록, 컨텍스트, 지연시간)
@@ -57,22 +68,53 @@ class RagService:
         import time
 
         start = time.perf_counter()
+        rerank_latency_ms = None
+
+        # Reranker 사용 여부 결정
+        should_rerank = use_reranker if use_reranker is not None else self.use_reranker
+        should_rerank = should_rerank and reranker_service.is_enabled
 
         # 1. 쿼리 임베딩
         query_vector = embedding_service.embed_text(query)
 
         # 2. 하이브리드 검색 (청크 단위)
+        # Reranker 사용 시 더 많이 가져와서 재정렬
+        search_limit = self.rerank_top_k if should_rerank else self.top_k
+
         search_results = weaviate_service.search_hybrid(
             query=query,
             query_vector=query_vector,
-            limit=self.top_k,
+            limit=search_limit,
             alpha=self.alpha,
             year_from=year_from,
             year_to=year_to,
             sections=sections,
         )
 
-        # 3. Parent Retrieval: 검색된 청크의 섹션 전체 가져오기
+        # 3. Reranker로 재정렬 (선택적)
+        if should_rerank and search_results:
+            rerank_start = time.perf_counter()
+
+            rerank_results = reranker_service.rerank(
+                query=query,
+                documents=search_results,
+                content_key="content",
+                top_k=self.top_k,
+                min_score=min_score,
+            )
+
+            # Rerank 결과로 교체 (점수도 업데이트)
+            search_results = []
+            for rr in rerank_results:
+                doc = rr.document.copy()
+                doc["rerank_score"] = rr.score  # 원본 점수 보존
+                doc["original_score"] = doc.get("score", 0)
+                doc["score"] = rr.score  # Reranker 점수로 교체
+                search_results.append(doc)
+
+            rerank_latency_ms = int((time.perf_counter() - rerank_start) * 1000)
+
+        # 4. Parent Retrieval: 검색된 청크의 섹션 전체 가져오기
         references, context = self._expand_to_parent_sections(search_results)
 
         elapsed_ms = int((time.perf_counter() - start) * 1000)
@@ -81,6 +123,7 @@ class RagService:
             references=references,
             context=context,
             search_latency_ms=elapsed_ms,
+            rerank_latency_ms=rerank_latency_ms,
         )
 
     def _expand_to_parent_sections(
@@ -128,8 +171,8 @@ class RagService:
             # Reference 생성
             # 매칭된 청크(result)의 오프셋 사용 (하이라이트용)
             first_chunk = section_chunks[0]
-            matched_offset_start = result.get("offsetStart", 0)
-            matched_offset_end = result.get("offsetEnd", 0)
+            matched_offset_start = int(result.get("offsetStart") or 0)
+            matched_offset_end = int(result.get("offsetEnd") or 0)
             matched_content = result.get("content", "")
 
             ref = Reference(
@@ -176,8 +219,8 @@ class RagService:
             prev_chunk = chunks[i - 1]
             curr_chunk = chunks[i]
 
-            prev_end = prev_chunk.get("offsetEnd", 0)
-            curr_start = curr_chunk.get("offsetStart", 0)
+            prev_end = int(prev_chunk.get("offsetEnd") or 0)
+            curr_start = int(curr_chunk.get("offsetStart") or 0)
             curr_content = curr_chunk.get("content", "")
 
             # overlap이 있으면 겹치는 부분 제거

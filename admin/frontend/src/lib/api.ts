@@ -244,6 +244,215 @@ export const systemApi = {
     api.post<TriggerResult>('/system/trigger/reembedding', { limit }).then((res) => res.data),
 };
 
+// Lab Types
+export interface SearchedChunk {
+  paperId: string;
+  paperTitle: string;
+  sectionName: string;
+  chunkIndex: number;
+  content: string;
+  score: number;
+  rerankScore?: number;
+  originalScore?: number;
+  metadata?: Record<string, unknown>;
+}
+
+export interface SearchTestResult {
+  query: string;
+  chunks: SearchedChunk[];
+  searchLatencyMs: number;
+  rerankLatencyMs?: number;
+  totalChunks: number;
+  parameters: {
+    limit: number;
+    alpha: number;
+    useReranker?: boolean;
+    minRerankScore?: number;
+    rerankerModel?: string;
+  };
+}
+
+export interface LabReference {
+  paperId: string;
+  title: string;
+  section: string;
+  content: string;
+  score: number;
+}
+
+export interface GenerateTestResult {
+  query: string;
+  answer: string;
+  references: LabReference[];
+  searchLatencyMs: number;
+  rerankLatencyMs?: number;
+  llmLatencyMs: number;
+  totalLatencyMs: number;
+  model: string;
+  tokensUsed?: {
+    prompt: number;
+    completion: number;
+  };
+  useReranker?: boolean;
+}
+
+export interface UserBackendStatus {
+  available: boolean;
+  url: string;
+  latencyMs?: number;
+  error?: string;
+}
+
+export interface FeedbackResult {
+  success: boolean;
+  feedbackId?: string;
+  message: string;
+}
+
+export interface FeedbackParameters {
+  limit: number;
+  alpha: number;
+  useReranker?: boolean;
+  minRerankScore?: number;
+  rerankerModel?: string;
+}
+
+export interface FeedbackResultSummary {
+  totalChunks: number;
+  topScore: number;
+  relevantCount?: number;
+  lowRelevanceCount?: number;
+  model?: string;
+  tokensUsed?: {
+    prompt: number;
+    completion: number;
+  };
+}
+
+export interface FeedbackParams {
+  type: 'search' | 'generate';
+  query: string;
+  rating: 'good' | 'bad';
+  parameters: FeedbackParameters;
+  comment?: string;
+  resultSummary?: FeedbackResultSummary;
+  searchLatencyMs?: number;
+  rerankLatencyMs?: number;
+  llmLatencyMs?: number;
+}
+
+export interface SearchTestParams {
+  query: string;
+  limit?: number;
+  alpha?: number;
+  useReranker?: boolean;
+  minRerankScore?: number;
+}
+
+export interface GenerateTestParams {
+  query: string;
+  limit?: number;
+  alpha?: number;
+  useReranker?: boolean;
+}
+
+export interface CompareTestParams {
+  query: string;
+  limit?: number;
+  alpha?: number;
+}
+
+export interface CompareTestResult {
+  withReranker: SearchTestResult;
+  withoutReranker: SearchTestResult;
+}
+
+// Test Log Types
+export interface TestLogItem {
+  id: string;
+  testType: 'search' | 'generate' | 'compare';
+  query: string;
+  parameters: FeedbackParameters;
+  searchLatencyMs: number | null;
+  rerankLatencyMs: number | null;
+  llmLatencyMs: number | null;
+  totalLatencyMs: number | null;
+  createdAt: string;
+  resultSummary: Record<string, unknown>;
+}
+
+export interface TestLogListResult {
+  items: TestLogItem[];
+  total: number;
+  page: number;
+  limit: number;
+  totalPages: number;
+}
+
+export interface TestLogDetail extends TestLogItem {
+  results: SearchTestResult | GenerateTestResult | {
+    withReranker: SearchTestResult;
+    withoutReranker: SearchTestResult;
+  };
+}
+
+export interface TestLogQueryParams {
+  page?: number;
+  limit?: number;
+  testType?: 'search' | 'generate' | 'compare';
+  query?: string;
+}
+
+export interface FeedbackStats {
+  total: number;
+  byRating: { good: number; bad: number };
+  byTestType: { search: number; generate: number };
+  recentFeedbacks: Array<{
+    id: string;
+    testType: string;
+    query: string;
+    rating: string;
+    createdAt: string;
+  }>;
+}
+
+export interface TestLogStats {
+  total: number;
+  byTestType: { search: number; generate: number; compare: number };
+  avgLatency: {
+    search: number | null;
+    rerank: number | null;
+    llm: number | null;
+  };
+  todayCount: number;
+}
+
+export const labApi = {
+  getStatus: () => api.get<UserBackendStatus>('/lab/status').then((res) => res.data),
+  testSearch: (params: SearchTestParams) =>
+    api.post<SearchTestResult>('/lab/search', params).then((res) => res.data),
+  testGenerate: (params: GenerateTestParams) =>
+    api.post<GenerateTestResult>('/lab/generate', params).then((res) => res.data),
+  testCompare: (params: CompareTestParams) =>
+    api.post<CompareTestResult>('/lab/compare', params).then((res) => res.data),
+  saveFeedback: (params: FeedbackParams) =>
+    api.post<FeedbackResult>('/lab/feedback', params).then((res) => res.data),
+
+  // Test Logs
+  getTestLogs: (params?: TestLogQueryParams) =>
+    api.get<TestLogListResult>('/lab/logs', { params }).then((res) => res.data),
+  getTestLog: (id: string) =>
+    api.get<TestLogDetail>(`/lab/logs/${id}`).then((res) => res.data),
+  deleteTestLog: (id: string) =>
+    api.delete<{ success: boolean; message: string }>(`/lab/logs/${id}`).then((res) => res.data),
+
+  // Stats
+  getFeedbackStats: () =>
+    api.get<FeedbackStats>('/lab/stats/feedback').then((res) => res.data),
+  getTestLogStats: () =>
+    api.get<TestLogStats>('/lab/stats/logs').then((res) => res.data),
+};
+
 export const papersApi = {
   getAll: (params?: {
     page?: number;

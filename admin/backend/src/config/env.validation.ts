@@ -17,6 +17,8 @@ import {
   WEAVIATE_DEFAULTS,
   FlowerConfig,
   FLOWER_DEFAULTS,
+  UserBackendConfig,
+  USER_BACKEND_DEFAULTS,
 } from './env';
 
 /**
@@ -37,6 +39,7 @@ const LOCAL_DEFAULTS: Record<string, string | number> = {
   ...AUTH_DEFAULTS,
   ...WEAVIATE_DEFAULTS,
   ...FLOWER_DEFAULTS,
+  ...USER_BACKEND_DEFAULTS,
 };
 
 /**
@@ -46,7 +49,7 @@ const LOCAL_DEFAULTS: Record<string, string | number> = {
  * - 프로덕션/스테이징: 디폴트 없이 검증 (누락 시 에러)
  */
 export class EnvironmentVariables
-  implements AppConfig, DatabaseConfig, RedisConfig, S3Config, AuthConfig, WeaviateConfig, FlowerConfig
+  implements AppConfig, DatabaseConfig, RedisConfig, S3Config, AuthConfig, WeaviateConfig, FlowerConfig, UserBackendConfig
 {
   // App
   NODE_ENV: NodeEnv;
@@ -88,6 +91,9 @@ export class EnvironmentVariables
   FLOWER_PORT: number;
   FLOWER_USER: string;
   FLOWER_PASSWORD: string;
+
+  // User Backend
+  USER_BACKEND_URL: string;
 }
 
 /**
@@ -151,6 +157,7 @@ export function validate(config: Record<string, unknown>): EnvironmentVariables 
     ...validateConfig(AuthConfig, configWithDefaults),
     ...validateConfig(WeaviateConfig, configWithDefaults),
     ...validateConfig(FlowerConfig, configWithDefaults),
+    ...validateConfig(UserBackendConfig, configWithDefaults),
   ];
 
   // 3. 에러가 있으면 throw
