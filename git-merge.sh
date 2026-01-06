@@ -1,13 +1,14 @@
 #!/bin/bash
 
 # ============================================================
-# Git Merge Script (Rebase + Fast-Forward)
-# 스파이크 브랜치를 dev에 깔끔하게 머지하는 스크립트
+# Git Merge Script (Rebase + No-FF Merge)
+# 스파이크 브랜치를 dev에 머지하는 스크립트
+# --no-ff 옵션으로 브랜치 히스토리가 그래프에 시각적으로 남음
 #
 # 사용법:
-#   ./scripts/git-merge.sh              # 현재 브랜치를 dev에 머지
-#   ./scripts/git-merge.sh -d           # 머지 후 브랜치 삭제
-#   ./scripts/git-merge.sh --dry-run    # 실제 실행 없이 미리보기
+#   ./git-merge.sh              # 현재 브랜치를 dev에 머지
+#   ./git-merge.sh -d           # 머지 후 브랜치 삭제
+#   ./git-merge.sh --dry-run    # 실제 실행 없이 미리보기
 # ============================================================
 
 set -e
@@ -52,7 +53,7 @@ done
 
 echo ""
 echo "=========================================="
-echo "  Git Merge (Rebase + Fast-Forward)"
+echo "  Git Merge (Rebase + No-FF)"
 echo "=========================================="
 echo ""
 
@@ -90,7 +91,7 @@ fi
 echo -e "${BOLD}실행 계획:${NC}"
 echo -e "  1. origin/dev 최신화 (fetch)"
 echo -e "  2. ${BLUE}$CURRENT_BRANCH${NC}를 dev 위로 rebase"
-echo -e "  3. dev로 전환 후 fast-forward 머지"
+echo -e "  3. dev로 전환 후 --no-ff 머지 (브랜치 히스토리 보존)"
 echo -e "  4. origin/dev에 push"
 if [ "$DELETE_BRANCH" = true ]; then
     echo -e "  5. ${BLUE}$CURRENT_BRANCH${NC} 브랜치 삭제"
@@ -137,21 +138,22 @@ echo -e "  ${GREEN}✓${NC} rebase 완료"
 echo ""
 
 # Step 3: Checkout dev and merge
-echo -e "${BOLD}[3/4] dev로 전환 후 fast-forward 머지...${NC}"
+echo -e "${BOLD}[3/4] dev로 전환 후 --no-ff 머지...${NC}"
 git checkout dev
 git pull origin dev --ff-only 2>/dev/null || true
 
-if ! git merge "$CURRENT_BRANCH" --ff-only; then
+if ! git merge "$CURRENT_BRANCH" --no-ff -m "Merge branch '$CURRENT_BRANCH' into dev"; then
     echo ""
-    echo -e "${RED}[ERROR] Fast-forward 머지 실패${NC}"
+    echo -e "${RED}[ERROR] 머지 실패${NC}"
     echo ""
-    echo "이미 dev에 다른 변경사항이 있을 수 있습니다."
+    echo "충돌이 발생했을 수 있습니다."
     echo "브랜치로 돌아가서 다시 rebase 하세요:"
+    echo -e "  ${BLUE}git merge --abort${NC}"
     echo -e "  ${BLUE}git checkout $CURRENT_BRANCH${NC}"
     echo -e "  ${BLUE}git rebase origin/dev${NC}"
     exit 1
 fi
-echo -e "  ${GREEN}✓${NC} 머지 완료 (fast-forward)"
+echo -e "  ${GREEN}✓${NC} 머지 완료 (--no-ff, 브랜치 히스토리 보존)"
 echo ""
 
 # Step 4: Push
