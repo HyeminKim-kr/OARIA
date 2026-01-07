@@ -1,0 +1,246 @@
+{% extends "base.html" %}
+
+{% block content %}
+<div class="p-8" x-data="searchApp()">
+    <!-- Hero Section -->
+    <div class="max-w-4xl mx-auto text-center mb-12 pt-12">
+        <!-- Triple Gate Icon Large -->
+        <div class="w-20 h-20 mx-auto mb-6">
+            <svg viewBox="0 0 48 48" fill="none" xmlns="http://www.w3.org/2000/svg">
+                <circle cx="24" cy="24" r="20" stroke="#0D9488" stroke-width="2" fill="none" opacity="0.9"/>
+                <circle cx="24" cy="24" r="14" stroke="#14B8A6" stroke-width="1.5" fill="none" opacity="0.8" transform="rotate(60 24 24)"/>
+                <circle cx="24" cy="24" r="8" stroke="#F97066" stroke-width="1.5" fill="none" opacity="0.9" transform="rotate(120 24 24)"/>
+                <circle cx="24" cy="24" r="3" fill="#E2E8F0"/>
+            </svg>
+        </div>
+        <h1 class="text-5xl font-outfit font-bold mb-4">
+            <span class="gradient-text">OARIA</span>
+        </h1>
+        <p class="text-lg text-dark-muted mb-2 font-dm-sans tracking-wide">
+            RESEARCH INTELLIGENCE
+        </p>
+        <p class="text-dark-muted font-dm-sans">
+            Search 975+ oncology papers with AI-powered semantic search
+        </p>
+    </div>
+
+    <!-- Search Box -->
+    <div class="max-w-3xl mx-auto mb-8">
+        <div class="relative">
+            <input
+                type="text"
+                x-model="query"
+                @keyup.enter="search()"
+                placeholder="Search oncology papers... (e.g., 'EGFR mutations in lung cancer')"
+                class="w-full px-6 py-4 pl-14 bg-dark-card border border-dark-border rounded-full text-lg focus:outline-none search-glow transition font-dm-sans"
+            >
+            <svg class="w-6 h-6 absolute left-5 top-1/2 transform -translate-y-1/2 text-dark-muted" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <circle cx="11" cy="11" r="8"></circle>
+                <path d="m21 21-4.35-4.35"></path>
+            </svg>
+            <button
+                @click="search()"
+                :disabled="loading"
+                class="absolute right-2 top-1/2 transform -translate-y-1/2 px-6 py-2 gradient-bg rounded-full font-medium font-dm-sans hover:opacity-90 transition disabled:opacity-50 text-white"
+            >
+                <span x-show="!loading">Search</span>
+                <span x-show="loading" class="flex items-center gap-2">
+                    <svg class="animate-spin h-4 w-4" fill="none" viewBox="0 0 24 24">
+                        <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+                        <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                    </svg>
+                    Searching
+                </span>
+            </button>
+        </div>
+
+        <!-- Filters -->
+        <div class="flex flex-wrap gap-4 mt-4 justify-center font-dm-sans">
+            <div class="flex items-center gap-2">
+                <label class="text-sm text-dark-muted">Year:</label>
+                <select x-model="filters.min_year" class="bg-dark-card border border-dark-border rounded-full px-4 py-1.5 text-sm focus:outline-none focus:border-oaria-teal">
+                    <option value="">Any</option>
+                    <option value="2024">2024+</option>
+                    <option value="2023">2023+</option>
+                    <option value="2022">2022+</option>
+                    <option value="2020">2020+</option>
+                </select>
+            </div>
+            <div class="flex items-center gap-2">
+                <label class="text-sm text-dark-muted">Citations:</label>
+                <select x-model="filters.min_citations" class="bg-dark-card border border-dark-border rounded-full px-4 py-1.5 text-sm focus:outline-none focus:border-oaria-teal">
+                    <option value="">Any</option>
+                    <option value="10">10+</option>
+                    <option value="50">50+</option>
+                    <option value="100">100+</option>
+                </select>
+            </div>
+            <div class="flex items-center gap-2">
+                <label class="text-sm text-dark-muted">Source:</label>
+                <select x-model="filters.source" class="bg-dark-card border border-dark-border rounded-full px-4 py-1.5 text-sm focus:outline-none focus:border-oaria-teal">
+                    <option value="">All</option>
+                    <option value="pmc">PMC</option>
+                    <option value="arxiv">arXiv</option>
+                    <option value="biorxiv">bioRxiv</option>
+                    <option value="medrxiv">medRxiv</option>
+                </select>
+            </div>
+            <div class="flex items-center gap-2">
+                <label class="text-sm text-dark-muted">Journal Tier:</label>
+                <select x-model="filters.tier" class="bg-dark-card border border-dark-border rounded-full px-4 py-1.5 text-sm focus:outline-none focus:border-oaria-teal">
+                    <option value="">All</option>
+                    <option value="tier1">Tier 1 (Top)</option>
+                    <option value="tier2">Tier 2</option>
+                    <option value="tier3">Tier 3</option>
+                </select>
+            </div>
+        </div>
+    </div>
+
+    <!-- Example Queries -->
+    <div x-show="!hasSearched" class="max-w-3xl mx-auto mb-12">
+        <p class="text-center text-dark-muted mb-4 font-dm-sans">Try these example queries:</p>
+        <div class="flex flex-wrap justify-center gap-3">
+            <button @click="query = 'EGFR mutations treatment response'; search()" class="px-4 py-2 bg-dark-card border border-dark-border rounded-full text-sm hover:border-oaria-teal transition font-dm-sans">
+                EGFR mutations treatment
+            </button>
+            <button @click="query = 'PD-1 checkpoint inhibitor immunotherapy'; search()" class="px-4 py-2 bg-dark-card border border-dark-border rounded-full text-sm hover:border-oaria-teal transition font-dm-sans">
+                PD-1 immunotherapy
+            </button>
+            <button @click="query = 'CAR-T cell therapy clinical trials'; search()" class="px-4 py-2 bg-dark-card border border-dark-border rounded-full text-sm hover:border-oaria-teal transition font-dm-sans">
+                CAR-T cell therapy
+            </button>
+            <button @click="query = 'breast cancer HER2 targeted therapy'; search()" class="px-4 py-2 bg-dark-card border border-dark-border rounded-full text-sm hover:border-oaria-teal transition font-dm-sans">
+                HER2 breast cancer
+            </button>
+        </div>
+    </div>
+
+    <!-- Results -->
+    <div x-show="hasSearched" class="max-w-4xl mx-auto">
+        <!-- Results Header -->
+        <div class="flex items-center justify-between mb-6" x-show="results.length > 0">
+            <p class="text-dark-muted font-dm-sans">
+                Found <span class="text-oaria-teal font-medium" x-text="total"></span> papers
+                <span class="text-dark-muted">in <span x-text="retrievalTime"></span>ms</span>
+            </p>
+            <button @click="hasSearched = false; results = []" class="text-sm text-dark-muted hover:text-oaria-coral font-dm-sans">
+                Clear results
+            </button>
+        </div>
+
+        <!-- No Results -->
+        <div x-show="hasSearched && results.length === 0 && !loading" class="text-center py-12">
+            <svg class="w-16 h-16 mx-auto text-dark-muted mb-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="2">
+                <circle cx="12" cy="12" r="10"></circle>
+                <path d="M8 15h8M9 9h.01M15 9h.01"></path>
+            </svg>
+            <p class="text-dark-muted font-dm-sans">No papers found. Try different search terms.</p>
+        </div>
+
+        <!-- Paper Cards -->
+        <div class="space-y-4">
+            <template x-for="paper in results" :key="paper.id">
+                <div class="paper-card bg-dark-card border border-dark-border rounded-2xl p-6">
+                    <div class="flex justify-between items-start gap-4">
+                        <div class="flex-1">
+                            <!-- Title -->
+                            <h3 class="text-lg font-outfit font-semibold mb-2 text-dark-text hover:text-oaria-teal cursor-pointer" x-text="paper.title"></h3>
+
+                            <!-- Metadata Row -->
+                            <div class="flex flex-wrap items-center gap-3 mb-3 text-sm font-dm-sans">
+                                <span x-show="paper.journal" class="text-dark-muted" x-text="paper.journal"></span>
+                                <span x-show="paper.year" class="text-dark-muted">
+                                    <span class="text-dark-border">|</span>
+                                    <span x-text="paper.year"></span>
+                                </span>
+                                <span x-show="paper.citations > 0" class="text-dark-muted">
+                                    <span class="text-dark-border">|</span>
+                                    <span x-text="paper.citations + ' citations'"></span>
+                                </span>
+                            </div>
+
+                            <!-- Text Preview -->
+                            <p class="text-dark-muted text-sm leading-relaxed mb-4 font-dm-sans" x-text="paper.text"></p>
+
+                            <!-- Tags Row -->
+                            <div class="flex flex-wrap items-center gap-2">
+                                <span x-show="paper.journal_tier" class="tier-badge" :class="paper.journal_tier" x-text="paper.journal_tier?.toUpperCase()"></span>
+                                <span x-show="paper.source" class="source-badge" x-text="paper.source?.toUpperCase()"></span>
+                                <span class="text-xs text-dark-muted ml-auto font-dm-sans">
+                                    Score: <span class="text-oaria-light-teal" x-text="paper.score"></span>
+                                </span>
+                            </div>
+                        </div>
+
+                        <!-- Actions -->
+                        <div class="flex flex-col gap-2">
+                            <a x-show="paper.doi" :href="'https://doi.org/' + paper.doi" target="_blank" class="p-2 hover:bg-dark-hover rounded-lg transition" title="View DOI">
+                                <svg class="w-5 h-5 text-dark-muted hover:text-oaria-teal" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                                    <path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"></path>
+                                    <polyline points="15 3 21 3 21 9"></polyline>
+                                    <line x1="10" y1="14" x2="21" y2="3"></line>
+                                </svg>
+                            </a>
+                            <a x-show="paper.pmid" :href="'https://pubmed.ncbi.nlm.nih.gov/' + paper.pmid" target="_blank" class="p-2 hover:bg-dark-hover rounded-lg transition" title="View on PubMed">
+                                <svg class="w-5 h-5 text-dark-muted hover:text-oaria-teal" fill="currentColor" viewBox="0 0 24 24">
+                                    <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-1 17.93c-3.95-.49-7-3.85-7-7.93 0-.62.08-1.21.21-1.79L9 15v1c0 1.1.9 2 2 2v1.93zm6.9-2.54c-.26-.81-1-1.39-1.9-1.39h-1v-3c0-.55-.45-1-1-1H8v-2h2c.55 0 1-.45 1-1V7h2c1.1 0 2-.9 2-2v-.41c2.93 1.19 5 4.06 5 7.41 0 2.08-.8 3.97-2.1 5.39z"/>
+                                </svg>
+                            </a>
+                        </div>
+                    </div>
+                </div>
+            </template>
+        </div>
+    </div>
+</div>
+
+<script>
+function searchApp() {
+    return {
+        query: '',
+        results: [],
+        total: 0,
+        retrievalTime: 0,
+        loading: false,
+        hasSearched: false,
+        filters: {
+            min_year: '',
+            min_citations: '',
+            source: '',
+            tier: '',
+        },
+
+        async search() {
+            if (!this.query.trim()) return;
+
+            this.loading = true;
+            this.hasSearched = true;
+
+            try {
+                const params = new URLSearchParams({
+                    q: this.query,
+                    top_k: 15,
+                });
+
+                if (this.filters.min_year) params.append('min_year', this.filters.min_year);
+                if (this.filters.min_citations) params.append('min_citations', this.filters.min_citations);
+                if (this.filters.source) params.append('source', this.filters.source);
+                if (this.filters.tier) params.append('tier', this.filters.tier);
+
+                const response = await fetch(`/api/search?${params}`);
+                const data = await response.json();
+
+                this.results = data.papers;
+                this.total = data.total;
+                this.retrievalTime = data.retrieval_time_ms;
+            } catch (error) {
+                console.error('Search error:', error);
+            } finally {
+                this.loading = false;
+            }
+        }
+    }
+}
+</script>
+{% endblock %}

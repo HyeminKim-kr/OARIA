@@ -1,0 +1,23 @@
+{
+  "target": 1000,
+  "collected": {
+    "pmc": 880,
+    "medrxiv": 70,
+    "biorxiv": 0,
+    "arxiv": 16
+  },
+  "failed": {
+    "pmc": 0,
+    "medrxiv": 0,
+    "biorxiv": 0,
+    "arxiv": 0
+  },
+  "cursors": {
+    "pmc": "*",
+    "medrxiv": "IlsxMTg0ODAzMjAwMDAwLCAnLUluZmluaXR5JywgMCwgJ2h0dHBzOi8vb3BlbmFsZXgub3JnL1cyNzY0MDAwMTg5J10i",
+    "biorxiv": "*",
+    "arxiv": "*"
+  },
+  "started_at": "2025-12-31T17:00:00",
+  "last_updated": "2025-12-31T17:54:32.354359"
+}
