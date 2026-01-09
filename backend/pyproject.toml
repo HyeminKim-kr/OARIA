@@ -33,6 +33,9 @@ dependencies = [
     "openai>=1.0.0",
     "sentence-transformers>=3.0.0",  # Reranker (BGE)
 
+    # Agent (LangGraph)
+    "langgraph>=0.2.0",
+
     # SSE
     "sse-starlette>=2.0.0",
 
