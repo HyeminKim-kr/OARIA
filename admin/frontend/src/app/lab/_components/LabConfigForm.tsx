@@ -12,7 +12,7 @@ import { cn } from '@/lib/utils';
 import { Tooltip } from './Tooltip';
 import { SearchConfigPanel } from './SearchConfigPanel';
 import { TestMode, LabConfig, SearchConfig } from '../_lib';
-import { StrategiesResponse } from '@/lib/api';
+import { StrategiesResponse, SampleEmbedding } from '@/lib/api';
 
 interface LabConfigFormProps {
   mode: TestMode;
@@ -20,6 +20,7 @@ interface LabConfigFormProps {
   isLoading: boolean;
   isAvailable: boolean;
   strategies?: StrategiesResponse;
+  sampleEmbeddings?: SampleEmbedding[];
   onModeChange: (mode: TestMode) => void;
   onConfigChange: (updates: Partial<LabConfig>) => void;
   onConfigAChange: (updates: Partial<SearchConfig>) => void;
@@ -33,6 +34,7 @@ export function LabConfigForm({
   isLoading,
   isAvailable,
   strategies,
+  sampleEmbeddings,
   onModeChange,
   onConfigChange,
   onConfigAChange,
@@ -185,6 +187,7 @@ export function LabConfigForm({
               <SearchConfigPanel
                 config={config.configA}
                 rerankerOptions={rerankerOptions}
+                sampleEmbeddings={sampleEmbeddings}
                 label="설정 A"
                 compact
                 onChange={onConfigAChange}
@@ -196,6 +199,7 @@ export function LabConfigForm({
               <SearchConfigPanel
                 config={config.configB}
                 rerankerOptions={rerankerOptions}
+                sampleEmbeddings={sampleEmbeddings}
                 label="설정 B"
                 compact
                 onChange={onConfigBChange}

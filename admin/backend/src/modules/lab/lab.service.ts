@@ -93,6 +93,7 @@ export class LabService {
     useReranker: boolean = false,
     reranker?: string,
     minRerankScore?: number,
+    collectionName?: string,
     skipLog: boolean = false,
   ): Promise<SearchTestResult> {
     const start = Date.now();
@@ -107,6 +108,7 @@ export class LabService {
           use_reranker: useReranker,
           reranker: reranker,
           min_rerank_score: minRerankScore,
+          collection_name: collectionName,
         }).pipe(
           timeout(60000), // Reranker 사용 시 시간이 더 걸릴 수 있음
         ),
@@ -197,6 +199,7 @@ export class LabService {
     alpha: number = 0.7,
     useReranker: boolean = false,
     reranker?: string,
+    collectionName?: string,
   ): Promise<GenerateTestResult> {
     const start = Date.now();
     const url = `${this.userBackendUrl}/lab/generate`;
@@ -209,6 +212,7 @@ export class LabService {
           alpha,
           use_reranker: useReranker,
           reranker: reranker,
+          collection_name: collectionName,
         }).pipe(
           timeout(120000), // Reranker + LLM 시간 고려
         ),
@@ -271,8 +275,8 @@ export class LabService {
    */
   async testCompare(
     query: string,
-    configA: { limit: number; alpha: number; reranker?: string | null },
-    configB: { limit: number; alpha: number; reranker?: string | null },
+    configA: { limit: number; alpha: number; reranker?: string | null; collectionName?: string | null },
+    configB: { limit: number; alpha: number; reranker?: string | null; collectionName?: string | null },
   ): Promise<{
     configA: SearchTestResult;
     configB: SearchTestResult;
@@ -285,8 +289,9 @@ export class LabService {
         configA.alpha,
         !!configA.reranker,
         configA.reranker || undefined,
-        undefined,
-        true,
+        undefined, // minRerankScore
+        configA.collectionName || undefined,
+        true, // skipLog
       ),
       this.testSearch(
         query,
@@ -294,8 +299,9 @@ export class LabService {
         configB.alpha,
         !!configB.reranker,
         configB.reranker || undefined,
-        undefined,
-        true,
+        undefined, // minRerankScore
+        configB.collectionName || undefined,
+        true, // skipLog
       ),
     ]);
 

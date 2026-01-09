@@ -151,6 +151,7 @@ export default function LabPage() {
         isLoading={isLoading}
         isAvailable={status?.available ?? false}
         strategies={strategies}
+        sampleEmbeddings={sampleEmbeddings}
         onModeChange={setMode}
         onConfigChange={updateConfig}
         onConfigAChange={updateConfigA}
