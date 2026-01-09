@@ -26,6 +26,17 @@ from .chat import (
     PaginatedConversations,
     PaginatedMessages,
 )
+from .agent import (
+    AgentAskRequest,
+    SubTaskSchema,
+    ComplexityEvent,
+    SubtasksEvent,
+    TaskStartEvent,
+    TaskCompleteEvent,
+    AgentStatusEvent,
+    AgentDoneEvent,
+    AgentExecutionMetadata,
+)
 
 __all__ = [
     # Auth
@@ -56,4 +67,14 @@ __all__ = [
     "AnswerLogResponse",
     "PaginatedConversations",
     "PaginatedMessages",
+    # Agent
+    "AgentAskRequest",
+    "SubTaskSchema",
+    "ComplexityEvent",
+    "SubtasksEvent",
+    "TaskStartEvent",
+    "TaskCompleteEvent",
+    "AgentStatusEvent",
+    "AgentDoneEvent",
+    "AgentExecutionMetadata",
 ]

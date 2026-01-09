@@ -1,11 +1,13 @@
 """AI 라우터
 
-Ask AI 엔드포인트 (SSE 스트리밍)
+Ask AI 엔드포인트 (SSE 스트리밍 with Agent Task Decomposition)
 대화 CRUD 엔드포인트
 """
 
 import asyncio
 import json
+import queue
+import threading
 import time
 import uuid
 from typing import Annotated
@@ -29,14 +31,14 @@ from app.schemas.chat import (
     PaginatedMessages,
     Reference,
 )
-from app.services import rag_service, llm_service
+from app.services import agent_service
 
 
 router = APIRouter(prefix="/ai", tags=["ai"])
 
 
 # ─────────────────────────────────────────────────────────────
-# Ask AI (SSE Streaming)
+# Ask AI (SSE Streaming with Agent Task Decomposition)
 # ─────────────────────────────────────────────────────────────
 
 
@@ -46,13 +48,21 @@ async def ask_ai(
     current_user: CurrentUser,
     db: Annotated[AsyncSession, Depends(get_db)],
 ):
-    """AI에게 질문하기 (SSE 스트리밍)
+    """AI에게 질문하기 (SSE 스트리밍, Agent 기반 태스크 분해)
+
+    복잡한 질문을 자동으로 분석하여:
+    - Simple: 기존 RAG 파이프라인 사용
+    - Medium/Complex: 태스크 분해 후 병렬/순차 실행
 
     Returns:
         SSE 스트림:
         - event: status (진행 상태)
-        - event: references (검색된 참조 문헌)
+        - event: complexity (복잡도 분석 결과)
+        - event: subtasks (분해된 태스크 목록)
+        - event: task_start (태스크 실행 시작)
+        - event: task_complete (태스크 완료)
         - event: token (LLM 응답 토큰)
+        - event: references (검색된 참조 문헌)
         - event: done (완료, conversation_id 포함)
     """
     # 대화 조회 (기존 대화인 경우만 미리 검증)
@@ -66,27 +76,81 @@ async def ask_ai(
             )
 
     async def generate_sse():
-        """SSE 스트림 생성 (EventSourceResponse용)"""
+        """SSE 스트림 생성 (Agent 실행)"""
         nonlocal conversation
         total_start = time.perf_counter()
 
-        # 1. 검색 시작 상태 전송 (즉시 flush)
-        yield {
-            "event": "status",
-            "data": json.dumps({"step": "searching", "message": "관련 논문 검색 중..."}, ensure_ascii=False),
-        }
+        # 이벤트 큐 (Agent 서비스에서 이벤트를 푸시)
+        event_queue: queue.Queue = queue.Queue()
 
-        # 2. RAG 검색 (동기 함수를 별도 스레드에서 실행)
-        filters = request.filters or {}
-        retrieval_result = await asyncio.to_thread(
-            rag_service.retrieve,
-            request.question,  # query
-            filters.year_from if hasattr(filters, "year_from") else None,
-            filters.year_to if hasattr(filters, "year_to") else None,
-            filters.sections if hasattr(filters, "sections") else None,
-        )
+        def run_agent():
+            """별도 스레드에서 Agent 실행"""
+            try:
+                # Agent 스트림 실행
+                result_gen = agent_service.execute_stream(
+                    query=request.question,
+                    conversation_id=str(request.conversation_id) if request.conversation_id else None,
+                )
 
-        # 3. 대화 생성 (신규인 경우)
+                # 이벤트를 큐에 푸시하고 return value를 캡처
+                # Generator의 return 값은 StopIteration.value로 전달됨
+                try:
+                    while True:
+                        event = next(result_gen)
+                        event_queue.put(("event", event))
+                except StopIteration as e:
+                    # Generator의 return 값 (AgentResult)
+                    result = e.value
+                    event_queue.put(("result", result))
+
+            except Exception as e:
+                import traceback
+                traceback.print_exc()
+                event_queue.put(("error", str(e)))
+            finally:
+                event_queue.put(("done", None))
+
+        # 스레드 시작
+        agent_thread = threading.Thread(target=run_agent)
+        agent_thread.start()
+
+        # 이벤트 처리
+        agent_result = None
+        while True:
+            try:
+                item = await asyncio.to_thread(event_queue.get, timeout=60)
+            except Exception:
+                break
+
+            event_type, data = item
+
+            if event_type == "done":
+                break
+            elif event_type == "error":
+                yield {
+                    "event": "error",
+                    "data": json.dumps({"error": data}, ensure_ascii=False),
+                }
+                break
+            elif event_type == "result":
+                agent_result = data
+            elif event_type == "event":
+                # AgentEvent를 SSE 이벤트로 변환
+                yield {
+                    "event": data.event_type,
+                    "data": json.dumps(data.data, ensure_ascii=False),
+                }
+
+        agent_thread.join()
+
+        if not agent_result:
+            yield {
+                "event": "error",
+                "data": json.dumps({"error": "Agent execution failed"}, ensure_ascii=False),
+            }
+            return
+
+        # 대화 생성/업데이트
         if not conversation:
             title = request.question[:50] + "..." if len(request.question) > 50 else request.question
             new_conversation = Conversation(
@@ -99,7 +163,7 @@ async def ask_ai(
         else:
             conv = conversation
 
-        # 5. 사용자 메시지 저장
+        # 사용자 메시지 저장
         user_message = Message(
             conversation_id=conv.id,
             role="user",
@@ -108,101 +172,51 @@ async def ask_ai(
         db.add(user_message)
         await db.flush()
 
-        # 6. 답변 생성 시작 상태 전송
-        yield {
-            "event": "status",
-            "data": json.dumps({"step": "generating", "message": "답변 생성 중..."}, ensure_ascii=False),
-        }
-
-        # 7. LLM 스트리밍 응답 (동기 제너레이터를 비동기로 처리)
-        full_content = ""
-        usage = None
-
-        # 동기 제너레이터를 스레드에서 실행하고 큐로 토큰 전달
-        import queue
-        token_queue: queue.Queue = queue.Queue()
-
-        def run_llm_stream():
-            """별도 스레드에서 LLM 스트리밍 실행"""
-            for chunk in llm_service.generate_stream(
-                question=request.question,
-                context=retrieval_result.context,
-                references=retrieval_result.references,
-            ):
-                token_queue.put(chunk)
-            token_queue.put(None)  # 종료 신호
-
-        # 스레드 시작
-        import threading
-        llm_thread = threading.Thread(target=run_llm_stream)
-        llm_thread.start()
-
-        # 큐에서 토큰 읽어서 yield
-        while True:
-            # 비동기로 큐 확인 (블로킹 방지)
-            try:
-                chunk = await asyncio.to_thread(token_queue.get, timeout=30)
-            except Exception:
-                break
-
-            if chunk is None:  # 종료 신호
-                break
-
-            if chunk.is_done:
-                usage = chunk.usage
-            elif chunk.token:
-                full_content += chunk.token
-                yield {
-                    "event": "token",
-                    "data": json.dumps({"token": chunk.token}, ensure_ascii=False),
-                }
-
-        llm_thread.join()
-
-        # 8. Assistant 메시지 저장
+        # Assistant 메시지 저장
         total_latency = int((time.perf_counter() - total_start) * 1000)
 
         assistant_message = Message(
             conversation_id=conv.id,
             role="assistant",
-            content=full_content,
-            tokens_used=usage.get("total_tokens") if usage else None,
-            model="gpt-4o-mini" if not llm_service.use_mock else "mock",
+            content=agent_result.answer,
+            tokens_used=None,  # Agent doesn't track tokens the same way
+            model="agent-gpt-4o-mini",
             latency_ms=total_latency,
         )
         db.add(assistant_message)
         await db.flush()
 
-        # 9. Answer Log 저장
-        evidence_data = [ref.model_dump() for ref in retrieval_result.references]
+        # Answer Log 저장 (evidence를 flat list로 저장)
+        evidence_data = [ref.model_dump() for ref in agent_result.references]
+
         answer_log = AnswerLog(
             message_id=assistant_message.id,
             conversation_id=conv.id,
             user_id=current_user.id,
             question=request.question,
-            answer=full_content,
+            answer=agent_result.answer,
             search_query=request.question,
             search_filters=request.filters.model_dump() if request.filters else None,
             evidence=evidence_data,
-            model="gpt-4o-mini" if not llm_service.use_mock else "mock",
-            prompt_tokens=usage.get("prompt_tokens") if usage else None,
-            completion_tokens=usage.get("completion_tokens") if usage else None,
-            total_tokens=usage.get("total_tokens") if usage else None,
-            search_latency_ms=retrieval_result.search_latency_ms,
-            llm_latency_ms=total_latency - retrieval_result.search_latency_ms,
+            model="agent-gpt-4o-mini",
+            prompt_tokens=None,
+            completion_tokens=None,
+            total_tokens=None,
+            search_latency_ms=agent_result.total_duration_ms,
+            llm_latency_ms=0,
             total_latency_ms=total_latency,
         )
         db.add(answer_log)
         await db.commit()
 
-        # 10. References 이벤트 전송 (답변 완료 후)
-        references_data = [ref.model_dump() for ref in retrieval_result.references]
+        # References 이벤트 전송
+        references_data = [ref.model_dump() for ref in agent_result.references]
         yield {
             "event": "references",
             "data": json.dumps({"references": references_data}, ensure_ascii=False),
         }
 
-        # 11. Done 이벤트 전송
+        # Done 이벤트 전송
         yield {
             "event": "done",
             "data": json.dumps({
