@@ -13,6 +13,8 @@ import { SystemModule } from './modules/system/system.module';
 import { LabModule } from './modules/lab/lab.module';
 import { RAGSettingsModule } from './modules/rag-settings/rag-settings.module';
 import { SampleEmbeddingsModule } from './modules/sample-embeddings/sample-embeddings.module';
+import { RedisModule } from './modules/redis/redis.module';
+import { JobManagerModule } from './modules/job-manager/job-manager.module';
 import { JwtAuthGuard } from './modules/auth/guards';
 import { RolesGuard } from './modules/auth/guards';
 import { validate } from './config';
@@ -67,6 +69,12 @@ import { validate } from './config';
 
     // Sample Embeddings (샘플 임베딩 관리)
     SampleEmbeddingsModule,
+
+    // Redis (작업 상태 관리)
+    RedisModule,
+
+    // Job Manager (Redis 기반 작업 관리)
+    JobManagerModule,
   ],
   providers: [
     // Global JWT Guard - 모든 엔드포인트에 적용

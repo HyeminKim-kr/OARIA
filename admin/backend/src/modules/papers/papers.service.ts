@@ -1,11 +1,12 @@
-import { Injectable, NotFoundException } from '@nestjs/common';
+import { Injectable, NotFoundException, Logger } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { Repository } from 'typeorm';
+import { Repository, In, IsNull } from 'typeorm';
 import { ConfigService } from '@nestjs/config';
 import { S3Client, GetObjectCommand } from '@aws-sdk/client-s3';
 import Redis from 'ioredis';
 import { randomUUID } from 'crypto';
 import { Paper, PaperStatus, EmbeddingStatusValue } from '../../entities/paper.entity';
+import { JobManagerService, JobType, JobStatus } from '../job-manager';
 import {
   PaperSearchOptions,
   PaginatedResult,
@@ -14,6 +15,10 @@ import {
   FulltextResult,
   EmbeddingStatusEnum,
   PaperStatusEnum,
+  EmbedBatchTriggerResult,
+  EmbedJobState,
+  EmbedJobsResult,
+  EmbedBatchCancelResult,
 } from './types';
 
 // Re-export types for external use
@@ -23,10 +28,14 @@ export {
   PaperStats,
   EmbedTriggerResult,
   FulltextResult,
+  EmbedBatchTriggerResult,
+  EmbedJobsResult,
+  EmbedBatchCancelResult,
 } from './types';
 
 @Injectable()
 export class PapersService {
+  private readonly logger = new Logger(PapersService.name);
   private s3Client: S3Client;
   private bucket: string;
   private redis: Redis;
@@ -35,6 +44,7 @@ export class PapersService {
     @InjectRepository(Paper)
     private readonly repository: Repository<Paper>,
     private readonly configService: ConfigService,
+    private readonly jobManager: JobManagerService,
   ) {
     this.bucket = this.configService.get('S3_BUCKET', 'oaria-papers');
     this.s3Client = new S3Client({
@@ -46,7 +56,7 @@ export class PapersService {
       },
       forcePathStyle: true,
     });
-    // Redis 연결 (Celery 트리거용)
+    // Redis 연결 (Celery 트리거용 - 레거시)
     this.redis = new Redis({
       host: this.configService.get('REDIS_HOST', 'localhost'),
       port: this.configService.get('REDIS_PORT', 16379),
@@ -404,5 +414,124 @@ export class PapersService {
     await this.redis.lpush('embed', message);
 
     return { taskId, failedCount };
+  }
+
+  // ─────────────────────────────────────────────────────────────
+  // Job Manager V2 기반 임베딩 관리
+  // ─────────────────────────────────────────────────────────────
+
+  /**
+   * 임베딩 대기/실패 논문 일괄 임베딩 시작 (Job Manager V2)
+   *
+   * pending/failed 상태의 논문들을 수집하여 배치 작업으로 등록
+   */
+  async triggerEmbedBatch(limit?: number): Promise<EmbedBatchTriggerResult> {
+    // pending 또는 failed 또는 NULL 상태인 논문 조회
+    const queryBuilder = this.repository
+      .createQueryBuilder('paper')
+      .select('paper.id')
+      .where('paper.canonicalPrefix IS NOT NULL')
+      .andWhere(
+        '(paper.embeddingStatus IS NULL OR paper.embeddingStatus IN (:...statuses))',
+        { statuses: [EmbeddingStatusEnum.PENDING, EmbeddingStatusEnum.FAILED] },
+      )
+      .orderBy('paper.createdAt', 'ASC');
+
+    if (limit) {
+      queryBuilder.limit(limit);
+    }
+
+    const papers = await queryBuilder.getMany();
+
+    if (papers.length === 0) {
+      return {
+        batchId: '',
+        paperCount: 0,
+        message: 'No papers to embed',
+      };
+    }
+
+    // 배치 ID 생성 (타임스탬프 기반)
+    const timestamp = new Date().toISOString().replace(/[-:T.Z]/g, '').slice(0, 14);
+    const batchId = `paper_batch_${timestamp}`;
+
+    // 논문들의 상태를 pending으로 업데이트
+    const paperIds = papers.map(p => p.id);
+    await this.repository.update(
+      { id: In(paperIds) },
+      { embeddingStatus: EmbeddingStatusEnum.PENDING as EmbeddingStatusValue },
+    );
+
+    // Job Manager에 배치 작업 등록
+    await this.jobManager.createPaperBatchJob(batchId, paperIds);
+
+    this.logger.log(`Embedding batch triggered: ${batchId} with ${paperIds.length} papers`);
+
+    return {
+      batchId,
+      paperCount: paperIds.length,
+      message: `Batch job created for ${paperIds.length} papers`,
+    };
+  }
+
+  /**
+   * 임베딩 진행 중인 작업 일괄 취소
+   */
+  async cancelEmbedBatch(): Promise<EmbedBatchCancelResult> {
+    // Redis에서 processing 상태 작업 취소
+    const cancelledCount = await this.jobManager.cancelAllProcessingPaperJobs();
+
+    // DB에서 processing 상태인 논문을 failed로 변경
+    await this.repository.update(
+      { embeddingStatus: EmbeddingStatusEnum.PROCESSING as EmbeddingStatusValue },
+      {
+        embeddingStatus: EmbeddingStatusEnum.FAILED as EmbeddingStatusValue,
+        embeddingError: 'Cancelled by admin',
+      },
+    );
+
+    this.logger.log(`Embedding batch cancelled: ${cancelledCount} jobs`);
+
+    return {
+      cancelledCount,
+      message: `Cancelled ${cancelledCount} embedding jobs`,
+    };
+  }
+
+  /**
+   * 임베딩 작업 목록 조회 (Redis에서)
+   */
+  async getEmbedJobs(): Promise<EmbedJobsResult> {
+    const jobs = await this.jobManager.getAllJobs(JobType.PAPER_EMBED);
+
+    const embedJobs: EmbedJobState[] = jobs.map(job => ({
+      jobId: job.jobId,
+      status: job.state.status,
+      progress: job.state.progress,
+      total: job.state.total,
+      retryCount: job.state.retryCount,
+      error: job.state.error,
+      startedAt: job.state.startedAt,
+      completedAt: job.state.completedAt,
+    }));
+
+    return {
+      jobs: embedJobs,
+      total: embedJobs.length,
+    };
+  }
+
+  /**
+   * 특정 임베딩 작업 재시도
+   */
+  async retryEmbedJob(jobId: string): Promise<boolean> {
+    return this.jobManager.retryJob(jobId, JobType.PAPER_EMBED);
+  }
+
+  /**
+   * 특정 임베딩 작업 취소
+   */
+  async cancelEmbedJob(jobId: string): Promise<boolean> {
+    return this.jobManager.cancelJob(jobId, JobType.PAPER_EMBED);
   }
 }

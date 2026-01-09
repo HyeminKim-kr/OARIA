@@ -179,3 +179,89 @@ export function ApiPapersTriggerReembed() {
     }),
   );
 }
+
+// ─────────────────────────────────────────────────────────────
+// Job Manager V2 기반 임베딩 엔드포인트
+// ─────────────────────────────────────────────────────────────
+
+export function ApiPapersGetEmbedJobs() {
+  return applyDecorators(
+    ApiBearerAuth('access-token'),
+    ApiOperation({
+      summary: '임베딩 작업 목록 조회',
+      description: 'Redis에서 현재 진행 중인 모든 임베딩 배치 작업 목록을 조회합니다.',
+    }),
+    ApiResponse({
+      status: 200,
+      description: '임베딩 작업 목록',
+    }),
+  );
+}
+
+export function ApiPapersTriggerEmbedBatch() {
+  return applyDecorators(
+    ApiBearerAuth('access-token'),
+    ApiOperation({
+      summary: '임베딩 배치 작업 시작 (V2)',
+      description:
+        'pending/failed 상태의 논문들을 수집하여 배치 임베딩 작업을 시작합니다. ' +
+        'Job Manager V2를 사용하여 자동 재시도 및 stuck 복구가 가능합니다.',
+    }),
+    ApiResponse({
+      status: 200,
+      description: '배치 작업 ID 및 대상 논문 수',
+    }),
+  );
+}
+
+export function ApiPapersCancelEmbedBatch() {
+  return applyDecorators(
+    ApiBearerAuth('access-token'),
+    ApiOperation({
+      summary: '임베딩 배치 작업 일괄 취소',
+      description: '현재 processing 상태인 모든 임베딩 작업을 취소합니다.',
+    }),
+    ApiResponse({
+      status: 200,
+      description: '취소된 작업 수',
+    }),
+  );
+}
+
+export function ApiPapersRetryEmbedJob() {
+  return applyDecorators(
+    ApiBearerAuth('access-token'),
+    ApiOperation({
+      summary: '임베딩 작업 재시도',
+      description: '특정 임베딩 작업을 재시도합니다.',
+    }),
+    ApiParam({
+      name: 'jobId',
+      description: '작업 ID',
+      type: 'string',
+    }),
+    ApiResponse({
+      status: 200,
+      description: '재시도 성공 여부',
+    }),
+  );
+}
+
+export function ApiPapersCancelEmbedJob() {
+  return applyDecorators(
+    ApiBearerAuth('access-token'),
+    ApiOperation({
+      summary: '임베딩 작업 취소',
+      description: '특정 임베딩 작업을 취소합니다.',
+    }),
+    ApiParam({
+      name: 'jobId',
+      description: '작업 ID',
+      type: 'string',
+    }),
+    ApiResponse({
+      status: 200,
+      description: '취소 성공 여부',
+    }),
+  );
+}

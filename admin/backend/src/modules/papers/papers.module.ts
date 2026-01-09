@@ -4,9 +4,13 @@ import { Paper } from '../../entities/paper.entity';
 import { PaperAuthor } from '../../entities/paper-author.entity';
 import { PapersController } from './papers.controller';
 import { PapersService } from './papers.service';
+import { JobManagerModule } from '../job-manager/job-manager.module';
 
 @Module({
-  imports: [TypeOrmModule.forFeature([Paper, PaperAuthor])],
+  imports: [
+    TypeOrmModule.forFeature([Paper, PaperAuthor]),
+    JobManagerModule,
+  ],
   controllers: [PapersController],
   providers: [PapersService],
   exports: [PapersService],

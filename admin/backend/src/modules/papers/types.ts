@@ -72,12 +72,51 @@ export interface EmbeddingStats {
 }
 
 /**
- * 임베딩 트리거 결과
+ * 임베딩 트리거 결과 (구버전 - 단일 Celery 태스크)
  */
 export interface EmbedTriggerResult {
   taskId: string;
   pendingCount?: number;
   failedCount?: number;
+}
+
+/**
+ * 임베딩 배치 트리거 결과 (신버전 - Job Manager V2)
+ */
+export interface EmbedBatchTriggerResult {
+  batchId: string;
+  paperCount: number;
+  message: string;
+}
+
+/**
+ * 임베딩 작업 상태
+ */
+export interface EmbedJobState {
+  jobId: string;
+  status: string;
+  progress: number;
+  total: number;
+  retryCount: number;
+  error: string;
+  startedAt: string | null;
+  completedAt: string | null;
+}
+
+/**
+ * 임베딩 작업 목록 결과
+ */
+export interface EmbedJobsResult {
+  jobs: EmbedJobState[];
+  total: number;
+}
+
+/**
+ * 임베딩 배치 취소 결과
+ */
+export interface EmbedBatchCancelResult {
+  cancelledCount: number;
+  message: string;
 }
 
 /**
