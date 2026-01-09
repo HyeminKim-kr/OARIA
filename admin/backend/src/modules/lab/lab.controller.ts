@@ -74,6 +74,7 @@ export class LabController {
       dto.useReranker,
       dto.reranker,
       dto.minRerankScore,
+      dto.collectionName,
     );
   }
 
@@ -87,6 +88,7 @@ export class LabController {
       dto.alpha,
       dto.useReranker,
       dto.reranker,
+      dto.collectionName,
     );
   }
 

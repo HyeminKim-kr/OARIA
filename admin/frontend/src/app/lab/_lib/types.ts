@@ -30,6 +30,7 @@ export interface SearchConfig {
   limit: number;
   alpha: number;
   reranker: string | null;  // null이면 리랭킹 안함
+  collectionName: string | null;  // null이면 프로덕션, 값이 있으면 샘플 임베딩
 }
 
 // RAG 전략 선택 상태

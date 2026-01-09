@@ -445,6 +445,7 @@ export interface CompareSearchConfig {
   limit: number;
   alpha: number;
   reranker: string | null;
+  collectionName?: string | null;
 }
 
 export interface CompareTestParams {
@@ -630,19 +631,19 @@ export const labApi = {
       query: params.query,
       limit: params.limit,
       alpha: params.alpha,
-      use_reranker: params.useReranker,
+      useReranker: params.useReranker,
       reranker: params.reranker,
-      min_rerank_score: params.minRerankScore,
-      collection_name: params.collectionName,
+      minRerankScore: params.minRerankScore,
+      collectionName: params.collectionName,
     }).then((res) => res.data),
   testGenerate: (params: GenerateTestParams) =>
     api.post<GenerateTestResult>('/lab/generate', {
       query: params.query,
       limit: params.limit,
       alpha: params.alpha,
-      use_reranker: params.useReranker,
+      useReranker: params.useReranker,
       reranker: params.reranker,
-      collection_name: params.collectionName,
+      collectionName: params.collectionName,
     }).then((res) => res.data),
   testCompare: (params: CompareTestParams) =>
     api.post<CompareTestResult>('/lab/compare', params).then((res) => res.data),
@@ -664,6 +665,34 @@ export const labApi = {
     api.get<TestLogStats>('/lab/stats/logs').then((res) => res.data),
 };
 
+// Job Manager V2 - Papers Embedding Types
+export interface EmbedBatchTriggerResponse {
+  batchId: string;
+  paperCount: number;
+  message: string;
+}
+
+export interface EmbedJobState {
+  jobId: string;
+  status: string;
+  progress: number;
+  total: number;
+  retryCount: number;
+  error: string;
+  startedAt: string | null;
+  completedAt: string | null;
+}
+
+export interface EmbedJobsResponse {
+  jobs: EmbedJobState[];
+  total: number;
+}
+
+export interface EmbedBatchCancelResponse {
+  cancelledCount: number;
+  message: string;
+}
+
 export const papersApi = {
   getAll: (params?: {
     page?: number;
@@ -676,7 +705,7 @@ export const papersApi = {
   getFulltext: (id: string) => api.get<PaperFulltext>(`/papers/${id}/fulltext`).then((res) => res.data),
   getStats: () => api.get<PaperStats>('/papers/stats').then((res) => res.data),
 
-  // 임베딩 관련
+  // 임베딩 관련 (레거시)
   triggerEmbedAll: (limit?: number) =>
     api.post<EmbedTriggerResponse>('/papers/embed/all', null, { params: { limit } }).then((res) => res.data),
   triggerEmbedByQuery: (queryId: string, limit?: number) =>
@@ -685,4 +714,16 @@ export const papersApi = {
     api.post<EmbedTriggerResponse>(`/papers/${id}/embed`).then((res) => res.data),
   triggerReembed: (queryId?: string) =>
     api.post<EmbedTriggerResponse>('/papers/embed/retry', null, { params: { queryId } }).then((res) => res.data),
+
+  // Job Manager V2 - 임베딩 배치 관리
+  getEmbedJobs: () =>
+    api.get<EmbedJobsResponse>('/papers/embedding/jobs').then((res) => res.data),
+  triggerEmbedBatch: (limit?: number) =>
+    api.post<EmbedBatchTriggerResponse>('/papers/embedding/batch-trigger', null, { params: { limit } }).then((res) => res.data),
+  cancelEmbedBatch: () =>
+    api.post<EmbedBatchCancelResponse>('/papers/embedding/batch-cancel').then((res) => res.data),
+  retryEmbedJob: (jobId: string) =>
+    api.post<{ success: boolean }>(`/papers/embedding/jobs/${jobId}/retry`).then((res) => res.data),
+  cancelEmbedJob: (jobId: string) =>
+    api.post<{ success: boolean }>(`/papers/embedding/jobs/${jobId}/cancel`).then((res) => res.data),
 };

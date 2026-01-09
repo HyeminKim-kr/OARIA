@@ -17,7 +17,8 @@ export const RELEVANCE_STYLES: Record<RelevanceLevel, RelevanceStyle> = {
 export const DEFAULT_SEARCH_CONFIG = {
   limit: 10,
   alpha: 0.7,
-  reranker: 'bge' as string | null,
+  reranker: null as string | null,  // 기본값: 미사용 (백엔드에서 사용 가능한 옵션 동적 로드)
+  collectionName: null as string | null,
 };
 
 export const DEFAULT_SELECTED_STRATEGIES = {
@@ -32,10 +33,10 @@ export const DEFAULT_CONFIG = {
   limit: 10,
   alpha: 0.7,
   useReranker: false,
-  reranker: 'bge',
+  reranker: '',  // 빈 문자열 (UI에서 선택 필요)
   // A/B 비교용 기본 설정
-  configA: { ...DEFAULT_SEARCH_CONFIG, reranker: 'bge' },
-  configB: { ...DEFAULT_SEARCH_CONFIG, reranker: null },
+  configA: { ...DEFAULT_SEARCH_CONFIG, reranker: null },  // 기본: 미사용
+  configB: { ...DEFAULT_SEARCH_CONFIG, reranker: null },  // 기본: 미사용
   // RAG 전략 선택
   selectedStrategies: { ...DEFAULT_SELECTED_STRATEGIES },
   // 데이터 소스 (기본: 프로덕션)

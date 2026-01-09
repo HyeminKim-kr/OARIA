@@ -1,12 +1,14 @@
 'use client';
 
-import { HelpCircle, ChevronDown } from 'lucide-react';
+import { HelpCircle, ChevronDown, Database } from 'lucide-react';
 import { Tooltip } from './Tooltip';
 import { SearchConfig } from '../_lib';
+import { SampleEmbedding } from '@/lib/api';
 
 interface SearchConfigPanelProps {
   config: SearchConfig;
   rerankerOptions: string[];
+  sampleEmbeddings?: SampleEmbedding[];
   label?: string;
   compact?: boolean;
   onChange: (updates: Partial<SearchConfig>) => void;
@@ -15,17 +17,60 @@ interface SearchConfigPanelProps {
 export function SearchConfigPanel({
   config,
   rerankerOptions,
+  sampleEmbeddings,
   label,
   compact = false,
   onChange,
 }: SearchConfigPanelProps) {
   const hasReranker = config.reranker !== null;
+  const hasCollections = sampleEmbeddings && sampleEmbeddings.length > 0;
+
+  // 컬렉션 이름에서 표시명 추출 (파이프라인 키 또는 축약)
+  const getCollectionDisplayName = (collectionName: string) => {
+    // MedicalChunks_sample_semantic_section_700t_openai_3small -> semantic_700t_openai
+    const match = collectionName.match(/sample_([^_]+)_([^_]+)_(\d+)t_([^_]+)/);
+    if (match) {
+      return `${match[1]}_${match[3]}t_${match[4]}`;
+    }
+    return collectionName.length > 30 ? collectionName.slice(0, 30) + '...' : collectionName;
+  };
 
   return (
     <div className={compact ? 'space-y-3' : 'space-y-4'}>
       {label && (
         <div className="text-sm font-semibold text-gray-800 border-b pb-2">
           {label}
+        </div>
+      )}
+
+      {/* 데이터 소스 선택 (샘플 임베딩 있을 때만 표시) */}
+      {hasCollections && (
+        <div>
+          <label className="flex items-center gap-1 text-xs font-medium text-gray-600">
+            <Database className="h-3 w-3" />
+            데이터 소스
+            <Tooltip content="프로덕션 또는 샘플 임베딩 선택">
+              <HelpCircle className="h-3 w-3 cursor-help text-gray-400" />
+            </Tooltip>
+          </label>
+          <div className="relative mt-1">
+            <select
+              value={config.collectionName ?? 'production'}
+              onChange={(e) => {
+                const value = e.target.value;
+                onChange({ collectionName: value === 'production' ? null : value });
+              }}
+              className="w-full appearance-none rounded-md border border-gray-300 bg-white px-2 py-1.5 pr-8 text-xs focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
+            >
+              <option value="production">프로덕션</option>
+              {sampleEmbeddings.map((embedding) => (
+                <option key={embedding.id} value={embedding.collectionName}>
+                  {getCollectionDisplayName(embedding.collectionName)}
+                </option>
+              ))}
+            </select>
+            <ChevronDown className="pointer-events-none absolute right-2 top-1/2 h-4 w-4 -translate-y-1/2 text-gray-400" />
+          </div>
         </div>
       )}
 
@@ -104,6 +149,7 @@ export function SearchConfigPanel({
       {/* 현재 설정 요약 */}
       <div className="text-xs text-gray-500 bg-gray-50 rounded px-2 py-1.5">
         limit={config.limit}, alpha={config.alpha.toFixed(2)}, reranker={config.reranker ?? 'none'}
+        {config.collectionName && `, collection=${getCollectionDisplayName(config.collectionName)}`}
       </div>
     </div>
   );

@@ -1,4 +1,4 @@
-import { IsString, IsOptional, IsNumber, Min, Max, IsIn, IsBoolean, IsUUID } from 'class-validator';
+import { IsString, IsOptional, IsNumber, Min, Max, IsIn, IsBoolean, IsUUID, ValidateNested } from 'class-validator';
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 import { Type } from 'class-transformer';
 
@@ -64,6 +64,14 @@ export class SearchTestDto {
   @Min(0)
   @Max(1)
   minRerankScore?: number;
+
+  @ApiPropertyOptional({
+    description: '샘플 임베딩 컬렉션 이름',
+    example: 'MedicalChunks_sample_semantic_section_700t_openai_3small',
+  })
+  @IsOptional()
+  @IsString()
+  collectionName?: string;
 }
 
 export class GenerateTestDto {
@@ -116,6 +124,13 @@ export class GenerateTestDto {
   @IsOptional()
   @IsString()
   reranker?: string;
+
+  @ApiPropertyOptional({
+    description: '샘플 임베딩 컬렉션 이름',
+  })
+  @IsOptional()
+  @IsString()
+  collectionName?: string;
 }
 
 export class CompareSearchConfigDto {
@@ -150,6 +165,13 @@ export class CompareSearchConfigDto {
   @IsOptional()
   @IsString()
   reranker?: string | null = null;
+
+  @ApiPropertyOptional({
+    description: '샘플 임베딩 컬렉션 이름 (null이면 프로덕션 사용)',
+  })
+  @IsOptional()
+  @IsString()
+  collectionName?: string | null = null;
 }
 
 export class CompareTestDto {
@@ -164,12 +186,16 @@ export class CompareTestDto {
     description: '설정 A',
     type: CompareSearchConfigDto,
   })
+  @ValidateNested()
+  @Type(() => CompareSearchConfigDto)
   configA: CompareSearchConfigDto;
 
   @ApiProperty({
     description: '설정 B',
     type: CompareSearchConfigDto,
   })
+  @ValidateNested()
+  @Type(() => CompareSearchConfigDto)
   configB: CompareSearchConfigDto;
 }
 
