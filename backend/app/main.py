@@ -1,16 +1,51 @@
 """OARIA Backend API"""
 
+import logging
+from contextlib import asynccontextmanager
+
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from starlette.middleware.sessions import SessionMiddleware
 
 from .config import settings
+from .core import RAGConfigManager
+from .core.rag_sync import sync_rag_strategies
+from .database import async_session_maker
 from .routers import auth_router, papers_router, ai_router, lab_router
+
+logger = logging.getLogger(__name__)
+
+
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    """애플리케이션 생명주기 관리
+
+    시작 시: RAG 설정 로드
+    종료 시: 정리 작업
+    """
+    # Startup
+    logger.info("Loading RAG configuration...")
+    async with async_session_maker() as db:
+        await RAGConfigManager.load(db)
+    logger.info("RAG configuration loaded successfully")
+
+    # RAG 전략 정보를 DB에 동기화
+    logger.info("Syncing RAG strategies to DB...")
+    async with async_session_maker() as db:
+        result = await sync_rag_strategies(db)
+    logger.info(f"RAG strategies synced: {result}")
+
+    yield
+
+    # Shutdown
+    logger.info("Shutting down...")
+
 
 app = FastAPI(
     title="OARIA API",
     description="Backend API for OARIA",
     version="0.1.0",
+    lifespan=lifespan,
 )
 
 # 세션 미들웨어 (OAuth용)

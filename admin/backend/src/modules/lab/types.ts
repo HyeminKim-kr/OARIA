@@ -129,3 +129,49 @@ export interface TestLogListResult {
   limit: number;
   totalPages: number;
 }
+
+// RAG 전략 목록
+export interface StrategiesResponse {
+  chunkers: string[];
+  embedders: string[];
+  retrievers: string[];
+  rerankers: string[];
+  classifiers: string[];
+  evaluators: string[];
+}
+
+// RAG 전략 상세 정보
+export interface StrategyInfo {
+  name: string;
+  class_name: string;
+  module: string;
+  description: string;
+  config?: Record<string, unknown>;
+}
+
+// RAG 전략 상세 응답
+export interface StrategiesDetailResponse {
+  chunkers: StrategyInfo[];
+  embedders: StrategyInfo[];
+  retrievers: StrategyInfo[];
+  rerankers: StrategyInfo[];
+}
+
+// DB 저장 RAG 전략 정보
+export interface DBStrategyInfo {
+  id: string;
+  category: string;
+  name: string;
+  description: string | null;
+  config: Record<string, unknown> | null;
+  location: 'backend' | 'batch';
+  is_active: boolean;
+}
+
+// DB 기반 RAG 전략 응답
+export interface DBStrategiesResponse {
+  chunkers: DBStrategyInfo[];
+  embedders: DBStrategyInfo[];
+  retrievers: DBStrategyInfo[];
+  rerankers: DBStrategyInfo[];
+}

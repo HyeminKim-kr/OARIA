@@ -46,6 +46,14 @@ export class SearchTestDto {
   useReranker?: boolean = false;
 
   @ApiPropertyOptional({
+    description: 'Reranker 모델 선택 (예: bge, none)',
+    example: 'bge',
+  })
+  @IsOptional()
+  @IsString()
+  reranker?: string;
+
+  @ApiPropertyOptional({
     description: 'Reranker 최소 점수 임계값 (0~1)',
     minimum: 0,
     maximum: 1,
@@ -100,6 +108,48 @@ export class GenerateTestDto {
   @IsBoolean()
   @Type(() => Boolean)
   useReranker?: boolean = false;
+
+  @ApiPropertyOptional({
+    description: 'Reranker 모델 선택 (예: bge, none)',
+    example: 'bge',
+  })
+  @IsOptional()
+  @IsString()
+  reranker?: string;
+}
+
+export class CompareSearchConfigDto {
+  @ApiProperty({
+    description: '검색 결과 개수',
+    minimum: 1,
+    maximum: 50,
+    default: 10,
+  })
+  @IsNumber()
+  @Type(() => Number)
+  @Min(1)
+  @Max(50)
+  limit: number = 10;
+
+  @ApiProperty({
+    description: '하이브리드 검색 가중치 (0: 키워드 only, 1: 벡터 only)',
+    minimum: 0,
+    maximum: 1,
+    default: 0.7,
+  })
+  @IsNumber()
+  @Type(() => Number)
+  @Min(0)
+  @Max(1)
+  alpha: number = 0.7;
+
+  @ApiPropertyOptional({
+    description: 'Reranker 모델 (null이면 리랭킹 안함)',
+    example: 'bge',
+  })
+  @IsOptional()
+  @IsString()
+  reranker?: string | null = null;
 }
 
 export class CompareTestDto {
@@ -110,31 +160,17 @@ export class CompareTestDto {
   @IsString()
   query: string;
 
-  @ApiPropertyOptional({
-    description: '검색 결과 개수 (기본값: 10)',
-    minimum: 1,
-    maximum: 50,
-    default: 10,
+  @ApiProperty({
+    description: '설정 A',
+    type: CompareSearchConfigDto,
   })
-  @IsOptional()
-  @IsNumber()
-  @Type(() => Number)
-  @Min(1)
-  @Max(50)
-  limit?: number = 10;
+  configA: CompareSearchConfigDto;
 
-  @ApiPropertyOptional({
-    description: '하이브리드 검색 가중치 (0: 키워드 only, 1: 벡터 only, 기본값: 0.7)',
-    minimum: 0,
-    maximum: 1,
-    default: 0.7,
+  @ApiProperty({
+    description: '설정 B',
+    type: CompareSearchConfigDto,
   })
-  @IsOptional()
-  @IsNumber()
-  @Type(() => Number)
-  @Min(0)
-  @Max(1)
-  alpha?: number = 0.7;
+  configB: CompareSearchConfigDto;
 }
 
 // 피드백 파라미터 (테스트 시 사용된 설정)

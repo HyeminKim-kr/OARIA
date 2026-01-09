@@ -4,8 +4,8 @@ import { HttpService } from '@nestjs/axios';
 import { Repository } from 'typeorm';
 import { firstValueFrom } from 'rxjs';
 import { AxiosResponse } from 'axios';
-import { SearchQuery } from '../../entities/search-query.entity';
-import { CreateSearchQueryDto, UpdateSearchQueryDto, PreviewQueryDto } from './dto';
+import { SearchQuery, QueryType } from '../../entities/search-query.entity';
+import { CreateSearchQueryDto, UpdateSearchQueryDto, PreviewQueryDto, ListSearchQueriesQueryDto } from './dto';
 
 interface EuropePmcResponse {
   hitCount: number;
@@ -24,10 +24,17 @@ export class SearchQueriesService {
     private readonly httpService: HttpService,
   ) {}
 
-  async findAll(): Promise<SearchQuery[]> {
-    return this.repository.find({
-      order: { priority: 'ASC', createdAt: 'DESC' },
-    });
+  async findAll(query?: ListSearchQueriesQueryDto): Promise<SearchQuery[]> {
+    const qb = this.repository
+      .createQueryBuilder('sq')
+      .orderBy('sq.priority', 'ASC')
+      .addOrderBy('sq.createdAt', 'DESC');
+
+    if (query?.queryType) {
+      qb.andWhere('sq.queryType = :queryType', { queryType: query.queryType });
+    }
+
+    return qb.getMany();
   }
 
   async findActive(): Promise<SearchQuery[]> {

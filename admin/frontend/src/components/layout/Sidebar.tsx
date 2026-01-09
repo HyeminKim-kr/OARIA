@@ -9,6 +9,7 @@ import {
   Clock,
   Users,
   FlaskConical,
+  Database,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { useAuth } from '@/contexts/AuthContext';
@@ -25,6 +26,7 @@ const navigation: NavItem[] = [
   { name: '검색 쿼리', href: '/queries', icon: Search },
   { name: '수집 작업', href: '/jobs', icon: Clock },
   { name: '논문 목록', href: '/papers', icon: FileText },
+  { name: '임베딩 관리', href: '/embeddings', icon: Database },
   { name: 'RAG Lab', href: '/lab', icon: FlaskConical },
   { name: '관리자 관리', href: '/admin-users', icon: Users, superAdminOnly: true },
 ];

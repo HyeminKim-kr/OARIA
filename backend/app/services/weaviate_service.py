@@ -3,6 +3,7 @@
 Batch 모듈의 WeaviateClient를 Backend용으로 포팅
 - 검색 기능만 포함 (삽입/삭제는 batch에서 처리)
 - 동기 클라이언트 (Weaviate Python SDK가 비동기 미지원)
+- 멀티 컬렉션 지원 (프로덕션 + 샘플 임베딩)
 """
 
 from typing import Any
@@ -13,7 +14,8 @@ from weaviate.classes.query import Filter, MetadataQuery
 from app.config import settings
 
 
-COLLECTION_NAME = "PaperChunk"
+# 기본 프로덕션 컬렉션
+DEFAULT_COLLECTION_NAME = "PaperChunk"
 
 
 class WeaviateService:
@@ -39,8 +41,58 @@ class WeaviateService:
 
     @property
     def collection(self):
-        """PaperChunk 컬렉션 반환"""
-        return self._get_client().collections.get(COLLECTION_NAME)
+        """기본 PaperChunk 컬렉션 반환 (하위 호환성)"""
+        return self._get_client().collections.get(DEFAULT_COLLECTION_NAME)
+
+    def get_collection(self, collection_name: str | None = None):
+        """컬렉션 반환 (이름 지정 가능)
+
+        Args:
+            collection_name: 컬렉션 이름 (None이면 기본 컬렉션)
+
+        Returns:
+            Weaviate 컬렉션
+        """
+        name = collection_name or DEFAULT_COLLECTION_NAME
+        return self._get_client().collections.get(name)
+
+    def collection_exists(self, collection_name: str) -> bool:
+        """컬렉션 존재 여부 확인"""
+        try:
+            client = self._get_client()
+            return client.collections.exists(collection_name)
+        except Exception:
+            return False
+
+    def list_collections(self) -> list[str]:
+        """모든 컬렉션 목록 반환"""
+        try:
+            client = self._get_client()
+            return [col.name for col in client.collections.list_all()]
+        except Exception:
+            return []
+
+    def get_collection_stats(self, collection_name: str | None = None) -> dict[str, Any]:
+        """컬렉션 통계 조회
+
+        Args:
+            collection_name: 컬렉션 이름 (None이면 기본 컬렉션)
+
+        Returns:
+            컬렉션 통계 (객체 수 등)
+        """
+        try:
+            col = self.get_collection(collection_name)
+            aggregate = col.aggregate.over_all()
+            return {
+                "collection_name": collection_name or DEFAULT_COLLECTION_NAME,
+                "total_objects": aggregate.total_count,
+            }
+        except Exception as e:
+            return {
+                "collection_name": collection_name or DEFAULT_COLLECTION_NAME,
+                "error": str(e),
+            }
 
     def close(self):
         """연결 종료"""
@@ -59,6 +111,7 @@ class WeaviateService:
         year_from: int | None = None,
         year_to: int | None = None,
         sections: list[str] | None = None,
+        collection_name: str | None = None,
     ) -> list[dict[str, Any]]:
         """벡터 유사도 검색
 
@@ -68,13 +121,15 @@ class WeaviateService:
             year_from: 연도 필터 (이상)
             year_to: 연도 필터 (이하)
             sections: 섹션 필터
+            collection_name: 컬렉션 이름 (None이면 기본 컬렉션)
 
         Returns:
             검색 결과 리스트
         """
         filters = self._build_filters(year_from, year_to, sections)
+        col = self.get_collection(collection_name)
 
-        response = self.collection.query.near_vector(
+        response = col.query.near_vector(
             near_vector=query_vector,
             limit=limit,
             filters=filters,
@@ -99,6 +154,7 @@ class WeaviateService:
         year_from: int | None = None,
         year_to: int | None = None,
         sections: list[str] | None = None,
+        collection_name: str | None = None,
     ) -> list[dict[str, Any]]:
         """하이브리드 검색 (벡터 + 키워드)
 
@@ -110,13 +166,15 @@ class WeaviateService:
             year_from: 연도 필터 (이상)
             year_to: 연도 필터 (이하)
             sections: 섹션 필터
+            collection_name: 컬렉션 이름 (None이면 기본 컬렉션)
 
         Returns:
             검색 결과 리스트
         """
         filters = self._build_filters(year_from, year_to, sections)
+        col = self.get_collection(collection_name)
 
-        response = self.collection.query.hybrid(
+        response = col.query.hybrid(
             query=query,
             vector=query_vector,
             alpha=alpha,
@@ -142,12 +200,14 @@ class WeaviateService:
         self,
         paper_id: str,
         section: str,
+        collection_name: str | None = None,
     ) -> list[dict[str, Any]]:
         """논문 ID와 섹션으로 모든 청크 조회 (Parent Retrieval용)
 
         Args:
             paper_id: 논문 ID
             section: 섹션명
+            collection_name: 컬렉션 이름 (None이면 기본 컬렉션)
 
         Returns:
             청크 리스트 (chunkIndex 순)
@@ -156,8 +216,9 @@ class WeaviateService:
             Filter.by_property("paperId").equal(paper_id)
             & Filter.by_property("section").equal(section)
         )
+        col = self.get_collection(collection_name)
 
-        response = self.collection.query.fetch_objects(
+        response = col.query.fetch_objects(
             filters=filters,
             limit=100,  # 한 섹션의 최대 청크 수
         )
@@ -168,16 +229,22 @@ class WeaviateService:
 
         return chunks
 
-    def get_by_paper_id(self, paper_id: str) -> list[dict[str, Any]]:
+    def get_by_paper_id(
+        self,
+        paper_id: str,
+        collection_name: str | None = None,
+    ) -> list[dict[str, Any]]:
         """논문 ID로 모든 청크 조회
 
         Args:
             paper_id: 논문 ID
+            collection_name: 컬렉션 이름 (None이면 기본 컬렉션)
 
         Returns:
             청크 리스트
         """
-        response = self.collection.query.fetch_objects(
+        col = self.get_collection(collection_name)
+        response = col.query.fetch_objects(
             filters=Filter.by_property("paperId").equal(paper_id),
             limit=500,
         )

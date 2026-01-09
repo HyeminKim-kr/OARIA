@@ -49,18 +49,27 @@ export interface GenerateResults {
 }
 
 export interface CompareResults {
-  withReranker: SearchResults & { rerankLatencyMs?: number };
-  withoutReranker: SearchResults;
+  configA: SearchResults & { rerankLatencyMs?: number };
+  configB: SearchResults & { rerankLatencyMs?: number };
 }
 
 export type TestLogResults = SearchResults | GenerateResults | CompareResults;
 
-export interface TestLogParameters {
+export interface SearchConfigParameters {
   limit: number;
   alpha: number;
+  reranker?: string | null;
+}
+
+export interface TestLogParameters {
+  limit?: number;
+  alpha?: number;
   useReranker?: boolean;
   minRerankScore?: number;
   rerankerModel?: string;
+  // A/B 비교용
+  configA?: SearchConfigParameters;
+  configB?: SearchConfigParameters;
 }
 
 @Entity('lab_test_logs')

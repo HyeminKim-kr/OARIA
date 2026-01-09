@@ -28,6 +28,11 @@ dependencies = [
     # Utilities
     "structlog>=24.1.0",
     "tenacity>=8.2.0",
+
+    # RAG 모듈
+    "tiktoken>=0.5.0",
+    "openai>=1.0.0",
+    "weaviate-client>=4.0.0",
 ]
 
 [project.optional-dependencies]

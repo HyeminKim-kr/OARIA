@@ -6,13 +6,14 @@ import {
   Delete,
   Body,
   Param,
+  Query,
   ParseUUIDPipe,
   Logger,
 } from '@nestjs/common';
-import { ApiTags } from '@nestjs/swagger';
+import { ApiTags, ApiQuery } from '@nestjs/swagger';
 import { SearchQueriesService } from './search-queries.service';
 import { CollectionJobsService } from '../collection-jobs/collection-jobs.service';
-import { CreateSearchQueryDto, UpdateSearchQueryDto, PreviewQueryDto } from './dto';
+import { CreateSearchQueryDto, UpdateSearchQueryDto, PreviewQueryDto, ListSearchQueriesQueryDto } from './dto';
 import {
   ApiQueriesFindAll,
   ApiQueriesFindActive,
@@ -38,8 +39,9 @@ export class SearchQueriesController {
 
   @Get()
   @ApiQueriesFindAll()
-  findAll() {
-    return this.service.findAll();
+  @ApiQuery({ name: 'queryType', required: false, enum: ['production', 'sample'], description: '쿼리 타입으로 필터링' })
+  findAll(@Query() query: ListSearchQueriesQueryDto) {
+    return this.service.findAll(query);
   }
 
   @Get('active')

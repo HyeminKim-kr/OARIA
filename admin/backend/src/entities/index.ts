@@ -5,3 +5,5 @@ export * from './paper-author.entity';
 export * from './admin-user.entity';
 export * from './lab-feedback.entity';
 export * from './lab-test-log.entity';
+export * from './rag-settings.entity';
+export * from './sample-embedding.entity';

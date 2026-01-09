@@ -3,7 +3,7 @@
 import { useEffect, useState } from 'react';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { X, Search, Loader2 } from 'lucide-react';
-import { searchQueriesApi, SearchQuery } from '@/lib/api';
+import { searchQueriesApi, SearchQuery, QueryType } from '@/lib/api';
 
 interface QueryModalProps {
   isOpen: boolean;
@@ -17,6 +17,7 @@ export function QueryModal({ isOpen, onClose, query }: QueryModalProps) {
     name: '',
     query: '',
     description: '',
+    queryType: 'production' as QueryType,
     isActive: true,
     priority: 10,
     maxResults: '',
@@ -36,6 +37,7 @@ export function QueryModal({ isOpen, onClose, query }: QueryModalProps) {
         name: query.name,
         query: query.query,
         description: query.description || '',
+        queryType: query.queryType || 'production',
         isActive: query.isActive,
         priority: query.priority,
         maxResults: query.maxResults?.toString() || '',
@@ -50,6 +52,7 @@ export function QueryModal({ isOpen, onClose, query }: QueryModalProps) {
         name: '',
         query: '',
         description: '',
+        queryType: 'production',
         isActive: true,
         priority: 10,
         maxResults: '',
@@ -110,6 +113,7 @@ export function QueryModal({ isOpen, onClose, query }: QueryModalProps) {
       name: formData.name,
       query: formData.query,
       description: formData.description || null,
+      queryType: formData.queryType,
       isActive: formData.isActive,
       priority: formData.priority,
       maxResults: formData.maxResults ? parseInt(formData.maxResults) : null,
@@ -145,19 +149,43 @@ export function QueryModal({ isOpen, onClose, query }: QueryModalProps) {
         </div>
 
         <form onSubmit={handleSubmit} className="space-y-4">
-          <div>
-            <label className="block text-sm font-medium text-gray-700">
-              Name *
-            </label>
-            <input
-              type="text"
-              required
-              value={formData.name}
-              onChange={(e) =>
-                setFormData({ ...formData, name: e.target.value })
-              }
-              className="mt-1 block w-full rounded-md border border-gray-300 px-3 py-2 shadow-sm focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
-            />
+          <div className="grid grid-cols-2 gap-4">
+            <div>
+              <label className="block text-sm font-medium text-gray-700">
+                Name *
+              </label>
+              <input
+                type="text"
+                required
+                value={formData.name}
+                onChange={(e) =>
+                  setFormData({ ...formData, name: e.target.value })
+                }
+                className="mt-1 block w-full rounded-md border border-gray-300 px-3 py-2 shadow-sm focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
+              />
+            </div>
+
+            <div>
+              <label className="block text-sm font-medium text-gray-700">
+                Type *
+              </label>
+              <select
+                value={formData.queryType}
+                onChange={(e) =>
+                  setFormData({ ...formData, queryType: e.target.value as QueryType })
+                }
+                disabled={!!query} // 수정 시에는 타입 변경 불가
+                className="mt-1 block w-full rounded-md border border-gray-300 px-3 py-2 shadow-sm focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500 disabled:bg-gray-100 disabled:cursor-not-allowed"
+              >
+                <option value="production">Production</option>
+                <option value="sample">Sample (Lab 테스트용)</option>
+              </select>
+              {formData.queryType === 'sample' && !query && (
+                <p className="mt-1 text-xs text-amber-600">
+                  샘플 쿼리는 임베딩 관리에서 다양한 청킹/임베딩 전략 테스트용으로 사용됩니다.
+                </p>
+              )}
+            </div>
           </div>
 
           <div>

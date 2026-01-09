@@ -8,6 +8,9 @@ import {
   LabStatsPanel,
   LabHelpPanel,
   LabHistoryPanel,
+  StrategySelectionPanel,
+  RAGSettingsPanel,
+  DataSourceSelector,
   LabConfigForm,
   LabSearchResults,
   LabGenerateResults,
@@ -28,7 +31,14 @@ export default function LabPage() {
     setMode,
     config,
     updateConfig,
+    updateConfigA,
+    updateConfigB,
+    updateStrategy,
+    updateDataSource,
     status,
+    strategies,
+    strategiesDetail,
+    sampleEmbeddings,
     isLoading,
     error,
     handleTest,
@@ -85,7 +95,7 @@ export default function LabPage() {
 
   // Check if there are results to display
   const hasResults =
-    searchResult || generateResult || compareResults.withReranker || compareResults.withoutReranker;
+    searchResult || generateResult || compareResults.configA || compareResults.configB;
 
   return (
     <div className="space-y-6">
@@ -119,13 +129,32 @@ export default function LabPage() {
         />
       )}
 
+      <StrategySelectionPanel
+        strategies={strategies}
+        strategiesDetail={strategiesDetail}
+        selectedStrategies={config.selectedStrategies}
+        onStrategyChange={updateStrategy}
+      />
+
+      <RAGSettingsPanel strategies={strategies} />
+
+      <DataSourceSelector
+        dataSource={config.dataSource}
+        collectionName={config.collectionName}
+        sampleEmbeddings={sampleEmbeddings}
+        onDataSourceChange={updateDataSource}
+      />
+
       <LabConfigForm
         mode={mode}
         config={config}
         isLoading={isLoading}
         isAvailable={status?.available ?? false}
+        strategies={strategies}
         onModeChange={setMode}
         onConfigChange={updateConfig}
+        onConfigAChange={updateConfigA}
+        onConfigBChange={updateConfigB}
         onTest={handleTest}
       />
 
@@ -148,7 +177,7 @@ export default function LabPage() {
       )}
 
       {mode === 'compare' &&
-        (compareResults.withReranker || compareResults.withoutReranker) && (
+        (compareResults.configA || compareResults.configB) && (
           <LabCompareResults compareResults={compareResults} isLoading={isLoading} />
         )}
 

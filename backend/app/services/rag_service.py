@@ -51,6 +51,7 @@ class RagService:
         sections: list[str] | None = None,
         use_reranker: bool | None = None,  # None이면 인스턴스 설정 사용
         min_score: float | None = None,  # Reranker 최소 점수 임계값
+        collection_name: str | None = None,  # 컬렉션 이름 (샘플 임베딩용)
     ) -> RetrievalResult:
         """질문에 대한 관련 문서 검색
 
@@ -61,6 +62,7 @@ class RagService:
             sections: 섹션 필터
             use_reranker: Reranker 사용 여부 (None이면 인스턴스 설정 사용)
             min_score: Reranker 최소 점수 임계값
+            collection_name: Weaviate 컬렉션 이름 (None이면 기본 컬렉션)
 
         Returns:
             검색 결과 (참조 목록, 컨텍스트, 지연시간)
@@ -69,6 +71,9 @@ class RagService:
 
         start = time.perf_counter()
         rerank_latency_ms = None
+
+        # 현재 검색에서 사용할 컬렉션 이름 저장 (Parent Retrieval에서 사용)
+        self._current_collection_name = collection_name
 
         # Reranker 사용 여부 결정
         should_rerank = use_reranker if use_reranker is not None else self.use_reranker
@@ -89,6 +94,7 @@ class RagService:
             year_from=year_from,
             year_to=year_to,
             sections=sections,
+            collection_name=collection_name,
         )
 
         # 3. Reranker로 재정렬 (선택적)
@@ -160,6 +166,7 @@ class RagService:
             section_chunks = weaviate_service.get_chunks_by_paper_and_section(
                 paper_id=paper_id,
                 section=section,
+                collection_name=getattr(self, "_current_collection_name", None),
             )
 
             if not section_chunks:

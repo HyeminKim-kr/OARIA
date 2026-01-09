@@ -7,6 +7,9 @@ import {
   OneToMany,
 } from 'typeorm';
 import { CollectionJob } from './collection-job.entity';
+import { SampleEmbedding } from './sample-embedding.entity';
+
+export type QueryType = 'production' | 'sample';
 
 @Entity('search_queries')
 export class SearchQuery {
@@ -21,6 +24,9 @@ export class SearchQuery {
 
   @Column({ type: 'text', nullable: true })
   description: string | null;
+
+  @Column({ name: 'query_type', type: 'varchar', length: 20, default: 'production' })
+  queryType: QueryType;
 
   @Column({ name: 'is_active', type: 'boolean', default: true })
   isActive: boolean;
@@ -69,4 +75,7 @@ export class SearchQuery {
 
   @OneToMany(() => CollectionJob, (job) => job.searchQuery)
   jobs: CollectionJob[];
+
+  @OneToMany(() => SampleEmbedding, (embedding) => embedding.searchQuery)
+  sampleEmbeddings: SampleEmbedding[];
 }
