@@ -62,6 +62,27 @@ app.conf.update(
             "options": {"queue": "embed"},
         },
         # ============================================================
+        # Papers 임베딩 Job Management (PAPER_EMBED 타입)
+        # ============================================================
+        # Papers 임베딩 대기 작업 dispatch (10초마다)
+        "dispatch-paper-jobs": {
+            "task": "src.tasks.job_dispatcher.dispatch_paper_jobs",
+            "schedule": 10.0,  # 10초마다
+            "options": {"queue": "embed"},
+        },
+        # Papers 임베딩 Stuck 작업 복구 (1분마다)
+        "recover-stuck-paper-jobs": {
+            "task": "src.tasks.job_dispatcher.recover_stuck_paper_jobs",
+            "schedule": 60.0,  # 1분마다
+            "options": {"queue": "embed"},
+        },
+        # Papers 임베딩 DB 동기화 (5분마다)
+        "sync-papers-from-db": {
+            "task": "src.tasks.job_dispatcher.sync_papers_from_db",
+            "schedule": 300.0,  # 5분마다
+            "options": {"queue": "embed"},
+        },
+        # ============================================================
         # 기존 스케줄 (유지)
         # ============================================================
         # 매시간 새 논문 임베딩 (최대 50개씩)

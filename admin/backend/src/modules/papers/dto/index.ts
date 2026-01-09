@@ -157,3 +157,21 @@ export class TriggerReembedQueryDto {
   @IsString()
   queryId?: string;
 }
+
+/**
+ * 배치 임베딩 트리거 Query DTO (Job Manager V2)
+ */
+export class TriggerEmbedBatchQueryDto {
+  @ApiPropertyOptional({
+    description: '처리할 최대 논문 수 (미지정시 전체)',
+    example: 100,
+    minimum: 1,
+    maximum: 10000,
+  })
+  @IsOptional()
+  @Type(() => Number)
+  @IsInt({ message: 'limit은 정수여야 합니다' })
+  @Min(1)
+  @Max(10000)
+  limit?: number;
+}

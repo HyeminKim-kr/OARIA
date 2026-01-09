@@ -14,6 +14,9 @@ import {
   PaperStats,
   EmbedTriggerResult,
   FulltextResult,
+  EmbedBatchTriggerResult,
+  EmbedJobsResult,
+  EmbedBatchCancelResult,
 } from './types';
 import {
   FindAllPapersQueryDto,
@@ -21,6 +24,7 @@ import {
   TriggerEmbedAllQueryDto,
   TriggerEmbedByQueryQueryDto,
   TriggerReembedQueryDto,
+  TriggerEmbedBatchQueryDto,
 } from './dto';
 import {
   ApiPapersFindAll,
@@ -32,6 +36,11 @@ import {
   ApiPapersTriggerEmbedByQuery,
   ApiPapersTriggerEmbedPaper,
   ApiPapersTriggerReembed,
+  ApiPapersGetEmbedJobs,
+  ApiPapersTriggerEmbedBatch,
+  ApiPapersCancelEmbedBatch,
+  ApiPapersRetryEmbedJob,
+  ApiPapersCancelEmbedJob,
 } from './swagger';
 
 @ApiTags('Papers')
@@ -107,5 +116,39 @@ export class PapersController {
   @ApiPapersTriggerReembed()
   triggerReembed(@Query() query: TriggerReembedQueryDto): Promise<EmbedTriggerResult> {
     return this.service.triggerReembed(query.queryId);
+  }
+
+  // ─────────────────────────────────────────────────────────────
+  // Job Manager V2 기반 임베딩 엔드포인트
+  // ─────────────────────────────────────────────────────────────
+
+  @Get('embedding/jobs')
+  @ApiPapersGetEmbedJobs()
+  getEmbedJobs(): Promise<EmbedJobsResult> {
+    return this.service.getEmbedJobs();
+  }
+
+  @Post('embedding/batch-trigger')
+  @ApiPapersTriggerEmbedBatch()
+  triggerEmbedBatch(@Query() query: TriggerEmbedBatchQueryDto): Promise<EmbedBatchTriggerResult> {
+    return this.service.triggerEmbedBatch(query.limit);
+  }
+
+  @Post('embedding/batch-cancel')
+  @ApiPapersCancelEmbedBatch()
+  cancelEmbedBatch(): Promise<EmbedBatchCancelResult> {
+    return this.service.cancelEmbedBatch();
+  }
+
+  @Post('embedding/jobs/:jobId/retry')
+  @ApiPapersRetryEmbedJob()
+  retryEmbedJob(@Param('jobId') jobId: string): Promise<{ success: boolean }> {
+    return this.service.retryEmbedJob(jobId).then(success => ({ success }));
+  }
+
+  @Post('embedding/jobs/:jobId/cancel')
+  @ApiPapersCancelEmbedJob()
+  cancelEmbedJob(@Param('jobId') jobId: string): Promise<{ success: boolean }> {
+    return this.service.cancelEmbedJob(jobId).then(success => ({ success }));
   }
 }

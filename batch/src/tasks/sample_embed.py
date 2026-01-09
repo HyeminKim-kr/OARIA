@@ -282,7 +282,7 @@ def get_papers_for_sample_query(
         sql = """
             SELECT DISTINCT p.id, p.paper_id, p.pmcid, p.pmid, p.doi,
                    p.title, p.journal, p.year, p.keywords,
-                   p.canonical_prefix
+                   p.canonical_prefix, p.created_at
             FROM papers p
             JOIN batch_articles ba ON ba.pmcid = p.pmcid
             JOIN batch_jobs bj ON bj.id = ba.job_id
@@ -308,6 +308,7 @@ def get_papers_for_sample_query(
                 "year": row[7],
                 "keywords": row[8] or [],
                 "canonical_prefix": row[9],
+                # row[10] is created_at - not needed in result
             }
             for row in cur.fetchall()
         ]

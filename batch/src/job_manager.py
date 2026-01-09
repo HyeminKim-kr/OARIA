@@ -36,7 +36,8 @@ class JobStatus:
 
 class JobType:
     """작업 유형 상수"""
-    EMBED = "embed"  # 샘플 임베딩
+    EMBED = "embed"  # 샘플 임베딩 (sample_embeddings)
+    PAPER_EMBED = "paper"  # 운영용 논문 임베딩 (papers.embedding_status)
 
 
 class JobStateManager:
@@ -486,7 +487,18 @@ class JobStateManager:
                 continue
 
             heartbeat_str = state.get("heartbeat", "")
+
+            # heartbeat가 없으면 무조건 stuck (DB 동기화된 경우)
             if not heartbeat_str:
+                parts = key.split(":")
+                if len(parts) >= 3:
+                    job_id = parts[2]
+                    stuck_jobs.append(job_id)
+                    logger.warning(
+                        "stuck_job_detected",
+                        job_id=job_id,
+                        reason="no_heartbeat",
+                    )
                 continue
 
             try:

@@ -11,8 +11,11 @@
 2. run_embed_paper(paper_id) → 단일 논문 임베딩
 """
 
+from concurrent.futures import ThreadPoolExecutor, as_completed
 from datetime import datetime, timezone
+from threading import Lock
 from typing import Optional
+import uuid as uuid_module
 
 import psycopg
 import structlog
@@ -23,8 +26,16 @@ from ..config import settings
 from ..storage import S3Storage
 from ..chunker import TextChunker
 from ..embedding import EmbeddingClient, WeaviateClient
+from ..job_manager import get_job_manager, JobType, JobStatus
 
 logger = structlog.get_logger()
+
+# 병렬 처리 설정 (OpenAI rate limit 고려)
+# - OpenAI embedding: 3,000 RPM, 1,000,000 TPM
+# - 논문당 ~30청크, 배치 10개씩 = ~3 requests/paper
+# - 5 workers × 3 requests = ~15 requests 동시 (안전 범위)
+MAX_WORKERS = 5  # 동시 처리 논문 수
+PROGRESS_UPDATE_INTERVAL = 5  # N개 논문 처리 후 progress 업데이트
 
 
 # ============================================================
@@ -409,11 +420,164 @@ def process_single_paper(
         }
 
 
+def process_single_paper_v2(
+    pool: ConnectionPool,
+    s3_storage: S3Storage,
+    collection,  # Weaviate collection 객체 (스레드 안전)
+    embedding_client: EmbeddingClient,
+    chunker,
+    paper: dict,
+) -> dict:
+    """단일 논문 청킹 및 임베딩 (스레드 안전 버전)
+
+    WeaviateClient 대신 collection과 embedding_client를 직접 받아
+    ThreadPoolExecutor에서 안전하게 사용할 수 있습니다.
+
+    Returns:
+        {"success": bool, "chunk_count": int, "error": str|None}
+    """
+    paper_id = paper["paper_id"]
+    paper_uuid = str(paper["id"])
+
+    try:
+        # 1. S3에서 fulltext 읽기
+        fulltext = s3_storage.get_fulltext(paper["canonical_prefix"])
+        if not fulltext:
+            raise ValueError(f"Fulltext not found: {paper['canonical_prefix']}")
+
+        # 2. 섹션 정보 조회
+        with pool.connection() as conn:
+            sections = get_paper_sections(conn, paper_uuid)
+            authors = get_paper_authors(conn, paper_uuid)
+            update_embedding_status(conn, paper_id, "processing")
+
+        if not sections:
+            raise ValueError(f"No sections found for paper: {paper_id}")
+
+        # 3. 청킹
+        chunking_result = chunker.chunk_paper(
+            paper_id=paper_id,
+            title=paper["title"],
+            fulltext=fulltext,
+            sections=sections,
+            year=paper.get("year"),
+        )
+
+        if not chunking_result.chunks:
+            raise ValueError(f"No chunks created for paper: {paper_id}")
+
+        # 4. 메타데이터 구성
+        pmcid = paper.get("pmcid", "")
+        source_url = f"https://europepmc.org/article/PMC/{pmcid}" if pmcid else None
+
+        paper_metadata = {
+            "pmcid": pmcid,
+            "pmid": paper.get("pmid"),
+            "doi": paper.get("doi"),
+            "title": paper["title"],
+            "authors": authors,
+            "journal": paper.get("journal"),
+            "year": paper.get("year"),
+            "keywords": paper.get("keywords", []),
+            "sourceUrl": source_url,
+        }
+
+        # 5. 배치 임베딩 + Weaviate 저장 (collection 직접 사용)
+        chunks = chunking_result.chunks
+        uuids = []
+        batch_size = 10
+
+        for i in range(0, len(chunks), batch_size):
+            batch_chunks = chunks[i : i + batch_size]
+            batch_texts = [c.embedding_input for c in batch_chunks]
+            batch_embeddings = embedding_client.embed_texts(batch_texts)
+
+            for chunk, embedding in zip(batch_chunks, batch_embeddings):
+                object_uuid = str(
+                    uuid_module.uuid5(uuid_module.NAMESPACE_DNS, chunk.chunk_id)
+                )
+
+                properties = {
+                    "paperId": chunk.paper_id,
+                    "chunkId": chunk.chunk_id,
+                    "embeddingVersion": embedding_client.get_version_string(),
+                    "pmcid": paper_metadata.get("pmcid"),
+                    "pmid": paper_metadata.get("pmid"),
+                    "doi": paper_metadata.get("doi"),
+                    "title": paper_metadata.get("title", ""),
+                    "authors": paper_metadata.get("authors", []),
+                    "journal": paper_metadata.get("journal"),
+                    "year": paper_metadata.get("year"),
+                    "keywords": paper_metadata.get("keywords", []),
+                    "section": chunk.section,
+                    "chunkIndex": chunk.chunk_index,
+                    "content": chunk.text,
+                    "offsetStart": chunk.offset_start,
+                    "offsetEnd": chunk.offset_end,
+                    "textVersion": chunk.text_version,
+                    "sourceUrl": paper_metadata.get("sourceUrl"),
+                    "createdAt": datetime.now(timezone.utc),
+                }
+
+                collection.data.insert(
+                    uuid=object_uuid,
+                    properties=properties,
+                    vector=embedding,
+                )
+                uuids.append(object_uuid)
+
+        # 6. 상태 업데이트
+        with pool.connection() as conn:
+            update_embedding_status(
+                conn,
+                paper_id,
+                "completed",
+                chunk_count=len(uuids),
+            )
+
+        logger.info(
+            "paper_embedded",
+            paper_id=paper_id,
+            chunk_count=len(uuids),
+        )
+
+        return {
+            "success": True,
+            "chunk_count": len(uuids),
+            "error": None,
+        }
+
+    except Exception as e:
+        error_msg = str(e)[:500]
+        logger.error(
+            "paper_embedding_failed",
+            paper_id=paper_id,
+            error=error_msg,
+        )
+
+        try:
+            with pool.connection() as conn:
+                update_embedding_status(
+                    conn,
+                    paper_id,
+                    "failed",
+                    error_msg=error_msg,
+                )
+        except Exception:
+            pass  # 상태 업데이트 실패해도 계속 진행
+
+        return {
+            "success": False,
+            "chunk_count": 0,
+            "error": error_msg,
+        }
+
+
 def run_embed_async(
     query_id: Optional[str] = None,
     limit: Optional[int] = None,
 ) -> dict:
-    """임베딩 실행 (동기)
+    """임베딩 실행 (병렬 처리)
 
     Args:
         query_id: 특정 쿼리로 수집된 논문만 처리 (None이면 전체)
@@ -453,34 +617,55 @@ def run_embed_async(
             "embed_started",
             query_id=query_id,
             total_papers=len(papers),
+            max_workers=MAX_WORKERS,
         )
 
-        # 2. 논문별 처리
+        # 2. 병렬 처리 준비
+        collection = weaviate_client.collection
+        embedding_client = weaviate_client.embedding_client
+
         completed = 0
         failed = 0
         total_chunks = 0
+        processed_count = 0
+        progress_lock = Lock()
 
-        for i, paper in enumerate(papers, 1):
-            result = process_single_paper(
-                pool, s3_storage, weaviate_client, chunker, paper
-            )
+        def process_paper_wrapper(paper):
+            """병렬 처리용 래퍼"""
+            return process_single_paper_v2(
+                pool, s3_storage, collection,
+                embedding_client, chunker, paper
+            ), paper["paper_id"]
 
-            if result["success"]:
-                completed += 1
-                total_chunks += result["chunk_count"]
-            else:
-                failed += 1
+        # 3. ThreadPoolExecutor로 병렬 처리
+        with ThreadPoolExecutor(max_workers=MAX_WORKERS) as executor:
+            futures = {
+                executor.submit(process_paper_wrapper, paper): paper
+                for paper in papers
+            }
 
-            if i % 10 == 0:
-                logger.info(
-                    "embed_progress",
-                    processed=i,
-                    total=len(papers),
-                    completed=completed,
-                    failed=failed,
-                )
+            for future in as_completed(futures):
+                result, paper_id = future.result()
 
-        # 3. 결과 반환
+                with progress_lock:
+                    processed_count += 1
+                    if result["success"]:
+                        completed += 1
+                        total_chunks += result["chunk_count"]
+                    else:
+                        failed += 1
+
+                    # 주기적으로 progress 로그 출력
+                    if processed_count % PROGRESS_UPDATE_INTERVAL == 0:
+                        logger.info(
+                            "embed_progress",
+                            processed=processed_count,
+                            total=len(papers),
+                            completed=completed,
+                            failed=failed,
+                        )
+
+        # 4. 결과 반환
         result = {
             "query_id": query_id,
             "total": len(papers),
@@ -653,3 +838,231 @@ def run_reembed(
 
     # 임베딩 실행
     return run_embed_async(query_id, limit)
+
+
+# ============================================================
+# Job Manager V2 기반 태스크
+# ============================================================
+
+
+def get_papers_by_uuids(conn: psycopg.Connection, paper_uuids: list[str]) -> list[dict]:
+    """UUID 목록으로 논문 조회
+
+    Args:
+        conn: DB 연결
+        paper_uuids: papers.id (UUID) 목록
+
+    Returns:
+        논문 정보 리스트
+    """
+    if not paper_uuids:
+        return []
+
+    with conn.cursor() as cur:
+        # UUID 목록을 배열로 변환하여 쿼리
+        cur.execute(
+            """
+            SELECT id, paper_id, pmcid, pmid, doi,
+                   title, journal, year, keywords,
+                   canonical_prefix, embedding_status
+            FROM papers
+            WHERE id = ANY(%s)
+              AND canonical_prefix IS NOT NULL
+            ORDER BY created_at
+            """,
+            (paper_uuids,),
+        )
+
+        return [
+            {
+                "id": row[0],
+                "paper_id": row[1],
+                "pmcid": row[2],
+                "pmid": row[3],
+                "doi": row[4],
+                "title": row[5],
+                "journal": row[6],
+                "year": row[7],
+                "keywords": row[8] or [],
+                "canonical_prefix": row[9],
+                "embedding_status": row[10],
+            }
+            for row in cur.fetchall()
+        ]
+
+
+def get_worker_id() -> str:
+    """현재 워커 식별자"""
+    import socket
+    return f"celery@{socket.gethostname()}"
+
+
+@app.task(bind=True, queue="embed")
+def run_paper_embed_v2(self, batch_id: str) -> dict:
+    """Papers 임베딩 배치 태스크 (Job Manager V2)
+
+    Admin Backend에서 생성된 배치 작업을 처리합니다.
+    Redis에서 paper_ids를 가져와 순차적으로 처리하며,
+    진행률을 실시간으로 업데이트합니다.
+
+    Args:
+        batch_id: 배치 작업 ID (예: paper_batch_20260109_143000)
+
+    Returns:
+        실행 결과 dict
+    """
+    manager = get_job_manager()
+    worker_id = get_worker_id()
+
+    logger.info(
+        "paper_embed_v2_started",
+        batch_id=batch_id,
+        worker_id=worker_id,
+        task_id=self.request.id,
+    )
+
+    # 1. 작업 상태 조회
+    state = manager.get_job_state(batch_id, JobType.PAPER_EMBED)
+    if not state:
+        logger.error("paper_embed_v2_job_not_found", batch_id=batch_id)
+        return {"error": "Job not found", "batch_id": batch_id}
+
+    # 2. paper_ids 파싱 (metadata에 저장됨)
+    import json
+    paper_ids_json = state.get("paper_ids", "[]")
+    try:
+        paper_uuids = json.loads(paper_ids_json)
+    except json.JSONDecodeError:
+        logger.error("paper_embed_v2_invalid_paper_ids", batch_id=batch_id)
+        manager.fail_job(batch_id, JobType.PAPER_EMBED, worker_id, "Invalid paper_ids")
+        return {"error": "Invalid paper_ids", "batch_id": batch_id}
+
+    if not paper_uuids:
+        logger.warning("paper_embed_v2_no_papers", batch_id=batch_id)
+        manager.complete_job(batch_id, JobType.PAPER_EMBED, worker_id, {"message": "No papers"})
+        return {"batch_id": batch_id, "total": 0, "completed": 0, "failed": 0}
+
+    # 3. 작업 시작
+    manager.start_job(batch_id, JobType.PAPER_EMBED, worker_id, total=len(paper_uuids))
+
+    # 4. 논문 조회
+    pool = get_db_pool()
+    s3_storage = S3Storage()
+    weaviate_client = get_weaviate_client()
+    chunker = get_chunker()
+
+    try:
+        with pool.connection() as conn:
+            papers = get_papers_by_uuids(conn, paper_uuids)
+
+        if not papers:
+            logger.warning("paper_embed_v2_papers_not_found", batch_id=batch_id)
+            manager.complete_job(batch_id, JobType.PAPER_EMBED, worker_id, {"message": "Papers not found"})
+            return {"batch_id": batch_id, "total": 0, "completed": 0, "failed": 0}
+
+        # 5. 병렬 처리 준비
+        collection = weaviate_client.collection
+        embedding_client = weaviate_client.embedding_client
+
+        completed = 0
+        failed = 0
+        total_chunks = 0
+        processed_count = 0
+        progress_lock = Lock()
+        is_cancelled = False
+
+        logger.info(
+            "paper_embed_v2_parallel_start",
+            batch_id=batch_id,
+            total_papers=len(papers),
+            max_workers=MAX_WORKERS,
+        )
+
+        def process_paper_wrapper(paper):
+            """병렬 처리용 래퍼"""
+            return process_single_paper_v2(
+                pool, s3_storage, collection,
+                embedding_client, chunker, paper
+            ), paper["paper_id"]
+
+        # 6. ThreadPoolExecutor로 병렬 처리
+        with ThreadPoolExecutor(max_workers=MAX_WORKERS) as executor:
+            futures = {
+                executor.submit(process_paper_wrapper, paper): paper
+                for paper in papers
+            }
+
+            for future in as_completed(futures):
+                # 작업 취소 확인 (매 완료마다)
+                current_state = manager.get_job_state(batch_id, JobType.PAPER_EMBED)
+                if current_state and current_state.get("status") == JobStatus.CANCELLED:
+                    is_cancelled = True
+                    logger.info(
+                        "paper_embed_v2_cancelled",
+                        batch_id=batch_id,
+                        processed=processed_count,
+                    )
+                    # 남은 작업 취소
+                    for f in futures:
+                        f.cancel()
+                    break
+
+                result, paper_id = future.result()
+
+                with progress_lock:
+                    processed_count += 1
+                    if result["success"]:
+                        completed += 1
+                        total_chunks += result["chunk_count"]
+                    else:
+                        failed += 1
+
+                    # 진행률 업데이트 (5건마다 또는 마지막)
+                    if processed_count % PROGRESS_UPDATE_INTERVAL == 0 or processed_count == len(papers):
+                        manager.update_progress(
+                            batch_id, JobType.PAPER_EMBED, processed_count, len(papers),
+                            extra={"chunk_count": total_chunks},
+                        )
+
+                    # 로그 출력 (10건마다)
+                    if processed_count % 10 == 0:
+                        logger.info(
+                            "paper_embed_v2_progress",
+                            batch_id=batch_id,
+                            processed=processed_count,
+                            total=len(papers),
+                            completed=completed,
+                            failed=failed,
+                        )
+
+        # 7. 완료 처리
+        result = {
+            "batch_id": batch_id,
+            "total": len(papers),
+            "completed": completed,
+            "failed": failed,
+            "total_chunks": total_chunks,
+        }
+
+        if failed == 0:
+            manager.complete_job(batch_id, JobType.PAPER_EMBED, worker_id, result)
+            logger.info("paper_embed_v2_completed", **result)
+        else:
+            # 일부 실패해도 작업 자체는 완료로 처리
+            manager.complete_job(batch_id, JobType.PAPER_EMBED, worker_id, result)
+            logger.warning("paper_embed_v2_partial", **result)
+
+        return result
+
+    except Exception as e:
+        error_msg = str(e)[:500]
+        logger.error(
+            "paper_embed_v2_failed",
+            batch_id=batch_id,
+            error=error_msg,
+        )
+        manager.fail_job(batch_id, JobType.PAPER_EMBED, worker_id, error_msg)
+        return {"error": error_msg, "batch_id": batch_id}
+
+    finally:
+        weaviate_client.close()
