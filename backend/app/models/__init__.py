@@ -13,8 +13,11 @@ from .batch import (
     BatchLog,
     BatchFailedItem,
     Watermark,
+    SampleEmbedding,
 )
 from .chat import Conversation, Message, AnswerLog
+from .rag_settings import RAGSettings
+from .rag_strategy import RAGStrategy
 
 __all__ = [
     # Base
@@ -36,8 +39,12 @@ __all__ = [
     "BatchLog",
     "BatchFailedItem",
     "Watermark",
+    "SampleEmbedding",
     # Chat
     "Conversation",
     "Message",
     "AnswerLog",
+    # RAG
+    "RAGSettings",
+    "RAGStrategy",
 ]

@@ -4,11 +4,13 @@ import {
   IsBoolean,
   IsNumber,
   IsOptional,
+  IsEnum,
   MinLength,
   MaxLength,
   Min,
   Max,
 } from 'class-validator';
+import { QueryType } from '../../../entities/search-query.entity';
 
 export class CreateSearchQueryDto {
   @ApiProperty({ description: '쿼리 이름', example: '폐암 면역치료' })
@@ -78,6 +80,15 @@ export class CreateSearchQueryDto {
   @IsBoolean()
   @IsOptional()
   autoBackfill?: boolean;
+
+  @ApiPropertyOptional({
+    description: '쿼리 타입 (production: 프로덕션, sample: 샘플/실험용)',
+    enum: ['production', 'sample'],
+    default: 'production',
+  })
+  @IsEnum(['production', 'sample'])
+  @IsOptional()
+  queryType?: QueryType;
 }
 
 export class UpdateSearchQueryDto extends PartialType(CreateSearchQueryDto) {}
@@ -119,6 +130,16 @@ export class PreviewResponseDto {
   fullQuery: string;
 }
 
+export class ListSearchQueriesQueryDto {
+  @ApiPropertyOptional({
+    description: '쿼리 타입으로 필터링',
+    enum: ['production', 'sample'],
+  })
+  @IsEnum(['production', 'sample'])
+  @IsOptional()
+  queryType?: QueryType;
+}
+
 export class SearchQueryResponseDto {
   @ApiProperty()
   id: string;
@@ -131,6 +152,9 @@ export class SearchQueryResponseDto {
 
   @ApiPropertyOptional()
   description: string | null;
+
+  @ApiProperty({ enum: ['production', 'sample'] })
+  queryType: QueryType;
 
   @ApiProperty()
   isActive: boolean;

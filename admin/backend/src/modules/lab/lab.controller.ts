@@ -28,6 +28,9 @@ import {
   FeedbackResult,
   UserBackendStatus,
   TestLogListResult,
+  StrategiesResponse,
+  StrategiesDetailResponse,
+  DBStrategiesResponse,
 } from './types';
 import { LabTestLog } from '../../entities';
 
@@ -42,6 +45,24 @@ export class LabController {
     return this.labService.checkUserBackendStatus();
   }
 
+  @Get('strategies')
+  async getStrategies(): Promise<StrategiesResponse> {
+    return this.labService.getStrategies();
+  }
+
+  @Get('strategies/detail')
+  async getStrategiesDetail(): Promise<StrategiesDetailResponse> {
+    return this.labService.getStrategiesDetail();
+  }
+
+  @Get('strategies/db')
+  async getStrategiesFromDB(
+    @Query('active_only') activeOnly?: string,
+  ): Promise<DBStrategiesResponse> {
+    const isActiveOnly = activeOnly !== 'false';
+    return this.labService.getStrategiesFromDB(isActiveOnly);
+  }
+
   @Post('search')
   @HttpCode(HttpStatus.OK)
   @ApiLabSearch()
@@ -51,6 +72,7 @@ export class LabController {
       dto.limit,
       dto.alpha,
       dto.useReranker,
+      dto.reranker,
       dto.minRerankScore,
     );
   }
@@ -64,6 +86,7 @@ export class LabController {
       dto.limit,
       dto.alpha,
       dto.useReranker,
+      dto.reranker,
     );
   }
 
@@ -71,13 +94,13 @@ export class LabController {
   @HttpCode(HttpStatus.OK)
   @ApiLabCompare()
   async testCompare(@Body() dto: CompareTestDto): Promise<{
-    withReranker: SearchTestResult;
-    withoutReranker: SearchTestResult;
+    configA: SearchTestResult;
+    configB: SearchTestResult;
   }> {
     return this.labService.testCompare(
       dto.query,
-      dto.limit,
-      dto.alpha,
+      dto.configA,
+      dto.configB,
     );
   }
 

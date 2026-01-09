@@ -10,11 +10,14 @@ export const api = axios.create({
 });
 
 // Types
+export type QueryType = 'production' | 'sample';
+
 export interface SearchQuery {
   id: string;
   name: string;
   query: string;
   description: string | null;
+  queryType: QueryType;
   isActive: boolean;
   priority: number;
   maxResults: number | null;
@@ -28,6 +31,40 @@ export interface SearchQuery {
   lastIncrementalAt: string | null;
   createdAt: string;
   updatedAt: string;
+}
+
+// Sample Embedding Types
+export type SampleEmbeddingStatus = 'pending' | 'processing' | 'completed' | 'failed';
+
+export interface SampleEmbedding {
+  id: string;
+  queryId: string;
+  chunker: string;
+  embedder: string;
+  pipelineKey: string;
+  collectionName: string;
+  status: SampleEmbeddingStatus;
+  paperCount: number;
+  chunkCount: number;
+  errorMessage: string | null;
+  createdAt: string;
+  startedAt: string | null;
+  completedAt: string | null;
+  searchQuery?: SearchQuery;
+}
+
+export interface CreateSampleEmbeddingRequest {
+  queryId: string;
+  chunker: string;
+  embedder: string;
+}
+
+export interface SampleEmbeddingStats {
+  total: number;
+  pending: number;
+  processing: number;
+  completed: number;
+  failed: number;
 }
 
 export interface CollectionJob {
@@ -152,13 +189,56 @@ export interface PreviewResponse {
 }
 
 export const searchQueriesApi = {
-  getAll: () => api.get<SearchQuery[]>('/search-queries').then((res) => res.data),
+  getAll: (params?: { queryType?: QueryType }) =>
+    api.get<SearchQuery[]>('/search-queries', { params }).then((res) => res.data),
   getOne: (id: string) => api.get<SearchQuery>(`/search-queries/${id}`).then((res) => res.data),
   create: (data: Partial<SearchQuery>) => api.post<SearchQuery>('/search-queries', data).then((res) => res.data),
   update: (id: string, data: Partial<SearchQuery>) => api.patch<SearchQuery>(`/search-queries/${id}`, data).then((res) => res.data),
   delete: (id: string) => api.delete(`/search-queries/${id}`),
   triggerBackfill: (id: string) => api.post(`/search-queries/${id}/backfill`).then((res) => res.data),
   preview: (data: PreviewRequest) => api.post<PreviewResponse>('/search-queries/preview', data).then((res) => res.data),
+};
+
+// Job Status Response (Redis에서 실시간 조회)
+export interface JobStatusResponse {
+  job_id: string;
+  status: string;
+  progress: number;
+  total: number;
+  retry_count: number;
+  error: string | null;
+  worker_id: string | null;
+  created_at: string | null;
+  started_at: string | null;
+  completed_at: string | null;
+  heartbeat: string | null;
+  source?: 'redis' | 'database';
+}
+
+export interface JobActionResponse {
+  success: boolean;
+  task_id: string | null;
+  message: string;
+}
+
+export const sampleEmbeddingsApi = {
+  getAll: (params?: { queryId?: string; status?: SampleEmbeddingStatus }) =>
+    api.get<SampleEmbedding[]>('/sample-embeddings', { params }).then((res) => res.data),
+  getOne: (id: string) =>
+    api.get<SampleEmbedding>(`/sample-embeddings/${id}`).then((res) => res.data),
+  create: (data: CreateSampleEmbeddingRequest) =>
+    api.post<SampleEmbedding>('/sample-embeddings', data).then((res) => res.data),
+  delete: (id: string) =>
+    api.delete(`/sample-embeddings/${id}`),
+  getStats: (queryId: string) =>
+    api.get<SampleEmbeddingStats>(`/sample-embeddings/stats/${queryId}`).then((res) => res.data),
+  // V2 Job Management API
+  getJobStatus: (id: string) =>
+    api.get<JobStatusResponse>(`/sample-embeddings/${id}/status`).then((res) => res.data),
+  retry: (id: string) =>
+    api.post<JobActionResponse>(`/sample-embeddings/${id}/retry`).then((res) => res.data),
+  cancel: (id: string) =>
+    api.post<JobActionResponse>(`/sample-embeddings/${id}/cancel`).then((res) => res.data),
 };
 
 export const collectionJobsApi = {
@@ -267,6 +347,7 @@ export interface SearchTestResult {
     limit: number;
     alpha: number;
     useReranker?: boolean;
+    reranker?: string;
     minRerankScore?: number;
     rerankerModel?: string;
   };
@@ -346,7 +427,9 @@ export interface SearchTestParams {
   limit?: number;
   alpha?: number;
   useReranker?: boolean;
+  reranker?: string;
   minRerankScore?: number;
+  collectionName?: string;  // 샘플 임베딩 컬렉션 지정
 }
 
 export interface GenerateTestParams {
@@ -354,17 +437,25 @@ export interface GenerateTestParams {
   limit?: number;
   alpha?: number;
   useReranker?: boolean;
+  reranker?: string;
+  collectionName?: string;  // 샘플 임베딩 컬렉션 지정
+}
+
+export interface CompareSearchConfig {
+  limit: number;
+  alpha: number;
+  reranker: string | null;
 }
 
 export interface CompareTestParams {
   query: string;
-  limit?: number;
-  alpha?: number;
+  configA: CompareSearchConfig;
+  configB: CompareSearchConfig;
 }
 
 export interface CompareTestResult {
-  withReranker: SearchTestResult;
-  withoutReranker: SearchTestResult;
+  configA: SearchTestResult;
+  configB: SearchTestResult;
 }
 
 // Test Log Types
@@ -427,12 +518,132 @@ export interface TestLogStats {
   todayCount: number;
 }
 
+// RAG 전략 목록
+export interface StrategiesResponse {
+  chunkers: string[];
+  embedders: string[];
+  retrievers: string[];
+  rerankers: string[];
+  classifiers: string[];
+  evaluators: string[];
+}
+
+// RAG 전략 상세 정보
+export interface StrategyInfo {
+  name: string;
+  class_name: string;
+  module: string;
+  description: string;
+  config?: Record<string, unknown>;
+}
+
+export interface StrategiesDetailResponse {
+  chunkers: StrategyInfo[];
+  embedders: StrategyInfo[];
+  retrievers: StrategyInfo[];
+  rerankers: StrategyInfo[];
+}
+
+// DB 저장 RAG 전략 정보
+export interface DBStrategyInfo {
+  id: string;
+  category: string;
+  name: string;
+  description: string | null;
+  config: Record<string, unknown> | null;
+  location: 'backend' | 'batch';
+  is_active: boolean;
+}
+
+// DB 기반 RAG 전략 응답
+export interface DBStrategiesResponse {
+  chunkers: DBStrategyInfo[];
+  embedders: DBStrategyInfo[];
+  retrievers: DBStrategyInfo[];
+  rerankers: DBStrategyInfo[];
+}
+
+// RAG 설정
+export interface RAGParameters {
+  limit?: number;
+  alpha?: number;
+  minRerankScore?: number;
+  temperature?: number;
+}
+
+export interface RAGSettings {
+  id: string;
+  name: string;
+  description: string | null;
+  chunker: string;
+  embedder: string;
+  retriever: string;
+  reranker: string | null;
+  parameters: RAGParameters | null;
+  isActive: boolean;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface CreateRAGSettingsRequest {
+  name: string;
+  description?: string;
+  chunker?: string;
+  embedder?: string;
+  retriever?: string;
+  reranker?: string | null;
+  parameters?: RAGParameters;
+}
+
+export interface UpdateRAGSettingsRequest {
+  name?: string;
+  description?: string;
+  chunker?: string;
+  embedder?: string;
+  retriever?: string;
+  reranker?: string | null;
+  parameters?: RAGParameters;
+  isActive?: boolean;
+}
+
+export const ragSettingsApi = {
+  getAll: () => api.get<RAGSettings[]>('/rag-settings').then((res) => res.data),
+  getActive: () => api.get<RAGSettings | null>('/rag-settings/active').then((res) => res.data),
+  getOne: (id: string) => api.get<RAGSettings>(`/rag-settings/${id}`).then((res) => res.data),
+  create: (data: CreateRAGSettingsRequest) =>
+    api.post<RAGSettings>('/rag-settings', data).then((res) => res.data),
+  update: (id: string, data: UpdateRAGSettingsRequest) =>
+    api.put<RAGSettings>(`/rag-settings/${id}`, data).then((res) => res.data),
+  activate: (id: string) =>
+    api.post<RAGSettings>(`/rag-settings/${id}/activate`).then((res) => res.data),
+  delete: (id: string) => api.delete(`/rag-settings/${id}`),
+};
+
 export const labApi = {
   getStatus: () => api.get<UserBackendStatus>('/lab/status').then((res) => res.data),
+  getStrategies: () => api.get<StrategiesResponse>('/lab/strategies').then((res) => res.data),
+  getStrategiesDetail: () => api.get<StrategiesDetailResponse>('/lab/strategies/detail').then((res) => res.data),
+  getStrategiesFromDB: (activeOnly: boolean = true) =>
+    api.get<DBStrategiesResponse>('/lab/strategies/db', { params: { active_only: activeOnly } }).then((res) => res.data),
   testSearch: (params: SearchTestParams) =>
-    api.post<SearchTestResult>('/lab/search', params).then((res) => res.data),
+    api.post<SearchTestResult>('/lab/search', {
+      query: params.query,
+      limit: params.limit,
+      alpha: params.alpha,
+      use_reranker: params.useReranker,
+      reranker: params.reranker,
+      min_rerank_score: params.minRerankScore,
+      collection_name: params.collectionName,
+    }).then((res) => res.data),
   testGenerate: (params: GenerateTestParams) =>
-    api.post<GenerateTestResult>('/lab/generate', params).then((res) => res.data),
+    api.post<GenerateTestResult>('/lab/generate', {
+      query: params.query,
+      limit: params.limit,
+      alpha: params.alpha,
+      use_reranker: params.useReranker,
+      reranker: params.reranker,
+      collection_name: params.collectionName,
+    }).then((res) => res.data),
   testCompare: (params: CompareTestParams) =>
     api.post<CompareTestResult>('/lab/compare', params).then((res) => res.data),
   saveFeedback: (params: FeedbackParams) =>

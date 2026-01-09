@@ -11,6 +11,8 @@ import { AuthModule } from './modules/auth/auth.module';
 import { AdminUsersModule } from './modules/admin-users/admin-users.module';
 import { SystemModule } from './modules/system/system.module';
 import { LabModule } from './modules/lab/lab.module';
+import { RAGSettingsModule } from './modules/rag-settings/rag-settings.module';
+import { SampleEmbeddingsModule } from './modules/sample-embeddings/sample-embeddings.module';
 import { JwtAuthGuard } from './modules/auth/guards';
 import { RolesGuard } from './modules/auth/guards';
 import { validate } from './config';
@@ -59,6 +61,12 @@ import { validate } from './config';
 
     // RAG Lab (품질 테스트)
     LabModule,
+
+    // RAG Settings (전략 설정)
+    RAGSettingsModule,
+
+    // Sample Embeddings (샘플 임베딩 관리)
+    SampleEmbeddingsModule,
   ],
   providers: [
     // Global JWT Guard - 모든 엔드포인트에 적용

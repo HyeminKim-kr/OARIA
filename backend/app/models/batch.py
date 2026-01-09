@@ -36,6 +36,9 @@ class SearchQuery(Base):
     query: Mapped[str] = mapped_column(Text, nullable=False)
     description: Mapped[Optional[str]] = mapped_column(Text)
 
+    # 쿼리 타입 (production: 프로덕션, sample: 샘플/실험용)
+    query_type: Mapped[str] = mapped_column(String(20), default="production")
+
     # 수집 설정
     is_active: Mapped[bool] = mapped_column(Boolean, default=True)
     priority: Mapped[int] = mapped_column(Integer, default=10)
@@ -66,6 +69,9 @@ class SearchQuery(Base):
     # Relationships
     jobs: Mapped[list["BatchJob"]] = relationship(
         "BatchJob", back_populates="search_query"
+    )
+    sample_embeddings: Mapped[list["SampleEmbedding"]] = relationship(
+        "SampleEmbedding", back_populates="search_query", cascade="all, delete-orphan"
     )
 
 
@@ -331,4 +337,54 @@ class Watermark(Base):
     )
     updated_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), server_default="NOW()"
+    )
+
+
+class SampleEmbedding(Base):
+    """샘플 임베딩 테이블
+
+    샘플 쿼리로 수집된 논문들을 다양한 청킹/임베딩 전략으로
+    임베딩한 결과를 관리합니다.
+    """
+
+    __tablename__ = "sample_embeddings"
+    __table_args__ = (
+        UniqueConstraint("query_id", "pipeline_key", name="uq_sample_embeddings_query_pipeline"),
+        Index("idx_sample_embeddings_query_id", "query_id"),
+        Index("idx_sample_embeddings_status", "status"),
+    )
+
+    id: Mapped[UUID] = mapped_column(
+        PGUUID(as_uuid=True), primary_key=True, server_default="gen_random_uuid()"
+    )
+
+    # 샘플 쿼리 참조
+    query_id: Mapped[UUID] = mapped_column(
+        PGUUID(as_uuid=True),
+        ForeignKey("search_queries.id", ondelete="CASCADE"),
+        nullable=False,
+    )
+
+    # 파이프라인 정보
+    chunker: Mapped[str] = mapped_column(String(100), nullable=False)
+    embedder: Mapped[str] = mapped_column(String(100), nullable=False)
+    pipeline_key: Mapped[str] = mapped_column(String(200), nullable=False)
+    collection_name: Mapped[str] = mapped_column(String(200), nullable=False)
+
+    # 상태
+    status: Mapped[str] = mapped_column(String(20), default="pending")
+    paper_count: Mapped[int] = mapped_column(Integer, default=0)
+    chunk_count: Mapped[int] = mapped_column(Integer, default=0)
+    error_message: Mapped[Optional[str]] = mapped_column(Text)
+
+    # 타임스탬프
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default="NOW()"
+    )
+    started_at: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True))
+    completed_at: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True))
+
+    # Relationships
+    search_query: Mapped["SearchQuery"] = relationship(
+        "SearchQuery", back_populates="sample_embeddings"
     )

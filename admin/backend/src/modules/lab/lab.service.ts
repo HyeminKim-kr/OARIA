@@ -15,6 +15,9 @@ import {
   TestLogListResult,
   TestLogItem,
   TestLogParametersType,
+  StrategiesResponse,
+  StrategiesDetailResponse,
+  DBStrategiesResponse,
 } from './types';
 import {
   LabFeedback,
@@ -88,6 +91,7 @@ export class LabService {
     limit: number = 10,
     alpha: number = 0.7,
     useReranker: boolean = false,
+    reranker?: string,
     minRerankScore?: number,
     skipLog: boolean = false,
   ): Promise<SearchTestResult> {
@@ -101,6 +105,7 @@ export class LabService {
           limit,
           alpha,
           use_reranker: useReranker,
+          reranker: reranker,
           min_rerank_score: minRerankScore,
         }).pipe(
           timeout(60000), // Reranker 사용 시 시간이 더 걸릴 수 있음
@@ -191,6 +196,7 @@ export class LabService {
     limit: number = 5,
     alpha: number = 0.7,
     useReranker: boolean = false,
+    reranker?: string,
   ): Promise<GenerateTestResult> {
     const start = Date.now();
     const url = `${this.userBackendUrl}/lab/generate`;
@@ -202,6 +208,7 @@ export class LabService {
           limit,
           alpha,
           use_reranker: useReranker,
+          reranker: reranker,
         }).pipe(
           timeout(120000), // Reranker + LLM 시간 고려
         ),
@@ -259,40 +266,58 @@ export class LabService {
   }
 
   /**
-   * A/B 비교 테스트 (Reranker ON vs OFF)
+   * A/B 비교 테스트 (두 설정을 독립적으로 비교)
    * 두 검색을 수행하고 하나의 compare 로그로 저장
    */
   async testCompare(
     query: string,
-    limit: number = 10,
-    alpha: number = 0.7,
+    configA: { limit: number; alpha: number; reranker?: string | null },
+    configB: { limit: number; alpha: number; reranker?: string | null },
   ): Promise<{
-    withReranker: SearchTestResult;
-    withoutReranker: SearchTestResult;
+    configA: SearchTestResult;
+    configB: SearchTestResult;
   }> {
     // 두 검색을 병렬로 수행 (skipLog = true로 개별 저장 방지)
-    const [withReranker, withoutReranker] = await Promise.all([
-      this.testSearch(query, limit, alpha, true, undefined, true),
-      this.testSearch(query, limit, alpha, false, undefined, true),
+    const [resultA, resultB] = await Promise.all([
+      this.testSearch(
+        query,
+        configA.limit,
+        configA.alpha,
+        !!configA.reranker,
+        configA.reranker || undefined,
+        undefined,
+        true,
+      ),
+      this.testSearch(
+        query,
+        configB.limit,
+        configB.alpha,
+        !!configB.reranker,
+        configB.reranker || undefined,
+        undefined,
+        true,
+      ),
     ]);
 
     // compare 로그로 단일 저장
     this.saveTestLog(
       'compare',
       query,
-      { limit, alpha, useReranker: true }, // compare는 항상 reranker 비교
       {
-        withReranker: { chunks: withReranker.chunks, totalChunks: withReranker.totalChunks },
-        withoutReranker: { chunks: withoutReranker.chunks, totalChunks: withoutReranker.totalChunks },
+        configA: { limit: configA.limit, alpha: configA.alpha, reranker: configA.reranker },
+        configB: { limit: configB.limit, alpha: configB.alpha, reranker: configB.reranker },
       },
       {
-        // withReranker의 레이턴시를 기준으로 저장
-        searchLatencyMs: withReranker.searchLatencyMs,
-        rerankLatencyMs: withReranker.rerankLatencyMs,
+        configA: { chunks: resultA.chunks, totalChunks: resultA.totalChunks },
+        configB: { chunks: resultB.chunks, totalChunks: resultB.totalChunks },
+      },
+      {
+        searchLatencyMs: resultA.searchLatencyMs,
+        rerankLatencyMs: resultA.rerankLatencyMs,
       },
     ).catch((err) => this.logger.error('Failed to auto-save compare log', err));
 
-    return { withReranker, withoutReranker };
+    return { configA: resultA, configB: resultB };
   }
 
   /**
@@ -622,15 +647,113 @@ export class LabService {
 
     if (testType === LabTestLogType.COMPARE) {
       const compareResults = results as {
-        withReranker: { totalChunks: number };
-        withoutReranker: { totalChunks: number };
+        configA: { totalChunks: number };
+        configB: { totalChunks: number };
       };
       return {
-        withRerankerChunks: compareResults.withReranker?.totalChunks || 0,
-        withoutRerankerChunks: compareResults.withoutReranker?.totalChunks || 0,
+        configAChunks: compareResults.configA?.totalChunks || 0,
+        configBChunks: compareResults.configB?.totalChunks || 0,
       };
     }
 
     return {};
+  }
+
+  /**
+   * RAG 전략 목록 조회
+   */
+  async getStrategies(): Promise<StrategiesResponse> {
+    const url = `${this.userBackendUrl}/lab/strategies`;
+
+    try {
+      const response = await firstValueFrom(
+        this.httpService.get<StrategiesResponse>(url).pipe(
+          timeout(5000),
+          catchError((error) => {
+            this.logger.error(`Failed to fetch strategies: ${error.message}`);
+            throw new HttpException(
+              'Failed to fetch strategies from User Backend',
+              HttpStatus.SERVICE_UNAVAILABLE,
+            );
+          }),
+        ),
+      );
+
+      return response.data;
+    } catch (error) {
+      if (error instanceof HttpException) {
+        throw error;
+      }
+      throw new HttpException(
+        'Failed to fetch strategies',
+        HttpStatus.INTERNAL_SERVER_ERROR,
+      );
+    }
+  }
+
+  /**
+   * RAG 전략 상세 정보 조회 (설명 포함)
+   */
+  async getStrategiesDetail(): Promise<StrategiesDetailResponse> {
+    const url = `${this.userBackendUrl}/lab/strategies/detail`;
+
+    try {
+      const response = await firstValueFrom(
+        this.httpService.get<StrategiesDetailResponse>(url).pipe(
+          timeout(5000),
+          catchError((error) => {
+            this.logger.error(`Failed to fetch strategies detail: ${error.message}`);
+            throw new HttpException(
+              'Failed to fetch strategies detail from User Backend',
+              HttpStatus.SERVICE_UNAVAILABLE,
+            );
+          }),
+        ),
+      );
+
+      return response.data;
+    } catch (error) {
+      if (error instanceof HttpException) {
+        throw error;
+      }
+      throw new HttpException(
+        'Failed to fetch strategies detail',
+        HttpStatus.INTERNAL_SERVER_ERROR,
+      );
+    }
+  }
+
+  /**
+   * DB 기반 RAG 전략 조회
+   * 서버 시작 시 코드에서 동기화된 전략 정보를 조회합니다.
+   * Batch(청킹, 임베딩)와 Backend(검색, 리랭킹) 전략 모두 포함됩니다.
+   */
+  async getStrategiesFromDB(activeOnly: boolean = true): Promise<DBStrategiesResponse> {
+    const url = `${this.userBackendUrl}/lab/strategies/db?active_only=${activeOnly}`;
+
+    try {
+      const response = await firstValueFrom(
+        this.httpService.get<DBStrategiesResponse>(url).pipe(
+          timeout(5000),
+          catchError((error) => {
+            this.logger.error(`Failed to fetch strategies from DB: ${error.message}`);
+            throw new HttpException(
+              'Failed to fetch strategies from User Backend DB',
+              HttpStatus.SERVICE_UNAVAILABLE,
+            );
+          }),
+        ),
+      );
+
+      return response.data;
+    } catch (error) {
+      if (error instanceof HttpException) {
+        throw error;
+      }
+      throw new HttpException(
+        'Failed to fetch strategies from DB',
+        HttpStatus.INTERNAL_SERVER_ERROR,
+      );
+    }
   }
 }

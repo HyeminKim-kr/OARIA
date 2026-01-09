@@ -1,8 +1,9 @@
 "use client";
 
-import { useState, useRef, useEffect, useCallback } from "react";
+import { useState, useRef, useEffect, useCallback, useMemo } from "react";
 import Link from "next/link";
 import { useSearchParams, useRouter } from "next/navigation";
+import ReactMarkdown from "react-markdown";
 import {
   ArrowUp,
   Search,
@@ -11,10 +12,27 @@ import {
   ExternalLink,
   Loader2,
   MessageSquare,
+  Lightbulb,
 } from "lucide-react";
 import { ChatSidebar } from "@/components/chat/ChatSidebar";
 import { ReferenceModal } from "@/components/chat/ReferenceModal";
 import { fetchWithAuth, conversationsApi } from "@/lib/api";
+
+// 추천 질문 파싱 헬퍼
+function parseSuggestions(content: string): { mainContent: string; suggestions: string[] } {
+  const suggestionsMatch = content.match(/```suggestions\n([\s\S]*?)```/);
+  if (!suggestionsMatch) {
+    return { mainContent: content, suggestions: [] };
+  }
+
+  const mainContent = content.replace(/### 5\. 추천 질문[\s\S]*```suggestions[\s\S]*?```/, "").trim();
+  const suggestions = suggestionsMatch[1]
+    .split("\n")
+    .filter((line) => line.startsWith("- "))
+    .map((line) => line.slice(2).trim());
+
+  return { mainContent, suggestions };
+}
 
 const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
 
@@ -349,17 +367,48 @@ export default function AskPage() {
                         AI Assistant
                       </div>
                     )}
-                    <div
-                      className={`font-[family-name:var(--font-dm-sans)] text-base whitespace-pre-wrap leading-relaxed ${
-                        message.role === "user" ? "" : "text-[var(--foreground)]"
-                      }`}
-                    >
-                      {message.content}
-                      {/* 스트리밍 중 커서 표시 */}
-                      {isLoading && message.role === "assistant" && message.id === messages[messages.length - 1]?.id && message.content && (
-                        <span className="inline-block w-2 h-5 bg-[var(--oaria-teal)] ml-1 animate-pulse" />
-                      )}
-                    </div>
+                    {message.role === "user" ? (
+                      <div className="font-[family-name:var(--font-dm-sans)] text-base whitespace-pre-wrap leading-relaxed">
+                        {message.content}
+                      </div>
+                    ) : (
+                      (() => {
+                        const { mainContent, suggestions } = parseSuggestions(message.content);
+                        return (
+                          <>
+                            <div className="font-[family-name:var(--font-dm-sans)] text-base leading-relaxed text-[var(--foreground)] prose prose-sm max-w-none prose-headings:font-semibold prose-headings:text-[var(--foreground)] prose-p:text-[var(--foreground)] prose-strong:text-[var(--foreground)] prose-li:text-[var(--foreground)]">
+                              <ReactMarkdown>{mainContent}</ReactMarkdown>
+                              {/* 스트리밍 중 커서 표시 */}
+                              {isLoading && message.id === messages[messages.length - 1]?.id && message.content && (
+                                <span className="inline-block w-2 h-5 bg-[var(--oaria-teal)] ml-1 animate-pulse" />
+                              )}
+                            </div>
+                            {/* 추천 질문 버튼 */}
+                            {suggestions.length > 0 && !isLoading && (
+                              <div className="mt-6 pt-4 border-t border-[var(--oaria-border)]">
+                                <div className="flex items-center gap-2 mb-3">
+                                  <Lightbulb size={16} className="text-[var(--oaria-teal)]" />
+                                  <span className="font-[family-name:var(--font-outfit)] text-sm font-medium">
+                                    관련 질문
+                                  </span>
+                                </div>
+                                <div className="flex flex-wrap gap-2">
+                                  {suggestions.map((suggestion, idx) => (
+                                    <button
+                                      key={idx}
+                                      onClick={() => setInput(suggestion)}
+                                      className="px-3 py-2 rounded-lg border border-[var(--oaria-border)] text-sm text-[var(--oaria-text-secondary)] hover:border-[var(--oaria-teal)] hover:text-[var(--oaria-teal)] hover:bg-[var(--oaria-teal)]/5 transition-colors text-left"
+                                    >
+                                      {suggestion}
+                                    </button>
+                                  ))}
+                                </div>
+                              </div>
+                            )}
+                          </>
+                        );
+                      })()
+                    )}
 
                     {/* References */}
                     {message.references && message.references.length > 0 && (

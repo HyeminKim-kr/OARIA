@@ -14,7 +14,7 @@ export default function QueriesPage() {
 
   const { data: queries, isLoading } = useQuery({
     queryKey: ['search-queries'],
-    queryFn: searchQueriesApi.getAll,
+    queryFn: () => searchQueriesApi.getAll(),
   });
 
   const deleteMutation = useMutation({
@@ -90,6 +90,9 @@ export default function QueriesPage() {
                   Query
                 </th>
                 <th className="px-6 py-3 text-left text-xs font-medium uppercase tracking-wider text-gray-500">
+                  Type
+                </th>
+                <th className="px-6 py-3 text-left text-xs font-medium uppercase tracking-wider text-gray-500">
                   Status
                 </th>
                 <th className="px-6 py-3 text-left text-xs font-medium uppercase tracking-wider text-gray-500">
@@ -116,6 +119,17 @@ export default function QueriesPage() {
                   </td>
                   <td className="max-w-xs truncate px-6 py-4 text-sm text-gray-500">
                     {query.query}
+                  </td>
+                  <td className="whitespace-nowrap px-6 py-4">
+                    <span
+                      className={`inline-flex rounded-full px-2 py-1 text-xs font-medium ${
+                        query.queryType === 'sample'
+                          ? 'bg-purple-100 text-purple-800'
+                          : 'bg-blue-100 text-blue-800'
+                      }`}
+                    >
+                      {query.queryType === 'sample' ? 'Sample' : 'Production'}
+                    </span>
                   </td>
                   <td className="whitespace-nowrap px-6 py-4">
                     <span
