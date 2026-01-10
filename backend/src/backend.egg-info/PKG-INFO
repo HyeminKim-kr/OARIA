@@ -1,0 +1,46 @@
+Metadata-Version: 2.4
+Name: backend
+Version: 0.1.0
+Summary: OARIA Backend API with Google OAuth
+Requires-Python: >=3.11
+Description-Content-Type: text/markdown
+Requires-Dist: fastapi>=0.115.0
+Requires-Dist: pydantic[email]>=2.10.0
+Requires-Dist: pydantic-settings>=2.6.0
+Requires-Dist: uvicorn[standard]>=0.32.0
+Requires-Dist: sqlalchemy[asyncio]>=2.0.36
+Requires-Dist: asyncpg>=0.30.0
+Requires-Dist: psycopg2-binary>=2.9.0
+Requires-Dist: alembic>=1.14.0
+Requires-Dist: python-jose[cryptography]>=3.3.0
+Requires-Dist: passlib[bcrypt]>=1.7.4
+Requires-Dist: authlib>=1.3.0
+Requires-Dist: httpx>=0.28.0
+Requires-Dist: python-dotenv>=1.0.0
+Requires-Dist: python-multipart>=0.0.9
+Requires-Dist: itsdangerous>=2.0.0
+Requires-Dist: weaviate-client>=4.0.0
+Requires-Dist: openai>=1.0.0
+Requires-Dist: sentence-transformers>=3.0.0
+Requires-Dist: langgraph>=0.2.0
+Requires-Dist: sse-starlette>=2.0.0
+Requires-Dist: boto3>=1.35.0
+Requires-Dist: lxml>=5.0.0
+
+백엔드 실행 방법
+
+  # 1. 백엔드 디렉토리로 이동
+  cd backend
+
+  # 2. 의존성 설치 (이미 되어 있으면 생략)
+  uv sync
+
+  # 3. .env 파일 설정 (Google OAuth 키 필요)
+  # GOOGLE_CLIENT_ID=your_client_id
+  # GOOGLE_CLIENT_SECRET=your_client_secret
+
+  # 4. DB 마이그레이션 (PostgreSQL 실행 필요)
+  uv run alembic upgrade head
+
+  # 5. 서버 실행
+  uv run uvicorn app.main:app --reload --port 8000
