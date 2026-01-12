@@ -33,6 +33,7 @@ from app.schemas.chat import (
 )
 from app.services import agent_service
 from app.services.domain_classifier_service import domain_classifier_service
+from app.rag.classifiers.messages import get_full_warning_text
 
 
 router = APIRouter(prefix="/ai", tags=["ai"])
@@ -103,6 +104,92 @@ async def ask_ai(
                     "warning": gate_classification.reason if gate_classification.category != "oncology" else None,
                 }, ensure_ascii=False),
             }
+
+            # Off-domain이면 RAG 파이프라인 스킵 (비용 절약)
+            if gate_classification.category != "oncology":
+                warning_message = get_full_warning_text(
+                    category=gate_classification.category,
+                    confidence=gate_classification.confidence,
+                    language="ko",
+                )
+
+                # 대화 생성/업데이트
+                if not conversation:
+                    title = request.question[:50] + "..." if len(request.question) > 50 else request.question
+                    new_conversation = Conversation(
+                        user_id=current_user.id,
+                        title=title,
+                    )
+                    db.add(new_conversation)
+                    await db.flush()
+                    conv = new_conversation
+                else:
+                    conv = conversation
+
+                # 사용자 메시지 저장
+                user_message = Message(
+                    conversation_id=conv.id,
+                    role="user",
+                    content=request.question,
+                )
+                db.add(user_message)
+                await db.flush()
+
+                # Assistant 메시지 저장 (경고 메시지)
+                total_latency = int((time.perf_counter() - total_start) * 1000)
+                assistant_message = Message(
+                    conversation_id=conv.id,
+                    role="assistant",
+                    content=warning_message,
+                    tokens_used=None,
+                    model="gate-classifier (off-domain)",
+                    latency_ms=total_latency,
+                )
+                db.add(assistant_message)
+                await db.flush()
+
+                # Answer Log 저장 (빈 evidence)
+                answer_log = AnswerLog(
+                    message_id=assistant_message.id,
+                    conversation_id=conv.id,
+                    user_id=current_user.id,
+                    question=request.question,
+                    answer=warning_message,
+                    search_query=request.question,
+                    search_filters=request.filters.model_dump() if request.filters else None,
+                    evidence=[],  # RAG 스킵으로 빈 배열
+                    model="gate-classifier (off-domain)",
+                    prompt_tokens=0,
+                    completion_tokens=0,
+                    total_tokens=0,
+                    search_latency_ms=0,
+                    llm_latency_ms=0,
+                    total_latency_ms=total_latency,
+                )
+                db.add(answer_log)
+                await db.commit()
+
+                # 경고 메시지를 토큰으로 전송
+                yield {
+                    "event": "token",
+                    "data": json.dumps({"token": warning_message}, ensure_ascii=False),
+                }
+
+                # 빈 references 전송
+                yield {
+                    "event": "references",
+                    "data": json.dumps({"references": []}, ensure_ascii=False),
+                }
+
+                # Done 이벤트 전송
+                yield {
+                    "event": "done",
+                    "data": json.dumps({
+                        "conversation_id": str(conv.id),
+                        "message_id": str(assistant_message.id),
+                    }),
+                }
+                return  # Early return - RAG 파이프라인 스킵
 
         # 이벤트 큐 (Agent 서비스에서 이벤트를 푸시)
         event_queue: queue.Queue = queue.Queue()

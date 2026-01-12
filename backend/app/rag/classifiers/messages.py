@@ -150,22 +150,25 @@ def get_full_warning_text(
 ) -> str:
     """전체 경고 텍스트 생성 (예시 포함)
 
+    프론트엔드의 parseSuggestions() 함수가 파싱할 수 있는 형식으로 출력합니다.
+    ```suggestions 블록 내의 "- " 로 시작하는 항목들이 클릭 가능한 버튼으로 변환됩니다.
+
     Args:
         category: 분류된 도메인 카테고리
         confidence: 분류 신뢰도
         language: 언어 코드
 
     Returns:
-        전체 경고 메시지 문자열
+        전체 경고 메시지 문자열 (suggestions 블록 포함)
     """
     message = get_warning_message(category, language)
     examples = get_example_questions(language, limit=3)
 
-    if language == "ko":
-        text = f"{message}\n\n예시 질문:\n"
-        text += "\n".join(f"  • {q}" for q in examples)
-    else:
-        text = f"{message}\n\nExample questions:\n"
-        text += "\n".join(f"  • {q}" for q in examples)
+    # 프론트엔드 parseSuggestions() 형식에 맞춤
+    text = f"{message}\n\n"
+    text += "### 5. 추천 질문\n"
+    text += "```suggestions\n"
+    text += "\n".join(f"- {q}" for q in examples)
+    text += "\n```"
 
     return text
