@@ -75,6 +75,8 @@ export class LabController {
       dto.reranker,
       dto.minRerankScore,
       dto.collectionName,
+      false, // skipLog
+      dto.classifier,
     );
   }
 
@@ -89,6 +91,7 @@ export class LabController {
       dto.useReranker,
       dto.reranker,
       dto.collectionName,
+      dto.classifier,
     );
   }
 

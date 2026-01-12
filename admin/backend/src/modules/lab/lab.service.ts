@@ -95,6 +95,7 @@ export class LabService {
     minRerankScore?: number,
     collectionName?: string,
     skipLog: boolean = false,
+    classifier?: string,
   ): Promise<SearchTestResult> {
     const start = Date.now();
     const url = `${this.userBackendUrl}/lab/search`;
@@ -109,6 +110,7 @@ export class LabService {
           reranker: reranker,
           min_rerank_score: minRerankScore,
           collection_name: collectionName,
+          classifier: classifier,
         }).pipe(
           timeout(60000), // Reranker 사용 시 시간이 더 걸릴 수 있음
         ),
@@ -200,6 +202,7 @@ export class LabService {
     useReranker: boolean = false,
     reranker?: string,
     collectionName?: string,
+    classifier?: string,
   ): Promise<GenerateTestResult> {
     const start = Date.now();
     const url = `${this.userBackendUrl}/lab/generate`;
@@ -213,6 +216,7 @@ export class LabService {
           use_reranker: useReranker,
           reranker: reranker,
           collection_name: collectionName,
+          classifier: classifier,
         }).pipe(
           timeout(120000), // Reranker + LLM 시간 고려
         ),
