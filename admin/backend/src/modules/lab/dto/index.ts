@@ -72,6 +72,14 @@ export class SearchTestDto {
   @IsOptional()
   @IsString()
   collectionName?: string;
+
+  @ApiPropertyOptional({
+    description: 'Classifier 전략 (예: pubmedbert_domain_v1). None이면 분류하지 않음',
+    example: 'pubmedbert_domain_v1',
+  })
+  @IsOptional()
+  @IsString()
+  classifier?: string;
 }
 
 export class GenerateTestDto {
@@ -131,6 +139,14 @@ export class GenerateTestDto {
   @IsOptional()
   @IsString()
   collectionName?: string;
+
+  @ApiPropertyOptional({
+    description: 'Classifier 전략 (예: pubmedbert_domain_v1). None이면 분류하지 않음',
+    example: 'pubmedbert_domain_v1',
+  })
+  @IsOptional()
+  @IsString()
+  classifier?: string;
 }
 
 export class CompareSearchConfigDto {
