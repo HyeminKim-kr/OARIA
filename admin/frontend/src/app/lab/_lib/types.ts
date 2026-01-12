@@ -39,6 +39,7 @@ export interface SelectedStrategies {
   embedder: string;
   retriever: string;
   reranker: string;
+  classifier: string;  // none 또는 분류기 전략 이름
 }
 
 // 데이터 소스 타입

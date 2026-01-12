@@ -55,6 +55,7 @@ export function useLabExperiment() {
           embedder: activeSettings.embedder,
           retriever: activeSettings.retriever,
           reranker: activeSettings.reranker || 'none',
+          classifier: prev.selectedStrategies.classifier,  // classifier는 기존값 유지
         },
         // 기본 검색 설정도 활성 설정 기반으로
         limit: activeSettings.parameters?.limit ?? prev.limit,
@@ -75,6 +76,7 @@ export function useLabExperiment() {
         useReranker: config.useReranker,
         reranker: config.useReranker ? config.reranker : undefined,
         collectionName: config.dataSource === 'sample' && config.collectionName ? config.collectionName : undefined,
+        classifier: config.selectedStrategies.classifier !== 'none' ? config.selectedStrategies.classifier : undefined,
       }),
   });
 
@@ -88,6 +90,7 @@ export function useLabExperiment() {
         useReranker: config.useReranker,
         reranker: config.useReranker ? config.reranker : undefined,
         collectionName: config.dataSource === 'sample' && config.collectionName ? config.collectionName : undefined,
+        classifier: config.selectedStrategies.classifier !== 'none' ? config.selectedStrategies.classifier : undefined,
       }),
   });
 
