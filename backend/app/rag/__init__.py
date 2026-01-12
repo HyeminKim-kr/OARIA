@@ -20,6 +20,7 @@ Strategy Pattern + Registry Pattern으로 모듈화된 RAG 컴포넌트들을 �
 
 # 컴포넌트 import (레지스트리에 자동 등록됨)
 from app.rag import chunkers  # noqa: F401
+from app.rag import classifiers  # noqa: F401
 from app.rag import embedders  # noqa: F401
 from app.rag import retrievers  # noqa: F401
 from app.rag import rerankers  # noqa: F401
