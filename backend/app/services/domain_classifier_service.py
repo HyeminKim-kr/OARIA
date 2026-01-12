@@ -23,17 +23,24 @@ if TYPE_CHECKING:
 
 logger = logging.getLogger(__name__)
 
+# 기본 분류기 (DB 설정이 없거나 로드되기 전 사용)
+DEFAULT_CLASSIFIER = "pubmedbert_domain_v1"
+
 
 class DomainClassifierService:
     """도메인 분류기 서비스 (Singleton)
 
     Lazy Loading으로 분류기 인스턴스를 생성하고 관리합니다.
-    환경 변수로 활성화/비활성화 제어 가능합니다.
+    DB 설정 (RAGConfigManager)을 우선 사용하고, 없으면 환경변수 사용.
+
+    설정 우선순위:
+        1. DB (rag_settings.classifier)
+        2. 환경변수 (DOMAIN_CLASSIFIER_NAME)
+        3. 기본값 (pubmedbert_domain_v1)
 
     환경 변수:
         DOMAIN_CLASSIFIER_ENABLED: true/false (기본 true)
         DOMAIN_CLASSIFIER_MODE: warn/block (기본 warn)
-        DOMAIN_CLASSIFIER_THRESHOLD: 0.0~1.0 (기본 0.3)
     """
 
     _instance: "DomainClassifierService | None" = None
@@ -52,18 +59,42 @@ class DomainClassifierService:
         """분류기 활성화 여부"""
         return self._enabled
 
+    def _get_classifier_name(self) -> str:
+        """분류기 이름 결정 (DB > 환경변수 > 기본값)"""
+        # 1. DB 설정 확인
+        try:
+            from app.core.rag_config import RAGConfigManager
+
+            if RAGConfigManager.is_loaded():
+                config = RAGConfigManager.get()
+                if config.classifier:
+                    return config.classifier
+        except Exception as e:
+            logger.warning(f"[DomainClassifierService] Failed to get DB config: {e}")
+
+        # 2. 환경변수 확인
+        env_classifier = os.getenv("DOMAIN_CLASSIFIER_NAME")
+        if env_classifier:
+            return env_classifier
+
+        # 3. 기본값
+        return DEFAULT_CLASSIFIER
+
     def _load_classifier(self) -> "ClassifierProtocol":
         """분류기 인스턴스 로드 (Lazy)"""
         if self._classifier is None:
             from app.rag import get_classifier
 
-            classifier_name = os.getenv(
-                "DOMAIN_CLASSIFIER_NAME", "pubmedbert_domain_v1"
-            )
+            classifier_name = self._get_classifier_name()
             self._classifier = get_classifier(classifier_name)
             logger.info(f"[DomainClassifierService] Loaded classifier: {classifier_name}")
 
         return self._classifier
+
+    def reload_classifier(self) -> None:
+        """분류기 재로드 (설정 변경 시 호출)"""
+        self._classifier = None
+        logger.info("[DomainClassifierService] Classifier will be reloaded on next use")
 
     def classify(self, query: str) -> ClassificationResult:
         """쿼리 도메인 분류
@@ -100,6 +131,7 @@ class DomainClassifierService:
         status = {
             "enabled": self._enabled,
             "classifier_loaded": self._classifier is not None,
+            "classifier_name": self._get_classifier_name(),
         }
 
         if self._classifier is not None:

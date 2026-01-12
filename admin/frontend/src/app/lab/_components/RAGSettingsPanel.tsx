@@ -22,7 +22,7 @@ interface RAGSettingsPanelProps {
 }
 
 // 전략 타입
-type StrategyType = 'chunker' | 'embedder' | 'retriever' | 'reranker';
+type StrategyType = 'chunker' | 'embedder' | 'retriever' | 'reranker' | 'classifier';
 
 // 전략 값이 유효한지 확인하는 헬퍼 함수
 function isValidStrategy(
@@ -30,7 +30,8 @@ function isValidStrategy(
   availableStrategies: string[],
   type: StrategyType
 ): boolean {
-  if (type === 'reranker' && (value === null || value === 'none')) {
+  // reranker와 classifier는 null 또는 'none'이 허용됨
+  if ((type === 'reranker' || type === 'classifier') && (value === null || value === 'none')) {
     return true;
   }
   return value !== null && availableStrategies.includes(value);
@@ -49,6 +50,7 @@ export function RAGSettingsPanel({ strategies: initialStrategies }: RAGSettingsP
     embedder: '',
     retriever: '',
     reranker: 'none' as string | null,
+    classifier: 'none' as string | null,
     parameters: { limit: 10, alpha: 0.7 },
   });
 
@@ -87,6 +89,7 @@ export function RAGSettingsPanel({ strategies: initialStrategies }: RAGSettingsP
       embedder?: string;
       retriever?: string;
       reranker?: string | null;
+      classifier?: string | null;
     } }) => ragSettingsApi.update(id, {
       ...data,
       description: data.description ?? undefined,
@@ -109,6 +112,7 @@ export function RAGSettingsPanel({ strategies: initialStrategies }: RAGSettingsP
         embedder: 'openai',
         retriever: 'hybrid',
         reranker: 'bge',
+        classifier: 'pubmedbert_domain_v1',
         parameters: { limit: 10, alpha: 0.7 },
       });
     },
@@ -131,6 +135,10 @@ export function RAGSettingsPanel({ strategies: initialStrategies }: RAGSettingsP
     const rerankers = strategies?.rerankers?.filter((r) => r !== 'none') ?? [];
     return ['none', ...rerankers];
   }, [strategies?.rerankers]);
+  const classifierOptions = useMemo(() => {
+    const classifiers = strategies?.classifiers?.filter((c) => c !== 'none') ?? [];
+    return ['none', ...classifiers];
+  }, [strategies?.classifiers]);
 
   // 새 폼 초기값 설정 (strategies 로드 후)
   useMemo(() => {
@@ -141,6 +149,7 @@ export function RAGSettingsPanel({ strategies: initialStrategies }: RAGSettingsP
         embedder: strategies.embedders[0] ?? '',
         retriever: strategies.retrievers[0] ?? '',
         reranker: strategies.rerankers?.find(r => r !== 'none') ?? 'none',
+        classifier: strategies.classifiers?.find(c => c !== 'none') ?? 'none',
       }));
     }
   }, [strategies, newForm.chunker]);
@@ -155,6 +164,7 @@ export function RAGSettingsPanel({ strategies: initialStrategies }: RAGSettingsP
         { type: 'embedder', value: setting.embedder, options: embedderOptions },
         { type: 'retriever', value: setting.retriever, options: retrieverOptions },
         { type: 'reranker', value: setting.reranker, options: rerankerOptions },
+        { type: 'classifier', value: setting.classifier, options: classifierOptions },
       ];
 
       for (const check of checks) {
@@ -166,7 +176,7 @@ export function RAGSettingsPanel({ strategies: initialStrategies }: RAGSettingsP
 
       return mismatches;
     },
-    [chunkerOptions, embedderOptions, retrieverOptions, rerankerOptions]
+    [chunkerOptions, embedderOptions, retrieverOptions, rerankerOptions, classifierOptions]
   );
 
   // 전체 설정에 불일치가 있는지
@@ -184,6 +194,7 @@ export function RAGSettingsPanel({ strategies: initialStrategies }: RAGSettingsP
       embedder: setting.embedder,
       retriever: setting.retriever,
       reranker: setting.reranker,
+      classifier: setting.classifier,
       parameters: setting.parameters,
     });
   };
@@ -199,6 +210,7 @@ export function RAGSettingsPanel({ strategies: initialStrategies }: RAGSettingsP
         embedder: editForm.embedder,
         retriever: editForm.retriever,
         reranker: editForm.reranker === 'none' ? null : editForm.reranker,
+        classifier: editForm.classifier === 'none' ? null : editForm.classifier,
       },
     });
   };
@@ -207,6 +219,7 @@ export function RAGSettingsPanel({ strategies: initialStrategies }: RAGSettingsP
     createMutation.mutate({
       ...newForm,
       reranker: newForm.reranker === 'none' ? null : newForm.reranker,
+      classifier: newForm.classifier === 'none' ? null : newForm.classifier,
     });
   };
 
@@ -331,7 +344,7 @@ export function RAGSettingsPanel({ strategies: initialStrategies }: RAGSettingsP
                             />
                           </div>
                         </div>
-                        <div className="grid grid-cols-4 gap-3">
+                        <div className="grid grid-cols-5 gap-3">
                           <div>
                             <label className={cn(
                               'text-xs font-medium',
@@ -468,6 +481,42 @@ export function RAGSettingsPanel({ strategies: initialStrategies }: RAGSettingsP
                               ))}
                             </select>
                           </div>
+                          <div>
+                            <label className={cn(
+                              'text-xs font-medium',
+                              !isValidStrategy(editForm.classifier ?? null, classifierOptions, 'classifier')
+                                ? 'text-red-600'
+                                : 'text-gray-600'
+                            )}>
+                              Classifier {!isValidStrategy(editForm.classifier ?? null, classifierOptions, 'classifier') && '⚠️'}
+                            </label>
+                            <select
+                              value={editForm.classifier || 'none'}
+                              onChange={(e) =>
+                                setEditForm({
+                                  ...editForm,
+                                  classifier: e.target.value === 'none' ? null : e.target.value,
+                                })
+                              }
+                              className={cn(
+                                'mt-1 w-full rounded border px-2 py-1 text-sm',
+                                !isValidStrategy(editForm.classifier ?? null, classifierOptions, 'classifier')
+                                  ? 'border-red-300 bg-red-50'
+                                  : ''
+                              )}
+                            >
+                              {editForm.classifier && !classifierOptions.includes(editForm.classifier) && (
+                                <option value={editForm.classifier} disabled className="text-red-600">
+                                  ⚠️ {editForm.classifier} (존재하지 않음)
+                                </option>
+                              )}
+                              {classifierOptions.map((opt) => (
+                                <option key={opt} value={opt}>
+                                  {opt}
+                                </option>
+                              ))}
+                            </select>
+                          </div>
                         </div>
                         <div className="flex justify-end gap-2">
                           <button
@@ -555,6 +604,15 @@ export function RAGSettingsPanel({ strategies: initialStrategies }: RAGSettingsP
                                   reranker: {setting.reranker || 'none'}
                                   {mismatchTypes.has('reranker') && ' ⚠️'}
                                 </span>
+                                <span className={cn(
+                                  'rounded px-1.5 py-0.5',
+                                  mismatchTypes.has('classifier')
+                                    ? 'bg-red-100 text-red-700 border border-red-300'
+                                    : 'bg-gray-100'
+                                )}>
+                                  classifier: {setting.classifier || 'none'}
+                                  {mismatchTypes.has('classifier') && ' ⚠️'}
+                                </span>
                               </div>
                             </div>
                             <div className="flex items-center gap-2">
@@ -632,7 +690,7 @@ export function RAGSettingsPanel({ strategies: initialStrategies }: RAGSettingsP
                         />
                       </div>
                     </div>
-                    <div className="grid grid-cols-4 gap-3">
+                    <div className="grid grid-cols-5 gap-3">
                       <div>
                         <label className="text-xs font-medium text-gray-600">Chunker</label>
                         <select
@@ -688,6 +746,25 @@ export function RAGSettingsPanel({ strategies: initialStrategies }: RAGSettingsP
                           className="mt-1 w-full rounded border px-2 py-1 text-sm"
                         >
                           {rerankerOptions.map((opt) => (
+                            <option key={opt} value={opt}>
+                              {opt}
+                            </option>
+                          ))}
+                        </select>
+                      </div>
+                      <div>
+                        <label className="text-xs font-medium text-gray-600">Classifier</label>
+                        <select
+                          value={newForm.classifier || 'none'}
+                          onChange={(e) =>
+                            setNewForm({
+                              ...newForm,
+                              classifier: e.target.value === 'none' ? null : e.target.value,
+                            })
+                          }
+                          className="mt-1 w-full rounded border px-2 py-1 text-sm"
+                        >
+                          {classifierOptions.map((opt) => (
                             <option key={opt} value={opt}>
                               {opt}
                             </option>

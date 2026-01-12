@@ -56,6 +56,10 @@ class RAGSettings(Base):
         String(50),
         nullable=True,
     )
+    classifier: Mapped[str | None] = mapped_column(
+        String(50),
+        nullable=True,
+    )
     parameters: Mapped[dict[str, Any] | None] = mapped_column(
         JSONB,
         nullable=True,

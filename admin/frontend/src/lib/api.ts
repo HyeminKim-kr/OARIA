@@ -595,6 +595,7 @@ export interface RAGSettings {
   embedder: string;
   retriever: string;
   reranker: string | null;
+  classifier: string | null;
   parameters: RAGParameters | null;
   isActive: boolean;
   createdAt: string;
@@ -608,6 +609,7 @@ export interface CreateRAGSettingsRequest {
   embedder?: string;
   retriever?: string;
   reranker?: string | null;
+  classifier?: string | null;
   parameters?: RAGParameters;
 }
 
@@ -618,6 +620,7 @@ export interface UpdateRAGSettingsRequest {
   embedder?: string;
   retriever?: string;
   reranker?: string | null;
+  classifier?: string | null;
   parameters?: RAGParameters;
   isActive?: boolean;
 }

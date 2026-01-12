@@ -50,6 +50,11 @@ export class CreateRAGSettingsDto {
   @IsString()
   reranker?: string | null;
 
+  @ApiPropertyOptional({ description: '도메인 분류기 (null=미사용)', example: 'pubmedbert_domain_v1' })
+  @IsOptional()
+  @IsString()
+  classifier?: string | null;
+
   @ApiPropertyOptional({ description: '추가 파라미터' })
   @IsOptional()
   @IsObject()
@@ -87,6 +92,11 @@ export class UpdateRAGSettingsDto {
   @IsOptional()
   @IsString()
   reranker?: string | null;
+
+  @ApiPropertyOptional({ description: '도메인 분류기' })
+  @IsOptional()
+  @IsString()
+  classifier?: string | null;
 
   @ApiPropertyOptional({ description: '추가 파라미터' })
   @IsOptional()
