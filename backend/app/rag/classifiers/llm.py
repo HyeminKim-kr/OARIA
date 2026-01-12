@@ -111,8 +111,17 @@ class LLMDomainClassifier:
         """OpenAI 클라이언트 (Lazy Loading)"""
         if self._client is None:
             from openai import OpenAI
+            from app.config import settings
 
-            self._client = OpenAI()
+            api_key = settings.openai_api_key
+            if not api_key:
+                raise ValueError(
+                    "OPENAI_API_KEY is not set. "
+                    "Please set it in .env file or environment variable."
+                )
+
+            # settings에서 API 키를 가져와서 명시적으로 전달
+            self._client = OpenAI(api_key=api_key)
         return self._client
 
     def classify(self, query: str, **kwargs: Any) -> ClassificationResult:
