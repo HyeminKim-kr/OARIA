@@ -6,7 +6,7 @@ export { LabHistoryPanel } from './LabHistoryPanel';
 export { LabConfigForm } from './LabConfigForm';
 export { SearchConfigPanel } from './SearchConfigPanel';
 export { StrategySelectionPanel } from './StrategySelectionPanel';
-export { RAGSettingsPanel } from './RAGSettingsPanel';
+export { RAGSettingsPanel } from './rag-settings';
 export { DataSourceSelector } from './DataSourceSelector';
 export { LabSearchResults } from './LabSearchResults';
 export { LabGenerateResults } from './LabGenerateResults';
