@@ -17,6 +17,7 @@ import {
   ChevronRight,
   Copy,
   Check,
+  AlertTriangle,
 } from "lucide-react";
 import { ChatSidebar } from "@/components/chat/ChatSidebar";
 import { ReferenceModal } from "@/components/chat/ReferenceModal";
@@ -69,6 +70,13 @@ interface AgentProgress {
   subtasks?: SubTask[];
 }
 
+interface GateClassification {
+  category: string;
+  confidence: number;
+  is_oncology: boolean;
+  warning: string | null;
+}
+
 interface Message {
   id: string;
   role: "user" | "assistant";
@@ -89,6 +97,7 @@ export default function AskPage() {
   const [selectedReference, setSelectedReference] = useState<Reference | null>(null);
   const [sidebarRefresh, setSidebarRefresh] = useState(0);
   const [agentProgress, setAgentProgress] = useState<AgentProgress | null>(null);
+  const [gateClassification, setGateClassification] = useState<GateClassification | null>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
 
   // URL에서 conversation ID 읽어서 메시지 로드
@@ -169,6 +178,7 @@ export default function AskPage() {
     setInput("");
     setIsLoading(true);
     setAgentProgress(null); // Reset agent progress
+    setGateClassification(null); // Reset gate classification
 
     // Assistant 메시지 placeholder 추가
     const assistantMessageId = (Date.now() + 1).toString();
@@ -225,6 +235,16 @@ export default function AskPage() {
             const dataStr = line.slice(6);
             try {
               const data = JSON.parse(dataStr);
+
+              // gate 이벤트 (도메인 분류 결과)
+              if (data.category !== undefined && data.is_oncology !== undefined) {
+                setGateClassification({
+                  category: data.category,
+                  confidence: data.confidence,
+                  is_oncology: data.is_oncology,
+                  warning: data.warning,
+                });
+              }
 
               // status 이벤트 (진행 상태)
               if (data.step && data.message) {
@@ -432,6 +452,25 @@ export default function AskPage() {
                           const { mainContent, suggestions } = parseSuggestions(message.content);
                           return (
                             <>
+                              {/* Off-domain 경고 메시지 */}
+                              {gateClassification && !gateClassification.is_oncology && message.id === messages[messages.length - 1]?.id && (
+                                <div className="mb-4 p-4 rounded-lg bg-amber-50 border border-amber-200">
+                                  <div className="flex items-start gap-3">
+                                    <AlertTriangle size={20} className="text-amber-600 flex-shrink-0 mt-0.5" />
+                                    <div>
+                                      <div className="font-[family-name:var(--font-outfit)] font-semibold text-amber-800 text-sm">
+                                        Off-domain Query Detected
+                                      </div>
+                                      <p className="font-[family-name:var(--font-dm-sans)] text-sm text-amber-700 mt-1">
+                                        {gateClassification.warning || `이 질문은 ${gateClassification.category} 분야로 분류되었습니다. OARIA는 종양학(암 연구) 전문 AI로, 답변의 정확도가 낮을 수 있습니다.`}
+                                      </p>
+                                      <div className="mt-2 text-xs text-amber-600">
+                                        신뢰도: {(gateClassification.confidence * 100).toFixed(0)}%
+                                      </div>
+                                    </div>
+                                  </div>
+                                </div>
+                              )}
                               <div className="font-[family-name:var(--font-dm-sans)] text-base leading-relaxed text-[var(--foreground)] prose prose-sm max-w-none prose-headings:font-semibold prose-headings:text-[var(--foreground)] prose-p:text-[var(--foreground)] prose-strong:text-[var(--foreground)] prose-li:text-[var(--foreground)]">
                                 <ReactMarkdown>{mainContent}</ReactMarkdown>
                                 {/* 스트리밍 중 커서 표시 */}
