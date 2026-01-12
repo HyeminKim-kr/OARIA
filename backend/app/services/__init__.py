@@ -6,6 +6,7 @@ from .embedding_service import EmbeddingService, embedding_service, get_embeddin
 from .rag_service import RagService, rag_service, get_rag_service
 from .llm_service import LLMService, llm_service, get_llm_service
 from .agent import AgentService, agent_service, get_agent_service
+from .domain_classifier_service import DomainClassifierService, domain_classifier_service
 
 __all__ = [
     "UserService",
@@ -24,4 +25,6 @@ __all__ = [
     "AgentService",
     "agent_service",
     "get_agent_service",
+    "DomainClassifierService",
+    "domain_classifier_service",
 ]
