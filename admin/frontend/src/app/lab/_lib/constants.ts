@@ -26,6 +26,7 @@ export const DEFAULT_SELECTED_STRATEGIES = {
   embedder: 'openai',
   retriever: 'hybrid',
   reranker: 'none',
+  classifier: 'none',  // 기본: 분류 미사용
 };
 
 export const DEFAULT_CONFIG = {

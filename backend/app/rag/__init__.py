@@ -24,6 +24,7 @@ from app.rag import classifiers  # noqa: F401
 from app.rag import embedders  # noqa: F401
 from app.rag import retrievers  # noqa: F401
 from app.rag import rerankers  # noqa: F401
+from app.rag import classifiers  # noqa: F401
 
 # 공통 타입
 from app.rag.base import (

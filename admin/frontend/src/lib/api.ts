@@ -337,6 +337,15 @@ export interface SearchedChunk {
   metadata?: Record<string, unknown>;
 }
 
+// 분류 테스트 결과
+export interface ClassificationTestResult {
+  category: string;
+  confidence: number;
+  isOncology: boolean;
+  warning?: string;
+  classifierLatencyMs: number;
+}
+
 export interface SearchTestResult {
   query: string;
   chunks: SearchedChunk[];
@@ -350,7 +359,9 @@ export interface SearchTestResult {
     reranker?: string;
     minRerankScore?: number;
     rerankerModel?: string;
+    classifier?: string;
   };
+  classification?: ClassificationTestResult;
 }
 
 export interface LabReference {
@@ -375,6 +386,7 @@ export interface GenerateTestResult {
     completion: number;
   };
   useReranker?: boolean;
+  classification?: ClassificationTestResult;
 }
 
 export interface UserBackendStatus {
@@ -430,6 +442,7 @@ export interface SearchTestParams {
   reranker?: string;
   minRerankScore?: number;
   collectionName?: string;  // 샘플 임베딩 컬렉션 지정
+  classifier?: string;  // 분류기 전략 (예: pubmedbert)
 }
 
 export interface GenerateTestParams {
@@ -439,6 +452,7 @@ export interface GenerateTestParams {
   useReranker?: boolean;
   reranker?: string;
   collectionName?: string;  // 샘플 임베딩 컬렉션 지정
+  classifier?: string;  // 분류기 전략 (예: pubmedbert)
 }
 
 export interface CompareSearchConfig {
@@ -543,6 +557,7 @@ export interface StrategiesDetailResponse {
   embedders: StrategyInfo[];
   retrievers: StrategyInfo[];
   rerankers: StrategyInfo[];
+  classifiers: StrategyInfo[];
 }
 
 // DB 저장 RAG 전략 정보
@@ -635,6 +650,7 @@ export const labApi = {
       reranker: params.reranker,
       minRerankScore: params.minRerankScore,
       collectionName: params.collectionName,
+      classifier: params.classifier,
     }).then((res) => res.data),
   testGenerate: (params: GenerateTestParams) =>
     api.post<GenerateTestResult>('/lab/generate', {
@@ -644,6 +660,7 @@ export const labApi = {
       useReranker: params.useReranker,
       reranker: params.reranker,
       collectionName: params.collectionName,
+      classifier: params.classifier,
     }).then((res) => res.data),
   testCompare: (params: CompareTestParams) =>
     api.post<CompareTestResult>('/lab/compare', params).then((res) => res.data),

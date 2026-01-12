@@ -12,6 +12,7 @@ interface StrategySelectionPanelProps {
     embedder: string;
     retriever: string;
     reranker: string;
+    classifier: string;
   };
   onStrategyChange: (key: string, value: string) => void;
 }
@@ -259,7 +260,7 @@ function ensureValueInOptions(options: string[], value: string): string[] {
   return options;
 }
 
-type StrategyType = 'chunker' | 'embedder' | 'retriever' | 'reranker' | null;
+type StrategyType = 'chunker' | 'embedder' | 'retriever' | 'reranker' | 'classifier' | null;
 
 export function StrategySelectionPanel({
   strategies,
@@ -287,6 +288,10 @@ export function StrategySelectionPanel({
     ['none', ...(strategies?.rerankers?.filter(r => r !== 'none') ?? ['bge'])],
     selectedStrategies.reranker
   );
+  const classifierOptions = ensureValueInOptions(
+    ['none', ...(strategies?.classifiers?.filter(c => c !== 'none') ?? ['pubmedbert'])],
+    selectedStrategies.classifier
+  );
 
   // 선택된 전략의 설명 가져오기
   const chunkerDesc = getStrategyDescription(strategiesDetail?.chunkers, selectedStrategies.chunker);
@@ -295,6 +300,9 @@ export function StrategySelectionPanel({
   const rerankerDesc = selectedStrategies.reranker === 'none'
     ? '리랭킹을 사용하지 않습니다.\n\nA/B 테스트에서 리랭킹 효과를 비교할 때 baseline으로 사용합니다.'
     : getStrategyDescription(strategiesDetail?.rerankers, selectedStrategies.reranker);
+  const classifierDesc = selectedStrategies.classifier === 'none'
+    ? '도메인 분류를 사용하지 않습니다.\n\n모든 쿼리에 대해 답변을 생성합니다.'
+    : getStrategyDescription(strategiesDetail?.classifiers, selectedStrategies.classifier);
 
   // 모달에 표시할 정보
   const detailModalInfo: Record<Exclude<StrategyType, null>, { title: string; name: string; desc: string; disabled?: boolean; disabledReason?: string }> = {
@@ -321,6 +329,11 @@ export function StrategySelectionPanel({
       title: 'Reranker (재정렬 모델)',
       name: selectedStrategies.reranker,
       desc: rerankerDesc,
+    },
+    classifier: {
+      title: 'Classifier (도메인 분류기)',
+      name: selectedStrategies.classifier,
+      desc: classifierDesc,
     },
   };
 
@@ -381,6 +394,15 @@ export function StrategySelectionPanel({
             description={rerankerDesc}
             onShowDetail={() => setShowDetailFor('reranker')}
             onChange={(v) => onStrategyChange('reranker', v)}
+          />
+
+          <StrategyDropdown
+            label="Classifier"
+            value={selectedStrategies.classifier}
+            options={classifierOptions}
+            description={classifierDesc}
+            onShowDetail={() => setShowDetailFor('classifier')}
+            onChange={(v) => onStrategyChange('classifier', v)}
           />
         </div>
       </div>

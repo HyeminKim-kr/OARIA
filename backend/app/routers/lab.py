@@ -50,6 +50,7 @@ class SearchTestRequest(BaseModel):
     reranker: str | None = Field(default="bge", description="Reranker 전략 (예: bge, none)")
     min_rerank_score: float | None = Field(default=None, ge=0, le=1, description="Reranker 최소 점수 임계값")
     collection_name: str | None = Field(default=None, description="Weaviate 컬렉션 이름 (샘플 임베딩용, None이면 기본 컬렉션)")
+    classifier: str | None = Field(default=None, description="Classifier 전략 (예: pubmedbert). None이면 분류하지 않음")
 
 
 class ChunkResult(BaseModel):
@@ -66,6 +67,16 @@ class ChunkResult(BaseModel):
     metadata: dict[str, Any] | None = None
 
 
+class ClassificationTestResult(BaseModel):
+    """분류 테스트 결과"""
+
+    category: str
+    confidence: float
+    is_oncology: bool
+    warning: str | None = None
+    classifier_latency_ms: int
+
+
 class SearchTestResponse(BaseModel):
     """검색 테스트 응답"""
 
@@ -75,6 +86,7 @@ class SearchTestResponse(BaseModel):
     rerank_latency_ms: int | None = None  # Reranker 소요 시간
     total_chunks: int
     parameters: dict[str, Any]
+    classification: ClassificationTestResult | None = None  # Classifier 결과
 
 
 class GenerateTestRequest(BaseModel):
@@ -86,6 +98,7 @@ class GenerateTestRequest(BaseModel):
     use_reranker: bool = Field(default=False, description="Reranker 사용 여부")
     reranker: str | None = Field(default="bge", description="Reranker 전략 (예: bge, none)")
     collection_name: str | None = Field(default=None, description="Weaviate 컬렉션 이름 (샘플 임베딩용, None이면 기본 컬렉션)")
+    classifier: str | None = Field(default=None, description="Classifier 전략 (예: pubmedbert). None이면 분류하지 않음")
 
 
 class ReferenceResult(BaseModel):
@@ -111,6 +124,7 @@ class GenerateTestResponse(BaseModel):
     model: str
     tokens_used: dict[str, int] | None = None
     use_reranker: bool = False
+    classification: ClassificationTestResult | None = None  # Classifier 결과
 
 
 # ─────────────────────────────────────────────────────────────
@@ -125,11 +139,28 @@ def test_search(request: SearchTestRequest):
     쿼리에 대한 검색 결과(청크)를 반환합니다.
     검색 파라미터를 조정하여 품질을 테스트할 수 있습니다.
     Reranker를 사용하면 더 정확한 관련성 점수를 얻을 수 있습니다.
+    Classifier를 사용하면 도메인 분류 결과를 확인할 수 있습니다.
     """
     start = time.perf_counter()
     rerank_latency_ms = None
+    classification_result = None
 
     try:
+        # 0. 분류 (선택적)
+        if request.classifier:
+            classify_start = time.perf_counter()
+            classifier = get_classifier(request.classifier)
+            cls_result = classifier.classify(request.query)
+            classify_latency_ms = int((time.perf_counter() - classify_start) * 1000)
+
+            classification_result = ClassificationTestResult(
+                category=cls_result.category,
+                confidence=cls_result.confidence,
+                is_oncology=cls_result.is_oncology,
+                warning=cls_result.warning,
+                classifier_latency_ms=classify_latency_ms,
+            )
+
         # 1. 쿼리 임베딩
         query_vector = embedding_service.embed_text(request.query)
 
@@ -206,7 +237,9 @@ def test_search(request: SearchTestRequest):
                 "min_rerank_score": request.min_rerank_score,
                 "reranker_model": reranker_name if request.use_reranker else None,
                 "collection_name": request.collection_name,
+                "classifier": request.classifier,
             },
+            classification=classification_result,
         )
 
     except Exception as e:
@@ -267,6 +300,7 @@ class StrategiesDetailResponse(BaseModel):
     embedders: list[StrategyInfo]
     retrievers: list[StrategyInfo]
     rerankers: list[StrategyInfo]
+    classifiers: list[StrategyInfo]
 
 
 @router.get("/strategies", response_model=StrategiesResponse)
@@ -289,6 +323,7 @@ def get_strategies_detail():
         "embedders": get_embedder_info(),
         "retrievers": get_retriever_info(),
         "rerankers": get_reranker_info(),
+        "classifiers": get_classifier_info(),
     }
 
 
@@ -701,10 +736,27 @@ def test_generate(request: GenerateTestRequest):
 
     검색 후 LLM으로 답변을 생성합니다.
     Reranker를 사용하면 더 관련성 높은 문서로 답변을 생성합니다.
+    Classifier를 사용하면 도메인 분류 결과를 확인할 수 있습니다.
     """
     total_start = time.perf_counter()
+    classification_result = None
 
     try:
+        # 0. 분류 (선택적)
+        if request.classifier:
+            classify_start = time.perf_counter()
+            classifier = get_classifier(request.classifier)
+            cls_result = classifier.classify(request.query)
+            classify_latency_ms = int((time.perf_counter() - classify_start) * 1000)
+
+            classification_result = ClassificationTestResult(
+                category=cls_result.category,
+                confidence=cls_result.confidence,
+                is_oncology=cls_result.is_oncology,
+                warning=cls_result.warning,
+                classifier_latency_ms=classify_latency_ms,
+            )
+
         # 1. RAG 검색 (Reranker 옵션 포함)
         retrieval_result = rag_service.retrieve(
             query=request.query,
@@ -760,6 +812,7 @@ def test_generate(request: GenerateTestRequest):
                 "completion": usage.get("completion_tokens", 0),
             } if usage else None,
             use_reranker=request.use_reranker,
+            classification=classification_result,
         )
 
     except Exception as e:
