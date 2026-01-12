@@ -18,6 +18,7 @@ import {
   StrategiesResponse,
   StrategiesDetailResponse,
   DBStrategiesResponse,
+  ClassificationResult,
 } from './types';
 import {
   LabFeedback,
@@ -129,6 +130,18 @@ export class LabService {
         metadata: chunk.metadata as Record<string, unknown>,
       }));
 
+      // Classification 결과 변환
+      let classification: ClassificationResult | undefined;
+      if (data.classification) {
+        classification = {
+          category: data.classification.category as string,
+          confidence: data.classification.confidence as number,
+          isOncology: data.classification.is_oncology as boolean,
+          warning: data.classification.warning as string | undefined,
+          classifierLatencyMs: data.classification.classifier_latency_ms as number,
+        };
+      }
+
       const result: SearchTestResult = {
         query,
         chunks,
@@ -142,6 +155,7 @@ export class LabService {
           minRerankScore,
           rerankerModel: data.parameters?.reranker_model as string | undefined,
         },
+        classification,
       };
 
       // 자동 로그 저장 (skipLog가 true면 스킵 - compare 모드에서 사용)
@@ -231,6 +245,18 @@ export class LabService {
         score: ref.score as number,
       }));
 
+      // Classification 결과 변환
+      let classification: ClassificationResult | undefined;
+      if (data.classification) {
+        classification = {
+          category: data.classification.category as string,
+          confidence: data.classification.confidence as number,
+          isOncology: data.classification.is_oncology as boolean,
+          warning: data.classification.warning as string | undefined,
+          classifierLatencyMs: data.classification.classifier_latency_ms as number,
+        };
+      }
+
       const result: GenerateTestResult = {
         query,
         answer: data.answer as string,
@@ -245,6 +271,7 @@ export class LabService {
           completion: data.tokens_used.completion as number,
         } : undefined,
         useReranker: data.use_reranker as boolean | undefined,
+        classification,
       };
 
       // 자동 로그 저장

@@ -24,6 +24,15 @@ export interface SearchedChunk {
   metadata?: Record<string, unknown>;
 }
 
+// 분류 결과
+export interface ClassificationResult {
+  category: string;
+  confidence: number;
+  isOncology: boolean;
+  warning?: string;
+  classifierLatencyMs: number;
+}
+
 // 검색 테스트 결과
 export interface SearchTestResult {
   query: string;
@@ -38,6 +47,7 @@ export interface SearchTestResult {
     minRerankScore?: number;
     rerankerModel?: string;
   };
+  classification?: ClassificationResult; // 분류 결과
 }
 
 // 답변 생성 요청
@@ -73,6 +83,7 @@ export interface GenerateTestResult {
     completion: number;
   };
   useReranker?: boolean;
+  classification?: ClassificationResult; // 분류 결과
 }
 
 // 피드백 요청
