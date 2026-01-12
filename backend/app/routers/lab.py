@@ -30,6 +30,7 @@ from app.rag import (
     get_reranker,
     get_classifier,
 )
+from app.rag.classifiers.messages import get_full_warning_text
 
 
 router = APIRouter(prefix="/lab", tags=["lab"])
@@ -749,11 +750,41 @@ def test_generate(request: GenerateTestRequest):
             cls_result = classifier.classify(request.query)
             classify_latency_ms = int((time.perf_counter() - classify_start) * 1000)
 
+            # Off-domain이면 바로 경고 응답 반환 (RAG 파이프라인 스킵 → 비용 절약)
+            if cls_result.category != "oncology":
+                warning_message = get_full_warning_text(
+                    category=cls_result.category,
+                    confidence=cls_result.confidence,
+                    language="ko",
+                )
+                total_latency_ms = int((time.perf_counter() - total_start) * 1000)
+
+                return GenerateTestResponse(
+                    query=request.query,
+                    answer=warning_message,
+                    references=[],
+                    search_latency_ms=0,
+                    rerank_latency_ms=None,
+                    llm_latency_ms=0,
+                    total_latency_ms=total_latency_ms,
+                    model="none (off-domain)",
+                    tokens_used=None,
+                    use_reranker=False,
+                    classification=ClassificationTestResult(
+                        category=cls_result.category,
+                        confidence=cls_result.confidence,
+                        is_oncology=False,
+                        warning=warning_message,
+                        classifier_latency_ms=classify_latency_ms,
+                    ),
+                )
+
+            # Oncology 도메인인 경우 classification_result 설정
             classification_result = ClassificationTestResult(
                 category=cls_result.category,
                 confidence=cls_result.confidence,
-                is_oncology=cls_result.is_allowed,  # is_allowed가 True면 oncology
-                warning=cls_result.reason,
+                is_oncology=True,
+                warning=None,
                 classifier_latency_ms=classify_latency_ms,
             )
 
