@@ -41,6 +41,8 @@ export function LabSearchResults({
   };
 
   const hasReranker = result.parameters.useReranker;
+  const isOffDomain = result.classification && !result.classification.isOncology;
+
   const relevantChunks = hasReranker
     ? result.chunks.filter((c) => (c.rerankScore ?? c.score) >= SCORE_THRESHOLDS.LOW)
     : result.chunks;
@@ -54,6 +56,26 @@ export function LabSearchResults({
 
   return (
     <div className="space-y-4">
+      {/* Off-domain Classification Warning */}
+      {isOffDomain && result.classification && (
+        <div className="rounded-lg border border-amber-300 bg-amber-50 p-4">
+          <div className="flex items-start gap-3">
+            <AlertTriangle className="h-5 w-5 flex-shrink-0 text-amber-600" />
+            <div>
+              <h3 className="font-medium text-amber-800">
+                Off-domain 쿼리 ({result.classification.category}, {(result.classification.confidence * 100).toFixed(0)}%)
+              </h3>
+              <p className="mt-1 text-sm text-amber-700">
+                {result.classification.warning || '이 질문은 종양학(Oncology) 분야가 아닙니다. OARIA는 종양학 전문 AI입니다.'}
+              </p>
+              <p className="mt-2 text-xs text-amber-600">
+                분류 소요시간: {result.classification.classifierLatencyMs}ms
+              </p>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* 관련 결과 없음 경고 */}
       {allLowRelevance && (
         <div className="rounded-lg border border-orange-200 bg-orange-50 p-4">
@@ -87,6 +109,18 @@ export function LabSearchResults({
                 {hasReranker && !allLowRelevance && lowRelevanceChunks.length > 0 && (
                   <span className="rounded bg-orange-100 px-2 py-0.5 text-xs text-orange-700">
                     {lowRelevanceChunks.length}개 낮은 관련성
+                  </span>
+                )}
+                {result.classification && (
+                  <span
+                    className={cn(
+                      'rounded px-2 py-0.5 text-xs',
+                      result.classification.isOncology
+                        ? 'bg-blue-100 text-blue-700'
+                        : 'bg-amber-100 text-amber-700'
+                    )}
+                  >
+                    {result.classification.isOncology ? 'Oncology' : 'Off-domain'}
                   </span>
                 )}
               </h2>

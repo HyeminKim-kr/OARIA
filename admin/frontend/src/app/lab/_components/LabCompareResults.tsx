@@ -1,6 +1,6 @@
 'use client';
 
-import { Zap, Loader2, Trophy, TrendingUp, Clock, Layers, BarChart3 } from 'lucide-react';
+import { Zap, Loader2, Trophy, TrendingUp, Clock, Layers, BarChart3, AlertTriangle } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { SearchTestResult } from '@/lib/api';
 import { SCORE_THRESHOLDS, RELEVANCE_STYLES, getRelevanceLevel, CompareResults } from '../_lib';
@@ -101,11 +101,27 @@ function ResultPanel({
   const hasReranker = result?.parameters?.useReranker;
   const rerankerName = result?.parameters?.rerankerModel || result?.parameters?.reranker;
 
+  const isOffDomain = result?.classification && !result.classification.isOncology;
+
   return (
     <div className={cn('rounded-lg bg-white shadow ring-2', colorClass.border)}>
       <div className={cn('border-b px-4 py-3', colorClass.headerBg)}>
         <div className="flex items-center justify-between">
-          <h3 className={cn('font-medium', colorClass.headerText)}>{label}</h3>
+          <div className="flex items-center gap-2">
+            <h3 className={cn('font-medium', colorClass.headerText)}>{label}</h3>
+            {result?.classification && (
+              <span
+                className={cn(
+                  'rounded px-1.5 py-0.5 text-xs',
+                  result.classification.isOncology
+                    ? 'bg-blue-100 text-blue-700'
+                    : 'bg-amber-100 text-amber-700'
+                )}
+              >
+                {result.classification.isOncology ? 'Oncology' : 'Off-domain'}
+              </span>
+            )}
+          </div>
           {result && (
             <span className="text-xs text-gray-500">
               {result.searchLatencyMs}ms
@@ -123,6 +139,15 @@ function ResultPanel({
           </div>
         )}
       </div>
+      {/* Off-domain Warning */}
+      {isOffDomain && result.classification && (
+        <div className="border-b border-amber-200 bg-amber-50 px-4 py-2">
+          <div className="flex items-center gap-2 text-xs text-amber-700">
+            <AlertTriangle className="h-3.5 w-3.5 flex-shrink-0" />
+            <span>Off-domain ({result.classification.category}, {(result.classification.confidence * 100).toFixed(0)}%)</span>
+          </div>
+        </div>
+      )}
       {isLoading ? (
         <div className="flex items-center justify-center py-12">
           <Loader2 className="h-6 w-6 animate-spin text-gray-400" />

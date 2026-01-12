@@ -1,6 +1,6 @@
 'use client';
 
-import { Clock, ThumbsUp, ThumbsDown, HelpCircle } from 'lucide-react';
+import { Clock, ThumbsUp, ThumbsDown, HelpCircle, AlertTriangle } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { GenerateTestResult } from '@/lib/api';
 import { Tooltip } from './Tooltip';
@@ -19,8 +19,30 @@ export function LabGenerateResults({
   feedbackPending,
   onFeedback,
 }: LabGenerateResultsProps) {
+  const isOffDomain = result.classification && !result.classification.isOncology;
+
   return (
     <div className="space-y-6">
+      {/* Off-domain Classification Warning */}
+      {isOffDomain && result.classification && (
+        <div className="rounded-lg border border-amber-300 bg-amber-50 p-4">
+          <div className="flex items-start gap-3">
+            <AlertTriangle className="h-5 w-5 flex-shrink-0 text-amber-600" />
+            <div>
+              <h3 className="font-medium text-amber-800">
+                Off-domain 쿼리 ({result.classification.category}, {(result.classification.confidence * 100).toFixed(0)}%)
+              </h3>
+              <p className="mt-1 text-sm text-amber-700">
+                {result.classification.warning || '이 질문은 종양학(Oncology) 분야가 아닙니다. OARIA는 종양학 전문 AI입니다.'}
+              </p>
+              <p className="mt-2 text-xs text-amber-600">
+                분류 소요시간: {result.classification.classifierLatencyMs}ms | RAG 파이프라인이 스킵되어 비용이 절약되었습니다.
+              </p>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* Answer */}
       <div className="rounded-lg bg-white shadow">
         <div className="border-b border-gray-200 px-6 py-4">
@@ -31,6 +53,18 @@ export function LabGenerateResults({
                 {result.useReranker && (
                   <span className="rounded bg-green-100 px-2 py-0.5 text-xs text-green-700">
                     Reranker 적용됨
+                  </span>
+                )}
+                {result.classification && (
+                  <span
+                    className={cn(
+                      'rounded px-2 py-0.5 text-xs',
+                      result.classification.isOncology
+                        ? 'bg-blue-100 text-blue-700'
+                        : 'bg-amber-100 text-amber-700'
+                    )}
+                  >
+                    {result.classification.isOncology ? 'Oncology' : 'Off-domain'}
                   </span>
                 )}
               </h2>
