@@ -156,8 +156,8 @@ def test_search(request: SearchTestRequest):
             classification_result = ClassificationTestResult(
                 category=cls_result.category,
                 confidence=cls_result.confidence,
-                is_oncology=cls_result.is_oncology,
-                warning=cls_result.warning,
+                is_oncology=cls_result.is_allowed,  # is_allowed가 True면 oncology
+                warning=cls_result.reason,
                 classifier_latency_ms=classify_latency_ms,
             )
 
@@ -752,8 +752,8 @@ def test_generate(request: GenerateTestRequest):
             classification_result = ClassificationTestResult(
                 category=cls_result.category,
                 confidence=cls_result.confidence,
-                is_oncology=cls_result.is_oncology,
-                warning=cls_result.warning,
+                is_oncology=cls_result.is_allowed,  # is_allowed가 True면 oncology
+                warning=cls_result.reason,
                 classifier_latency_ms=classify_latency_ms,
             )
 
