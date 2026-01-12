@@ -36,6 +36,9 @@ export class RAGSettings {
   @Column({ type: 'varchar', length: 50, nullable: true })
   reranker: string | null;
 
+  @Column({ type: 'varchar', length: 50, nullable: true })
+  classifier: string | null;
+
   @Column({ type: 'jsonb', nullable: true })
   parameters: RAGParameters | null;
 

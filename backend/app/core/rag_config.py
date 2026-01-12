@@ -25,6 +25,7 @@ class LoadedRAGConfig:
     embedder: str
     retriever: str
     reranker: str | None
+    classifier: str | None
     parameters: dict[str, Any]
 
     @property
@@ -81,12 +82,14 @@ class RAGConfigManager:
                     embedder=settings.embedder,
                     retriever=settings.retriever,
                     reranker=settings.reranker,
+                    classifier=settings.classifier,
                     parameters=settings.parameters or {},
                 )
                 logger.info(
                     f"RAG config loaded: {settings.name} "
                     f"(chunker={settings.chunker}, embedder={settings.embedder}, "
-                    f"retriever={settings.retriever}, reranker={settings.reranker})"
+                    f"retriever={settings.retriever}, reranker={settings.reranker}, "
+                    f"classifier={settings.classifier})"
                 )
             else:
                 # 기본값 사용
@@ -96,6 +99,7 @@ class RAGConfigManager:
                     embedder="openai",
                     retriever="hybrid",
                     reranker="bge",
+                    classifier="pubmedbert_domain_v1",
                     parameters={"limit": 10, "alpha": 0.7},
                 )
                 logger.warning("No active RAG settings found, using defaults")
@@ -111,6 +115,7 @@ class RAGConfigManager:
                 embedder="openai",
                 retriever="hybrid",
                 reranker="bge",
+                classifier="pubmedbert_domain_v1",
                 parameters={"limit": 10, "alpha": 0.7},
             )
             cls._loaded = True

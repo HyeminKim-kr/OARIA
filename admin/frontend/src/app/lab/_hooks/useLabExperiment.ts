@@ -55,7 +55,7 @@ export function useLabExperiment() {
           embedder: activeSettings.embedder,
           retriever: activeSettings.retriever,
           reranker: activeSettings.reranker || 'none',
-          classifier: prev.selectedStrategies.classifier,  // classifier는 기존값 유지
+          classifier: activeSettings.classifier || 'none',  // 프로덕션 설정 반영
         },
         // 기본 검색 설정도 활성 설정 기반으로
         limit: activeSettings.parameters?.limit ?? prev.limit,

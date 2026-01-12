@@ -51,21 +51,27 @@ class PubMedBERTDomainClassifier:
     name = "pubmedbert_domain_v1"
 
     # 분류 후보 레이블
+    # Note: Zero-shot 모델이 키워드 기반으로 분류하므로 관련 용어를 충분히 포함
     CANDIDATE_LABELS = [
-        "oncology cancer tumor",
-        "cardiology heart cardiovascular",
-        "neurology brain nervous system",
-        "general medicine healthcare",
-        "non-medical unrelated",
+        # 종양학: 암 종류 + 치료법 키워드 포함
+        "oncology cancer tumor chemotherapy immunotherapy radiation targeted therapy carcinoma lymphoma leukemia melanoma sarcoma",
+        # 심장학
+        "cardiology heart cardiovascular arrhythmia hypertension coronary",
+        # 신경학
+        "neurology brain nervous system stroke epilepsy alzheimer parkinson",
+        # 일반 의학
+        "general medicine healthcare diagnosis symptoms treatment medical",
+        # 비의료
+        "non-medical unrelated daily life food weather sports entertainment",
     ]
 
     # 레이블 -> 카테고리 매핑
     LABEL_TO_CATEGORY = {
-        "oncology cancer tumor": "oncology",
-        "cardiology heart cardiovascular": "cardiology",
-        "neurology brain nervous system": "neurology",
-        "general medicine healthcare": "general_medicine",
-        "non-medical unrelated": "non_medical",
+        "oncology cancer tumor chemotherapy immunotherapy radiation targeted therapy carcinoma lymphoma leukemia melanoma sarcoma": "oncology",
+        "cardiology heart cardiovascular arrhythmia hypertension coronary": "cardiology",
+        "neurology brain nervous system stroke epilepsy alzheimer parkinson": "neurology",
+        "general medicine healthcare diagnosis symptoms treatment medical": "general_medicine",
+        "non-medical unrelated daily life food weather sports entertainment": "non_medical",
     }
 
     # 허용되는 도메인
