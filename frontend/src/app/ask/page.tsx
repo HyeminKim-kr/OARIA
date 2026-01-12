@@ -464,9 +464,6 @@ export default function AskPage() {
                                       <p className="font-[family-name:var(--font-dm-sans)] text-sm text-amber-700 mt-1">
                                         {gateClassification.warning || `이 질문은 ${gateClassification.category} 분야로 분류되었습니다. OARIA는 종양학(암 연구) 전문 AI로, 답변의 정확도가 낮을 수 있습니다.`}
                                       </p>
-                                      <div className="mt-2 text-xs text-amber-600">
-                                        신뢰도: {(gateClassification.confidence * 100).toFixed(0)}%
-                                      </div>
                                     </div>
                                   </div>
                                 </div>
