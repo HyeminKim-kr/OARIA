@@ -32,9 +32,14 @@ from app.schemas.chat import (
     Reference,
 )
 from app.services import agent_service
+from app.services.domain_classifier_service import domain_classifier_service
 
 
 router = APIRouter(prefix="/ai", tags=["ai"])
+
+
+# Gate 1 분류 결과를 SSE로 전달하기 위한 임시 저장
+_gate_classification_cache: dict[str, dict] = {}
 
 
 # ─────────────────────────────────────────────────────────────
@@ -75,10 +80,29 @@ async def ask_ai(
                 detail="Conversation not found",
             )
 
+    # Gate 1: 도메인 분류 (경고만, 차단 안함)
+    gate_classification = None
+    if domain_classifier_service.is_enabled:
+        gate_classification = domain_classifier_service.classify(request.question)
+        # is_allowed=False여도 warn 모드에서는 이미 True로 변환됨
+        # 하지만 원래 분류 결과를 SSE로 전달하기 위해 저장
+
     async def generate_sse():
         """SSE 스트림 생성 (Agent 실행)"""
         nonlocal conversation
         total_start = time.perf_counter()
+
+        # Gate 1 분류 결과 전송 (Off-domain 경고)
+        if gate_classification is not None:
+            yield {
+                "event": "gate",
+                "data": json.dumps({
+                    "category": gate_classification.category,
+                    "confidence": gate_classification.confidence,
+                    "is_oncology": gate_classification.category == "oncology",
+                    "warning": gate_classification.reason if gate_classification.category != "oncology" else None,
+                }, ensure_ascii=False),
+            }
 
         # 이벤트 큐 (Agent 서비스에서 이벤트를 푸시)
         event_queue: queue.Queue = queue.Queue()

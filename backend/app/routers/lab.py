@@ -26,7 +26,9 @@ from app.rag import (
     get_embedder_info,
     get_retriever_info,
     get_reranker_info,
+    get_classifier_info,
     get_reranker,
+    get_classifier,
 )
 
 
@@ -777,3 +779,75 @@ def test_generate(request: GenerateTestRequest):
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"Generate failed: {error_msg}",
         )
+
+
+# ─────────────────────────────────────────────────────────────
+# Domain Classification API
+# ─────────────────────────────────────────────────────────────
+
+
+class ClassifyTestRequest(BaseModel):
+    """도메인 분류 테스트 요청"""
+
+    query: str = Field(..., description="분류할 쿼리")
+    classifier: str = Field(
+        default="pubmedbert_domain_v1",
+        description="분류기 전략 이름",
+    )
+
+
+class ClassifyTestResponse(BaseModel):
+    """도메인 분류 테스트 응답"""
+
+    query: str
+    category: str
+    confidence: float
+    is_allowed: bool
+    reason: str | None
+    latency_ms: int
+    classifier: str
+
+
+@router.post("/classify", response_model=ClassifyTestResponse)
+def test_classify(request: ClassifyTestRequest):
+    """도메인 분류 테스트
+
+    쿼리가 Oncology 도메인인지 분류합니다.
+    Gate 1에서 Off-domain 쿼리를 감지하는 데 사용됩니다.
+
+    분류 결과:
+    - oncology: 허용 (암 연구 관련)
+    - cardiology: 거절 (심장학)
+    - neurology: 거절 (신경학)
+    - general_medicine: 거절 (일반 의학)
+    - non_medical: 거절 (의학 외)
+    """
+    start = time.perf_counter()
+
+    try:
+        classifier = get_classifier(request.classifier)
+        result = classifier.classify(request.query)
+
+        latency_ms = int((time.perf_counter() - start) * 1000)
+
+        return ClassifyTestResponse(
+            query=request.query,
+            category=result.category,
+            confidence=result.confidence,
+            is_allowed=result.is_allowed,
+            reason=result.reason,
+            latency_ms=latency_ms,
+            classifier=request.classifier,
+        )
+
+    except Exception as e:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Classification failed: {str(e)}",
+        )
+
+
+@router.get("/classifiers")
+def get_classifiers():
+    """사용 가능한 도메인 분류기 목록"""
+    return get_classifier_info()
