@@ -118,3 +118,50 @@ class SectionContentResponse(BaseModel):
     paragraphs: list[ParagraphResponse]
     total_text: str  # 전체 텍스트 (offset 계산용)
     section_fulltext_offset: int = 0  # fulltext 기준 섹션 시작 위치 (하이라이트 오프셋 변환용)
+
+
+# ============================================================
+# PDF 스키마
+# ============================================================
+class PDFUrlResponse(BaseModel):
+    """PDF URL 응답"""
+
+    paper_id: str
+    url: str
+    expires_in: int = 3600
+
+
+# ============================================================
+# Citations 스키마
+# ============================================================
+class CitationItem(BaseModel):
+    """인용 관계 아이템"""
+
+    id: UUID
+    source_paper_id: str  # 인용하는 논문
+    target_paper_id: str  # 인용되는 논문
+    source_pmcid: Optional[str] = None
+    source_pmid: Optional[str] = None
+    target_pmcid: Optional[str] = None
+    target_pmid: Optional[str] = None
+    created_at: datetime
+
+    model_config = {"from_attributes": True}
+
+
+class CitationListResponse(BaseModel):
+    """인용 목록 응답"""
+
+    items: list[CitationItem]
+    total: int
+    page: int
+    limit: int
+    total_pages: int
+
+
+class CitationStatsResponse(BaseModel):
+    """인용 통계 응답"""
+
+    paper_id: str
+    citation_count: int  # 이 논문을 인용한 논문 수
+    reference_count: int  # 이 논문이 인용한 논문 수

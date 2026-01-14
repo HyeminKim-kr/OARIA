@@ -26,6 +26,7 @@ from ..collectors import (
     CollectAction,
     determine_collect_action,
 )
+from ..collectors.pmc_pdf import PMCPDFClient
 from ..config import settings
 from ..parsers import XMLParser
 from ..storage import DatabaseStorage, S3Storage
@@ -592,6 +593,7 @@ async def _process_single_article(
     pool: ConnectionPool,
     job_id: str,
     article: dict,
+    pdf_client: PMCPDFClient | None = None,
 ) -> bool:
     """단일 논문 처리 (병렬 처리용)
 
@@ -703,6 +705,18 @@ async def _process_single_article(
         # pub_types 및 관계 처리
         _process_paper_metadata(db_storage, pmid, metadata)
 
+        # PDF 다운로드 (설정 활성화 시)
+        if settings.collection.collect_pdf and pdf_client:
+            await _download_and_save_pdf(
+                pdf_client, s3_storage, db_storage, pmcid, paper.paper_id
+            )
+
+        # Citations/References 수집 (설정 활성화 시)
+        if settings.collection.collect_citations:
+            await _collect_citations_and_references(
+                client, db_storage, pmcid, paper.paper_id
+            )
+
         # completed
         with pool.connection() as conn:
             update_article_status(conn, job_id, pmcid, "completed")
@@ -758,6 +772,153 @@ def _process_paper_metadata(
             db_storage.process_paper_relations(pmid, parsed_relations)
 
 
+async def _download_and_save_pdf(
+    pdf_client: PMCPDFClient,
+    s3_storage: S3Storage,
+    db_storage: DatabaseStorage,
+    pmcid: str,
+    paper_id: str,
+) -> bool:
+    """PDF 다운로드 및 저장
+
+    Args:
+        pdf_client: PMC PDF 클라이언트
+        s3_storage: S3 저장소
+        db_storage: DB 저장소
+        pmcid: PMC ID
+        paper_id: 논문 ID
+
+    Returns:
+        성공 여부
+    """
+    try:
+        result = await pdf_client.download_pdf(pmcid)
+        if not result:
+            logger.debug("pdf_not_available", pmcid=pmcid)
+            return False
+
+        pdf_bytes, size = result
+
+        # S3에 저장
+        s3_key, pdf_size, pdf_hash = s3_storage.save_pdf(paper_id, pdf_bytes)
+
+        # DB 업데이트
+        db_storage.update_paper_pdf_info(paper_id, pdf_size, pdf_hash)
+
+        logger.info(
+            "pdf_saved",
+            pmcid=pmcid,
+            paper_id=paper_id,
+            size=pdf_size,
+        )
+        return True
+
+    except Exception as e:
+        logger.warning(
+            "pdf_download_failed",
+            pmcid=pmcid,
+            paper_id=paper_id,
+            error=str(e),
+        )
+        return False
+
+
+async def _collect_citations_and_references(
+    pmc_client: EuropePMCClient,
+    db_storage: DatabaseStorage,
+    pmcid: str,
+    paper_id: str,
+) -> dict:
+    """Citations/References 수집
+
+    Args:
+        pmc_client: Europe PMC 클라이언트
+        db_storage: DB 저장소
+        pmcid: PMC ID
+        paper_id: 논문 ID
+
+    Returns:
+        수집 결과 {citations: int, references: int}
+    """
+    result = {"citations": 0, "references": 0}
+
+    try:
+        # 1. Citations 수집 (이 논문을 인용한 논문들)
+        citations_page = await pmc_client.get_citations(
+            pmcid,
+            page_size=settings.collection.max_citations,
+        )
+
+        for citation in citations_page.results:
+            # source: 인용한 논문 (citation), target: 현재 논문
+            source_id = _build_paper_id(citation.pmcid, citation.pmid)
+            if source_id and source_id != paper_id:
+                saved = db_storage.save_citation(
+                    source_paper_id=source_id,
+                    target_paper_id=paper_id,
+                    source_pmcid=citation.pmcid,
+                    source_pmid=citation.pmid,
+                    target_pmcid=pmcid,
+                    target_pmid=None,  # 현재 논문의 pmid
+                    collected_from=paper_id,
+                )
+                if saved:
+                    result["citations"] += 1
+
+        # 2. References 수집 (이 논문이 인용한 논문들)
+        references_page = await pmc_client.get_references(
+            pmcid,
+            page_size=settings.collection.max_references,
+        )
+
+        for reference in references_page.results:
+            # source: 현재 논문, target: 인용된 논문 (reference)
+            target_id = _build_paper_id(reference.pmcid, reference.pmid)
+            if target_id and target_id != paper_id:
+                saved = db_storage.save_citation(
+                    source_paper_id=paper_id,
+                    target_paper_id=target_id,
+                    source_pmcid=pmcid,
+                    source_pmid=None,  # 현재 논문의 pmid
+                    target_pmcid=reference.pmcid,
+                    target_pmid=reference.pmid,
+                    collected_from=paper_id,
+                )
+                if saved:
+                    result["references"] += 1
+
+        # 3. DB에 통계 업데이트
+        db_storage.update_citation_counts(paper_id)
+
+        logger.info(
+            "citations_collected",
+            pmcid=pmcid,
+            paper_id=paper_id,
+            citations=result["citations"],
+            references=result["references"],
+        )
+
+    except Exception as e:
+        logger.warning(
+            "citations_collection_failed",
+            pmcid=pmcid,
+            paper_id=paper_id,
+            error=str(e),
+        )
+
+    return result
+
+
+def _build_paper_id(pmcid: str | None, pmid: str | None) -> str | None:
+    """paper_id 생성 (pmcid 또는 pmid 기반)"""
+    if pmcid:
+        clean_pmcid = pmcid.replace("PMC", "") if pmcid.startswith("PMC") else pmcid
+        return f"pmc:PMC{clean_pmcid}"
+    elif pmid:
+        return f"pmid:{pmid}"
+    return None
+
+
 async def _phase_collect(
     pool: ConnectionPool,
     job_id: str,
@@ -784,8 +945,17 @@ async def _phase_collect(
     error_storage = ErrorStorage()
     error_storage.connect()
 
+    # PDF 클라이언트 (설정에 따라 활성화)
+    pdf_client: PMCPDFClient | None = None
+
     try:
         async with EuropePMCClient(max_concurrent=max_concurrent) as client:
+            # PDF 수집 활성화 시 PDF 클라이언트 생성
+            if settings.collection.collect_pdf:
+                pdf_client = PMCPDFClient(
+                    max_pdf_size=settings.collection.max_pdf_size,
+                )
+                await pdf_client.__aenter__()
             while True:
                 # Job cancelled 상태 체크 (Admin에서 취소 시)
                 with pool.connection() as conn:
@@ -807,7 +977,7 @@ async def _phase_collect(
                 tasks = [
                     _process_single_article(
                         client, parser, db_storage, s3_storage, error_storage,
-                        pool, job_id, article
+                        pool, job_id, article, pdf_client
                     )
                     for article in pending
                 ]
@@ -863,6 +1033,9 @@ async def _phase_collect(
         return result
 
     finally:
+        # PDF 클라이언트 정리
+        if pdf_client:
+            await pdf_client.__aexit__(None, None, None)
         db_storage.close()
         error_storage.close()
 

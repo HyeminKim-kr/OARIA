@@ -93,6 +93,86 @@ class S3Service:
                 return None
             raise
 
+    def pdf_exists(self, paper_id: str) -> bool:
+        """PDF 존재 여부 확인
+
+        Args:
+            paper_id: 논문 ID
+
+        Returns:
+            PDF 존재 여부
+        """
+        safe_id = paper_id.replace(":", "_")
+        key = f"canonical/{safe_id}/paper.pdf"
+
+        try:
+            self._client.head_object(
+                Bucket=self._bucket,
+                Key=key,
+            )
+            return True
+        except ClientError:
+            return False
+
+    def get_pdf_presigned_url(
+        self, paper_id: str, expires_in: int = 3600
+    ) -> str | None:
+        """PDF Presigned URL 생성
+
+        Args:
+            paper_id: 논문 ID
+            expires_in: URL 만료 시간 (초, 기본 1시간)
+
+        Returns:
+            Presigned URL 또는 None
+        """
+        safe_id = paper_id.replace(":", "_")
+        key = f"canonical/{safe_id}/paper.pdf"
+
+        try:
+            # PDF 존재 확인
+            self._client.head_object(
+                Bucket=self._bucket,
+                Key=key,
+            )
+
+            url = self._client.generate_presigned_url(
+                "get_object",
+                Params={
+                    "Bucket": self._bucket,
+                    "Key": key,
+                },
+                ExpiresIn=expires_in,
+            )
+            return url
+        except ClientError as e:
+            if e.response["Error"]["Code"] in ("NoSuchKey", "404"):
+                return None
+            raise
+
+    def get_pdf(self, paper_id: str) -> bytes | None:
+        """PDF 바이트 데이터 조회
+
+        Args:
+            paper_id: 논문 ID
+
+        Returns:
+            PDF 바이트 데이터 또는 None
+        """
+        safe_id = paper_id.replace(":", "_")
+        key = f"canonical/{safe_id}/paper.pdf"
+
+        try:
+            response = self._client.get_object(
+                Bucket=self._bucket,
+                Key=key,
+            )
+            return response["Body"].read()
+        except ClientError as e:
+            if e.response["Error"]["Code"] == "NoSuchKey":
+                return None
+            raise
+
 
 # 싱글톤 인스턴스
 s3_service = S3Service()
