@@ -34,7 +34,7 @@ PORTS=(
     "13000:Admin Backend"
     "13001:Admin Frontend"
     "8000:Service Backend"
-    "3001:Service Frontend"
+    "3000:Service Frontend"
 )
 
 # PID 파일 위치
@@ -199,17 +199,17 @@ start_service_frontend() {
 
     cd "$PROJECT_ROOT/frontend"
 
-    if check_port 3001; then
-        echo -e "  ${YELLOW}⚠${NC} 포트 3001이 이미 사용 중입니다"
+    if check_port 3000; then
+        echo -e "  ${YELLOW}⚠${NC} 포트 3000이 이미 사용 중입니다"
         return
     fi
 
-    echo -e "  ${YELLOW}▸${NC} npm run dev -- -p 3001 실행 중..."
-    nohup npm run dev -- -p 3001 > "$LOG_DIR/service-frontend.log" 2>&1 &
+    echo -e "  ${YELLOW}▸${NC} npm run dev 실행 중..."
+    nohup npm run dev > "$LOG_DIR/service-frontend.log" 2>&1 &
     echo $! > "$PID_DIR/service-frontend.pid"
 
     printf "    - Service Frontend "
-    if wait_for_port 3001 "service-frontend" 5; then
+    if wait_for_port 3000 "service-frontend" 5; then
         echo -e "${GREEN}ready${NC}"
     else
         echo -e "${YELLOW}starting... (log: .dev-logs/service-frontend.log)${NC}"
@@ -253,7 +253,7 @@ stop_dev_servers() {
     stop_service "service-backend" 8000
 
     echo -e "  ${YELLOW}▸${NC} Service Frontend 중지..."
-    stop_service "service-frontend" 3001
+    stop_service "service-frontend" 3000
 
     rm -rf "$PID_DIR"
 
@@ -309,16 +309,16 @@ show_status() {
     fi
 
     # Service Frontend
-    if check_port 3001; then
-        print_status "running" "Service Frontend" "3001"
+    if check_port 3000; then
+        print_status "running" "Service Frontend" "3000"
     else
-        print_status "stopped" "Service Frontend" "3001"
+        print_status "stopped" "Service Frontend" "3000"
     fi
 
     echo -e "\n${BLUE}[URL 목록]${NC}"
     echo -e "  • Admin Frontend:   ${CYAN}http://localhost:13001${NC}"
     echo -e "  • Admin Backend:    ${CYAN}http://localhost:13000${NC}"
-    echo -e "  • Service Frontend: ${CYAN}http://localhost:3001${NC}"
+    echo -e "  • Service Frontend: ${CYAN}http://localhost:3000${NC}"
     echo -e "  • Service Backend:  ${CYAN}http://localhost:8000${NC}"
     echo -e "  • API Docs:         ${CYAN}http://localhost:8000/docs${NC}"
     echo -e "  • Flower:           ${CYAN}http://localhost:15555${NC}"
@@ -451,7 +451,7 @@ case "${1:-}" in
                 ;;
             stop)
                 stop_service "service-backend" 8000
-                stop_service "service-frontend" 3001
+                stop_service "service-frontend" 3000
                 ;;
             *) echo "Usage: $0 service [start|stop]" ;;
         esac

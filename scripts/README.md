@@ -102,7 +102,7 @@ OAR-123
 | Admin Backend (NestJS) | 13000 | http://localhost:13000 |
 | Admin Frontend (Next.js) | 13001 | http://localhost:13001 |
 | Service Backend (FastAPI) | 8000 | http://localhost:8000 |
-| Service Frontend (Next.js) | 3001 | http://localhost:3001 |
+| Service Frontend (Next.js) | 3000 | http://localhost:3000 |
 
 ### 유용한 URL
 
@@ -110,7 +110,7 @@ OAR-123
 |--------|-----|
 | Admin 화면 | http://localhost:13001 |
 | Admin API | http://localhost:13000 |
-| User 화면 | http://localhost:3001 |
+| User 화면 | http://localhost:3000 |
 | User API 문서 (Swagger) | http://localhost:8000/docs |
 | Flower (Celery 모니터링) | http://localhost:15555 |
 | MinIO Console | http://localhost:19001 |
