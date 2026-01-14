@@ -33,14 +33,15 @@ RAG 전략은 **사용 시점**에 따라 두 곳에서 관리됩니다:
 
 ### 어디에 추가해야 하나요?
 
-| 추가할 전략 | 추가 위치 | 설명 |
-|------------|----------|------|
-| **새 청킹 전략** | `batch/src/rag/chunkers/` | 논문 인덱싱 시 사용 |
-| **새 임베딩 모델** | `batch/src/rag/embedders/` | 논문 인덱싱 시 사용 |
-| **새 검색 전략** | `backend/app/rag/retrievers/` | 쿼리 검색 시 사용 |
-| **새 리랭킹 모델** | `backend/app/rag/rerankers/` | 검색 결과 재정렬 시 사용 |
-| **새 분류기** | `backend/app/rag/classifiers/` | 도메인 분류 시 사용 |
-| **새 평가기** | `backend/app/rag/evaluators/` | 품질 평가 시 사용 |
+| 추가할 전략        | 추가 위치                      | 설명                     |
+| ------------------ | ------------------------------ | ------------------------ |
+| **새 청킹 전략**   | `batch/src/rag/chunkers/`      | 논문 인덱싱 시 사용      |
+| **새 임베딩 모델** | `batch/src/rag/embedders/`     | 논문 인덱싱 시 사용      |
+| **새 검색 전략**   | `backend/app/rag/retrievers/`  | 쿼리 검색 시 사용        |
+| **새 리랭킹 모델** | `backend/app/rag/rerankers/`   | 검색 결과 재정렬 시 사용 |
+| **새 분류기**      | `backend/app/rag/classifiers/` | 도메인 분류 시 사용      |
+| **새 평가기**      | `backend/app/rag/evaluators/`  | 품질 평가 시 사용        |
+| **새 NER 분류기**  | `backend/app/rag/classifiers/` | 엔티티 추출 시 사용      |
 
 ---
 
@@ -63,6 +64,7 @@ name = "hybrid_vector70_bm25_30"   # 벡터 70%, BM25 30%
 ```
 
 **네이밍 패턴**:
+
 ```
 {방식}_{주요특성}_{파라미터}
 
@@ -228,6 +230,7 @@ class RerankerProtocol(Protocol):
 #### 2. 구현체 작성
 
 > **⚠️ 필수 규칙**:
+>
 > 1. **name**: 구체적이고 고유한 이름 사용 (위 네이밍 컨벤션 참고)
 > 2. **docstring**: Admin Lab UI "설명" 모달에 표시됨. 반드시 작성!
 > 3. **첫 줄**: 한 줄 요약 (제목으로 사용됨)
@@ -287,14 +290,14 @@ __all__ = ["BGEReranker", "CohereReranker"]
 
 ### 데코레이터 종류
 
-| 데코레이터 | 용도 | 위치 |
-|-----------|------|------|
-| `@register_retriever` | 검색 전략 등록 | Backend |
-| `@register_reranker` | 리랭킹 모델 등록 | Backend |
-| `@register_classifier` | 도메인 분류기 등록 | Backend |
-| `@register_evaluator` | 품질 평가기 등록 | Backend |
-| `@register_chunker` | 청킹 전략 등록 | **Batch** |
-| `@register_embedder` | 임베딩 모델 등록 | **Batch** |
+| 데코레이터             | 용도               | 위치      |
+| ---------------------- | ------------------ | --------- |
+| `@register_retriever`  | 검색 전략 등록     | Backend   |
+| `@register_reranker`   | 리랭킹 모델 등록   | Backend   |
+| `@register_classifier` | 도메인 분류기 등록 | Backend   |
+| `@register_evaluator`  | 품질 평가기 등록   | Backend   |
+| `@register_chunker`    | 청킹 전략 등록     | **Batch** |
+| `@register_embedder`   | 임베딩 모델 등록   | **Batch** |
 
 ### 조회 함수 (Backend)
 
@@ -443,13 +446,47 @@ curl -X POST http://localhost:8000/api/lab/search \
 
 ---
 
+## NER Classifiers (Entity Extraction)
+
+Bio-Entity 추출을 위한 전용 NER 분류기입니다. (Gate 1 도메인 분류와는 별도)
+
+| 분류기          | 설명          | 엔티티                  | 모델                           |
+| --------------- | ------------- | ----------------------- | ------------------------------ |
+| `bc5cdr_ner_v1` | BC5CDR 기반   | Chemical, Disease       | `vparka/cancer-ner-pubmedbert` |
+| `multiner_v1`   | MultiNER 기반 | Disease, Chemical, Gene | `vparka/pubmedbert-multiner`   |
+
+> **MultiNER 구성**:
+>
+> - **BC5CDR** (Chemical, Disease)
+> - **NCBI-Disease** (Disease)
+> - **JNLPBA** (DNA, RNA, Protein → **Gene**으로 통합)
+> - 위 3개 데이터셋을 정규화 및 병합하여 학습
+
+**사용법**:
+
+```python
+from app.rag import get_classifier
+
+# BC5CDR (Chemical, Disease)
+ner = get_classifier("bc5cdr_ner_v1")
+result = ner.extract("Cisplatin treats lung cancer.")
+# result.entities -> [NEREntity(text="Cisplatin", label="Chemical"), ...]
+
+# MultiNER (Disease, Chemical, Gene)
+ner = get_classifier("multiner_v1")
+result = ner.extract("EGFR mutation")
+# result.entities -> [NEREntity(text="EGFR", label="Gene"), ...]
+```
+
+---
+
 ## 기존 서비스와의 관계
 
 현재 `app/services/`의 서비스들은 RAG 모듈로 래핑됩니다:
 
-| 기존 서비스 | RAG 모듈 위치 | 등록 이름 |
-|------------|--------------|----------|
-| `reranker_service` | `rerankers/bge.py` | `"bge_reranker_v2_m3"` |
+| 기존 서비스        | RAG 모듈 위치          | 등록 이름                |
+| ------------------ | ---------------------- | ------------------------ |
+| `reranker_service` | `rerankers/bge.py`     | `"bge_reranker_v2_m3"`   |
 | `weaviate_service` | `retrievers/hybrid.py` | `"hybrid_vector70_bm25"` |
 
 ---
@@ -461,21 +498,21 @@ curl -X POST http://localhost:8000/api/lab/search \
 **입력**: 쿼리 벡터 + 검색 파라미터
 **출력**: 검색 결과 리스트
 
-| 전략 | 설명 | 적합한 경우 |
-|-----|------|-----------|
-| `hybrid` | 벡터 + BM25 결합 | 일반적인 경우 |
-| `dense` | 벡터 검색만 | 의미 검색 중심 |
+| 전략     | 설명             | 적합한 경우    |
+| -------- | ---------------- | -------------- |
+| `hybrid` | 벡터 + BM25 결합 | 일반적인 경우  |
+| `dense`  | 벡터 검색만      | 의미 검색 중심 |
 
 ### Reranker (리랭킹 모델)
 
 **입력**: 쿼리 + 검색 결과
 **출력**: 재정렬된 결과 + 점수
 
-| 모델 | 크기 | 특징 |
-|-----|-----|-----|
-| `bge_reranker_v2_m3` | 567M | 다국어, 로컬, 무료 |
-| `cohere_rerank_v3` | - | API, 빠름, 유료 |
-| `none` | - | 리랭킹 없음 (벤치마크용) |
+| 모델                 | 크기 | 특징                     |
+| -------------------- | ---- | ------------------------ |
+| `bge_reranker_v2_m3` | 567M | 다국어, 로컬, 무료       |
+| `cohere_rerank_v3`   | -    | API, 빠름, 유료          |
+| `none`               | -    | 리랭킹 없음 (벤치마크용) |
 
 ---
 
@@ -525,12 +562,14 @@ DB: reranker = "bge"
 ```
 
 **해결**:
+
 1. DB 업데이트: `UPDATE rag_settings SET reranker = 'bge_reranker_v2_m3'`
 2. 또는 코드의 name을 DB와 일치시키기
 
 ### Admin Lab에서 전략 목록이 안 보임
 
 **확인 사항**:
+
 1. User Backend `/lab/strategies` 엔드포인트 존재 확인
 2. Admin Backend `lab.controller.ts`에 프록시 메서드 존재 확인
 3. Admin Backend `lab.service.ts`에 User Backend 호출 로직 존재 확인
@@ -540,6 +579,7 @@ DB: reranker = "bge"
 **원인**: User Backend에서 Celery 트리거 실패
 
 **확인 사항**:
+
 1. User Backend에 `celery` 패키지 설치 확인
 2. Redis 연결 확인
 3. Batch Celery 워커 실행 확인
