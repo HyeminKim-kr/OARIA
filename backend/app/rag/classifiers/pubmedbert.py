@@ -1,5 +1,7 @@
 """PubMedBERT 기반 Zero-shot 도메인 분류기"""
 
+from __future__ import annotations
+
 import logging
 import os
 import time

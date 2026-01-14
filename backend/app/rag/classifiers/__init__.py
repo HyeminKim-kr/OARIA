@@ -6,6 +6,8 @@ Gate 1에서 Off-domain 쿼리를 감지하는 데 사용됩니다.
 사용 가능한 분류기:
 1. pubmedbert_domain_v1 - Zero-shot Classification (BART-MNLI)
 2. llm_gpt4o_mini_v1 - LLM API 기반 (GPT-4o-mini, 권장)
+3. bc5cdr_ner_v1 - BC5CDR NER (Chemical, Disease)
+4. multiner_v1 - MultiNER (Disease, Chemical, Gene)
 
 사용법:
     from app.rag import get_classifier
@@ -21,6 +23,12 @@ Gate 1에서 Off-domain 쿼리를 감지하는 데 사용됩니다.
     if not result.is_allowed:
         print(f"Off-domain: {result.category} ({result.confidence:.0%})")
 
+    # NER 분류기 (엔티티 추출)
+    ner = get_classifier("bc5cdr_ner_v1")
+    entities = ner.extract("Cisplatin treats lung cancer.")
+    for e in entities.entities:
+        print(f"{e.text}: {e.label} ({e.score:.2%})")
+
 경고 메시지:
     from app.rag.classifiers.messages import get_warning_message, format_warning_response
     message = get_warning_message("cardiology", language="ko")
@@ -29,6 +37,8 @@ Gate 1에서 Off-domain 쿼리를 감지하는 데 사용됩니다.
 from .base import ClassifierProtocol
 from .pubmedbert import PubMedBERTDomainClassifier
 from .llm import LLMDomainClassifier
+from .bc5cdr_ner import BC5CDRNERClassifier
+from .multiner import MultiNERClassifier
 from .messages import (
     get_warning_message,
     get_example_questions,
@@ -38,12 +48,16 @@ from .messages import (
 
 __all__ = [
     "ClassifierProtocol",
-    # Classifiers
+    # Domain Classifiers
     "PubMedBERTDomainClassifier",
     "LLMDomainClassifier",
+    # NER Classifiers
+    "BC5CDRNERClassifier",
+    "MultiNERClassifier",
     # Messages
     "get_warning_message",
     "get_example_questions",
     "format_warning_response",
     "get_full_warning_text",
 ]
+
