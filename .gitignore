@@ -3,6 +3,7 @@
 .claude/
 CLAUDE.md
 claude.md
+.pids
 
 # Python
 __pycache__/
