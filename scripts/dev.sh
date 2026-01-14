@@ -116,6 +116,51 @@ stop_docker() {
     echo -e "  ${GREEN}✓${NC} Docker 서비스 중지됨"
 }
 
+# 의존성 패키지 설치
+install_dependencies() {
+    print_header "의존성 패키지 설치"
+
+    # 1. Service Backend (Python - uv)
+    echo -e "  ${YELLOW}▸${NC} Service Backend (uv sync)..."
+    cd "$PROJECT_ROOT/backend"
+    if uv sync --quiet; then
+        echo -e "    ${GREEN}✓${NC} backend 패키지 설치 완료"
+    else
+        echo -e "    ${RED}✗${NC} backend 패키지 설치 실패"
+    fi
+
+    # 2. Service Frontend (Node - npm)
+    echo -e "  ${YELLOW}▸${NC} Service Frontend (npm install)..."
+    cd "$PROJECT_ROOT/frontend"
+    if npm install --silent; then
+        echo -e "    ${GREEN}✓${NC} frontend 패키지 설치 완료"
+    else
+        echo -e "    ${RED}✗${NC} frontend 패키지 설치 실패"
+    fi
+
+    # 3. Admin Backend (Node - npm)
+    echo -e "  ${YELLOW}▸${NC} Admin Backend (npm install)..."
+    cd "$PROJECT_ROOT/admin/backend"
+    if npm install --silent; then
+        echo -e "    ${GREEN}✓${NC} admin/backend 패키지 설치 완료"
+    else
+        echo -e "    ${RED}✗${NC} admin/backend 패키지 설치 실패"
+    fi
+
+    # 4. Admin Frontend (Node - npm)
+    echo -e "  ${YELLOW}▸${NC} Admin Frontend (npm install)..."
+    cd "$PROJECT_ROOT/admin/frontend"
+    if npm install --silent; then
+        echo -e "    ${GREEN}✓${NC} admin/frontend 패키지 설치 완료"
+    else
+        echo -e "    ${RED}✗${NC} admin/frontend 패키지 설치 실패"
+    fi
+
+    # Note: Batch는 Docker로 실행되므로 로컬 패키지 설치 불필요
+
+    echo -e "  ${GREEN}✓${NC} 의존성 설치 완료"
+}
+
 # DB 마이그레이션 실행
 run_migrations() {
     print_header "DB 마이그레이션 실행"
@@ -408,6 +453,7 @@ start_all() {
     print_header "OARIA 개발 환경 시작"
     echo -e "  시작 시간: $(date '+%Y-%m-%d %H:%M:%S')"
 
+    install_dependencies
     start_docker
     sleep 2
     run_migrations
@@ -485,16 +531,20 @@ case "${1:-}" in
     migrate)
         run_migrations
         ;;
+    install)
+        install_dependencies
+        ;;
     *)
         echo -e "${CYAN}OARIA 개발 환경 관리 스크립트${NC}"
         echo ""
         echo "사용법:"
-        echo "  $0 start        모든 서비스 시작 (마이그레이션 포함)"
+        echo "  $0 start        모든 서비스 시작 (패키지 설치 + 마이그레이션 포함)"
         echo "  $0 stop         모든 서비스 중지"
         echo "  $0 restart      모든 서비스 재시작"
         echo "  $0 status       서비스 상태 확인"
         echo "  $0 logs         로그 보기"
         echo "  $0 monitor      실시간 모니터링 (5초마다 갱신)"
+        echo "  $0 install      의존성 패키지 설치 (npm install, uv sync)"
         echo "  $0 migrate      DB 마이그레이션만 실행"
         echo ""
         echo "개별 제어:"
