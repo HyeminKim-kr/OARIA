@@ -458,45 +458,78 @@ ${JIRA_TICKET}"
 }
 
 # ============================================================
-# Step 5: 머지 (선택)
+# Step 5: Push / 머지
 # ============================================================
-run_merge() {
+run_push_or_merge() {
     if [ "$NO_MERGE" = true ]; then
         return
     fi
 
-    # dev, main 브랜치면 머지 스킵
+    print_step "5/5" "Push / 머지"
+
+    # dev, main 브랜치면 push 옵션
     if [ "$CURRENT_BRANCH" = "dev" ] || [ "$CURRENT_BRANCH" = "main" ]; then
-        return
+        echo "  커밋이 완료되었습니다. origin/${CURRENT_BRANCH}에 push할까요?"
+        echo ""
+        echo -e "    ${GREEN}1)${NC} 지금 push"
+        echo -e "    ${GREEN}2)${NC} 나중에 push (스킵)"
+        echo ""
+        read -p "  선택 (1/2): " push_choice
+
+        case $push_choice in
+            1)
+                echo ""
+                echo -e "  ${YELLOW}▸${NC} origin/${CURRENT_BRANCH}에 push 중..."
+                git push origin "$CURRENT_BRANCH"
+                echo -e "  ${GREEN}✓${NC} push 완료!"
+                ;;
+            *)
+                echo ""
+                echo -e "  ${DIM}push를 건너뜁니다.${NC}"
+                echo ""
+                echo "  나중에 push하려면:"
+                echo -e "    ${BLUE}git push origin ${CURRENT_BRANCH}${NC}"
+                ;;
+        esac
+    else
+        # feature 브랜치면 머지 옵션
+        echo "  커밋이 완료되었습니다. 어떻게 할까요?"
+        echo ""
+        echo -e "    ${GREEN}1)${NC} dev에 머지 (git-merge.sh 실행)"
+        echo -e "    ${GREEN}2)${NC} dev에 머지 후 브랜치 삭제"
+        echo -e "    ${GREEN}3)${NC} 현재 브랜치만 push (머지는 나중에)"
+        echo -e "    ${GREEN}4)${NC} 스킵 (push/머지 안함)"
+        echo ""
+        read -p "  선택 (1/2/3/4): " merge_choice
+
+        case $merge_choice in
+            1)
+                echo ""
+                "$PROJECT_ROOT/git-merge.sh"
+                ;;
+            2)
+                echo ""
+                "$PROJECT_ROOT/git-merge.sh" -d
+                ;;
+            3)
+                echo ""
+                echo -e "  ${YELLOW}▸${NC} origin/${CURRENT_BRANCH}에 push 중..."
+                git push -u origin "$CURRENT_BRANCH"
+                echo -e "  ${GREEN}✓${NC} push 완료!"
+                echo ""
+                echo "  나중에 dev에 머지하려면:"
+                echo -e "    ${BLUE}./git-merge.sh${NC}"
+                ;;
+            *)
+                echo ""
+                echo -e "  ${DIM}push/머지를 건너뜁니다.${NC}"
+                echo ""
+                echo "  나중에 작업하려면:"
+                echo -e "    ${BLUE}git push -u origin ${CURRENT_BRANCH}${NC}  # push만"
+                echo -e "    ${BLUE}./git-merge.sh${NC}                        # dev에 머지"
+                ;;
+        esac
     fi
-
-    print_step "5/5" "dev 브랜치로 머지"
-
-    echo "  커밋이 완료되었습니다. dev에 머지할까요?"
-    echo ""
-    echo -e "    ${GREEN}1)${NC} 지금 머지 (git-merge.sh 실행)"
-    echo -e "    ${GREEN}2)${NC} 머지 후 브랜치 삭제"
-    echo -e "    ${GREEN}3)${NC} 나중에 머지 (지금은 스킵)"
-    echo ""
-    read -p "  선택 (1/2/3): " merge_choice
-
-    case $merge_choice in
-        1)
-            echo ""
-            "$PROJECT_ROOT/git-merge.sh"
-            ;;
-        2)
-            echo ""
-            "$PROJECT_ROOT/git-merge.sh" -d
-            ;;
-        *)
-            echo ""
-            echo -e "  ${DIM}머지를 건너뜁니다.${NC}"
-            echo ""
-            echo "  나중에 머지하려면:"
-            echo -e "    ${BLUE}./git-merge.sh${NC}"
-            ;;
-    esac
 }
 
 # ============================================================
@@ -522,5 +555,5 @@ check_branch
 stage_files
 get_jira_ticket
 create_commit
-run_merge
+run_push_or_merge
 show_summary
