@@ -16,31 +16,9 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 # uv 설치
 COPY --from=ghcr.io/astral-sh/uv:latest /uv /usr/local/bin/uv
 
-# 모든 의존성 설치 (batch + OAR-29 + OAR-31)
-RUN uv pip install --system --no-cache \
-    # Celery
-    "celery[redis]>=5.3.0" \
-    "flower>=2.0.0" \
-    # HTTP Client
-    "httpx>=0.27.0" \
-    # Database
-    "asyncpg>=0.29.0" \
-    "psycopg[binary,pool]>=3.1.0" \
-    # S3
-    "boto3>=1.34.0" \
-    # XML Parsing
-    "lxml>=5.0.0" \
-    # Data Validation
-    "pydantic>=2.5.0" \
-    "pydantic-settings>=2.1.0" \
-    # Utilities
-    "structlog>=24.1.0" \
-    "tenacity>=8.2.0" \
-    # OAR-29 (Chunker)
-    "tiktoken>=0.7.0" \
-    # OAR-31 (Vector Store)
-    "weaviate-client>=4.9.0" \
-    "openai>=1.0.0"
+# 의존성 파일 복사 및 설치 (캐시 레이어 최적화)
+COPY batch/pyproject.toml ./
+RUN uv pip install --system --no-cache .
 
 # 소스코드 복사
 COPY batch/src/ ./src/
