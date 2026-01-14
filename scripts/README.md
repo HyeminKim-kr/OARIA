@@ -1,8 +1,44 @@
-# OARIA 개발 환경 스크립트
+# OARIA 개발 스크립트
 
-개발 환경을 쉽게 시작하고 모니터링하는 스크립트입니다.
+개발 환경 관리 및 Git 워크플로우 자동화 스크립트입니다.
 
-## 빠른 시작
+---
+
+## Git Commit Workflow
+
+인터랙티브하게 스테이징, 커밋, 머지까지 한 번에 처리합니다.
+
+```bash
+./scripts/git-commit.sh
+```
+
+### 워크플로우 순서
+
+1. **브랜치 확인** - 현재 브랜치가 맞는지, 새 브랜치 생성 옵션
+2. **파일 스테이징** - 전체/개별 선택 가능
+3. **Jira 티켓** - 브랜치에서 자동 감지 또는 직접 입력
+4. **커밋 메시지** - 타입(feat/fix/...) + 스코프 + 메시지
+5. **dev 머지** - git-merge.sh 자동 실행 (선택)
+
+### 옵션
+
+```bash
+./scripts/git-commit.sh --no-merge   # 커밋만 하고 머지 안함
+```
+
+### 커밋 메시지 형식
+
+```
+feat(admin): 사용자 관리 기능 추가
+
+OAR-123
+```
+
+---
+
+## 개발 환경 관리 (dev.sh)
+
+### 빠른 시작
 
 ```bash
 # 모든 서비스 시작
@@ -12,7 +48,7 @@
 ./scripts/dev.sh status
 ```
 
-## 명령어
+### 명령어
 
 | 명령어 | 설명 |
 |--------|------|
@@ -23,7 +59,7 @@
 | `monitor` | 실시간 모니터링 (5초마다 갱신) |
 | `logs` | 로그 보기 (선택 메뉴) |
 
-## 개별 서비스 제어
+### 개별 서비스 제어
 
 ```bash
 # Docker (인프라 + Celery)
@@ -39,9 +75,9 @@
 ./scripts/dev.sh service stop
 ```
 
-## 서비스 구성
+### 서비스 구성
 
-### Docker Compose (인프라)
+#### Docker Compose (인프라)
 
 | 서비스 | 포트 | 설명 |
 |--------|------|------|
@@ -50,7 +86,7 @@
 | MinIO | 19000 (API), 19001 (Console) | S3 호환 오브젝트 스토리지 |
 | Weaviate | 18080 | 벡터 데이터베이스 |
 
-### Docker Compose (배치)
+#### Docker Compose (배치)
 
 | 서비스 | 포트 | 설명 |
 |--------|------|------|
@@ -59,7 +95,7 @@
 | Celery Beat | - | 스케줄러 |
 | Flower | 15555 | Celery 모니터링 UI |
 
-### 개발 서버
+#### 개발 서버
 
 | 서비스 | 포트 | URL |
 |--------|------|-----|
@@ -68,7 +104,7 @@
 | Service Backend (FastAPI) | 8000 | http://localhost:8000 |
 | Service Frontend (Next.js) | 3001 | http://localhost:3001 |
 
-## 유용한 URL
+### 유용한 URL
 
 | 서비스 | URL |
 |--------|-----|
@@ -79,7 +115,7 @@
 | Flower (Celery 모니터링) | http://localhost:15555 |
 | MinIO Console | http://localhost:19001 |
 
-## 로그 확인
+### 로그 확인
 
 로그 파일은 `.dev-logs/` 폴더에 저장됩니다:
 
@@ -94,9 +130,9 @@ tail -f .dev-logs/service-frontend.log
 ./scripts/dev.sh logs
 ```
 
-## 트러블슈팅
+### 트러블슈팅
 
-### 포트가 이미 사용 중일 때
+#### 포트가 이미 사용 중일 때
 
 ```bash
 # 특정 포트 사용 프로세스 확인
@@ -106,7 +142,7 @@ lsof -i :3000
 kill -9 <PID>
 ```
 
-### 서비스가 시작되지 않을 때
+#### 서비스가 시작되지 않을 때
 
 ```bash
 # 로그 확인
@@ -117,7 +153,7 @@ cd admin/backend && npm run start:dev
 cd backend && uv run uvicorn app.main:app --reload --port 8000
 ```
 
-### Docker 서비스 문제
+#### Docker 서비스 문제
 
 ```bash
 # 컨테이너 상태 확인
@@ -131,7 +167,7 @@ docker-compose logs -f celery-worker-backfill
 docker-compose restart postgres
 ```
 
-## 참고
+### 참고
 
 - 첫 실행 시 Docker 이미지 빌드로 시간이 걸릴 수 있습니다
 - `npm install` 또는 `uv sync`가 필요할 수 있습니다
