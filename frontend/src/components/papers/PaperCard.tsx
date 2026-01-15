@@ -1,5 +1,6 @@
 'use client';
 
+import Link from 'next/link';
 import {
   ThumbsUp,
   Bookmark,
@@ -52,12 +53,13 @@ export function PaperCard({ paper }: PaperCardProps) {
   const hasResources = paper.has_pdf ?? false;
 
   return (
-    <article className="group relative rounded-xl border-2 border-[var(--oaria-border-strong)] bg-[var(--background)] p-5 transition-colors hover:border-[var(--oaria-teal)]/50">
-      <div className="flex gap-6">
-        <div className="flex-1">
-          <h2 className="mb-2 cursor-pointer font-[family-name:var(--font-outfit)] text-lg font-semibold text-[var(--foreground)] transition-colors group-hover:text-[var(--oaria-teal)]">
-            {paper.title}
-          </h2>
+    <Link href={`/papers/${paper.id}`}>
+      <article className="group relative rounded-xl border-2 border-[var(--oaria-border-strong)] bg-[var(--background)] p-5 transition-colors hover:border-[var(--oaria-teal)]/50 cursor-pointer">
+        <div className="flex gap-6">
+          <div className="flex-1">
+            <h2 className="mb-2 font-[family-name:var(--font-outfit)] text-lg font-semibold text-[var(--foreground)] transition-colors group-hover:text-[var(--oaria-teal)]">
+              {paper.title}
+            </h2>
           <div className="mb-3 flex items-center gap-3 text-sm text-[var(--oaria-tagline)]">
             <span>{formattedDate}</span>
             {affiliations.length > 0 && (
@@ -112,10 +114,11 @@ export function PaperCard({ paper }: PaperCardProps) {
           </div>
         </div>
       </div>
-      {/* Arrow Button */}
-      <button className="absolute bottom-4 right-4 flex h-8 w-8 items-center justify-center rounded-full bg-[var(--oaria-teal)] text-white opacity-0 transition-opacity group-hover:opacity-100">
-        <ChevronRight size={18} />
-      </button>
-    </article>
+        {/* Arrow Button */}
+        <div className="absolute bottom-4 right-4 flex h-8 w-8 items-center justify-center rounded-full bg-[var(--oaria-teal)] text-white opacity-0 transition-opacity group-hover:opacity-100">
+          <ChevronRight size={18} />
+        </div>
+      </article>
+    </Link>
   );
 }

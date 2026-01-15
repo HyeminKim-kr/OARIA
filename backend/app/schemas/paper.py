@@ -165,3 +165,25 @@ class CitationStatsResponse(BaseModel):
     paper_id: str
     citation_count: int  # 이 논문을 인용한 논문 수
     reference_count: int  # 이 논문이 인용한 논문 수
+
+
+# ============================================================
+# Display (전체 본문 조회용)
+# ============================================================
+class DisplaySectionResponse(BaseModel):
+    """display.json 섹션"""
+
+    name: str
+    title: str
+    paragraphs: list[dict]  # [{"text": "..."}]
+
+
+class DisplayResponse(BaseModel):
+    """논문 전체 본문 응답 (display.json)"""
+
+    paper_id: str
+    title: str
+    journal: Optional[str] = None
+    year: Optional[int] = None
+    sections: list[DisplaySectionResponse]
+    has_pdf: bool = False

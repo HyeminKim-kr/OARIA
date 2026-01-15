@@ -25,6 +25,8 @@ from ..schemas.paper import (
     CitationItem,
     CitationListResponse,
     CitationStatsResponse,
+    DisplayResponse,
+    DisplaySectionResponse,
 )
 from ..services.weaviate_service import weaviate_service
 from ..services.s3_service import s3_service
@@ -243,6 +245,55 @@ def _find_section_in_display(display_data: dict, section_name: str) -> dict | No
             return sec
 
     return None
+
+
+@router.get("/{paper_id}/display", response_model=DisplayResponse)
+async def get_paper_display(
+    paper_id: UUID,
+    db: AsyncSession = Depends(get_db),
+):
+    """논문 전체 본문 조회 (display.json)
+
+    논문의 전체 본문을 섹션별로 구분하여 반환합니다.
+    PDF가 없는 경우 대체 뷰어용으로 사용합니다.
+    """
+    import asyncio
+
+    # 논문 조회
+    query = select(Paper).where(Paper.id == paper_id)
+    result = await db.execute(query)
+    paper = result.scalar_one_or_none()
+
+    if not paper:
+        raise HTTPException(status_code=404, detail="Paper not found")
+
+    # S3에서 display.json 가져오기
+    display_data = await asyncio.to_thread(s3_service.get_display, paper.paper_id)
+
+    if not display_data:
+        raise HTTPException(
+            status_code=404,
+            detail="Display data not available for this paper"
+        )
+
+    # 섹션 변환
+    sections = [
+        DisplaySectionResponse(
+            name=sec.get("name", ""),
+            title=sec.get("title", ""),
+            paragraphs=sec.get("paragraphs", []),
+        )
+        for sec in display_data.get("sections", [])
+    ]
+
+    return DisplayResponse(
+        paper_id=paper.paper_id,
+        title=paper.title,
+        journal=paper.journal,
+        year=paper.year,
+        sections=sections,
+        has_pdf=paper.has_pdf or False,
+    )
 
 
 # ============================================================

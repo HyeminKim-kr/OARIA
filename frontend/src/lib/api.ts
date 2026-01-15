@@ -171,6 +171,33 @@ export interface PaginatedPapers {
   total_pages: number;
 }
 
+// Paper Detail (extends Paper)
+export interface PaperDetail extends Paper {
+  pmcid?: string;
+  pmid?: string;
+  doi?: string;
+  source: string;
+  source_url?: string;
+  status: string;
+  updated_at: string;
+}
+
+// Display (fulltext) Types
+export interface DisplaySection {
+  name: string;
+  title: string;
+  paragraphs: { text: string }[];
+}
+
+export interface PaperDisplay {
+  paper_id: string;
+  title: string;
+  journal?: string;
+  year?: number;
+  sections: DisplaySection[];
+  has_pdf: boolean;
+}
+
 // Papers API
 export const papersApi = {
   getRecent: (limit = 10) =>
@@ -186,6 +213,12 @@ export const papersApi = {
     api
       .get<PaginatedPapers>('/papers/search', { params })
       .then((res) => res.data),
+
+  getOne: (id: string) =>
+    api.get<PaperDetail>(`/papers/${id}`).then((res) => res.data),
+
+  getDisplay: (id: string) =>
+    api.get<PaperDisplay>(`/papers/${id}/display`).then((res) => res.data),
 };
 
 /**
