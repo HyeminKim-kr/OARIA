@@ -139,6 +139,55 @@ export const conversationsApi = {
     }),
 };
 
+// Paper Types
+export interface PaperAuthor {
+  author_name: string;
+  author_order: number;
+  is_corresponding: boolean;
+  orcid?: string;
+  affiliation?: string;
+}
+
+export interface Paper {
+  id: string;
+  paper_id: string;
+  title: string;
+  abstract?: string;
+  journal?: string;
+  year?: number;
+  keywords?: string[];
+  is_open_access: boolean;
+  created_at: string;
+  authors: PaperAuthor[];
+  citation_count?: number;
+  has_pdf?: boolean;
+}
+
+export interface PaginatedPapers {
+  items: Paper[];
+  total: number;
+  page: number;
+  limit: number;
+  total_pages: number;
+}
+
+// Papers API
+export const papersApi = {
+  getRecent: (limit = 10) =>
+    api.get<Paper[]>(`/papers/recent?limit=${limit}`).then((res) => res.data),
+
+  search: (params: {
+    q?: string;
+    page?: number;
+    limit?: number;
+    year_from?: number;
+    year_to?: number;
+  }) =>
+    api
+      .get<PaginatedPapers>('/papers/search', { params })
+      .then((res) => res.data),
+};
+
 /**
  * 토큰 갱신을 지원하는 fetch wrapper
  * SSE 스트리밍처럼 axios 대신 native fetch를 써야 할 때 사용

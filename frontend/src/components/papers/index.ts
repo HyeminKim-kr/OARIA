@@ -1,0 +1,1 @@
+export { PaperCard } from './PaperCard';

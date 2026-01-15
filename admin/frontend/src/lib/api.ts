@@ -117,6 +117,14 @@ export interface Paper {
   embeddingChunkCount: number;
   embeddingError: string | null;
   embeddingAt: string | null;
+  // PDF 관련
+  hasPdf: boolean;
+  pdfSize: number | null;
+  pdfHash: string | null;
+  pdfDownloadedAt: string | null;
+  // 인용 통계
+  citationCount: number;
+  referenceCount: number;
   createdAt: string;
   updatedAt: string;
 }
@@ -144,6 +152,40 @@ export interface PaperStats {
     failed: number;
     totalChunks: number;
   };
+  pdf: {
+    withPdf: number;
+    withoutPdf: number;
+    totalSize: number;
+  };
+  citations: {
+    total: number;
+    avgPerPaper: number;
+  };
+}
+
+// PDF/Citations 관련 타입
+export interface PdfExistsResult {
+  hasPdf: boolean;
+  pdfSize: number | null;
+}
+
+export interface PdfUrlResult {
+  url: string;
+  expiresIn: number;
+}
+
+export interface CitationItem {
+  id: string;
+  paperId: string;
+  pmcid: string | null;
+  pmid: string | null;
+  collectedFrom: string;
+  createdAt: string;
+}
+
+export interface CitationListResult {
+  items: CitationItem[];
+  total: number;
 }
 
 export interface DashboardStats {
@@ -746,4 +788,16 @@ export const papersApi = {
     api.post<{ success: boolean }>(`/papers/embedding/jobs/${jobId}/retry`).then((res) => res.data),
   cancelEmbedJob: (jobId: string) =>
     api.post<{ success: boolean }>(`/papers/embedding/jobs/${jobId}/cancel`).then((res) => res.data),
+
+  // PDF 관련
+  checkPdfExists: (id: string) =>
+    api.get<PdfExistsResult>(`/papers/${id}/pdf/exists`).then((res) => res.data),
+  getPdfUrl: (id: string) =>
+    api.get<PdfUrlResult>(`/papers/${id}/pdf/url`).then((res) => res.data),
+
+  // Citations/References 관련
+  getCitations: (id: string) =>
+    api.get<CitationListResult>(`/papers/${id}/citations`).then((res) => res.data),
+  getReferences: (id: string) =>
+    api.get<CitationListResult>(`/papers/${id}/references`).then((res) => res.data),
 };

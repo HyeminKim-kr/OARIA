@@ -17,6 +17,9 @@ import {
   EmbedBatchTriggerResult,
   EmbedJobsResult,
   EmbedBatchCancelResult,
+  CitationListResult,
+  PdfUrlResult,
+  PdfExistsResult,
 } from './types';
 import {
   FindAllPapersQueryDto,
@@ -41,6 +44,10 @@ import {
   ApiPapersCancelEmbedBatch,
   ApiPapersRetryEmbedJob,
   ApiPapersCancelEmbedJob,
+  ApiPapersCheckPdfExists,
+  ApiPapersGetPdfUrl,
+  ApiPapersGetCitations,
+  ApiPapersGetReferences,
 } from './swagger';
 
 @ApiTags('Papers')
@@ -150,5 +157,37 @@ export class PapersController {
   @ApiPapersCancelEmbedJob()
   cancelEmbedJob(@Param('jobId') jobId: string): Promise<{ success: boolean }> {
     return this.service.cancelEmbedJob(jobId).then(success => ({ success }));
+  }
+
+  // ─────────────────────────────────────────────────────────────
+  // PDF 관련 엔드포인트
+  // ─────────────────────────────────────────────────────────────
+
+  @Get(':id/pdf/exists')
+  @ApiPapersCheckPdfExists()
+  checkPdfExists(@Param('id', ParseUUIDPipe) id: string): Promise<PdfExistsResult> {
+    return this.service.checkPdfExists(id);
+  }
+
+  @Get(':id/pdf/url')
+  @ApiPapersGetPdfUrl()
+  getPdfUrl(@Param('id', ParseUUIDPipe) id: string): Promise<PdfUrlResult> {
+    return this.service.getPdfUrl(id);
+  }
+
+  // ─────────────────────────────────────────────────────────────
+  // Citations/References 관련 엔드포인트
+  // ─────────────────────────────────────────────────────────────
+
+  @Get(':id/citations')
+  @ApiPapersGetCitations()
+  getCitations(@Param('id', ParseUUIDPipe) id: string): Promise<CitationListResult> {
+    return this.service.getCitations(id);
+  }
+
+  @Get(':id/references')
+  @ApiPapersGetReferences()
+  getReferences(@Param('id', ParseUUIDPipe) id: string): Promise<CitationListResult> {
+    return this.service.getReferences(id);
   }
 }
