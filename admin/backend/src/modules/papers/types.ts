@@ -120,6 +120,10 @@ export interface EmbedJobState {
   error: string;
   startedAt: string | null;
   completedAt: string | null;
+  // 추가 필드 (2026-01-15)
+  createdAt: string | null;
+  chunkCount: number | null;
+  heartbeat: string | null;
 }
 
 /**

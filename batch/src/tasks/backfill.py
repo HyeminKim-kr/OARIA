@@ -32,8 +32,16 @@ from ..parsers import XMLParser
 from ..storage import DatabaseStorage, S3Storage
 from ..storage.error_storage import ArticleError, ErrorStorage
 
-# 체이닝: 수집 완료 후 임베딩 트리거
-from .embed import run_embed
+# 임베딩 관련 import (동시 실행용)
+from .embed import (
+    run_embed,
+    get_papers_for_embedding,
+    process_single_paper_async,
+    get_async_embedding_client,
+    get_db_pool as get_embed_db_pool,
+)
+from ..chunker import TextChunker
+from ..embedding import WeaviateClient, EmbeddingClient
 
 logger = structlog.get_logger()
 
@@ -343,6 +351,43 @@ def update_job_progress(
         conn.commit()
 
 
+def update_job_total_only(
+    conn: psycopg.Connection,
+    job_id: str,
+    total: int,
+    checkpoint: dict | None = None,
+) -> None:
+    """총 개수만 업데이트 (진행률은 건드리지 않음)
+
+    Search Phase에서 사용 - Collect의 진행률을 덮어쓰지 않도록
+    """
+    with conn.cursor() as cur:
+        if checkpoint:
+            cur.execute(
+                """
+                UPDATE batch_jobs SET
+                    total_count = %s,
+                    checkpoint = %s,
+                    locked_at = NOW(),
+                    updated_at = NOW()
+                WHERE id = %s
+                """,
+                (total, json.dumps(checkpoint), job_id),
+            )
+        else:
+            cur.execute(
+                """
+                UPDATE batch_jobs SET
+                    total_count = %s,
+                    locked_at = NOW(),
+                    updated_at = NOW()
+                WHERE id = %s
+                """,
+                (total, job_id),
+            )
+        conn.commit()
+
+
 def complete_job(
     conn: psycopg.Connection, job_id: str, status: str = "completed"
 ) -> None:
@@ -401,10 +446,11 @@ def build_query(search_query: dict) -> str:
 async def run_backfill_async(query_id: str, resume_job_id: str | None = None) -> dict:
     """Backfill 비동기 실행
 
-    OAR-19/21 설계:
+    OAR-19/21 설계 + Producer-Consumer 패턴:
     - Connection Pool 사용 (동시성 안전)
-    - Phase 1 (Search): Europe PMC 검색 → batch_articles에 등록
-    - Phase 2 (Collect): pending 상태 batch_articles 처리
+    - Phase 1 (Search): Europe PMC 검색 → batch_articles에 등록 [Producer]
+    - Phase 2 (Collect): pending 상태 batch_articles 처리 [Consumer]
+    - 두 Phase가 동시에 실행되어 검색된 논문을 바로 수집
 
     Args:
         query_id: search_queries.id
@@ -443,14 +489,67 @@ async def run_backfill_async(query_id: str, resume_job_id: str | None = None) ->
                 pmc_query=pmc_query,
             )
 
-    # 4. Phase 1: Search - batch_articles에 등록
-    if not resume_job_id:
-        await _phase_search(pool, job_id, pmc_query, search_query)
+    # Resume 모드: Collect + Embed 실행 (이미 Search 완료됨)
+    if resume_job_id:
+        search_done = asyncio.Event()
+        search_done.set()  # 이미 검색 완료됨
+        collect_done = asyncio.Event()
 
-    # 5. Phase 2: Collect - pending 상태 처리
-    result = await _phase_collect(pool, job_id, query_id, search_query)
+        async def resume_collect():
+            result = await _phase_collect(pool, job_id, query_id, search_query, search_done)
+            collect_done.set()
+            return result
 
-    return result
+        async def resume_embed():
+            return await _phase_embed(pool, job_id, query_id, collect_done)
+
+        collect_result, embed_result = await asyncio.gather(resume_collect(), resume_embed())
+        collect_result["embedded"] = embed_result.get("embedded", 0)
+        collect_result["embed_failed"] = embed_result.get("failed", 0)
+        return collect_result
+
+    # Producer-Consumer 패턴: Search, Collect, Embed 동시 실행
+    search_done = asyncio.Event()
+    collect_done = asyncio.Event()
+    search_result = {"registered": 0, "dropped": 0, "total_searched": 0}
+
+    async def producer():
+        """Phase 1: 검색하여 batch_articles에 등록 (Producer)"""
+        nonlocal search_result
+        try:
+            search_result = await _phase_search(pool, job_id, pmc_query, search_query)
+        finally:
+            search_done.set()  # 검색 완료 (성공/실패 모두)
+            logger.info("search_producer_done", job_id=job_id)
+
+    async def collect_consumer():
+        """Phase 2: pending 상태 처리 (Collect Consumer)"""
+        try:
+            return await _phase_collect(pool, job_id, query_id, search_query, search_done)
+        finally:
+            collect_done.set()  # 수집 완료
+            logger.info("collect_consumer_done", job_id=job_id)
+
+    async def embed_consumer():
+        """Phase 3: 수집된 논문 임베딩 (Embed Consumer)"""
+        return await _phase_embed(pool, job_id, query_id, collect_done)
+
+    # 동시 실행: Search, Collect, Embed
+    logger.info(
+        "concurrent_execution_started",
+        job_id=job_id,
+        mode="triple_producer_consumer",
+    )
+
+    _, collect_result, embed_result = await asyncio.gather(
+        producer(), collect_consumer(), embed_consumer()
+    )
+
+    # 결과 병합
+    collect_result["embedded"] = embed_result.get("embedded", 0)
+    collect_result["embed_failed"] = embed_result.get("failed", 0)
+
+    return collect_result
 
 
 async def _phase_search(
@@ -516,12 +615,10 @@ async def _phase_search(
                     batch_upsert_article_jobs(conn, job_id, page_batch)
                     stats["registered"] += len(page_batch)
 
-                    update_job_progress(
+                    # total만 업데이트 (진행률은 건드리지 않음 - Race Condition 방지)
+                    update_job_total_only(
                         conn,
                         job_id,
-                        processed=0,
-                        success=0,
-                        failed=0,
                         total=stats["registered"],
                         checkpoint={
                             "phase": "search",
@@ -545,14 +642,11 @@ async def _phase_search(
                 batch_upsert_article_jobs(conn, job_id, page_batch)
                 stats["registered"] += len(page_batch)
 
-    # 검색 완료 체크포인트
+    # 검색 완료 체크포인트 (total만 업데이트)
     with pool.connection() as conn:
-        update_job_progress(
+        update_job_total_only(
             conn,
             job_id,
-            processed=0,
-            success=0,
-            failed=0,
             total=stats["registered"],
             checkpoint={
                 "phase": "collect",
@@ -924,18 +1018,28 @@ async def _phase_collect(
     job_id: str,
     query_id: str,
     search_query: dict,
+    search_done: asyncio.Event | None = None,
 ) -> dict:
     """Phase 2: pending 상태 batch_articles 병렬 처리
 
-    OAR-19 스타일: Connection Pool 공유
+    OAR-19 스타일: Connection Pool 공유 + Producer-Consumer 패턴
     - 각 태스크가 pool.connection()으로 연결 획득/반환
     - 동시성은 Pool의 max_size로 제어
+    - search_done 이벤트로 검색 완료 여부 확인
+
+    Args:
+        pool: Connection Pool
+        job_id: 작업 ID
+        query_id: 검색 쿼리 ID
+        search_query: 검색 쿼리 설정
+        search_done: 검색 완료 이벤트 (None이면 즉시 완료로 간주)
     """
     max_concurrent = search_query.get("max_concurrent", 35)
     logger.info(
         "collect_phase_started",
         job_id=job_id,
         max_concurrent=max_concurrent,
+        mode="consumer" if search_done else "standalone",
     )
 
     parser = XMLParser()
@@ -947,6 +1051,11 @@ async def _phase_collect(
 
     # PDF 클라이언트 (설정에 따라 활성화)
     pdf_client: PMCPDFClient | None = None
+
+    # 빈 폴링 대기 시간 (Producer-Consumer 모드에서 검색 대기)
+    POLL_INTERVAL = 2.0  # 2초
+    empty_poll_count = 0
+    MAX_EMPTY_POLLS = 3  # 검색 완료 후 연속 3번 빈 결과면 종료
 
     try:
         async with EuropePMCClient(max_concurrent=max_concurrent) as client:
@@ -971,7 +1080,35 @@ async def _phase_collect(
                     pending = get_pending_articles(conn, job_id, limit=max_concurrent)
 
                 if not pending:
-                    break
+                    # Producer-Consumer 모드: 검색 완료 여부에 따라 대기/종료
+                    if search_done is None:
+                        # 단독 모드: 즉시 종료
+                        break
+
+                    if search_done.is_set():
+                        # 검색 완료됨: 연속 빈 결과 카운트
+                        empty_poll_count += 1
+                        if empty_poll_count >= MAX_EMPTY_POLLS:
+                            logger.info(
+                                "collect_phase_no_more_pending",
+                                job_id=job_id,
+                                empty_polls=empty_poll_count,
+                            )
+                            break
+                        # 잠시 대기 후 재확인 (마지막 배치가 등록 중일 수 있음)
+                        await asyncio.sleep(POLL_INTERVAL)
+                        continue
+                    else:
+                        # 검색 진행 중: 대기 후 재시도
+                        logger.debug(
+                            "collect_waiting_for_search",
+                            job_id=job_id,
+                        )
+                        await asyncio.sleep(POLL_INTERVAL)
+                        continue
+
+                # 처리할 논문이 있으면 빈 폴링 카운트 리셋
+                empty_poll_count = 0
 
                 # 병렬 처리: Pool을 공유
                 tasks = [
@@ -999,6 +1136,7 @@ async def _phase_collect(
                     "collect_phase_progress",
                     **stats,
                     batch_size=len(pending),
+                    search_done=search_done.is_set() if search_done else True,
                 )
 
         # 최종 통계 및 완료 처리
@@ -1040,29 +1178,155 @@ async def _phase_collect(
         error_storage.close()
 
 
+async def _phase_embed(
+    pool: ConnectionPool,
+    job_id: str,
+    query_id: str,
+    collect_done: asyncio.Event,
+    max_concurrent: int = 5,
+) -> dict:
+    """Phase 3: 수집된 논문 임베딩 (Consumer)
+
+    수집과 동시에 실행되어 수집된 논문을 바로 임베딩합니다.
+
+    Args:
+        pool: Connection Pool
+        job_id: 배치 작업 ID
+        query_id: 검색 쿼리 ID
+        collect_done: 수집 완료 이벤트
+        max_concurrent: 동시 임베딩 수
+
+    Returns:
+        dict: {embedded: int, failed: int}
+    """
+    logger.info(
+        "embed_phase_started",
+        job_id=job_id,
+        query_id=query_id,
+        max_concurrent=max_concurrent,
+    )
+
+    stats = {"embedded": 0, "failed": 0}
+
+    # 빈 폴링 대기 설정
+    POLL_INTERVAL = 3.0  # 3초 (임베딩이 더 무거우므로)
+    empty_poll_count = 0
+    MAX_EMPTY_POLLS = 5  # 수집 완료 후 5회 빈 결과면 종료
+
+    # 리소스 초기화
+    s3_storage = S3Storage()
+    chunker = TextChunker()
+    embedding_client = get_async_embedding_client()
+
+    # Weaviate 연결 (WeaviateClient는 __init__에서 자동 연결)
+    weaviate_client = WeaviateClient(
+        host=settings.weaviate.host,
+        port=settings.weaviate.port,
+        embedding_client=EmbeddingClient(
+            api_key=settings.openai.api_key,
+            model=settings.openai.embedding_model,
+            dimensions=settings.openai.embedding_dimensions,
+        ),
+    )
+    collection = weaviate_client.collection  # property로 접근
+
+    try:
+        while True:
+            # Job cancelled 상태 체크
+            with pool.connection() as conn:
+                if check_job_cancelled(conn, job_id):
+                    logger.info("embed_phase_cancelled", job_id=job_id)
+                    break
+
+            # 임베딩 대기 논문 조회 (embedding_status IS NULL)
+            with pool.connection() as conn:
+                papers = get_papers_for_embedding(
+                    conn, query_id, limit=max_concurrent, status_filter="pending"
+                )
+
+            if not papers:
+                # 수집 완료 여부에 따라 대기/종료
+                if collect_done.is_set():
+                    empty_poll_count += 1
+                    if empty_poll_count >= MAX_EMPTY_POLLS:
+                        logger.info(
+                            "embed_phase_no_more_papers",
+                            job_id=job_id,
+                            empty_polls=empty_poll_count,
+                        )
+                        break
+                    await asyncio.sleep(POLL_INTERVAL)
+                    continue
+                else:
+                    # 수집 진행 중: 대기 후 재시도
+                    logger.debug("embed_waiting_for_collect", job_id=job_id)
+                    await asyncio.sleep(POLL_INTERVAL)
+                    continue
+
+            # 처리할 논문이 있으면 카운트 리셋
+            empty_poll_count = 0
+
+            # 병렬 임베딩 처리
+            tasks = [
+                process_single_paper_async(
+                    pool, s3_storage, collection, embedding_client, chunker, paper
+                )
+                for paper in papers
+            ]
+            results = await asyncio.gather(*tasks, return_exceptions=True)
+
+            for result in results:
+                if isinstance(result, Exception):
+                    stats["failed"] += 1
+                    logger.error("embed_task_exception", error=str(result))
+                elif result.get("success"):
+                    stats["embedded"] += 1
+                else:
+                    stats["failed"] += 1
+
+            logger.info(
+                "embed_phase_progress",
+                job_id=job_id,
+                batch_size=len(papers),
+                **stats,
+                collect_done=collect_done.is_set(),
+            )
+
+    except Exception as e:
+        logger.error("embed_phase_error", job_id=job_id, error=str(e))
+
+    finally:
+        await embedding_client.close()
+        weaviate_client.close()
+
+    logger.info("embed_phase_completed", job_id=job_id, **stats)
+    return stats
+
+
 @app.task(bind=True, queue="backfill")
 def run_backfill(self, query_id: str) -> dict:
     """Backfill 태스크 (Celery)
+
+    Search → Collect → Embed 가 모두 동시에 실행됩니다.
+    (Producer-Consumer 패턴)
 
     Args:
         query_id: search_queries.id (UUID 문자열)
 
     Returns:
-        실행 결과 dict
+        실행 결과 dict (embedded, embed_failed 포함)
     """
     logger.info("backfill_task_started", query_id=query_id, task_id=self.request.id)
 
     try:
         result = asyncio.run(run_backfill_async(query_id))
 
-        # 체이닝: 수집 성공 시 임베딩 자동 트리거
-        if result.get("completed", 0) > 0:
-            run_embed.delay(query_id)
-            logger.info(
-                "embed_triggered_after_backfill",
-                query_id=query_id,
-                collected_count=result.get("completed"),
-            )
+        logger.info(
+            "backfill_task_completed",
+            query_id=query_id,
+            collected=result.get("completed"),
+            embedded=result.get("embedded"),
+        )
 
         return result
 
@@ -1075,14 +1339,14 @@ def run_backfill(self, query_id: str) -> dict:
 def run_backfill_resume(self, query_id: str, job_id: str) -> dict:
     """Backfill Resume 태스크 (Celery)
 
-    기존 job을 이어서 처리 (pending 상태 batch_articles만 처리)
+    기존 job을 이어서 처리 (Collect + Embed 동시 실행)
 
     Args:
         query_id: search_queries.id (UUID 문자열)
         job_id: 재개할 batch_jobs.id
 
     Returns:
-        실행 결과 dict
+        실행 결과 dict (embedded, embed_failed 포함)
     """
     logger.info(
         "backfill_resume_started",
@@ -1094,15 +1358,13 @@ def run_backfill_resume(self, query_id: str, job_id: str) -> dict:
     try:
         result = asyncio.run(run_backfill_async(query_id, resume_job_id=job_id))
 
-        # 체이닝: 수집 성공 시 임베딩 자동 트리거
-        if result.get("completed", 0) > 0:
-            run_embed.delay(query_id)
-            logger.info(
-                "embed_triggered_after_backfill_resume",
-                query_id=query_id,
-                job_id=job_id,
-                collected_count=result.get("completed"),
-            )
+        logger.info(
+            "backfill_resume_completed",
+            query_id=query_id,
+            job_id=job_id,
+            collected=result.get("completed"),
+            embedded=result.get("embedded"),
+        )
 
         return result
 

@@ -551,6 +551,10 @@ export class PapersService {
       error: job.state.error,
       startedAt: job.state.startedAt,
       completedAt: job.state.completedAt,
+      // 추가 필드 (2026-01-15)
+      createdAt: job.state.createdAt,
+      chunkCount: job.state.chunkCount,
+      heartbeat: job.state.heartbeat,
     }));
 
     return {
