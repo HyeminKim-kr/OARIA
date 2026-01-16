@@ -388,6 +388,31 @@ def update_job_total_only(
         conn.commit()
 
 
+# Heartbeat 설정: 30초마다 업데이트 (Admin Scheduler는 10분 timeout)
+HEARTBEAT_INTERVAL_SECONDS = 30
+
+
+def update_heartbeat(
+    conn: psycopg.Connection,
+    job_id: str,
+) -> None:
+    """Heartbeat만 업데이트 (locked_at 갱신)
+
+    Search 중에 API가 느려도 heartbeat이 계속 전송되도록
+    """
+    with conn.cursor() as cur:
+        cur.execute(
+            """
+            UPDATE batch_jobs SET
+                locked_at = NOW(),
+                updated_at = NOW()
+            WHERE id = %s
+            """,
+            (job_id,),
+        )
+        conn.commit()
+
+
 def complete_job(
     conn: psycopg.Connection, job_id: str, status: str = "completed"
 ) -> None:
@@ -562,15 +587,19 @@ async def _phase_search(
 
     OAR-19 스타일: Connection Pool 사용
     pubType 기반 필터링 적용
+    시간 기반 heartbeat: API가 느려도 30초마다 heartbeat 전송
 
     Returns:
         dict: {registered: int, dropped: int, total_searched: int}
     """
+    import time
+
     logger.info("search_phase_started", job_id=job_id)
 
     stats = {"registered": 0, "dropped": 0, "total_searched": 0}
     page_batch = []
     batch_size = 100
+    last_heartbeat = time.time()
 
     async with EuropePMCClient() as client:
         async for result in client.search_all(
@@ -578,6 +607,14 @@ async def _phase_search(
             max_results=search_query.get("max_results"),
         ):
             stats["total_searched"] += 1
+
+            # 시간 기반 heartbeat: HEARTBEAT_INTERVAL_SECONDS마다 업데이트
+            current_time = time.time()
+            if current_time - last_heartbeat >= HEARTBEAT_INTERVAL_SECONDS:
+                with pool.connection() as conn:
+                    update_heartbeat(conn, job_id)
+                last_heartbeat = current_time
+                logger.debug("search_heartbeat_sent", job_id=job_id, total_searched=stats["total_searched"])
 
             # pubType 필터링: DROP 타입은 제외
             if not should_collect(result.pub_types):
@@ -616,6 +653,7 @@ async def _phase_search(
                     stats["registered"] += len(page_batch)
 
                     # total만 업데이트 (진행률은 건드리지 않음 - Race Condition 방지)
+                    # 이 함수도 heartbeat(locked_at) 업데이트함
                     update_job_total_only(
                         conn,
                         job_id,
@@ -628,6 +666,7 @@ async def _phase_search(
                             "last_pmcid": result.pmcid,
                         },
                     )
+                    last_heartbeat = time.time()  # batch 저장 시에도 heartbeat 갱신
 
                 logger.info(
                     "search_phase_progress",
@@ -1026,6 +1065,7 @@ async def _phase_collect(
     - 각 태스크가 pool.connection()으로 연결 획득/반환
     - 동시성은 Pool의 max_size로 제어
     - search_done 이벤트로 검색 완료 여부 확인
+    - 시간 기반 heartbeat: 대기 중에도 heartbeat 전송
 
     Args:
         pool: Connection Pool
@@ -1034,6 +1074,8 @@ async def _phase_collect(
         search_query: 검색 쿼리 설정
         search_done: 검색 완료 이벤트 (None이면 즉시 완료로 간주)
     """
+    import time
+
     max_concurrent = search_query.get("max_concurrent", 35)
     logger.info(
         "collect_phase_started",
@@ -1056,6 +1098,7 @@ async def _phase_collect(
     POLL_INTERVAL = 2.0  # 2초
     empty_poll_count = 0
     MAX_EMPTY_POLLS = 3  # 검색 완료 후 연속 3번 빈 결과면 종료
+    last_heartbeat = time.time()
 
     try:
         async with EuropePMCClient(max_concurrent=max_concurrent) as client:
@@ -1080,6 +1123,14 @@ async def _phase_collect(
                     pending = get_pending_articles(conn, job_id, limit=max_concurrent)
 
                 if not pending:
+                    # 대기 중에도 heartbeat 전송 (stale 방지)
+                    current_time = time.time()
+                    if current_time - last_heartbeat >= HEARTBEAT_INTERVAL_SECONDS:
+                        with pool.connection() as conn:
+                            update_heartbeat(conn, job_id)
+                        last_heartbeat = current_time
+                        logger.debug("collect_heartbeat_while_waiting", job_id=job_id)
+
                     # Producer-Consumer 모드: 검색 완료 여부에 따라 대기/종료
                     if search_done is None:
                         # 단독 모드: 즉시 종료
@@ -1120,7 +1171,7 @@ async def _phase_collect(
                 ]
                 await asyncio.gather(*tasks, return_exceptions=True)
 
-                # 진행률 업데이트
+                # 진행률 업데이트 (이 함수도 heartbeat 업데이트함)
                 with pool.connection() as conn:
                     stats = get_article_job_stats(conn, job_id)
                     update_job_progress(
@@ -1131,6 +1182,7 @@ async def _phase_collect(
                         failed=stats["failed"],
                         total=stats["total"],
                     )
+                last_heartbeat = time.time()  # 배치 처리 후 heartbeat 갱신
 
                 logger.info(
                     "collect_phase_progress",
@@ -1188,6 +1240,7 @@ async def _phase_embed(
     """Phase 3: 수집된 논문 임베딩 (Consumer)
 
     수집과 동시에 실행되어 수집된 논문을 바로 임베딩합니다.
+    시간 기반 heartbeat: 대기 중에도 heartbeat 전송
 
     Args:
         pool: Connection Pool
@@ -1199,6 +1252,8 @@ async def _phase_embed(
     Returns:
         dict: {embedded: int, failed: int}
     """
+    import time
+
     logger.info(
         "embed_phase_started",
         job_id=job_id,
@@ -1212,6 +1267,7 @@ async def _phase_embed(
     POLL_INTERVAL = 3.0  # 3초 (임베딩이 더 무거우므로)
     empty_poll_count = 0
     MAX_EMPTY_POLLS = 5  # 수집 완료 후 5회 빈 결과면 종료
+    last_heartbeat = time.time()
 
     # 리소스 초기화
     s3_storage = S3Storage()
@@ -1245,6 +1301,14 @@ async def _phase_embed(
                 )
 
             if not papers:
+                # 대기 중에도 heartbeat 전송 (stale 방지)
+                current_time = time.time()
+                if current_time - last_heartbeat >= HEARTBEAT_INTERVAL_SECONDS:
+                    with pool.connection() as conn:
+                        update_heartbeat(conn, job_id)
+                    last_heartbeat = current_time
+                    logger.debug("embed_heartbeat_while_waiting", job_id=job_id)
+
                 # 수집 완료 여부에 따라 대기/종료
                 if collect_done.is_set():
                     empty_poll_count += 1
@@ -1283,6 +1347,9 @@ async def _phase_embed(
                     stats["embedded"] += 1
                 else:
                     stats["failed"] += 1
+
+            # 배치 처리 후 heartbeat 갱신
+            last_heartbeat = time.time()
 
             logger.info(
                 "embed_phase_progress",
