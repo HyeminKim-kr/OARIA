@@ -9,6 +9,7 @@ from openai import AsyncOpenAI
 
 from app.config import settings
 from app.services.rag_service import rag_service
+from app.services.gates import gate2_service, Gate2Result
 from app.schemas.chat import Reference
 from ..state import AgentState, SubTask, TaskResult, ToolType
 from ..prompts import COMPARE_SYSTEM, COMPARE_USER
@@ -116,10 +117,26 @@ async def _execute_rag_search(task: SubTask) -> TaskResult:
     """Execute RAG search using existing rag_service (비동기)."""
     retrieval_result = await rag_service.retrieve(task.query)
 
+    # Gate 2: Retrieval Confidence 검증 (OAR-12)
+    gate2_result = gate2_service.validate(retrieval_result.references)
+
+    if not gate2_result.passed:
+        logger.warning(
+            f"Gate 2 failed for task {task.id}: {gate2_result.reason} - {gate2_result.message}"
+        )
+        return TaskResult(
+            task_id=task.id,
+            content=gate2_result.message or "검색 결과 품질이 기준에 미달합니다.",
+            references=retrieval_result.references,  # 참조는 전달 (경고와 함께)
+            gate2_passed=False,
+            gate2_reason=gate2_result.reason.value if gate2_result.reason else None,
+        )
+
     return TaskResult(
         task_id=task.id,
         content=retrieval_result.context,
         references=retrieval_result.references,
+        gate2_passed=True,
     )
 
 
@@ -203,13 +220,29 @@ async def execute_direct_rag(state: AgentState) -> AgentState:
 
     duration_ms = int((time.perf_counter() - start_time) * 1000)
 
-    # Create a single task result
-    task_result = TaskResult(
-        task_id="direct_rag",
-        content=retrieval_result.context,
-        references=retrieval_result.references,
-        duration_ms=duration_ms,
-    )
+    # Gate 2: Retrieval Confidence 검증 (OAR-12)
+    gate2_result = gate2_service.validate(retrieval_result.references)
+
+    if not gate2_result.passed:
+        logger.warning(
+            f"Gate 2 failed for direct RAG: {gate2_result.reason} - {gate2_result.message}"
+        )
+        task_result = TaskResult(
+            task_id="direct_rag",
+            content=gate2_result.message or "검색 결과 품질이 기준에 미달합니다.",
+            references=retrieval_result.references,  # 참조는 전달 (경고와 함께)
+            duration_ms=duration_ms,
+            gate2_passed=False,
+            gate2_reason=gate2_result.reason.value if gate2_result.reason else None,
+        )
+    else:
+        task_result = TaskResult(
+            task_id="direct_rag",
+            content=retrieval_result.context,
+            references=retrieval_result.references,
+            duration_ms=duration_ms,
+            gate2_passed=True,
+        )
 
     # Create a pseudo-subtask for metadata
     direct_task = SubTask(

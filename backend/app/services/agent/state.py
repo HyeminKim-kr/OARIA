@@ -44,6 +44,9 @@ class TaskResult:
     references: list[Reference] = field(default_factory=list)
     duration_ms: int = 0
     error: str | None = None
+    # Gate 2: Retrieval Confidence (OAR-12)
+    gate2_passed: bool | None = None  # None for non-RAG tasks
+    gate2_reason: str | None = None  # low_similarity | insufficient_docs | domain_mismatch
 
 
 class AgentState(TypedDict, total=False):

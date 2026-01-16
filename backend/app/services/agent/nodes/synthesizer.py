@@ -36,6 +36,15 @@ async def synthesize_answer(state: AgentState) -> AgentState:
             "citations": [],
         }
 
+    # Check for Gate 2 failures (OAR-12)
+    gate2_failure = _check_gate2_failures(task_results)
+    if gate2_failure:
+        logger.warning(f"Gate 2 failed: {gate2_failure}")
+        return {
+            "final_answer": gate2_failure,
+            "citations": [],
+        }
+
     logger.info(f"Synthesizing answer from {len(task_results)} task results...")
 
     # Collect all references and deduplicate
@@ -81,6 +90,16 @@ async def synthesize_answer_stream(state: AgentState) -> AsyncGenerator[str, Non
     query = state["query"]
     task_results = state.get("task_results", {})
     subtasks = state.get("subtasks", [])
+
+    # Check for Gate 2 failures (OAR-12)
+    gate2_failure = _check_gate2_failures(task_results)
+    if gate2_failure:
+        logger.warning(f"Gate 2 failed (stream): {gate2_failure}")
+        yield gate2_failure
+        return {
+            "final_answer": gate2_failure,
+            "citations": [],
+        }
 
     # Collect references
     all_references: list[Reference] = []
@@ -128,3 +147,23 @@ def _build_context_from_results(
         )
 
     return "\n\n---\n\n".join(parts)
+
+
+def _check_gate2_failures(task_results: dict[str, TaskResult]) -> str | None:
+    """
+    Check if any RAG task failed Gate 2 validation.
+
+    Args:
+        task_results: Results from all executed tasks
+
+    Returns:
+        Error message if Gate 2 failed, None otherwise
+    """
+    for task_id, result in task_results.items():
+        # Check if this task has Gate 2 info and failed
+        if result.gate2_passed is False:
+            logger.info(f"Task {task_id} failed Gate 2: {result.gate2_reason}")
+            # Return the content which contains the failure message
+            return result.content
+
+    return None
