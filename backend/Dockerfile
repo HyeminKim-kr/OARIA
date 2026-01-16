@@ -17,10 +17,10 @@ COPY --from=ghcr.io/astral-sh/uv:latest /uv /usr/local/bin/uv
 # 의존성 파일 복사 (캐싱 최적화)
 COPY pyproject.toml uv.lock* ./
 
-# 가상환경 생성 및 의존성 설치
+# 가상환경 생성 및 의존성 설치 (프로덕션 의존성만)
 ENV UV_COMPILE_BYTECODE=1
 ENV UV_LINK_MODE=copy
-RUN uv sync --frozen --no-dev
+RUN uv sync --no-dev
 
 # ==============================================
 # Stage 2: Runner (Production)

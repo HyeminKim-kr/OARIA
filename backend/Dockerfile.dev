@@ -16,7 +16,8 @@ COPY --from=ghcr.io/astral-sh/uv:latest /uv /usr/local/bin/uv
 COPY pyproject.toml uv.lock* ./
 
 # 의존성 설치 (개발 의존성 포함)
-RUN uv sync --frozen
+# --frozen 제거: lock 파일 불일치 시에도 설치 가능
+RUN uv sync
 
 # 소스 코드 복사 (볼륨 마운트로 덮어씌워짐)
 COPY . .
