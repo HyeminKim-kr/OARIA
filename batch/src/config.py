@@ -91,6 +91,20 @@ class OpenAIConfig(BaseSettings):
     model_config = {"extra": "ignore"}
 
 
+class CollectionConfig(BaseSettings):
+    """논문 수집 설정 (PDF, Citations)"""
+
+    collect_pdf: bool = Field(default=True, alias="COLLECT_PDF")
+    collect_citations: bool = Field(default=True, alias="COLLECT_CITATIONS")
+    max_citations: int = Field(default=1000, alias="MAX_CITATIONS")
+    max_references: int = Field(default=500, alias="MAX_REFERENCES")
+    max_pdf_size: int = Field(
+        default=100 * 1024 * 1024, alias="MAX_PDF_SIZE"  # 100MB
+    )
+
+    model_config = {"extra": "ignore"}
+
+
 class Config(BaseSettings):
     """통합 설정"""
 
@@ -100,6 +114,7 @@ class Config(BaseSettings):
     api: APIConfig = Field(default_factory=APIConfig)
     weaviate: WeaviateConfig = Field(default_factory=WeaviateConfig)
     openai: OpenAIConfig = Field(default_factory=OpenAIConfig)
+    collection: CollectionConfig = Field(default_factory=CollectionConfig)
 
     model_config = {"extra": "ignore"}
 
@@ -113,6 +128,7 @@ class Config(BaseSettings):
             api=APIConfig(),
             weaviate=WeaviateConfig(),
             openai=OpenAIConfig(),
+            collection=CollectionConfig(),
         )
 
 

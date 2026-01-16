@@ -9,6 +9,8 @@ import {
   PaperMeta,
   EmbeddingStatusDisplay,
   FulltextTabs,
+  PdfSection,
+  CitationsTab,
 } from './_components';
 
 export default function PaperDetailPage() {
@@ -90,6 +92,16 @@ export default function PaperDetailPage() {
           </div>
         </div>
       )}
+
+      {/* PDF Section */}
+      <PdfSection paper={paper} />
+
+      {/* Citations/References */}
+      <CitationsTab
+        paperId={paper.id}
+        citationCount={paper.citationCount}
+        referenceCount={paper.referenceCount}
+      />
 
       {/* Embedding Status */}
       <div className="rounded-lg bg-white p-6 shadow">

@@ -39,6 +39,26 @@ class CommentCorrection:
 
 
 @dataclass
+class CitationResult:
+    """인용/참조 결과"""
+
+    pmcid: str | None = None
+    pmid: str | None = None
+    doi: str | None = None
+    title: str = ""
+    source: str = ""  # MED, PMC, AGR 등
+
+
+@dataclass
+class CitationsPage:
+    """인용 목록 페이지"""
+
+    results: list[CitationResult]
+    total_count: int
+    has_more: bool = False
+
+
+@dataclass
 class SearchResult:
     """검색 결과"""
 
@@ -385,3 +405,141 @@ class EuropePMCClient:
     def get_stats(self) -> dict:
         """Rate Limiter 통계"""
         return self.rate_limiter.get_stats()
+
+    async def get_citations(
+        self,
+        pmcid: str,
+        page_size: int = 1000,
+    ) -> CitationsPage:
+        """논문을 인용한 논문 목록 조회 (Citations)
+
+        Args:
+            pmcid: PMC ID (예: "PMC12345678")
+            page_size: 페이지 크기 (최대 1000)
+
+        Returns:
+            CitationsPage: 인용 목록
+        """
+        # PMC 접두사 제거
+        if pmcid.startswith("PMC"):
+            pmcid = pmcid[3:]
+
+        params = {
+            "format": "json",
+            "pageSize": min(page_size, 1000),
+        }
+
+        url = f"{self.base_url}/PMC{pmcid}/citations"
+
+        try:
+            response = await self._request("GET", url, params=params)
+            data = response.json()
+
+            results = []
+            citation_list = data.get("citationList", {}).get("citation", [])
+            if isinstance(citation_list, dict):
+                citation_list = [citation_list]
+
+            for item in citation_list:
+                # citedByPMCID, citedByPMID 등 추출
+                results.append(
+                    CitationResult(
+                        pmcid=item.get("citedByPMCID"),
+                        pmid=item.get("citedByPMID"),
+                        doi=item.get("citedByDOI"),
+                        title=item.get("title", ""),
+                        source=item.get("source", ""),
+                    )
+                )
+
+            total_count = data.get("hitCount", len(results))
+
+            logger.info(
+                "citations_fetched",
+                pmcid=pmcid,
+                count=len(results),
+                total=total_count,
+            )
+
+            return CitationsPage(
+                results=results,
+                total_count=total_count,
+                has_more=len(results) < total_count,
+            )
+        except httpx.HTTPStatusError as e:
+            if e.response.status_code == 404:
+                logger.warning("citations_not_found", pmcid=pmcid)
+                return CitationsPage(results=[], total_count=0)
+            raise
+
+    async def get_references(
+        self,
+        pmcid: str,
+        page: int = 1,
+        page_size: int = 1000,
+    ) -> CitationsPage:
+        """논문이 인용한 논문 목록 조회 (References)
+
+        Args:
+            pmcid: PMC ID (예: "PMC12345678")
+            page: 페이지 번호 (1부터 시작)
+            page_size: 페이지 크기 (최대 1000)
+
+        Returns:
+            CitationsPage: 참조 목록
+        """
+        # PMC 접두사 제거
+        if pmcid.startswith("PMC"):
+            pmcid = pmcid[3:]
+
+        params = {
+            "format": "json",
+            "page": page,
+            "pageSize": min(page_size, 1000),
+        }
+
+        url = f"{self.base_url}/PMC{pmcid}/references"
+
+        try:
+            response = await self._request("GET", url, params=params)
+            data = response.json()
+
+            results = []
+            ref_list = data.get("referenceList", {}).get("reference", [])
+            if isinstance(ref_list, dict):
+                ref_list = [ref_list]
+
+            for item in ref_list:
+                # PMCID가 있으면 사용, 없으면 id 필드(MED source인 경우 PMID)
+                pmcid_val = item.get("pmcid")
+                pmid_val = item.get("id") if item.get("source") == "MED" else None
+
+                results.append(
+                    CitationResult(
+                        pmcid=pmcid_val,
+                        pmid=pmid_val,
+                        doi=item.get("doi"),
+                        title=item.get("title", ""),
+                        source=item.get("source", ""),
+                    )
+                )
+
+            total_count = data.get("hitCount", len(results))
+
+            logger.info(
+                "references_fetched",
+                pmcid=pmcid,
+                count=len(results),
+                total=total_count,
+            )
+
+            return CitationsPage(
+                results=results,
+                total_count=total_count,
+                has_more=len(results) < total_count,
+            )
+        except httpx.HTTPStatusError as e:
+            if e.response.status_code == 404:
+                logger.warning("references_not_found", pmcid=pmcid)
+                return CitationsPage(results=[], total_count=0)
+            raise

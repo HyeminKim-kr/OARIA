@@ -7,12 +7,13 @@ from typing import Optional
 from uuid import UUID
 
 from fastapi import APIRouter, Depends, HTTPException, Query
+from fastapi.responses import RedirectResponse
 from sqlalchemy import func, select, or_, desc
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
 from ..database import get_db
-from ..models.paper import Paper, PaperAuthor
+from ..models.paper import Paper, PaperAuthor, PaperCitation
 from ..schemas.paper import (
     PaperListItem,
     PaperDetail,
@@ -20,9 +21,19 @@ from ..schemas.paper import (
     PaperStats,
     SectionContentResponse,
     ParagraphResponse,
+    PDFUrlResponse,
+    CitationItem,
+    CitationListResponse,
+    CitationStatsResponse,
+    DisplayResponse,
+    DisplaySectionResponse,
+    FigureResponse,
+    SimilarPaperItem,
+    SimilarPapersResponse,
 )
 from ..services.weaviate_service import weaviate_service
 from ..services.s3_service import s3_service
+from ..services.similar_papers_service import similar_papers_service
 
 router = APIRouter(prefix="/papers", tags=["papers"])
 
@@ -238,3 +249,403 @@ def _find_section_in_display(display_data: dict, section_name: str) -> dict | No
             return sec
 
     return None
+
+
+@router.get("/{paper_id}/display", response_model=DisplayResponse)
+async def get_paper_display(
+    paper_id: UUID,
+    db: AsyncSession = Depends(get_db),
+):
+    """논문 전체 본문 조회 (display.json)
+
+    논문의 전체 본문을 섹션별로 구분하여 반환합니다.
+    PDF가 없는 경우 대체 뷰어용으로 사용합니다.
+    """
+    import asyncio
+
+    # 논문 조회
+    query = select(Paper).where(Paper.id == paper_id)
+    result = await db.execute(query)
+    paper = result.scalar_one_or_none()
+
+    if not paper:
+        raise HTTPException(status_code=404, detail="Paper not found")
+
+    # S3에서 display.json 가져오기
+    display_data = await asyncio.to_thread(s3_service.get_display, paper.paper_id)
+
+    if not display_data:
+        raise HTTPException(
+            status_code=404,
+            detail="Display data not available for this paper"
+        )
+
+    # 섹션 변환 (섹션 내 인라인 Figure 포함)
+    sections = []
+    for sec in display_data.get("sections", []):
+        # 섹션 내 Figure 변환
+        sec_figures = [
+            FigureResponse(
+                id=fig.get("id", ""),
+                label=fig.get("label", ""),
+                caption=fig.get("caption"),
+                graphic_href=fig.get("graphic_href", ""),
+            )
+            for fig in sec.get("figures", [])
+        ]
+        sections.append(DisplaySectionResponse(
+            name=sec.get("name", ""),
+            title=sec.get("title", ""),
+            paragraphs=sec.get("paragraphs", []),
+            figures=sec_figures,
+        ))
+
+    # 전체 Figure 목록 (하위 호환용)
+    figures = [
+        FigureResponse(
+            id=fig.get("id", ""),
+            label=fig.get("label", ""),
+            caption=fig.get("caption"),
+            graphic_href=fig.get("graphic_href", ""),
+        )
+        for fig in display_data.get("figures", [])
+    ]
+
+    return DisplayResponse(
+        paper_id=paper.paper_id,
+        title=paper.title,
+        journal=paper.journal,
+        year=paper.year,
+        sections=sections,
+        figures=figures,
+        has_pdf=paper.has_pdf or False,
+    )
+
+
+# ============================================================
+# PDF 엔드포인트 (string paper_id 버전 - 먼저 정의해야 함)
+# ============================================================
+@router.get("/by-paper-id/{paper_id:path}/pdf/url", response_model=PDFUrlResponse)
+async def get_paper_pdf_url_by_paper_id(
+    paper_id: str,
+    expires_in: int = Query(3600, ge=300, le=86400, description="URL 만료 시간 (초)"),
+    db: AsyncSession = Depends(get_db),
+):
+    """PDF Presigned URL 조회 (string paper_id로 조회)
+
+    논문의 PDF presigned URL을 반환합니다.
+    paper_id는 "pmc:PMC12345678" 형식입니다.
+    """
+    # 논문 조회 (string paper_id로)
+    query = select(Paper).where(Paper.paper_id == paper_id)
+    result = await db.execute(query)
+    paper = result.scalar_one_or_none()
+
+    if not paper:
+        raise HTTPException(status_code=404, detail="Paper not found")
+
+    if not paper.has_pdf:
+        raise HTTPException(status_code=404, detail="PDF not available for this paper")
+
+    # Presigned URL 생성
+    import asyncio
+
+    url = await asyncio.to_thread(
+        s3_service.get_pdf_presigned_url, paper.paper_id, expires_in
+    )
+
+    if not url:
+        raise HTTPException(status_code=404, detail="PDF file not found in storage")
+
+    return PDFUrlResponse(
+        paper_id=paper.paper_id,
+        url=url,
+        expires_in=expires_in,
+    )
+
+
+@router.get("/by-paper-id/{paper_id:path}/has-pdf")
+async def check_paper_has_pdf(
+    paper_id: str,
+    db: AsyncSession = Depends(get_db),
+):
+    """논문 PDF 존재 여부 확인 (string paper_id로 조회)
+
+    paper_id는 "pmc:PMC12345678" 형식입니다.
+    """
+    query = select(Paper.has_pdf).where(Paper.paper_id == paper_id)
+    result = await db.execute(query)
+    has_pdf = result.scalar_one_or_none()
+
+    if has_pdf is None:
+        raise HTTPException(status_code=404, detail="Paper not found")
+
+    return {"paper_id": paper_id, "has_pdf": has_pdf}
+
+
+# ============================================================
+# PDF 엔드포인트 (UUID 버전)
+# ============================================================
+@router.get("/{paper_id}/pdf")
+async def get_paper_pdf(
+    paper_id: UUID,
+    db: AsyncSession = Depends(get_db),
+):
+    """PDF 다운로드 (Presigned URL로 리다이렉트)
+
+    논문의 PDF가 있는 경우 S3 presigned URL로 리다이렉트합니다.
+    """
+    # 논문 조회
+    query = select(Paper).where(Paper.id == paper_id)
+    result = await db.execute(query)
+    paper = result.scalar_one_or_none()
+
+    if not paper:
+        raise HTTPException(status_code=404, detail="Paper not found")
+
+    if not paper.has_pdf:
+        raise HTTPException(status_code=404, detail="PDF not available for this paper")
+
+    # Presigned URL 생성
+    import asyncio
+
+    url = await asyncio.to_thread(s3_service.get_pdf_presigned_url, paper.paper_id)
+
+    if not url:
+        raise HTTPException(status_code=404, detail="PDF file not found in storage")
+
+    return RedirectResponse(url=url, status_code=302)
+
+
+@router.get("/{paper_id}/pdf/url", response_model=PDFUrlResponse)
+async def get_paper_pdf_url(
+    paper_id: UUID,
+    expires_in: int = Query(3600, ge=300, le=86400, description="URL 만료 시간 (초)"),
+    db: AsyncSession = Depends(get_db),
+):
+    """PDF Presigned URL 조회
+
+    논문의 PDF presigned URL을 반환합니다.
+    프론트엔드에서 PDF 뷰어에 직접 사용할 수 있습니다.
+    """
+    # 논문 조회
+    query = select(Paper).where(Paper.id == paper_id)
+    result = await db.execute(query)
+    paper = result.scalar_one_or_none()
+
+    if not paper:
+        raise HTTPException(status_code=404, detail="Paper not found")
+
+    if not paper.has_pdf:
+        raise HTTPException(status_code=404, detail="PDF not available for this paper")
+
+    # Presigned URL 생성
+    import asyncio
+
+    url = await asyncio.to_thread(
+        s3_service.get_pdf_presigned_url, paper.paper_id, expires_in
+    )
+
+    if not url:
+        raise HTTPException(status_code=404, detail="PDF file not found in storage")
+
+    return PDFUrlResponse(
+        paper_id=paper.paper_id,
+        url=url,
+        expires_in=expires_in,
+    )
+
+
+# ============================================================
+# Citations/References 엔드포인트
+# ============================================================
+@router.get("/{paper_id}/citations", response_model=CitationListResponse)
+async def get_paper_citations(
+    paper_id: UUID,
+    page: int = Query(1, ge=1, description="페이지 번호"),
+    limit: int = Query(20, ge=1, le=100, description="페이지당 항목 수"),
+    db: AsyncSession = Depends(get_db),
+):
+    """이 논문을 인용한 논문 목록 (Citations)
+
+    다른 논문들이 이 논문을 인용한 관계를 조회합니다.
+    - source_paper_id: 인용한 논문 (citing paper)
+    - target_paper_id: 현재 논문 (cited paper)
+    """
+    # 논문 조회
+    query = select(Paper).where(Paper.id == paper_id)
+    result = await db.execute(query)
+    paper = result.scalar_one_or_none()
+
+    if not paper:
+        raise HTTPException(status_code=404, detail="Paper not found")
+
+    # Citations 조회 (이 논문을 target으로 하는 관계)
+    base_query = select(PaperCitation).where(
+        PaperCitation.target_paper_id == paper.paper_id
+    )
+
+    # 전체 개수
+    count_query = select(func.count()).select_from(base_query.subquery())
+    count_result = await db.execute(count_query)
+    total = count_result.scalar() or 0
+
+    # 페이지네이션
+    offset = (page - 1) * limit
+    citations_query = (
+        base_query
+        .order_by(desc(PaperCitation.created_at))
+        .offset(offset)
+        .limit(limit)
+    )
+
+    citations_result = await db.execute(citations_query)
+    citations = citations_result.scalars().all()
+
+    items = [CitationItem.model_validate(c) for c in citations]
+
+    return CitationListResponse(
+        items=items,
+        total=total,
+        page=page,
+        limit=limit,
+        total_pages=(total + limit - 1) // limit if total > 0 else 0,
+    )
+
+
+@router.get("/{paper_id}/references", response_model=CitationListResponse)
+async def get_paper_references(
+    paper_id: UUID,
+    page: int = Query(1, ge=1, description="페이지 번호"),
+    limit: int = Query(20, ge=1, le=100, description="페이지당 항목 수"),
+    db: AsyncSession = Depends(get_db),
+):
+    """이 논문이 인용한 논문 목록 (References)
+
+    현재 논문이 인용한 다른 논문들의 관계를 조회합니다.
+    - source_paper_id: 현재 논문 (citing paper)
+    - target_paper_id: 인용된 논문 (cited paper)
+    """
+    # 논문 조회
+    query = select(Paper).where(Paper.id == paper_id)
+    result = await db.execute(query)
+    paper = result.scalar_one_or_none()
+
+    if not paper:
+        raise HTTPException(status_code=404, detail="Paper not found")
+
+    # References 조회 (이 논문을 source로 하는 관계)
+    base_query = select(PaperCitation).where(
+        PaperCitation.source_paper_id == paper.paper_id
+    )
+
+    # 전체 개수
+    count_query = select(func.count()).select_from(base_query.subquery())
+    count_result = await db.execute(count_query)
+    total = count_result.scalar() or 0
+
+    # 페이지네이션
+    offset = (page - 1) * limit
+    references_query = (
+        base_query
+        .order_by(desc(PaperCitation.created_at))
+        .offset(offset)
+        .limit(limit)
+    )
+
+    references_result = await db.execute(references_query)
+    references = references_result.scalars().all()
+
+    items = [CitationItem.model_validate(r) for r in references]
+
+    return CitationListResponse(
+        items=items,
+        total=total,
+        page=page,
+        limit=limit,
+        total_pages=(total + limit - 1) // limit if total > 0 else 0,
+    )
+
+
+@router.get("/{paper_id}/citation-stats", response_model=CitationStatsResponse)
+async def get_paper_citation_stats(
+    paper_id: UUID,
+    db: AsyncSession = Depends(get_db),
+):
+    """논문 인용 통계
+
+    논문의 인용 수(citation_count)와 참조 수(reference_count)를 조회합니다.
+    """
+    # 논문 조회
+    query = select(Paper).where(Paper.id == paper_id)
+    result = await db.execute(query)
+    paper = result.scalar_one_or_none()
+
+    if not paper:
+        raise HTTPException(status_code=404, detail="Paper not found")
+
+    return CitationStatsResponse(
+        paper_id=paper.paper_id,
+        citation_count=paper.citation_count or 0,
+        reference_count=paper.reference_count or 0,
+    )
+
+
+# ============================================================
+# Similar Papers 엔드포인트
+# ============================================================
+@router.get("/{paper_id}/similar", response_model=SimilarPapersResponse)
+async def get_similar_papers(
+    paper_id: UUID,
+    source: str = Query("hybrid", description="추천 소스 (citation, reference, vector, hybrid)"),
+    limit: int = Query(20, ge=1, le=50, description="결과 개수"),
+    db: AsyncSession = Depends(get_db),
+):
+    """유사 논문 추천
+
+    4가지 추천 방식을 제공합니다:
+    - citation: 이 논문을 인용한 논문 (후속 연구)
+    - reference: 이 논문이 인용한 논문 (기반 연구)
+    - vector: 벡터 유사도 기반 (내용 유사성)
+    - hybrid: 위 3가지 조합 (가장 관련성 높음, 기본값)
+    """
+    # 논문 조회
+    query = select(Paper).where(Paper.id == paper_id)
+    result = await db.execute(query)
+    paper = result.scalar_one_or_none()
+
+    if not paper:
+        raise HTTPException(status_code=404, detail="Paper not found")
+
+    # 유사 논문 조회
+    similar_papers, result_source = await similar_papers_service.get_similar_papers(
+        paper_id=paper.paper_id,
+        pmcid=paper.pmcid,
+        pmid=paper.pmid,
+        source=source,
+        limit=limit,
+    )
+
+    # 응답 변환
+    items = [
+        SimilarPaperItem(
+            pmcid=sp.pmcid,
+            pmid=sp.pmid,
+            doi=sp.doi,
+            title=sp.title,
+            journal=sp.journal,
+            year=sp.year,
+            authors=sp.authors,
+            recommendation_type=sp.recommendation_type,
+            score=sp.score,
+            sources=sp.sources or [],
+        )
+        for sp in similar_papers
+    ]
+
+    return SimilarPapersResponse(
+        items=items,
+        source=result_source,
+        total=len(items),
+        paper_id=paper.paper_id,
+    )

@@ -96,6 +96,39 @@ export class Paper {
   @Column({ name: 'embedding_at', type: 'timestamptz', nullable: true })
   embeddingAt: Date | null;
 
+  // 논문 유형 및 관계 플래그
+  @Column({ name: 'pub_types', type: 'text', array: true, nullable: true })
+  pubTypes: string[] | null;
+
+  @Column({ name: 'has_correction', type: 'boolean', default: false })
+  hasCorrection: boolean;
+
+  @Column({ name: 'has_erratum', type: 'boolean', default: false })
+  hasErratum: boolean;
+
+  @Column({ name: 'has_retraction', type: 'boolean', default: false })
+  hasRetraction: boolean;
+
+  // PDF 관련
+  @Column({ name: 'has_pdf', type: 'boolean', default: false })
+  hasPdf: boolean;
+
+  @Column({ name: 'pdf_size', type: 'int', nullable: true })
+  pdfSize: number | null;
+
+  @Column({ name: 'pdf_hash', type: 'varchar', length: 64, nullable: true })
+  pdfHash: string | null;
+
+  @Column({ name: 'pdf_downloaded_at', type: 'timestamptz', nullable: true })
+  pdfDownloadedAt: Date | null;
+
+  // 인용 통계
+  @Column({ name: 'citation_count', type: 'int', default: 0 })
+  citationCount: number;
+
+  @Column({ name: 'reference_count', type: 'int', default: 0 })
+  referenceCount: number;
+
   @CreateDateColumn({ name: 'created_at', type: 'timestamptz' })
   createdAt: Date;
 

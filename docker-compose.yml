@@ -124,12 +124,18 @@ services:
       - S3_ACCESS_KEY=minioadmin
       - S3_SECRET_KEY=minioadmin_2024
       - S3_BUCKET=oaria-papers
+      # 임베딩 동시 실행을 위한 설정 추가
+      - WEAVIATE_HOST=weaviate
+      - WEAVIATE_PORT=8080
+      - OPENAI_API_KEY=${OPENAI_API_KEY}
     depends_on:
       postgres:
         condition: service_healthy
       redis:
         condition: service_healthy
       minio:
+        condition: service_healthy
+      weaviate:
         condition: service_healthy
     restart: unless-stopped
 

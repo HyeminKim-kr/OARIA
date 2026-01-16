@@ -1,7 +1,8 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import Link from "next/link";
+import { useQuery } from "@tanstack/react-query";
 import {
   Search,
   Paperclip,
@@ -11,67 +12,45 @@ import {
   Bot,
   Filter,
   Clock,
-  Flame,
   Sparkles,
-  ThumbsUp,
   Bookmark,
-  Link2,
-  ChevronRight,
   MessageSquare,
+  Loader2,
 } from "lucide-react";
-
-// 임시 논문 데이터
-const mockPapers = [
-  {
-    id: 1,
-    title:
-      "Immunotherapy Response Prediction in Non-Small Cell Lung Cancer Using Deep Learning",
-    date: "28 Dec 2025",
-    authors: ["Seoul National University", "Samsung Medical Center"],
-    summary:
-      "A novel deep learning approach for predicting immunotherapy response in NSCLC patients. The model achieves 89% accuracy using CT imaging and genomic data, outperforming traditional biomarkers like PD-L1 expression...",
-    tags: ["#immunotherapy", "#lung-cancer", "#deep-learning"],
-    likes: 234,
-    hasResources: true,
-  },
-  {
-    id: 2,
-    title:
-      "CAR-T Cell Therapy Optimization for Solid Tumors: A Comprehensive Review",
-    date: "26 Dec 2025",
-    authors: ["MD Anderson Cancer Center", "Stanford Medicine"],
-    summary:
-      "This review examines recent advances in CAR-T cell therapy for solid tumors, addressing key challenges including tumor microenvironment immunosuppression, antigen heterogeneity, and T cell exhaustion...",
-    tags: ["#car-t", "#solid-tumors", "#immunotherapy"],
-    likes: 892,
-    hasResources: true,
-  },
-  {
-    id: 3,
-    title:
-      "Liquid Biopsy for Early Detection of Pancreatic Cancer: Multi-Center Validation Study",
-    date: "24 Dec 2025",
-    authors: ["Johns Hopkins University", "Mayo Clinic"],
-    summary:
-      "A multi-center validation study demonstrating the clinical utility of ctDNA-based liquid biopsy for early pancreatic cancer detection. The assay achieved 94% sensitivity and 98% specificity in a cohort of 2,500 patients...",
-    tags: ["#liquid-biopsy", "#pancreatic-cancer", "#early-detection"],
-    likes: 1205,
-    hasResources: false,
-  },
-];
-
+import { papersApi } from "@/lib/api";
+import { PaperCard } from "@/components/papers";
 
 export default function MainPage() {
-  const [query, setQuery] = useState("");
+  const [searchQuery, setSearchQuery] = useState("");
+  const [debouncedQuery, setDebouncedQuery] = useState("");
   const [activeTab, setActiveTab] = useState<"papers" | "agents">("papers");
   const [activeFilter, setActiveFilter] = useState<"recent" | "recommended" | "bookmark">(
     "recent"
   );
 
+  // Debounce search query (300ms)
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      setDebouncedQuery(searchQuery);
+    }, 300);
+    return () => clearTimeout(timer);
+  }, [searchQuery]);
+
+  // 검색어가 있으면 search API, 없으면 recent API
+  const { data: papers, isLoading, error } = useQuery({
+    queryKey: ["papers", debouncedQuery],
+    queryFn: async () => {
+      if (debouncedQuery.trim()) {
+        const result = await papersApi.search({ q: debouncedQuery, limit: 20 });
+        return result.items;
+      }
+      return papersApi.getRecent(10);
+    },
+  });
+
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    // TODO: 검색 또는 채팅 처리
-    console.log("Query:", query);
+    // 검색은 debounce로 자동 처리됨
   };
 
   return (
@@ -111,11 +90,14 @@ export default function MainPage() {
                 <Search size={24} className="text-[var(--oaria-tagline)] mr-4" />
                 <input
                   type="text"
-                  value={query}
-                  onChange={(e) => setQuery(e.target.value)}
+                  value={searchQuery}
+                  onChange={(e) => setSearchQuery(e.target.value)}
                   placeholder="Search by title, author, PMID..."
                   className="flex-1 bg-transparent font-[family-name:var(--font-dm-sans)] text-lg outline-none placeholder:text-[var(--oaria-tagline)]"
                 />
+                {isLoading && (
+                  <Loader2 size={20} className="animate-spin text-[var(--oaria-teal)] mr-2" />
+                )}
               </div>
               <div className="flex items-center justify-between px-6 pb-5">
                 <div className="flex items-center gap-2">
@@ -135,7 +117,7 @@ export default function MainPage() {
                 </div>
                 <button
                   type="submit"
-                  disabled={!query.trim()}
+                  disabled={!searchQuery.trim()}
                   className="w-10 h-10 rounded-full bg-[var(--oaria-teal)] hover:bg-[var(--oaria-light-teal)] disabled:bg-[var(--oaria-border)] disabled:cursor-not-allowed flex items-center justify-center transition-colors"
                 >
                   <ArrowUp size={20} className="text-white" />
@@ -216,73 +198,48 @@ export default function MainPage() {
 
           {/* Paper Cards */}
           <div className="space-y-3">
-            {mockPapers.map((paper) => (
-              <article
-                key={paper.id}
-                className="relative bg-[var(--background)] border-2 border-[var(--oaria-border-strong)] rounded-xl p-5 hover:border-[var(--oaria-teal)]/50 transition-colors group"
-              >
-                <div className="flex gap-6">
-                  <div className="flex-1">
-                    <h2 className="font-[family-name:var(--font-outfit)] text-lg font-semibold text-[var(--foreground)] mb-2 group-hover:text-[var(--oaria-teal)] transition-colors cursor-pointer">
-                      {paper.title}
-                    </h2>
-                    <div className="flex items-center gap-3 mb-3 text-sm text-[var(--oaria-tagline)]">
-                      <span>{paper.date}</span>
-                      <span className="flex items-center gap-1">
-                        <span className="text-[var(--oaria-coral)]">•</span>
-                        {paper.authors.join(" · ")}
-                      </span>
-                    </div>
-                    <p className="font-[family-name:var(--font-dm-sans)] text-sm text-[var(--oaria-text-secondary)] mb-4 line-clamp-2">
-                      {paper.summary}
-                    </p>
-                    <div className="flex flex-wrap gap-2 mb-4">
-                      {paper.tags.map((tag) => (
-                        <span
-                          key={tag}
-                          className="text-xs text-[var(--oaria-teal)] hover:underline cursor-pointer"
-                        >
-                          {tag}
-                        </span>
-                      ))}
-                    </div>
-                    <div className="flex items-center gap-4">
-                      <button className="flex items-center gap-1.5 text-sm text-[var(--oaria-text-secondary)] hover:text-[var(--oaria-teal)] transition-colors">
-                        <ThumbsUp size={16} />
-                        {paper.likes}
-                      </button>
-                      <button className="flex items-center gap-1.5 text-sm text-[var(--oaria-text-secondary)] hover:text-[var(--oaria-teal)] transition-colors">
-                        <Bookmark size={16} />
-                        Bookmark
-                      </button>
-                      {paper.hasResources && (
-                        <button className="flex items-center gap-1.5 text-sm text-[var(--oaria-text-secondary)] hover:text-[var(--oaria-teal)] transition-colors">
-                          <Link2 size={16} />
-                          Resources
-                        </button>
-                      )}
+            {isLoading ? (
+              // Loading skeleton
+              <div className="space-y-3">
+                {[1, 2, 3].map((i) => (
+                  <div
+                    key={i}
+                    className="animate-pulse rounded-xl border-2 border-[var(--oaria-border-strong)] bg-[var(--background)] p-5"
+                  >
+                    <div className="flex gap-6">
+                      <div className="flex-1 space-y-3">
+                        <div className="h-6 w-3/4 rounded bg-[var(--oaria-border)]" />
+                        <div className="h-4 w-1/2 rounded bg-[var(--oaria-border)]" />
+                        <div className="space-y-2">
+                          <div className="h-4 w-full rounded bg-[var(--oaria-border)]" />
+                          <div className="h-4 w-2/3 rounded bg-[var(--oaria-border)]" />
+                        </div>
+                      </div>
+                      <div className="hidden h-40 w-32 rounded-lg bg-[var(--oaria-border)] md:block" />
                     </div>
                   </div>
-                  {/* Paper Thumbnail */}
-                  <div className="hidden md:block w-32 h-40 bg-[var(--oaria-border)]/30 rounded-lg flex-shrink-0 relative overflow-hidden">
-                    <div className="absolute top-2 right-2 bg-[var(--oaria-coral)] text-white text-xs px-2 py-0.5 rounded-full flex items-center gap-1">
-                      <Flame size={10} />
-                      {paper.likes}
-                    </div>
-                    <div className="h-full flex items-center justify-center">
-                      <FileText
-                        size={32}
-                        className="text-[var(--oaria-tagline)]"
-                      />
-                    </div>
-                  </div>
-                </div>
-                {/* Arrow Button */}
-                <button className="absolute right-4 bottom-4 w-8 h-8 rounded-full bg-[var(--oaria-teal)] text-white flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity">
-                  <ChevronRight size={18} />
-                </button>
-              </article>
-            ))}
+                ))}
+              </div>
+            ) : error ? (
+              // Error state
+              <div className="rounded-xl border-2 border-red-200 bg-red-50 p-8 text-center">
+                <p className="text-red-600">논문을 불러오는 중 오류가 발생했습니다.</p>
+                <p className="mt-2 text-sm text-red-400">잠시 후 다시 시도해 주세요.</p>
+              </div>
+            ) : papers && papers.length > 0 ? (
+              // Paper list
+              papers.map((paper) => <PaperCard key={paper.id} paper={paper} />)
+            ) : (
+              // Empty state
+              <div className="rounded-xl border-2 border-[var(--oaria-border-strong)] bg-[var(--background)] p-8 text-center">
+                <FileText size={48} className="mx-auto mb-4 text-[var(--oaria-tagline)]" />
+                <p className="text-[var(--oaria-text-secondary)]">
+                  {debouncedQuery
+                    ? `"${debouncedQuery}"에 대한 검색 결과가 없습니다.`
+                    : "수집된 논문이 없습니다."}
+                </p>
+              </div>
+            )}
           </div>
         </div>
       </div>

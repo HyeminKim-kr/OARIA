@@ -2,7 +2,7 @@
 
 > **논문 메타데이터 및 관련 테이블**
 >
-> **Last Updated**: 2026-01-01
+> **Last Updated**: 2026-01-14
 >
 > **Owner**: Backend (Alembic)
 
@@ -20,6 +20,7 @@
 | `paper_authors` | 논문 저자 정보 |
 | `paper_sections` | 논문 섹션 오프셋 정보 (청킹용) |
 | `paper_relations` | 논문 간 관계 (정정/철회/코멘트) |
+| `paper_citations` | 논문 인용 관계 (Citations/References) |
 
 ---
 
@@ -60,6 +61,12 @@
 | has_correction | `BOOLEAN` | YES | `FALSE` | 정정(Correction) 존재 여부 |
 | has_erratum | `BOOLEAN` | YES | `FALSE` | 오류정정(Erratum) 존재 여부 |
 | has_retraction | `BOOLEAN` | YES | `FALSE` | 철회(Retraction) 여부 |
+| has_pdf | `BOOLEAN` | YES | `FALSE` | PDF 존재 여부 |
+| pdf_size | `INTEGER` | YES | - | PDF 파일 크기 (bytes) |
+| pdf_hash | `VARCHAR(64)` | YES | - | PDF SHA256 해시 |
+| pdf_downloaded_at | `TIMESTAMPTZ` | YES | - | PDF 다운로드 시각 |
+| citation_count | `INTEGER` | YES | `0` | 인용 수 (이 논문을 인용한 논문 수) |
+| reference_count | `INTEGER` | YES | `0` | 참조 수 (이 논문이 인용한 논문 수) |
 | created_at | `TIMESTAMPTZ` | YES | `NOW()` | 생성 시각 |
 | updated_at | `TIMESTAMPTZ` | YES | `NOW()` | 수정 시각 |
 
@@ -135,6 +142,12 @@ CREATE TABLE papers (
     has_correction BOOLEAN DEFAULT FALSE,
     has_erratum BOOLEAN DEFAULT FALSE,
     has_retraction BOOLEAN DEFAULT FALSE,
+    has_pdf BOOLEAN DEFAULT FALSE,
+    pdf_size INTEGER,
+    pdf_hash VARCHAR(64),
+    pdf_downloaded_at TIMESTAMPTZ,
+    citation_count INTEGER DEFAULT 0,
+    reference_count INTEGER DEFAULT 0,
     created_at TIMESTAMPTZ DEFAULT NOW(),
     updated_at TIMESTAMPTZ DEFAULT NOW()
 );
@@ -197,6 +210,64 @@ ON paper_relations(source_pmid, target_pmid, relation_type);
 
 CREATE INDEX idx_paper_relations_target ON paper_relations(target_pmid);
 CREATE INDEX idx_paper_relations_source ON paper_relations(source_pmid);
+```
+
+---
+
+## paper_citations (논문 인용)
+
+논문 간의 인용/참조 관계를 저장합니다. Citations(이 논문을 인용한 논문)와 References(이 논문이 인용한 논문) 모두 저장합니다.
+
+### 컬럼 정의
+
+| 컬럼 | 타입 | Nullable | 기본값 | 설명 |
+|------|------|----------|--------|------|
+| **id** | `UUID` | NO | `gen_random_uuid()` | Primary Key |
+| **source_paper_id** | `VARCHAR(100)` | NO | - | 인용하는 논문 (citing paper) |
+| **target_paper_id** | `VARCHAR(100)` | NO | - | 인용되는 논문 (cited paper) |
+| source_pmcid | `VARCHAR(20)` | YES | - | Source PMCID |
+| source_pmid | `VARCHAR(20)` | YES | - | Source PMID |
+| target_pmcid | `VARCHAR(20)` | YES | - | Target PMCID |
+| target_pmid | `VARCHAR(20)` | YES | - | Target PMID |
+| **collected_from** | `VARCHAR(100)` | NO | - | 어떤 논문 수집 시 발견됨 |
+| created_at | `TIMESTAMPTZ` | YES | `NOW()` | 생성 시각 |
+
+### 관계 의미
+
+- **Citations 수집**: 논문 A를 인용한 논문 B들 → `(source=B, target=A, collected_from=A)`
+- **References 수집**: 논문 A가 인용한 논문 C들 → `(source=A, target=C, collected_from=A)`
+
+### 인덱스
+
+```sql
+-- 유니크 제약 (중복 방지)
+CREATE UNIQUE INDEX uq_paper_citations ON paper_citations(source_paper_id, target_paper_id);
+
+-- 조회용 인덱스
+CREATE INDEX idx_paper_citations_source ON paper_citations(source_paper_id);
+CREATE INDEX idx_paper_citations_target ON paper_citations(target_paper_id);
+CREATE INDEX idx_paper_citations_collected ON paper_citations(collected_from);
+```
+
+### DDL
+
+```sql
+CREATE TABLE paper_citations (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    source_paper_id VARCHAR(100) NOT NULL,
+    target_paper_id VARCHAR(100) NOT NULL,
+    source_pmcid VARCHAR(20),
+    source_pmid VARCHAR(20),
+    target_pmcid VARCHAR(20),
+    target_pmid VARCHAR(20),
+    collected_from VARCHAR(100) NOT NULL,
+    created_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+CREATE UNIQUE INDEX uq_paper_citations ON paper_citations(source_paper_id, target_paper_id);
+CREATE INDEX idx_paper_citations_source ON paper_citations(source_paper_id);
+CREATE INDEX idx_paper_citations_target ON paper_citations(target_paper_id);
+CREATE INDEX idx_paper_citations_collected ON paper_citations(collected_from);
 ```
 
 ---

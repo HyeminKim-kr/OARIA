@@ -265,3 +265,107 @@ export function ApiPapersCancelEmbedJob() {
     }),
   );
 }
+
+// ─────────────────────────────────────────────────────────────
+// PDF 관련 엔드포인트
+// ─────────────────────────────────────────────────────────────
+
+export function ApiPapersCheckPdfExists() {
+  return applyDecorators(
+    ApiBearerAuth('access-token'),
+    ApiOperation({
+      summary: 'PDF 존재 여부 확인',
+      description: '논문의 PDF 파일 존재 여부와 크기를 확인합니다.',
+    }),
+    ApiParam({
+      name: 'id',
+      description: '논문 UUID',
+      type: 'string',
+      format: 'uuid',
+    }),
+    ApiResponse({
+      status: 200,
+      description: 'PDF 존재 여부 및 크기',
+    }),
+    ApiResponse({
+      status: 404,
+      description: '논문을 찾을 수 없음',
+    }),
+  );
+}
+
+export function ApiPapersGetPdfUrl() {
+  return applyDecorators(
+    ApiBearerAuth('access-token'),
+    ApiOperation({
+      summary: 'PDF Presigned URL 조회',
+      description: '논문 PDF 다운로드를 위한 Presigned URL을 생성합니다.',
+    }),
+    ApiParam({
+      name: 'id',
+      description: '논문 UUID',
+      type: 'string',
+      format: 'uuid',
+    }),
+    ApiResponse({
+      status: 200,
+      description: 'Presigned URL 및 만료 시간',
+    }),
+    ApiResponse({
+      status: 404,
+      description: '논문 또는 PDF를 찾을 수 없음',
+    }),
+  );
+}
+
+// ─────────────────────────────────────────────────────────────
+// Citations/References 관련 엔드포인트
+// ─────────────────────────────────────────────────────────────
+
+export function ApiPapersGetCitations() {
+  return applyDecorators(
+    ApiBearerAuth('access-token'),
+    ApiOperation({
+      summary: '인용 논문 목록 (Citations)',
+      description: '이 논문을 인용한 다른 논문들의 목록을 조회합니다.',
+    }),
+    ApiParam({
+      name: 'id',
+      description: '논문 UUID',
+      type: 'string',
+      format: 'uuid',
+    }),
+    ApiResponse({
+      status: 200,
+      description: '인용 논문 목록',
+    }),
+    ApiResponse({
+      status: 404,
+      description: '논문을 찾을 수 없음',
+    }),
+  );
+}
+
+export function ApiPapersGetReferences() {
+  return applyDecorators(
+    ApiBearerAuth('access-token'),
+    ApiOperation({
+      summary: '참조 논문 목록 (References)',
+      description: '이 논문이 인용한 다른 논문들의 목록을 조회합니다.',
+    }),
+    ApiParam({
+      name: 'id',
+      description: '논문 UUID',
+      type: 'string',
+      format: 'uuid',
+    }),
+    ApiResponse({
+      status: 200,
+      description: '참조 논문 목록',
+    }),
+    ApiResponse({
+      status: 404,
+      description: '논문을 찾을 수 없음',
+    }),
+  );
+}

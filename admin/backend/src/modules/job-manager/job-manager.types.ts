@@ -69,6 +69,8 @@ export interface JobStateResult {
   startedAt: string | null;
   completedAt: string | null;
   heartbeat: string | null;
+  // 추가 필드 (2026-01-15)
+  chunkCount: number | null;
 }
 
 /**

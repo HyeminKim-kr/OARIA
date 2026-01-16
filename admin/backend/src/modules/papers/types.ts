@@ -57,6 +57,25 @@ export interface PaperStats {
   byYear: { year: number; count: number }[];
   recentCount: number;
   embedding: EmbeddingStats;
+  pdf: PdfStats;
+  citations: CitationStats;
+}
+
+/**
+ * PDF 통계
+ */
+export interface PdfStats {
+  withPdf: number;
+  withoutPdf: number;
+  totalSize: number;
+}
+
+/**
+ * 인용 통계
+ */
+export interface CitationStats {
+  total: number;
+  avgPerPaper: number;
 }
 
 /**
@@ -101,6 +120,10 @@ export interface EmbedJobState {
   error: string;
   startedAt: string | null;
   completedAt: string | null;
+  // 추가 필드 (2026-01-15)
+  createdAt: string | null;
+  chunkCount: number | null;
+  heartbeat: string | null;
 }
 
 /**
@@ -143,4 +166,40 @@ export interface FulltextResult {
   fulltext: string | null;
   rawXml: string | null;
   display: DisplayData | null;
+}
+
+/**
+ * 인용 논문 정보
+ */
+export interface CitationItem {
+  id: string;
+  paperId: string;
+  pmcid: string | null;
+  pmid: string | null;
+  collectedFrom: string;
+  createdAt: Date;
+}
+
+/**
+ * 인용 목록 결과
+ */
+export interface CitationListResult {
+  items: CitationItem[];
+  total: number;
+}
+
+/**
+ * PDF URL 결과
+ */
+export interface PdfUrlResult {
+  url: string;
+  expiresIn: number;
+}
+
+/**
+ * PDF 존재 여부 결과
+ */
+export interface PdfExistsResult {
+  hasPdf: boolean;
+  pdfSize: number | null;
 }

@@ -2,6 +2,7 @@
 
 import logging
 import time
+from collections.abc import AsyncGenerator
 from dataclasses import dataclass
 from typing import Any, Generator
 
@@ -75,13 +76,13 @@ class AgentService:
             logger.info("Agent graph (no synth) compiled successfully")
         return self._graph_no_synth
 
-    def execute(
+    async def execute(
         self,
         query: str,
         conversation_id: str | None = None,
     ) -> AgentResult:
         """
-        Execute the agent workflow synchronously.
+        Execute the agent workflow asynchronously.
 
         Args:
             query: User's question
@@ -95,9 +96,9 @@ class AgentService:
         # Create initial state
         initial_state = create_initial_state(query, conversation_id)
 
-        # Run the graph
+        # Run the graph (비동기)
         graph = self._get_graph()
-        final_state = graph.invoke(initial_state)
+        final_state = await graph.ainvoke(initial_state)
 
         # Calculate total duration
         total_duration_ms = int((time.perf_counter() - start_time) * 1000)
@@ -114,16 +115,15 @@ class AgentService:
             agent_execution=agent_execution,
         )
 
-    def execute_stream(
+    async def execute_stream(
         self,
         query: str,
         conversation_id: str | None = None,
-    ) -> Generator[AgentEvent, None, AgentResult]:
+    ) -> AsyncGenerator[AgentEvent, None]:
         """
-        Execute the agent workflow with streaming events.
+        Execute the agent workflow with streaming events (비동기).
 
         Yields AgentEvent objects for real-time progress updates.
-        Returns AgentResult when complete.
 
         Uses a graph WITHOUT synthesis, then manually streams synthesis
         for real-time token output.
@@ -133,10 +133,7 @@ class AgentService:
             conversation_id: Optional conversation context
 
         Yields:
-            AgentEvent for each step
-
-        Returns:
-            Final AgentResult
+            AgentEvent for each step (마지막에 result 이벤트 포함)
         """
         from .nodes.synthesizer import synthesize_answer_stream
 
@@ -154,15 +151,16 @@ class AgentService:
             data={"step": "analyzing", "message": "쿼리 복잡도 분석 중..."},
         )
 
-        # Execute graph and capture intermediate states
+        # Execute graph and capture intermediate states (비동기)
         final_state = initial_state
-        for state_update in graph.stream(initial_state):
+        async for state_update in graph.astream(initial_state):
             # state_update is dict with node_name: state
             for node_name, state in state_update.items():
                 final_state = {**final_state, **state}
 
                 # Emit events based on which node just completed
-                yield from self._emit_node_events(node_name, state)
+                for event in self._emit_node_events(node_name, state):
+                    yield event
 
         # Now manually stream synthesis with real-time tokens
         yield AgentEvent(
@@ -170,24 +168,26 @@ class AgentService:
             data={"step": "synthesizing", "message": "결과 종합 중..."},
         )
 
-        # Stream synthesis and collect final answer
+        # Stream synthesis and collect final answer (비동기)
         final_answer_parts = []
         all_citations = []
 
-        synth_gen = synthesize_answer_stream(final_state)
-        try:
-            while True:
-                token = next(synth_gen)
-                final_answer_parts.append(token)
-                yield AgentEvent(
-                    event_type="token",
-                    data={"token": token},
-                )
-        except StopIteration as e:
-            # Generator returned the final state with citations
-            synth_result = e.value
-            if synth_result:
-                all_citations = synth_result.get("citations", [])
+        # Collect references from task results for citations
+        task_results = final_state.get("task_results", {})
+        seen_refs = set()
+        for result in task_results.values():
+            for ref in result.references:
+                ref_key = (ref.paper_id, ref.chunk_id)
+                if ref_key not in seen_refs:
+                    seen_refs.add(ref_key)
+                    all_citations.append(ref)
+
+        async for token in synthesize_answer_stream(final_state):
+            final_answer_parts.append(token)
+            yield AgentEvent(
+                event_type="token",
+                data={"token": token},
+            )
 
         final_answer = "".join(final_answer_parts)
 
@@ -201,14 +201,18 @@ class AgentService:
         # Build metadata
         agent_execution = self._build_execution_metadata(final_state, total_duration_ms)
 
-        # Return final result
-        return AgentResult(
-            answer=final_answer,
-            references=all_citations,
-            complexity=final_state.get("complexity", ComplexityLevel.SIMPLE),
-            subtasks=final_state.get("subtasks", []),
-            total_duration_ms=total_duration_ms,
-            agent_execution=agent_execution,
+        # Yield final result as special event
+        yield AgentEvent(
+            event_type="result",
+            data={
+                "answer": final_answer,
+                "references": [ref.model_dump() for ref in all_citations],
+                "complexity": final_state.get("complexity", ComplexityLevel.SIMPLE).value
+                if hasattr(final_state.get("complexity"), "value")
+                else str(final_state.get("complexity", "simple")),
+                "subtasks_count": len(final_state.get("subtasks", [])),
+                "total_duration_ms": total_duration_ms,
+            },
         )
 
     def _emit_node_events(

@@ -134,7 +134,7 @@ class GenerateTestResponse(BaseModel):
 
 
 @router.post("/search", response_model=SearchTestResponse)
-def test_search(request: SearchTestRequest):
+async def test_search(request: SearchTestRequest):
     """RAG 검색 테스트
 
     쿼리에 대한 검색 결과(청크)를 반환합니다.
@@ -162,8 +162,8 @@ def test_search(request: SearchTestRequest):
                 classifier_latency_ms=classify_latency_ms,
             )
 
-        # 1. 쿼리 임베딩
-        query_vector = embedding_service.embed_text(request.query)
+        # 1. 쿼리 임베딩 (비동기)
+        query_vector = await embedding_service.embed_text(request.query)
 
         # 2. 하이브리드 검색 (Reranker 사용 시 더 많이 가져옴)
         search_limit = request.limit * 3 if request.use_reranker else request.limit
@@ -732,7 +732,7 @@ def cancel_sample_embed(embedding_id: str):
 
 
 @router.post("/generate", response_model=GenerateTestResponse)
-def test_generate(request: GenerateTestRequest):
+async def test_generate(request: GenerateTestRequest):
     """RAG + LLM 답변 생성 테스트
 
     검색 후 LLM으로 답변을 생성합니다.
@@ -788,8 +788,8 @@ def test_generate(request: GenerateTestRequest):
                 classifier_latency_ms=classify_latency_ms,
             )
 
-        # 1. RAG 검색 (Reranker 옵션 포함)
-        retrieval_result = rag_service.retrieve(
+        # 1. RAG 검색 (Reranker 옵션 포함) - 비동기
+        retrieval_result = await rag_service.retrieve(
             query=request.query,
             use_reranker=request.use_reranker,
             collection_name=request.collection_name,
@@ -799,11 +799,11 @@ def test_generate(request: GenerateTestRequest):
         rerank_latency_ms = retrieval_result.rerank_latency_ms
         llm_start = time.perf_counter()
 
-        # 2. LLM 답변 생성 (스트리밍 대신 전체 응답)
+        # 2. LLM 답변 생성 (스트리밍 대신 전체 응답) - 비동기
         full_content = ""
         usage = None
 
-        for chunk in llm_service.generate_stream(
+        async for chunk in llm_service.generate_stream(
             question=request.query,
             context=retrieval_result.context,
             references=retrieval_result.references,

@@ -1,11 +1,11 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { Search, Play, RotateCcw, Loader2, Square, RefreshCw } from 'lucide-react';
-import { papersApi, EmbedJobState } from '@/lib/api';
+import { Search, Play, Loader2, Square, RefreshCw } from 'lucide-react';
+import { papersApi } from '@/lib/api';
 import { formatNumber } from '@/lib/utils';
-import { PaperListItem, EmbeddingFilterTabs, Pagination } from './_components';
+import { PaperListItem, EmbeddingFilterTabs, Pagination, EmbedJobCard } from './_components';
 
 type EmbeddingStatusFilter = 'all' | 'not_started' | 'pending' | 'processing' | 'completed' | 'failed';
 
@@ -107,6 +107,13 @@ export default function PapersPage() {
     },
   });
 
+  // 처리 중인 작업이 있으면 자동으로 패널 열기
+  useEffect(() => {
+    if (stats?.embedding?.processing && stats.embedding.processing > 0) {
+      setShowJobs(true);
+    }
+  }, [stats?.embedding?.processing]);
+
   const handleSearch = (e: React.FormEvent) => {
     e.preventDefault();
     setSearch(searchInput);
@@ -121,21 +128,6 @@ export default function PapersPage() {
   // 대기 중인 논문 수 (not_started + pending + failed)
   const pendingCount = (stats?.embedding?.notStarted || 0) + (stats?.embedding?.pending || 0) + (stats?.embedding?.failed || 0);
   const hasProcessingJobs = (stats?.embedding?.processing || 0) > 0;
-
-  const getJobStatusBadge = (status: string) => {
-    switch (status) {
-      case 'processing':
-        return 'bg-blue-100 text-blue-800';
-      case 'completed':
-        return 'bg-green-100 text-green-800';
-      case 'failed':
-        return 'bg-red-100 text-red-800';
-      case 'cancelled':
-        return 'bg-gray-100 text-gray-800';
-      default:
-        return 'bg-yellow-100 text-yellow-800';
-    }
-  };
 
   return (
     <div className="space-y-6">
@@ -194,76 +186,37 @@ export default function PapersPage() {
 
       {/* Job Manager V2 - 작업 목록 패널 */}
       {showJobs && (
-        <div className="rounded-lg border border-gray-200 bg-white p-4 shadow-sm">
-          <div className="mb-3 flex items-center justify-between">
+        <div className="rounded-lg border border-gray-200 bg-gray-50 p-4">
+          <div className="mb-4 flex items-center justify-between">
             <h3 className="text-sm font-medium text-gray-900">
-              진행 중인 임베딩 작업 ({jobsData?.total || 0})
+              임베딩 작업 현황 ({jobsData?.total || 0})
             </h3>
             <button
               onClick={() => refetchJobs()}
-              className="text-sm text-blue-600 hover:text-blue-800"
+              className="inline-flex items-center gap-1 text-sm text-blue-600 hover:text-blue-800"
             >
+              <RefreshCw className="h-3 w-3" />
               새로고침
             </button>
           </div>
 
           {jobsData?.jobs && jobsData.jobs.length > 0 ? (
-            <div className="space-y-2">
-              {jobsData.jobs.map((job: EmbedJobState) => (
-                <div
+            <div className="space-y-3">
+              {jobsData.jobs.map((job) => (
+                <EmbedJobCard
                   key={job.jobId}
-                  className="flex items-center justify-between rounded-md border border-gray-100 bg-gray-50 p-3"
-                >
-                  <div className="flex items-center gap-3">
-                    <span
-                      className={`inline-flex rounded-full px-2 py-1 text-xs font-medium ${getJobStatusBadge(
-                        job.status
-                      )}`}
-                    >
-                      {job.status}
-                    </span>
-                    <span className="text-sm text-gray-600">
-                      {job.jobId.slice(0, 20)}...
-                    </span>
-                    <span className="text-sm text-gray-500">
-                      진행: {job.progress}/{job.total}
-                    </span>
-                    {job.retryCount > 0 && (
-                      <span className="text-xs text-orange-600">
-                        재시도: {job.retryCount}
-                      </span>
-                    )}
-                    {job.error && (
-                      <span className="text-xs text-red-600" title={job.error}>
-                        오류 있음
-                      </span>
-                    )}
-                  </div>
-                  <div className="flex gap-2">
-                    {(job.status === 'failed' || job.status === 'cancelled') && (
-                      <button
-                        onClick={() => retryJobMutation.mutate(job.jobId)}
-                        disabled={retryJobMutation.isPending}
-                        className="rounded bg-orange-500 px-2 py-1 text-xs text-white hover:bg-orange-600 disabled:opacity-50"
-                      >
-                        재시도
-                      </button>
-                    )}
-                    {job.status === 'processing' && (
-                      <button
-                        onClick={() => cancelJobMutation.mutate(job.jobId)}
-                        disabled={cancelJobMutation.isPending}
-                        className="rounded bg-red-500 px-2 py-1 text-xs text-white hover:bg-red-600 disabled:opacity-50"
-                      >
-                        취소
-                      </button>
-                    )}
-                  </div>
-                </div>
+                  job={job}
+                  onRetry={(jobId) => retryJobMutation.mutate(jobId)}
+                  onCancel={(jobId) => cancelJobMutation.mutate(jobId)}
+                  isRetrying={retryJobMutation.isPending}
+                  isCancelling={cancelJobMutation.isPending}
+                />
               ))}
             </div>
           ) : (
-            <p className="text-sm text-gray-500">현재 진행 중인 작업이 없습니다.</p>
+            <div className="rounded-lg border border-dashed border-gray-300 bg-white p-6 text-center text-sm text-gray-500">
+              현재 진행 중인 작업이 없습니다.
+            </div>
           )}
         </div>
       )}
