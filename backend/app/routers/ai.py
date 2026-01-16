@@ -106,8 +106,9 @@ async def ask_ai(
                 }, ensure_ascii=False),
             }
 
-            # Off-domain이면 RAG 파이프라인 스킵 (비용 절약)
-            if gate_classification.category != "oncology":
+            # Off-domain이고 is_allowed=False면 RAG 파이프라인 스킵 (비용 절약)
+            # Note: warn 모드에서는 is_allowed=True이므로 RAG 진행됨
+            if not gate_classification.is_allowed:
                 warning_message = get_full_warning_text(
                     category=gate_classification.category,
                     confidence=gate_classification.confidence,
