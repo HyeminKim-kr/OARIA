@@ -257,6 +257,18 @@ class AgentService:
         elif node_name == "execute_tasks" or node_name == "direct_rag":
             task_results = state.get("task_results", {})
             for task_id, result in task_results.items():
+                # Emit Gate 2 validation result (OAR-12)
+                if result.gate2_passed is not None:
+                    yield AgentEvent(
+                        event_type="gate2",
+                        data={
+                            "task_id": task_id,
+                            "passed": result.gate2_passed,
+                            "reason": result.gate2_reason,
+                            "message": result.content if not result.gate2_passed else None,
+                        },
+                    )
+
                 yield AgentEvent(
                     event_type="task_complete",
                     data={
@@ -266,6 +278,7 @@ class AgentService:
                         else result.content,
                         "references_count": len(result.references),
                         "duration_ms": result.duration_ms,
+                        "gate2_passed": result.gate2_passed,
                     },
                 )
 

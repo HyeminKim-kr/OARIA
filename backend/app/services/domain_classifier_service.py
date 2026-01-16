@@ -24,7 +24,8 @@ if TYPE_CHECKING:
 logger = logging.getLogger(__name__)
 
 # 기본 분류기 (DB 설정이 없거나 로드되기 전 사용)
-DEFAULT_CLASSIFIER = "pubmedbert_domain_v1"
+# multilingual_v1: 한국어/영어 모두 지원하는 다국어 모델
+DEFAULT_CLASSIFIER = "multilingual_v1"
 
 
 class DomainClassifierService:

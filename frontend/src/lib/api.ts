@@ -1,6 +1,10 @@
 import axios from "axios";
 
-const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
+// 서버사이드(SSR)에서는 Docker 내부 통신용 API_URL 사용
+// 클라이언트(브라우저)에서는 NEXT_PUBLIC_API_URL 사용
+const API_BASE_URL = typeof window === "undefined"
+  ? (process.env.API_URL || process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000")
+  : (process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000");
 
 export const api = axios.create({
   baseURL: API_BASE_URL,
@@ -183,11 +187,26 @@ export interface PaperDetail extends Paper {
 }
 
 // Display (fulltext) Types
+
+// DisplayContent: 문단 또는 Figure (XML 순서대로)
+export interface DisplayContent {
+  type: 'paragraph' | 'figure';
+  // paragraph인 경우
+  text?: string;
+  // figure인 경우
+  id?: string;
+  label?: string;
+  caption?: string;
+  graphic_href?: string;
+}
+
 export interface DisplaySection {
   name: string;
   title: string;
-  paragraphs: { text: string }[];
-  figures: Figure[];  // 섹션 내 인라인 Figure
+  contents?: DisplayContent[];  // XML 순서대로 문단/Figure 혼합
+  // Legacy fields (하위 호환)
+  paragraphs?: { text: string }[];
+  figures?: Figure[];
 }
 
 // Figure (Hotlink 이미지용)

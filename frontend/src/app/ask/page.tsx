@@ -62,12 +62,20 @@ interface SubTask {
   status?: "pending" | "running" | "completed";
 }
 
+interface Gate2Status {
+  task_id: string;
+  passed: boolean;
+  reason: string | null;
+  message: string | null;
+}
+
 interface AgentProgress {
   complexity?: {
     level: string;
     reasoning: string;
   };
   subtasks?: SubTask[];
+  gate2?: Gate2Status;
 }
 
 interface GateClassification {
@@ -271,6 +279,19 @@ export default function AskPage() {
                 }));
               }
 
+              // gate2 이벤트 (검색 품질 검증 결과 - OAR-12)
+              if (data.passed !== undefined && data.task_id && data.reason !== undefined) {
+                setAgentProgress((prev) => ({
+                  ...prev,
+                  gate2: {
+                    task_id: data.task_id,
+                    passed: data.passed,
+                    reason: data.reason,
+                    message: data.message,
+                  },
+                }));
+              }
+
               // task_complete 이벤트 (태스크 완료)
               if (data.task_id && data.summary !== undefined) {
                 setAgentProgress((prev) => {
@@ -462,7 +483,17 @@ export default function AskPage() {
                                         Off-domain Query Detected
                                       </div>
                                       <p className="font-[family-name:var(--font-dm-sans)] text-sm text-amber-700 mt-1">
-                                        {gateClassification.warning || `이 질문은 ${gateClassification.category} 분야로 분류되었습니다. OARIA는 종양학(암 연구) 전문 AI로, 답변의 정확도가 낮을 수 있습니다.`}
+                                        {gateClassification.warning || (
+                                          gateClassification.category === "non_medical"
+                                            ? "이 질문은 의학과 관련이 없는 것으로 보입니다. OARIA는 종양학(암 연구) 전문 AI입니다."
+                                            : gateClassification.category === "cardiology"
+                                            ? "이 질문은 심장학 분야로 분류되었습니다. OARIA는 종양학(암 연구) 전문 AI로, 답변의 정확도가 낮을 수 있습니다."
+                                            : gateClassification.category === "neurology"
+                                            ? "이 질문은 신경학 분야로 분류되었습니다. OARIA는 종양학(암 연구) 전문 AI로, 답변의 정확도가 낮을 수 있습니다."
+                                            : gateClassification.category === "general_medicine"
+                                            ? "이 질문은 일반 의학 분야로 분류되었습니다. OARIA는 종양학(암 연구) 전문 AI로, 답변의 정확도가 낮을 수 있습니다."
+                                            : "OARIA는 종양학(암 연구) 전문 AI로, 이 질문에 대한 답변의 정확도가 낮을 수 있습니다."
+                                        )}
                                       </p>
                                     </div>
                                   </div>
@@ -564,7 +595,7 @@ export default function AskPage() {
                             ? "bg-green-100 text-green-700"
                             : agentProgress.complexity.level === "medium"
                             ? "bg-yellow-100 text-yellow-700"
-                            : "bg-red-100 text-red-700"
+                            : "bg-purple-100 text-purple-700"
                         }`}>
                           {agentProgress.complexity.level.toUpperCase()} Query
                         </span>
@@ -599,6 +630,34 @@ export default function AskPage() {
                             </span>
                           </div>
                         ))}
+                      </div>
+                    )}
+
+                    {/* Gate 2: Retrieval Confidence (OAR-12) */}
+                    {agentProgress.gate2 && (
+                      <div className={`mt-3 pt-3 border-t border-[var(--oaria-border)] flex items-center gap-2 ${
+                        agentProgress.gate2.passed ? "text-green-600" : "text-amber-600"
+                      }`}>
+                        {agentProgress.gate2.passed ? (
+                          <>
+                            <span className="w-5 h-5 rounded-full bg-green-500 flex items-center justify-center">
+                              <span className="text-white text-xs">✓</span>
+                            </span>
+                            <span className="text-sm font-medium">Gate 2: 검색 품질 검증 통과</span>
+                          </>
+                        ) : (
+                          <>
+                            <AlertTriangle size={18} className="text-amber-500" />
+                            <div className="flex-1">
+                              <span className="text-sm font-medium">Gate 2: 검색 품질 미달</span>
+                              <p className="text-xs text-amber-700 mt-0.5">
+                                {agentProgress.gate2.reason === "low_similarity" && "관련 논문을 충분히 찾지 못했습니다."}
+                                {agentProgress.gate2.reason === "insufficient_docs" && "충분한 근거 논문을 찾지 못했습니다."}
+                                {agentProgress.gate2.reason === "domain_mismatch" && "검색 결과가 암 연구와 관련성이 낮습니다."}
+                              </p>
+                            </div>
+                          </>
+                        )}
                       </div>
                     )}
                   </div>

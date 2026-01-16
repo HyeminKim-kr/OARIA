@@ -50,18 +50,13 @@ RUN addgroup --system --gid 1001 nodejs && \
 # standalone 출력물 복사
 COPY --from=builder --chown=nextjs:nodejs /app/.next/standalone ./
 COPY --from=builder --chown=nextjs:nodejs /app/.next/static ./.next/static
-# public 폴더가 비어있어도 복사 (빈 폴더 허용)
 COPY --from=builder --chown=nextjs:nodejs /app/public ./public
 
 # non-root user로 전환
 USER nextjs
 
-EXPOSE 13001
-ENV PORT=13001
+EXPOSE 3000
+ENV PORT=3000
 ENV HOSTNAME="0.0.0.0"
-
-# 헬스체크
-HEALTHCHECK --interval=30s --timeout=10s --start-period=5s --retries=3 \
-    CMD wget --no-verbose --tries=1 --spider http://localhost:13001 || exit 1
 
 CMD ["node", "server.js"]
