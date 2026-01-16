@@ -1,9 +1,6 @@
 "use client";
 
-import { useState, useCallback } from "react";
-import { Document, Page, pdfjs } from "react-pdf";
-import "react-pdf/dist/Page/AnnotationLayer.css";
-import "react-pdf/dist/Page/TextLayer.css";
+import { useState, useCallback, useEffect } from "react";
 import {
   ChevronLeft,
   ChevronRight,
@@ -14,8 +11,9 @@ import {
   AlertCircle,
 } from "lucide-react";
 
-// PDF.js worker 설정
-pdfjs.GlobalWorkerOptions.workerSrc = `//unpkg.com/pdfjs-dist@${pdfjs.version}/build/pdf.worker.min.mjs`;
+// react-pdf CSS (클라이언트 전용)
+import "react-pdf/dist/Page/AnnotationLayer.css";
+import "react-pdf/dist/Page/TextLayer.css";
 
 interface PDFViewerProps {
   url: string;
@@ -23,20 +21,49 @@ interface PDFViewerProps {
   onDownload?: () => void;
 }
 
-export function PDFViewer({ url, title, onDownload }: PDFViewerProps) {
+export function PDFViewer({ url, onDownload }: PDFViewerProps) {
   const [numPages, setNumPages] = useState<number | null>(null);
   const [pageNumber, setPageNumber] = useState(1);
   const [scale, setScale] = useState(1.0);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [pdfReady, setPdfReady] = useState(false);
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const [PdfComponents, setPdfComponents] = useState<{ Document: any; Page: any } | null>(null);
+
+  // 클라이언트에서만 react-pdf 로드
+  useEffect(() => {
+    const loadPdf = async () => {
+      try {
+        const pdfjs = await import("pdfjs-dist");
+        // Worker 설정
+        pdfjs.GlobalWorkerOptions.workerSrc = `//unpkg.com/pdfjs-dist@${pdfjs.version}/build/pdf.worker.min.mjs`;
+
+        // react-pdf 컴포넌트 로드
+        const reactPdf = await import("react-pdf");
+
+        setPdfComponents({
+          Document: reactPdf.Document,
+          Page: reactPdf.Page,
+        });
+        setPdfReady(true);
+      } catch (err) {
+        console.error("Failed to load PDF.js:", err);
+        setError("PDF 뷰어를 로드하는데 실패했습니다.");
+        setIsLoading(false);
+      }
+    };
+
+    loadPdf();
+  }, []);
 
   const onDocumentLoadSuccess = useCallback(({ numPages }: { numPages: number }) => {
     setNumPages(numPages);
     setIsLoading(false);
   }, []);
 
-  const onDocumentLoadError = useCallback((error: Error) => {
-    console.error("PDF load error:", error);
+  const onDocumentLoadError = useCallback((err: Error) => {
+    console.error("PDF load error:", err);
     setError("PDF를 불러오는데 실패했습니다.");
     setIsLoading(false);
   }, []);
@@ -126,7 +153,7 @@ export function PDFViewer({ url, title, onDownload }: PDFViewerProps) {
 
       {/* PDF Content */}
       <div className="flex-1 overflow-auto bg-gray-100 flex justify-center">
-        {isLoading && (
+        {(isLoading || !pdfReady) && !error && (
           <div className="flex items-center justify-center py-20">
             <Loader2 size={48} className="animate-spin text-[var(--oaria-teal)]" />
           </div>
@@ -139,22 +166,24 @@ export function PDFViewer({ url, title, onDownload }: PDFViewerProps) {
           </div>
         )}
 
-        <Document
-          file={url}
-          onLoadSuccess={onDocumentLoadSuccess}
-          onLoadError={onDocumentLoadError}
-          loading={null}
-          error={null}
-          className={isLoading || error ? "hidden" : "py-4"}
-        >
-          <Page
-            pageNumber={pageNumber}
-            scale={scale}
-            renderTextLayer={true}
-            renderAnnotationLayer={true}
-            className="shadow-lg"
-          />
-        </Document>
+        {pdfReady && PdfComponents && (
+          <PdfComponents.Document
+            file={url}
+            onLoadSuccess={onDocumentLoadSuccess}
+            onLoadError={onDocumentLoadError}
+            loading={null}
+            error={null}
+            className={isLoading || error ? "hidden" : "py-4"}
+          >
+            <PdfComponents.Page
+              pageNumber={pageNumber}
+              scale={scale}
+              renderTextLayer={true}
+              renderAnnotationLayer={true}
+              className="shadow-lg"
+            />
+          </PdfComponents.Document>
+        )}
       </div>
     </div>
   );
