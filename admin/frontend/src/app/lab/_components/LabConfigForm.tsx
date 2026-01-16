@@ -6,20 +6,18 @@ import {
   Zap,
   Loader2,
   HelpCircle,
-  ChevronDown,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { Tooltip } from './Tooltip';
 import { SearchConfigPanel } from './SearchConfigPanel';
 import { TestMode, LabConfig, SearchConfig } from '../_lib';
-import { StrategiesResponse, SampleEmbedding } from '@/lib/api';
+import { SampleEmbedding } from '@/lib/api';
 
 interface LabConfigFormProps {
   mode: TestMode;
   config: LabConfig;
   isLoading: boolean;
   isAvailable: boolean;
-  strategies?: StrategiesResponse;
   sampleEmbeddings?: SampleEmbedding[];
   onModeChange: (mode: TestMode) => void;
   onConfigChange: (updates: Partial<LabConfig>) => void;
@@ -33,7 +31,6 @@ export function LabConfigForm({
   config,
   isLoading,
   isAvailable,
-  strategies,
   sampleEmbeddings,
   onModeChange,
   onConfigChange,
@@ -41,7 +38,6 @@ export function LabConfigForm({
   onConfigBChange,
   onTest,
 }: LabConfigFormProps) {
-  const rerankerOptions = strategies?.rerankers ?? ['bge', 'none'];
 
   return (
     <div className="rounded-lg bg-white p-6 shadow">
@@ -143,38 +139,6 @@ export function LabConfigForm({
                   <span className="text-xs text-gray-500">벡터</span>
                 </div>
               </div>
-
-              {/* Reranker */}
-              <div>
-                <label className="flex items-center gap-1 text-sm font-medium text-gray-700">
-                  Reranker
-                  <Tooltip content="검색 결과 재정렬 모델">
-                    <HelpCircle className="h-3.5 w-3.5 cursor-help text-gray-400" />
-                  </Tooltip>
-                </label>
-                <div className="relative mt-1">
-                  <select
-                    value={config.useReranker ? config.reranker : 'none'}
-                    onChange={(e) => {
-                      const value = e.target.value;
-                      if (value === 'none') {
-                        onConfigChange({ useReranker: false });
-                      } else {
-                        onConfigChange({ useReranker: true, reranker: value });
-                      }
-                    }}
-                    className="appearance-none rounded-md border border-gray-300 bg-white px-3 py-2 pr-8 text-sm focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
-                  >
-                    <option value="none">미사용</option>
-                    {rerankerOptions.filter(r => r !== 'none').map((reranker) => (
-                      <option key={reranker} value={reranker}>
-                        {reranker.toUpperCase()}
-                      </option>
-                    ))}
-                  </select>
-                  <ChevronDown className="pointer-events-none absolute right-2 top-1/2 h-4 w-4 -translate-y-1/2 text-gray-400" />
-                </div>
-              </div>
             </div>
           </div>
         )}
@@ -186,10 +150,8 @@ export function LabConfigForm({
             <div className="rounded-lg border-2 border-blue-200 bg-blue-50/50 p-4">
               <SearchConfigPanel
                 config={config.configA}
-                rerankerOptions={rerankerOptions}
                 sampleEmbeddings={sampleEmbeddings}
                 label="설정 A"
-                compact
                 onChange={onConfigAChange}
               />
             </div>
@@ -198,10 +160,8 @@ export function LabConfigForm({
             <div className="rounded-lg border-2 border-green-200 bg-green-50/50 p-4">
               <SearchConfigPanel
                 config={config.configB}
-                rerankerOptions={rerankerOptions}
                 sampleEmbeddings={sampleEmbeddings}
                 label="설정 B"
-                compact
                 onChange={onConfigBChange}
               />
             </div>
