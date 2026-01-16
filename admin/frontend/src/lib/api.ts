@@ -1,6 +1,10 @@
 import axios from 'axios';
 
-const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:13000';
+// 서버사이드(SSR)에서는 Docker 내부 통신용 API_URL 사용
+// 클라이언트(브라우저)에서는 NEXT_PUBLIC_API_URL 사용
+const API_BASE_URL = typeof window === 'undefined'
+  ? (process.env.API_URL || process.env.NEXT_PUBLIC_API_URL || 'http://localhost:13000')
+  : (process.env.NEXT_PUBLIC_API_URL || 'http://localhost:13000');
 
 export const api = axios.create({
   baseURL: API_BASE_URL,

@@ -1,0 +1,121 @@
+# ============================================================
+# 개발 앱 서비스 (Hot Reload 지원)
+# docker-compose.dev.yml
+# ============================================================
+#
+# 사용법:
+#   docker compose -f docker-compose.yml -f docker-compose.dev.yml up -d
+#   또는: ./scripts/dev.sh docker-dev start
+#
+# 환경변수 파일:
+#   - .env: Celery 배치용 공통 설정 (OPENAI_API_KEY 등)
+#   - backend/.env.docker: User Backend Docker 설정
+#   - admin/backend/.env.docker: Admin Backend Docker 설정
+#
+# ============================================================
+
+services:
+  # ========================================
+  # Service Backend (FastAPI) - Dev Mode
+  # ========================================
+  service-backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile.dev
+    container_name: oaria-service-backend-dev
+    env_file:
+      - .env                      # 공통 (OPENAI_API_KEY 등)
+      - ./backend/.env            # 기본 설정 (localhost)
+      - ./backend/.env.docker     # Docker 덮어쓰기 (컨테이너 이름)
+    ports:
+      - "8000:8000"
+    volumes:
+      - ./backend/app:/app/app:cached
+      - ./backend/alembic:/app/alembic:cached
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      minio:
+        condition: service_healthy
+      weaviate:
+        condition: service_healthy
+    restart: unless-stopped
+
+  # ========================================
+  # Service Frontend (Next.js) - Dev Mode
+  # ========================================
+  service-frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile.dev
+    container_name: oaria-service-frontend-dev
+    env_file:
+      - .env
+    ports:
+      - "3000:3000"
+    volumes:
+      - ./frontend/src:/app/src:cached
+      - ./frontend/public:/app/public:cached
+    environment:
+      - NODE_ENV=development
+      # 클라이언트(브라우저)용 - .env에서 설정 또는 기본값
+      - NEXT_PUBLIC_API_URL=${NEXT_PUBLIC_API_URL:-http://localhost:8000}
+      # 서버사이드(SSR)용 - Docker 내부 통신
+      - API_URL=http://service-backend:8000
+    depends_on:
+      - service-backend
+    restart: unless-stopped
+
+  # ========================================
+  # Admin Backend (NestJS) - Dev Mode
+  # ========================================
+  admin-backend:
+    build:
+      context: ./admin/backend
+      dockerfile: Dockerfile.dev
+    container_name: oaria-admin-backend-dev
+    env_file:
+      - .env                           # 공통 (OPENAI_API_KEY 등)
+      - ./admin/backend/.env           # 기본 설정 (localhost)
+      - ./admin/backend/.env.docker    # Docker 덮어쓰기 (컨테이너 이름)
+    ports:
+      - "13000:13000"
+    volumes:
+      - ./admin/backend/src:/app/src:cached
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      weaviate:
+        condition: service_healthy
+      flower:
+        condition: service_healthy
+    restart: unless-stopped
+
+  # ========================================
+  # Admin Frontend (Next.js) - Dev Mode
+  # ========================================
+  admin-frontend:
+    build:
+      context: ./admin/frontend
+      dockerfile: Dockerfile.dev
+    container_name: oaria-admin-frontend-dev
+    env_file:
+      - .env
+    ports:
+      - "13001:13001"
+    volumes:
+      - ./admin/frontend/src:/app/src:cached
+      - ./admin/frontend/public:/app/public:cached
+    environment:
+      - NODE_ENV=development
+      # 클라이언트(브라우저)용 - .env에서 설정 또는 기본값
+      - NEXT_PUBLIC_API_URL=${NEXT_PUBLIC_ADMIN_API_URL:-http://localhost:13000}
+      # 서버사이드(SSR)용 - Docker 내부 통신
+      - API_URL=http://admin-backend:13000
+    depends_on:
+      - admin-backend
+    restart: unless-stopped

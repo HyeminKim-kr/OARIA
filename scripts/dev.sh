@@ -1,12 +1,29 @@
 #!/bin/bash
 
+# ============================================================
 # OARIA 개발 환경 시작 및 모니터링 스크립트
-# Usage:
-#   ./scripts/dev.sh start     - 모든 서비스 시작
-#   ./scripts/dev.sh stop      - 모든 서비스 중지
-#   ./scripts/dev.sh status    - 서비스 상태 확인
-#   ./scripts/dev.sh logs      - 실시간 로그 모니터링
-#   ./scripts/dev.sh restart   - 모든 서비스 재시작
+# ============================================================
+#
+# 기본 명령어 (인터랙티브):
+#   ./scripts/dev.sh start     - 개발 환경 시작 (로컬/Docker 선택)
+#   ./scripts/dev.sh stop      - 개발 환경 중지
+#   ./scripts/dev.sh restart   - 재시작
+#   ./scripts/dev.sh status    - 상태 확인
+#   ./scripts/dev.sh logs      - 로그 보기
+#   ./scripts/dev.sh monitor   - 실시간 모니터링
+#
+# Docker 모드 (직접 실행):
+#   ./scripts/dev.sh prod start/stop/restart        - 프로덕션 모드
+#   ./scripts/dev.sh docker-dev start/stop/restart  - 개발 모드 (Hot Reload)
+#
+# 개별 제어 (로컬):
+#   ./scripts/dev.sh docker start/stop   - 인프라만 (DB, Redis 등)
+#   ./scripts/dev.sh admin start/stop    - Admin 서비스만
+#   ./scripts/dev.sh service start/stop  - User 서비스만
+#   ./scripts/dev.sh install             - 의존성 설치
+#   ./scripts/dev.sh migrate             - DB 마이그레이션
+#
+# ============================================================
 
 set -e
 
@@ -84,7 +101,7 @@ wait_for_port() {
     fi
 }
 
-# Docker 서비스 시작
+# Docker 서비스 시작 (인프라만)
 start_docker() {
     print_header "Docker Compose 시작 (인프라 + 배치)"
 
@@ -106,6 +123,74 @@ start_docker() {
             echo -e "${RED}timeout${NC}"
         fi
     done
+}
+
+# Docker 프로덕션 모드 시작
+start_docker_prod() {
+    print_header "Docker Compose 시작 (프로덕션 모드)"
+
+    cd "$PROJECT_ROOT"
+
+    echo -e "  ${YELLOW}▸${NC} 인프라 + 앱 서비스 빌드 및 실행 중..."
+    docker compose -f docker-compose.yml -f docker-compose.prod.yml up -d --build
+
+    echo -e "  ${YELLOW}▸${NC} 서비스 헬스체크 대기 중..."
+
+    # 모든 서비스 대기
+    local services=("postgres:15432" "redis:16379" "weaviate:18080" "minio:19000" "service-backend:8000" "service-frontend:3000" "admin-backend:13000" "admin-frontend:13001")
+    for svc in "${services[@]}"; do
+        IFS=':' read -r name port <<< "$svc"
+        printf "    - %-20s" "$name"
+        if wait_for_port $port $name 30; then
+            echo -e "${GREEN}ready${NC}"
+        else
+            echo -e "${RED}timeout${NC}"
+        fi
+    done
+
+    echo -e "\n  ${GREEN}✓${NC} 프로덕션 모드 시작 완료"
+}
+
+# Docker 프로덕션 모드 중지
+stop_docker_prod() {
+    print_header "Docker Compose 중지 (프로덕션 모드)"
+    cd "$PROJECT_ROOT"
+    docker compose -f docker-compose.yml -f docker-compose.prod.yml down
+    echo -e "  ${GREEN}✓${NC} 프로덕션 서비스 중지됨"
+}
+
+# Docker 개발 모드 시작
+start_docker_dev() {
+    print_header "Docker Compose 시작 (개발 모드 - Hot Reload)"
+
+    cd "$PROJECT_ROOT"
+
+    echo -e "  ${YELLOW}▸${NC} 인프라 + 개발 앱 서비스 빌드 및 실행 중..."
+    docker compose -f docker-compose.yml -f docker-compose.dev.yml up -d --build
+
+    echo -e "  ${YELLOW}▸${NC} 서비스 헬스체크 대기 중..."
+
+    # 모든 서비스 대기
+    local services=("postgres:15432" "redis:16379" "weaviate:18080" "minio:19000" "service-backend:8000" "service-frontend:3000" "admin-backend:13000" "admin-frontend:13001")
+    for svc in "${services[@]}"; do
+        IFS=':' read -r name port <<< "$svc"
+        printf "    - %-20s" "$name"
+        if wait_for_port $port $name 30; then
+            echo -e "${GREEN}ready${NC}"
+        else
+            echo -e "${RED}timeout${NC}"
+        fi
+    done
+
+    echo -e "\n  ${GREEN}✓${NC} 개발 모드 시작 완료 (볼륨 마운트로 Hot Reload 지원)"
+}
+
+# Docker 개발 모드 중지
+stop_docker_dev() {
+    print_header "Docker Compose 중지 (개발 모드)"
+    cd "$PROJECT_ROOT"
+    docker compose -f docker-compose.yml -f docker-compose.dev.yml down
+    echo -e "  ${GREEN}✓${NC} 개발 서비스 중지됨"
 }
 
 # Docker 서비스 중지
@@ -448,9 +533,36 @@ monitor() {
     done
 }
 
-# 모든 서비스 시작
-start_all() {
-    print_header "OARIA 개발 환경 시작"
+# 개발 모드 선택 메뉴
+select_dev_mode() {
+    echo -e "\n${CYAN}개발 환경 선택${NC}"
+    echo ""
+    echo "  1) 로컬 모드    - 호스트에서 직접 실행 (npm run dev, uvicorn)"
+    echo "  2) Docker 모드  - Docker 컨테이너에서 실행 (Hot Reload 지원)"
+    echo "  q) 취소"
+    echo ""
+    read -p "선택 (1-2, q): " choice
+
+    case $choice in
+        1)
+            start_all_local
+            ;;
+        2)
+            start_docker_dev
+            ;;
+        q)
+            echo -e "  ${YELLOW}취소됨${NC}"
+            return
+            ;;
+        *)
+            echo -e "  ${RED}잘못된 선택입니다${NC}"
+            ;;
+    esac
+}
+
+# 로컬 모드로 모든 서비스 시작
+start_all_local() {
+    print_header "OARIA 개발 환경 시작 (로컬 모드)"
     echo -e "  시작 시간: $(date '+%Y-%m-%d %H:%M:%S')"
 
     install_dependencies
@@ -466,11 +578,53 @@ start_all() {
     show_status
 }
 
-# 모든 서비스 중지
-stop_all() {
-    print_header "OARIA 개발 환경 중지"
+# 모든 서비스 시작 (선택 메뉴)
+start_all() {
+    select_dev_mode
+}
+
+# 중지 모드 선택 메뉴
+select_stop_mode() {
+    echo -e "\n${CYAN}중지할 환경 선택${NC}"
+    echo ""
+    echo "  1) 로컬 모드    - 로컬 프로세스 + 인프라 Docker 중지"
+    echo "  2) Docker 모드  - Docker 컨테이너 전체 중지"
+    echo "  3) 전체 중지    - 로컬 + Docker 모두 중지"
+    echo "  q) 취소"
+    echo ""
+    read -p "선택 (1-3, q): " choice
+
+    case $choice in
+        1)
+            stop_all_local
+            ;;
+        2)
+            stop_docker_dev
+            ;;
+        3)
+            stop_all_local
+            stop_docker_dev 2>/dev/null || true
+            ;;
+        q)
+            echo -e "  ${YELLOW}취소됨${NC}"
+            return
+            ;;
+        *)
+            echo -e "  ${RED}잘못된 선택입니다${NC}"
+            ;;
+    esac
+}
+
+# 로컬 모드 중지
+stop_all_local() {
+    print_header "OARIA 개발 환경 중지 (로컬 모드)"
     stop_dev_servers
     stop_docker
+}
+
+# 모든 서비스 중지 (선택 메뉴)
+stop_all() {
+    select_stop_mode
 }
 
 # 메인 명령어 처리
@@ -500,6 +654,30 @@ case "${1:-}" in
             start) start_docker ;;
             stop) stop_docker ;;
             *) echo "Usage: $0 docker [start|stop]" ;;
+        esac
+        ;;
+    prod)
+        case "${2:-}" in
+            start) start_docker_prod ;;
+            stop) stop_docker_prod ;;
+            restart)
+                stop_docker_prod
+                sleep 2
+                start_docker_prod
+                ;;
+            *) echo "Usage: $0 prod [start|stop|restart]" ;;
+        esac
+        ;;
+    docker-dev)
+        case "${2:-}" in
+            start) start_docker_dev ;;
+            stop) stop_docker_dev ;;
+            restart)
+                stop_docker_dev
+                sleep 2
+                start_docker_dev
+                ;;
+            *) echo "Usage: $0 docker-dev [start|stop|restart]" ;;
         esac
         ;;
     admin)
@@ -537,19 +715,23 @@ case "${1:-}" in
     *)
         echo -e "${CYAN}OARIA 개발 환경 관리 스크립트${NC}"
         echo ""
-        echo "사용법:"
-        echo "  $0 start        모든 서비스 시작 (패키지 설치 + 마이그레이션 포함)"
-        echo "  $0 stop         모든 서비스 중지"
-        echo "  $0 restart      모든 서비스 재시작"
+        echo -e "${BLUE}기본 명령어 (인터랙티브 선택):${NC}"
+        echo "  $0 start        개발 환경 시작 (로컬/Docker 선택)"
+        echo "  $0 stop         개발 환경 중지 (로컬/Docker 선택)"
+        echo "  $0 restart      개발 환경 재시작"
         echo "  $0 status       서비스 상태 확인"
         echo "  $0 logs         로그 보기"
         echo "  $0 monitor      실시간 모니터링 (5초마다 갱신)"
-        echo "  $0 install      의존성 패키지 설치 (npm install, uv sync)"
-        echo "  $0 migrate      DB 마이그레이션만 실행"
         echo ""
-        echo "개별 제어:"
-        echo "  $0 docker start/stop    Docker만 시작/중지"
-        echo "  $0 admin start/stop     Admin 서비스만 시작/중지"
-        echo "  $0 service start/stop   User 서비스만 시작/중지"
+        echo -e "${BLUE}직접 실행 (선택 없이):${NC}"
+        echo "  $0 prod start/stop/restart         프로덕션 모드 (Docker)"
+        echo "  $0 docker-dev start/stop/restart   개발 모드 (Docker + Hot Reload)"
+        echo ""
+        echo -e "${BLUE}개별 제어:${NC}"
+        echo "  $0 docker start/stop    인프라만 시작/중지 (DB, Redis 등)"
+        echo "  $0 admin start/stop     Admin 서비스만 시작/중지 (로컬)"
+        echo "  $0 service start/stop   User 서비스만 시작/중지 (로컬)"
+        echo "  $0 install              의존성 패키지 설치"
+        echo "  $0 migrate              DB 마이그레이션만 실행"
         ;;
 esac
