@@ -1,9 +1,17 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback, useRef } from "react";
 import { papersApi, type SimilarPaper, type SimilarPapersResponse } from "@/lib/api";
 
 type SourceType = "hybrid" | "citation" | "reference" | "vector";
+
+// 소스별 로딩 상태
+interface SourceLoadingState {
+  data: SimilarPapersResponse | null;
+  isLoading: boolean;
+  error: string | null;
+  loaded: boolean; // 최초 로드 완료 여부 (캐싱)
+}
 
 interface SimilarPapersProps {
   paperId: string; // UUID
@@ -131,35 +139,84 @@ function SimilarPaperCard({ paper }: { paper: SimilarPaper }) {
 }
 
 export function SimilarPapers({ paperId, className = "" }: SimilarPapersProps) {
-  const [activeSource, setActiveSource] = useState<SourceType>("hybrid");
-  const [data, setData] = useState<SimilarPapersResponse | null>(null);
-  const [isLoading, setIsLoading] = useState(false);
-  const [error, setError] = useState<string | null>(null);
+  // 기본 탭: References (빠른 DB 조회)
+  const [activeSource, setActiveSource] = useState<SourceType>("reference");
 
+  // 소스별 독립 상태 관리 (캐싱)
+  const [sourceStates, setSourceStates] = useState<Record<SourceType, SourceLoadingState>>({
+    reference: { data: null, isLoading: false, error: null, loaded: false },
+    citation: { data: null, isLoading: false, error: null, loaded: false },
+    vector: { data: null, isLoading: false, error: null, loaded: false },
+    hybrid: { data: null, isLoading: false, error: null, loaded: false },
+  });
+
+  // paperId가 변경되면 모든 캐시 초기화
+  const prevPaperIdRef = useRef<string>(paperId);
   useEffect(() => {
-    async function fetchSimilar() {
-      setIsLoading(true);
-      setError(null);
-
-      try {
-        const result = await papersApi.getSimilar(paperId, activeSource);
-        setData(result);
-      } catch (err) {
-        console.error("Failed to fetch similar papers:", err);
-        setError("유사 논문을 불러오는데 실패했습니다.");
-      } finally {
-        setIsLoading(false);
-      }
+    if (prevPaperIdRef.current !== paperId) {
+      prevPaperIdRef.current = paperId;
+      setSourceStates({
+        reference: { data: null, isLoading: false, error: null, loaded: false },
+        citation: { data: null, isLoading: false, error: null, loaded: false },
+        vector: { data: null, isLoading: false, error: null, loaded: false },
+        hybrid: { data: null, isLoading: false, error: null, loaded: false },
+      });
     }
+  }, [paperId]);
 
-    fetchSimilar();
-  }, [paperId, activeSource]);
+  // 특정 소스의 데이터 로드
+  const loadSource = useCallback(async (source: SourceType) => {
+    // 함수형 업데이트로 현재 상태 확인 및 중복 로드 방지
+    setSourceStates(prev => {
+      // 이미 로드됨 또는 로딩 중이면 스킵
+      if (prev[source].loaded || prev[source].isLoading) {
+        return prev;
+      }
+      // 로딩 시작
+      return {
+        ...prev,
+        [source]: { ...prev[source], isLoading: true, error: null }
+      };
+    });
 
-  const tabs: { key: SourceType; label: string; count?: number }[] = [
-    { key: "hybrid", label: "Hybrid" },
-    { key: "citation", label: "Citations" },
+    try {
+      const result = await papersApi.getSimilar(paperId, source);
+      setSourceStates(prev => {
+        // 이미 loaded가 true면 무시 (경쟁 상태 방지)
+        if (prev[source].loaded) return prev;
+        return {
+          ...prev,
+          [source]: { data: result, isLoading: false, error: null, loaded: true }
+        };
+      });
+    } catch (err) {
+      console.error(`Failed to fetch ${source} papers:`, err);
+      setSourceStates(prev => ({
+        ...prev,
+        [source]: {
+          ...prev[source],
+          isLoading: false,
+          error: "유사 논문을 불러오는데 실패했습니다.",
+          loaded: false
+        }
+      }));
+    }
+  }, [paperId]); // sourceStates 의존성 제거
+
+  // 탭 변경 시 해당 소스 로드
+  useEffect(() => {
+    loadSource(activeSource);
+  }, [activeSource, loadSource]);
+
+  // 현재 활성 탭의 상태
+  const currentState = sourceStates[activeSource];
+
+  // 탭 순서: References 먼저 (빠름), 그 다음 Citations, Vector, Hybrid
+  const tabs: { key: SourceType; label: string }[] = [
     { key: "reference", label: "References" },
+    { key: "citation", label: "Citations" },
     { key: "vector", label: "Vector" },
+    { key: "hybrid", label: "Hybrid" },
   ];
 
   return (
@@ -180,6 +237,7 @@ export function SimilarPapers({ paperId, className = "" }: SimilarPapersProps) {
         {tabs.map((tab) => {
           const style = sourceStyles[tab.key];
           const isActive = activeSource === tab.key;
+          const tabState = sourceStates[tab.key];
           return (
             <button
               key={tab.key}
@@ -191,10 +249,14 @@ export function SimilarPapers({ paperId, className = "" }: SimilarPapersProps) {
               }`}
             >
               {tab.label}
-              {data && activeSource === tab.key && (
+              {/* 로드된 탭은 카운트 표시, 로딩 중이면 스피너 */}
+              {tabState.loaded && tabState.data && (
                 <span className="ml-1.5 px-1.5 py-0.5 text-xs rounded-full bg-black/10 dark:bg-white/10">
-                  {data.total}
+                  {tabState.data.total}
                 </span>
+              )}
+              {tabState.isLoading && (
+                <span className="ml-1.5 w-3 h-3 inline-block border border-current border-t-transparent rounded-full animate-spin" />
               )}
             </button>
           );
@@ -203,14 +265,17 @@ export function SimilarPapers({ paperId, className = "" }: SimilarPapersProps) {
 
       {/* Content */}
       <div className="space-y-3">
-        {isLoading ? (
-          <div className="flex justify-center py-8">
+        {currentState.isLoading ? (
+          <div className="flex flex-col items-center justify-center py-8 gap-2">
             <div className="w-8 h-8 border-2 border-[var(--oaria-teal)] border-t-transparent rounded-full animate-spin" />
+            <span className="text-sm text-gray-500">
+              {activeSource === 'hybrid' ? '여러 소스에서 데이터를 가져오는 중...' : '데이터를 가져오는 중...'}
+            </span>
           </div>
-        ) : error ? (
-          <div className="text-center py-8 text-gray-500">{error}</div>
-        ) : data && data.items.length > 0 ? (
-          data.items.map((paper, idx) => (
+        ) : currentState.error ? (
+          <div className="text-center py-8 text-gray-500">{currentState.error}</div>
+        ) : currentState.data && currentState.data.items.length > 0 ? (
+          currentState.data.items.map((paper, idx) => (
             <SimilarPaperCard key={`${paper.pmcid || paper.pmid || idx}`} paper={paper} />
           ))
         ) : (
