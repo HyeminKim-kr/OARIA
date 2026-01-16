@@ -1,4 +1,19 @@
-"""PubMedBERT 기반 Zero-shot 도메인 분류기"""
+"""Multilingual Zero-shot 도메인 분류기
+
+다국어 mDeBERTa 모델을 사용하여 한국어/영어 모두 잘 처리합니다.
+PubMedBERT 분류기의 한국어 한계를 극복하기 위한 대안입니다.
+
+스펙:
+- 모델: MoritzLaurer/mDeBERTa-v3-base-xnli-multilingual-nli-2mil7
+- 지원 언어: 100+ (한국어, 영어, 일본어, 중국어 등)
+- 분류 클래스: oncology, cardiology, neurology, general medicine, non-medical
+- 키워드 프리필터: 빠른 oncology 탐지
+
+사용법:
+    from app.rag import get_classifier
+    classifier = get_classifier("multilingual_v1")
+    result = classifier.classify("EGFR 변이 폐암 치료")
+"""
 
 import logging
 import os
@@ -12,66 +27,64 @@ logger = logging.getLogger(__name__)
 
 
 def _get_best_device() -> int:
-    """최적의 디바이스 선택
-
-    Returns:
-        -1: CPU, 0+: GPU 인덱스 (transformers pipeline용)
-    """
+    """최적의 디바이스 선택"""
     try:
         import torch
 
         if torch.cuda.is_available():
             return 0  # GPU
         elif hasattr(torch.backends, "mps") and torch.backends.mps.is_available():
-            return 0  # Apple Silicon (MPS도 0으로)
+            return 0  # Apple Silicon
     except ImportError:
         pass
     return -1  # CPU
 
 
 @register_classifier
-class PubMedBERTDomainClassifier:
-    """Zero-shot Oncology 도메인 분류기
+class MultilingualDomainClassifier:
+    """다국어 Zero-shot Oncology 도메인 분류기
 
-    Zero-shot Classification을 사용하여 쿼리가 Oncology 도메인인지 분류합니다.
-    Off-domain 쿼리는 경고 로그를 남기고 RAG 파이프라인 진행을 허용합니다.
+    MoritzLaurer/mDeBERTa-v3-base-xnli-multilingual-nli-2mil7 모델을 사용하여
+    한국어와 영어 모두 정확하게 분류합니다.
 
-    스펙:
-    - 모델: facebook/bart-large-mnli (Zero-shot Classification)
-    - 분류 클래스: oncology, cardiology, neurology, general medicine, non-medical
-    - Lazy Loading: 첫 호출 시 모델 로드
-    - GPU/MPS/CPU 자동 감지
+    장점:
+    - 한국어 쿼리를 정확하게 oncology로 분류
+    - 100+ 언어 지원
+    - 키워드 프리필터로 빠른 분류
+
+    단점:
+    - 첫 로딩 시 모델 다운로드 필요 (~860MB)
+    - bart-large-mnli보다 약간 느림
 
     사용법:
         from app.rag import get_classifier
-        classifier = get_classifier("pubmedbert_domain_v1")
-        result = classifier.classify("EGFR mutation lung cancer treatment")
+        classifier = get_classifier("multilingual_v1")
+        result = classifier.classify("면역항암제의 부작용")
     """
 
-    name = "pubmedbert_domain_v1"
+    name = "multilingual_v1"
 
-    # 분류 후보 레이블
-    # Note: Zero-shot 모델이 키워드 기반으로 분류하므로 관련 용어를 충분히 포함
+    # 분류 후보 레이블 - 더 명확하게 구분되도록 설계
     CANDIDATE_LABELS = [
-        # 종양학: 암 종류 + 치료법 키워드 포함
-        "oncology cancer tumor chemotherapy immunotherapy radiation targeted therapy carcinoma lymphoma leukemia melanoma sarcoma",
-        # 심장학
-        "cardiology heart cardiovascular arrhythmia hypertension coronary",
-        # 신경학
-        "neurology brain nervous system stroke epilepsy alzheimer parkinson",
-        # 일반 의학
-        "general medicine healthcare diagnosis symptoms treatment medical",
-        # 비의료
-        "non-medical unrelated daily life food weather sports entertainment",
+        # Oncology - cancer specific terms
+        "oncology cancer tumor chemotherapy immunotherapy radiation targeted therapy carcinoma lymphoma leukemia melanoma sarcoma metastasis",
+        # Cardiology - heart specific
+        "cardiology heart cardiac cardiovascular arrhythmia hypertension coronary myocardial infarction",
+        # Neurology - brain/nerve specific
+        "neurology brain nervous system stroke epilepsy alzheimer parkinson dementia seizure",
+        # General medicine - actual medical topics
+        "general medicine doctor hospital patient diagnosis symptoms prescription medication clinic",
+        # Non-medical - everyday life, NOT medicine at all
+        "not medical question about daily life cooking recipe food weather sports movie music travel shopping pizza restaurant",
     ]
 
     # 레이블 -> 카테고리 매핑
     LABEL_TO_CATEGORY = {
-        "oncology cancer tumor chemotherapy immunotherapy radiation targeted therapy carcinoma lymphoma leukemia melanoma sarcoma": "oncology",
-        "cardiology heart cardiovascular arrhythmia hypertension coronary": "cardiology",
-        "neurology brain nervous system stroke epilepsy alzheimer parkinson": "neurology",
-        "general medicine healthcare diagnosis symptoms treatment medical": "general_medicine",
-        "non-medical unrelated daily life food weather sports entertainment": "non_medical",
+        "oncology cancer tumor chemotherapy immunotherapy radiation targeted therapy carcinoma lymphoma leukemia melanoma sarcoma metastasis": "oncology",
+        "cardiology heart cardiac cardiovascular arrhythmia hypertension coronary myocardial infarction": "cardiology",
+        "neurology brain nervous system stroke epilepsy alzheimer parkinson dementia seizure": "neurology",
+        "general medicine doctor hospital patient diagnosis symptoms prescription medication clinic": "general_medicine",
+        "not medical question about daily life cooking recipe food weather sports movie music travel shopping pizza restaurant": "non_medical",
     }
 
     # 허용되는 도메인
@@ -102,14 +115,14 @@ class PubMedBERTDomainClassifier:
 
     def __init__(
         self,
-        model_name: str = "facebook/bart-large-mnli",
+        model_name: str = "MoritzLaurer/mDeBERTa-v3-base-xnli-multilingual-nli-2mil7",
         threshold: float = 0.3,
         device: int | None = None,
     ):
         """분류기 초기화
 
         Args:
-            model_name: Zero-shot 분류 모델 이름
+            model_name: 다국어 Zero-shot 분류 모델
             threshold: 허용 도메인 판정 임계값 (기본 0.3)
             device: 디바이스 인덱스 (-1=CPU, 0+=GPU). None이면 자동 감지
         """
@@ -120,7 +133,7 @@ class PubMedBERTDomainClassifier:
         # Lazy loading
         self._pipeline = None
         self._enabled = os.getenv("DOMAIN_CLASSIFIER_ENABLED", "true").lower() == "true"
-        self._mode = os.getenv("DOMAIN_CLASSIFIER_MODE", "warn")  # warn | block
+        self._mode = os.getenv("DOMAIN_CLASSIFIER_MODE", "warn")
 
     @property
     def device(self) -> int:
@@ -130,11 +143,7 @@ class PubMedBERTDomainClassifier:
         return self._device
 
     def _check_oncology_keywords(self, query: str) -> bool:
-        """Fast keyword-based oncology detection (Korean + English).
-
-        Returns True if query contains any oncology keyword.
-        This bypasses the slow zero-shot model for obvious oncology queries.
-        """
+        """Fast keyword-based oncology detection (Korean + English)."""
         query_lower = query.lower()
         for keyword in self.ONCOLOGY_KEYWORDS:
             if keyword.lower() in query_lower:
@@ -146,7 +155,7 @@ class PubMedBERTDomainClassifier:
         if self._pipeline is not None:
             return
 
-        logger.info(f"[DomainClassifier] Loading model: {self.model_name}")
+        logger.info(f"[MultilingualClassifier] Loading model: {self.model_name}")
         start = time.perf_counter()
 
         try:
@@ -159,11 +168,11 @@ class PubMedBERTDomainClassifier:
             )
 
             elapsed = time.perf_counter() - start
-            device_name = "GPU" if self.device >= 0 else "CPU"
-            logger.info(f"[DomainClassifier] Model loaded in {elapsed:.2f}s on {device_name}")
+            device_name = "GPU/MPS" if self.device >= 0 else "CPU"
+            logger.info(f"[MultilingualClassifier] Model loaded in {elapsed:.2f}s on {device_name}")
 
         except Exception as e:
-            logger.error(f"[DomainClassifier] Failed to load model: {e}")
+            logger.error(f"[MultilingualClassifier] Failed to load model: {e}")
             raise
 
     def classify(self, query: str, **kwargs: Any) -> ClassificationResult:
@@ -193,13 +202,12 @@ class PubMedBERTDomainClassifier:
                 reason="Empty query",
             )
 
-        # Fast path: 키워드 기반 oncology 탐지 (한국어/영어)
-        # Zero-shot 모델이 한국어를 잘 못 이해하므로 키워드로 먼저 체크
+        # Fast path: 키워드 기반 oncology 탐지
         if self._check_oncology_keywords(query):
-            logger.debug(f"[DomainClassifier] Oncology keyword detected in: {query[:50]}...")
+            logger.debug(f"[MultilingualClassifier] Oncology keyword detected: {query[:50]}...")
             return ClassificationResult(
                 category="oncology",
-                confidence=0.95,  # 키워드 매칭은 높은 신뢰도
+                confidence=0.95,
                 is_allowed=True,
                 reason="Oncology keyword detected",
             )
@@ -228,11 +236,11 @@ class PubMedBERTDomainClassifier:
             # 경고 모드에서는 항상 허용하되 로그 남김
             if self._mode == "warn" and not is_allowed:
                 logger.warning(
-                    f"[DomainClassifier] Off-domain query detected: "
+                    f"[MultilingualClassifier] Off-domain query: "
                     f"category={category}, confidence={confidence:.2%}, "
                     f"query={query[:100]}..."
                 )
-                is_allowed = True  # 경고 모드에서는 진행 허용
+                is_allowed = True
 
             reason = None
             if not is_allowed:
@@ -249,7 +257,7 @@ class PubMedBERTDomainClassifier:
             )
 
         except Exception as e:
-            logger.error(f"[DomainClassifier] Classification failed: {e}")
+            logger.error(f"[MultilingualClassifier] Classification failed: {e}")
             # 오류 시 허용 (fail-open)
             return ClassificationResult(
                 category="error",
