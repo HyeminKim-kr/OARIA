@@ -1,8 +1,9 @@
 "use client";
 
 import { useState, useEffect, useRef } from "react";
-import { X, FileText, Loader2 } from "lucide-react";
+import { X, FileText, Loader2, FileType } from "lucide-react";
 import { fetchWithAuth } from "@/lib/api";
+import { PDFViewerModal } from "@/components/pdf/PDFViewerModal";
 
 const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
 
@@ -43,8 +44,30 @@ export function ReferenceModal({ reference, onClose }: ReferenceModalProps) {
   const [sectionContent, setSectionContent] = useState<SectionContent | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [hasPdf, setHasPdf] = useState(false);
+  const [showPdfViewer, setShowPdfViewer] = useState(false);
   const highlightRef = useRef<HTMLDivElement>(null);
   const contentRef = useRef<HTMLDivElement>(null);
+
+  // PDF 존재 여부 확인
+  useEffect(() => {
+    const checkPdfAvailability = async () => {
+      try {
+        const response = await fetchWithAuth(
+          `${API_BASE_URL}/papers/by-paper-id/${encodeURIComponent(reference.paper_id)}/has-pdf`
+        );
+        if (response.ok) {
+          const data = await response.json();
+          setHasPdf(data.has_pdf);
+        }
+      } catch (err) {
+        // PDF 확인 실패 시 무시 (버튼만 숨김)
+        console.debug("PDF availability check failed:", err);
+      }
+    };
+
+    checkPdfAvailability();
+  }, [reference.paper_id]);
 
   useEffect(() => {
     const fetchSectionContent = async () => {
@@ -170,12 +193,27 @@ export function ReferenceModal({ reference, onClose }: ReferenceModalProps) {
               </p>
             </div>
           </div>
-          <button
-            onClick={onClose}
-            className="p-2 rounded-full hover:bg-[var(--oaria-border)]/50 transition-colors flex-shrink-0"
-          >
-            <X size={20} className="text-[var(--oaria-text-secondary)]" />
-          </button>
+          <div className="flex items-center gap-2 flex-shrink-0">
+            {/* PDF 보기 버튼 */}
+            {hasPdf && (
+              <button
+                onClick={() => setShowPdfViewer(true)}
+                className="flex items-center gap-2 px-3 py-2 rounded-lg bg-[var(--oaria-teal)]/10 hover:bg-[var(--oaria-teal)]/20 text-[var(--oaria-teal)] transition-colors"
+                title="PDF 원문 보기"
+              >
+                <FileType size={18} />
+                <span className="font-[family-name:var(--font-dm-sans)] text-sm font-medium">
+                  PDF
+                </span>
+              </button>
+            )}
+            <button
+              onClick={onClose}
+              className="p-2 rounded-full hover:bg-[var(--oaria-border)]/50 transition-colors"
+            >
+              <X size={20} className="text-[var(--oaria-text-secondary)]" />
+            </button>
+          </div>
         </div>
 
         {/* Content */}
@@ -224,6 +262,15 @@ export function ReferenceModal({ reference, onClose }: ReferenceModalProps) {
           </p>
         </div>
       </div>
+
+      {/* PDF Viewer Modal */}
+      {showPdfViewer && (
+        <PDFViewerModal
+          paperId={reference.paper_id}
+          title={reference.title}
+          onClose={() => setShowPdfViewer(false)}
+        />
+      )}
     </div>
   );
 }

@@ -41,7 +41,7 @@ OAR-123
 ### 빠른 시작
 
 ```bash
-# 모든 서비스 시작
+# 개발 환경 시작 (인터랙티브 - 로컬/Docker 선택)
 ./scripts/dev.sh start
 
 # 상태 확인
@@ -50,16 +50,32 @@ OAR-123
 
 ### 명령어
 
+#### 기본 명령어 (인터랙티브 선택)
+
 | 명령어 | 설명 |
 |--------|------|
-| `start` | 모든 서비스 시작 (Docker → Admin → Service) |
-| `stop` | 모든 서비스 중지 |
-| `restart` | 모든 서비스 재시작 |
+| `start` | 개발 환경 시작 (로컬/Docker 선택) |
+| `stop` | 개발 환경 중지 (로컬/Docker 선택) |
+| `restart` | 개발 환경 재시작 |
 | `status` | 서비스 상태 및 URL 확인 |
 | `monitor` | 실시간 모니터링 (5초마다 갱신) |
 | `logs` | 로그 보기 (선택 메뉴) |
 
-### 개별 서비스 제어
+#### Docker 모드 (직접 실행)
+
+```bash
+# 프로덕션 모드 - 빌드된 이미지로 실행
+./scripts/dev.sh prod start
+./scripts/dev.sh prod stop
+./scripts/dev.sh prod restart
+
+# 개발 모드 - Docker + Hot Reload (볼륨 마운트)
+./scripts/dev.sh docker-dev start
+./scripts/dev.sh docker-dev stop
+./scripts/dev.sh docker-dev restart
+```
+
+#### 개별 서비스 제어 (로컬)
 
 ```bash
 # Docker (인프라 + Celery)
@@ -73,6 +89,20 @@ OAR-123
 # User Service (Backend + Frontend)
 ./scripts/dev.sh service start
 ./scripts/dev.sh service stop
+```
+
+### Docker Compose 파일 구성
+
+| 파일 | 용도 |
+|------|------|
+| `docker-compose.yml` | 인프라 + 배치 (기본) |
+| `docker-compose.prod.yml` | 앱 서비스 프로덕션 배포 |
+| `docker-compose.dev.yml` | 앱 서비스 개발 (Hot Reload) |
+
+```bash
+# 수동 실행 예시
+docker compose -f docker-compose.yml -f docker-compose.prod.yml up -d
+docker compose -f docker-compose.yml -f docker-compose.dev.yml up -d
 ```
 
 ### 서비스 구성

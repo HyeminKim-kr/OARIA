@@ -1,6 +1,6 @@
 import { Injectable, NotFoundException, BadRequestException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { Repository } from 'typeorm';
+import { Repository, In } from 'typeorm';
 import { ConfigService } from '@nestjs/config';
 import Redis from 'ioredis';
 import { CollectionJob, JobStatus } from '../../entities/collection-job.entity';
@@ -132,6 +132,20 @@ export class CollectionJobsService {
 
     if (!job.queryId) {
       throw new BadRequestException('Job has no associated query_id');
+    }
+
+    // 같은 queryId에 이미 running/pending Job이 있는지 체크 (중복 실행 방지)
+    const existingRunningJob = await this.repository.findOne({
+      where: {
+        queryId: job.queryId,
+        status: In([JobStatusEnum.RUNNING, JobStatusEnum.PENDING] as JobStatus[]),
+      },
+    });
+
+    if (existingRunningJob) {
+      throw new BadRequestException(
+        `Another job is already running for this query (Job ID: ${existingRunningJob.id})`,
+      );
     }
 
     // 기존 job을 'retried' 상태로 변경 (자동 Retry 대상에서 제외)

@@ -1,0 +1,660 @@
+<!DOCTYPE html>
+<html lang="ko">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>OARIA Agent UI Mockup</title>
+    <!-- Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- Fonts -->
+    <link
+      href="https://fonts.googleapis.com/css2?family=Outfit:wght@400;500;600;700&family=DM+Sans:wght@400;500;700&display=swap"
+      rel="stylesheet"
+    />
+    <!-- D3.js -->
+    <script src="https://d3js.org/d3.v7.min.css"></script>
+    <script src="https://d3js.org/d3.v7.min.js"></script>
+    <!-- Three.js & 3D Force Graph -->
+    <script src="https://unpkg.com/three"></script>
+    <script src="https://unpkg.com/3d-force-graph"></script>
+
+    <style>
+      :root {
+        --oaria-teal: #00c7b1;
+        --oaria-coral: #ff6b6b;
+        --oaria-navy: #1a1f2c;
+        --bg-dark: #0f1115;
+        --glass-border: rgba(255, 255, 255, 0.1);
+        --glass-bg: rgba(20, 24, 33, 0.7);
+      }
+      body {
+        font-family: "DM Sans", sans-serif;
+        background-color: var(--bg-dark);
+        color: white;
+        overflow: hidden;
+      }
+      h1,
+      h2,
+      h3,
+      .heading-font {
+        font-family: "Outfit", sans-serif;
+      }
+      .glass-panel {
+        background: var(--glass-bg);
+        backdrop-filter: blur(12px);
+        -webkit-backdrop-filter: blur(12px);
+        border: 1px solid var(--glass-border);
+        box-shadow: 0 8px 32px 0 rgba(0, 0, 0, 0.3);
+      }
+      .agent-gradient {
+        background: linear-gradient(
+          135deg,
+          rgba(0, 199, 177, 0.1) 0%,
+          rgba(255, 107, 107, 0.05) 100%
+        );
+      }
+      .scrollbar-hide::-webkit-scrollbar {
+        display: none;
+      }
+      .fade-in {
+        animation: fadeIn 0.5s ease-out forwards;
+      }
+      @keyframes fadeIn {
+        from {
+          opacity: 0;
+          transform: translateY(10px);
+        }
+        to {
+          opacity: 1;
+          transform: translateY(0);
+        }
+      }
+      .typing-cursor::after {
+        content: "|";
+        animation: blink 1s step-start infinite;
+      }
+      @keyframes blink {
+        50% {
+          opacity: 0;
+        }
+      }
+    </style>
+  </head>
+  <body class="relative w-full h-screen flex flex-col">
+    <!-- Top Navigation (Mock) -->
+    <nav
+      class="h-16 border-b border-white/10 flex items-center justify-between px-6 bg-[#0F1115]/80 backdrop-blur-md z-50"
+    >
+      <div class="flex items-center gap-3">
+        <div
+          class="w-8 h-8 rounded-full border-2 border-[var(--oaria-teal)] flex items-center justify-center"
+        >
+          <div class="w-2 h-2 rounded-full bg-[var(--oaria-teal)]"></div>
+        </div>
+        <span class="heading-font font-bold text-xl tracking-tight"
+          >OARIA
+          <span class="text-[var(--oaria-teal)] text-sm font-medium ml-1"
+            >RESEARCH</span
+          ></span
+        >
+      </div>
+      <div class="flex items-center gap-4">
+        <div class="w-8 h-8 rounded-full bg-white/10"></div>
+        <div
+          class="w-8 h-8 rounded-full bg-gradient-to-tr from-[var(--oaria-teal)] to-blue-500"
+        ></div>
+      </div>
+    </nav>
+
+    <!-- Main Content Area -->
+    <div class="flex-1 flex overflow-hidden relative">
+      <!-- Left Sidebar (Chat) -->
+      <div
+        class="w-[400px] flex-shrink-0 border-r border-white/10 flex flex-col bg-[#0F1115] z-40 transition-all duration-500"
+        id="chatSidebar"
+      >
+        <div class="p-6 flex-1 overflow-y-auto">
+          <!-- User Message -->
+          <div class="flex justify-end mb-6">
+            <div
+              class="bg-[var(--oaria-teal)] text-white px-5 py-3 rounded-2xl rounded-tr-sm max-w-[90%] shadow-lg"
+            >
+              <p class="text-sm">
+                비소세포폐암(NSCLC) 3기 환자를 위한 최신 면역항암제 치료법
+                트렌드를 알려줘.
+              </p>
+            </div>
+          </div>
+
+          <!-- AI Response -->
+          <div class="flex gap-4 mb-6">
+            <div
+              class="w-8 h-8 rounded-full bg-white/10 flex-shrink-0 flex items-center justify-center"
+            >
+              <span class="text-xs">AI</span>
+            </div>
+            <div class="flex-1 space-y-3">
+              <div
+                class="bg-white/5 border border-white/10 p-5 rounded-2xl rounded-tl-sm text-gray-200 text-sm leading-relaxed"
+              >
+                <p class="mb-3">
+                  비소세포폐암 3기 치료의 최신 트렌드는 방사선 요법과
+                  면역관문억제제의 병용입니다. 특히 Durvalumab 유지 요법이
+                  표준으로 자리잡고 있습니다.
+                </p>
+                <p>
+                  최근 연구들은 선행화학요법(Neoadjuvant) 단계에서의 면역항암제
+                  사용 확대에 주목하고 있습니다.
+                </p>
+              </div>
+
+              <!-- The Trigger Button -->
+              <div class="flex gap-2">
+                <button
+                  id="triggerBtn"
+                  class="group flex items-center gap-2 px-4 py-2 bg-gradient-to-r from-[var(--oaria-teal)]/20 to-[var(--oaria-teal)]/5 border border-[var(--oaria-teal)]/30 rounded-full hover:border-[var(--oaria-teal)] transition-all cursor-pointer"
+                >
+                  <span
+                    class="w-2 h-2 rounded-full bg-[var(--oaria-teal)] group-hover:animate-pulse"
+                  ></span>
+                  <span
+                    class="heading-font text-xs font-semibold text-[var(--oaria-teal)] tracking-wide"
+                    >DEEP DIVE</span
+                  >
+                  <svg
+                    class="w-4 h-4 text-[var(--oaria-teal)] group-hover:translate-x-1 transition-transform"
+                    fill="none"
+                    viewBox="0 0 24 24"
+                    stroke="currentColor"
+                  >
+                    <path
+                      stroke-linecap="round"
+                      stroke-linejoin="round"
+                      stroke-width="2"
+                      d="M13 7l5 5m0 0l-5 5m5-5H6"
+                    />
+                  </svg>
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Chat Input (Mock) -->
+        <div class="p-4 border-t border-white/10">
+          <div
+            class="h-12 bg-white/5 rounded-full border border-white/10 flex items-center px-4"
+          >
+            <span class="text-gray-500 text-sm">Ask a follow-up...</span>
+          </div>
+        </div>
+      </div>
+
+      <!-- Right Expanded Agent Workspace -->
+      <div
+        id="agentWorkspace"
+        class="flex-1 bg-black relative opacity-0 translate-x-full transition-all duration-700 ease-[cubic-bezier(0.23,1,0.32,1)] flex flex-col"
+      >
+        <!-- 3D Graph Background -->
+        <div id="3d-graph" class="absolute inset-0 z-0"></div>
+
+        <!-- Overlay UI Container -->
+        <div
+          class="absolute inset-0 z-10 p-6 pointer-events-none flex flex-col justify-between"
+        >
+          <!-- Header Overlay -->
+          <div class="flex justify-between items-start pointer-events-auto">
+            <div
+              class="glass-panel p-4 rounded-2xl fade-in agent-gradient max-w-md"
+            >
+              <div class="flex items-center gap-3 mb-2">
+                <div class="flex items-center gap-1.5">
+                  <span
+                    class="w-1.5 h-1.5 rounded-full bg-[var(--oaria-teal)] animate-pulse"
+                  ></span>
+                  <span
+                    class="text-[10px] uppercase tracking-wider text-[var(--oaria-teal)] font-bold"
+                    >Live Analysis</span
+                  >
+                </div>
+                <span class="text-xs text-gray-400"
+                  >Processing 12,403 papers...</span
+                >
+              </div>
+              <h2 class="heading-font text-2xl font-bold mb-1">
+                Immunotherapy
+                <span class="text-[var(--oaria-coral)]">&</span> NSCLC
+              </h2>
+              <div
+                id="agent-typing"
+                class="text-xs text-gray-300 typing-cursor"
+              >
+                AI Agent is mapping relationships between Durvalumab and Stage 3
+                outcomes...
+              </div>
+            </div>
+
+            <!-- Close Button -->
+            <button
+              id="closeBtn"
+              class="w-10 h-10 rounded-full glass-panel flex items-center justify-center hover:bg-white/10 transition-colors pointer-events-auto"
+            >
+              <svg
+                class="w-4 h-4 text-white"
+                fill="none"
+                viewBox="0 0 24 24"
+                stroke="currentColor"
+              >
+                <path
+                  stroke-linecap="round"
+                  stroke-linejoin="round"
+                  stroke-width="2"
+                  d="M6 18L18 6M6 6l12 12"
+                />
+              </svg>
+            </button>
+          </div>
+
+          <!-- Middle Section: Floating Stats Panels -->
+          <div
+            class="flex justify-between items-center w-full pointer-events-none"
+          >
+            <!-- Left: Stats Dashboard -->
+            <div
+              class="glass-panel p-5 rounded-2xl w-80 pointer-events-auto -translate-x-4 opacity-0 transition-all duration-700 delay-300"
+              id="statsPanel"
+            >
+              <h3
+                class="heading-font text-sm font-semibold text-gray-200 mb-4 flex items-center gap-2"
+              >
+                <svg
+                  class="w-4 h-4 text-[var(--oaria-teal)]"
+                  fill="none"
+                  viewBox="0 0 24 24"
+                  stroke="currentColor"
+                >
+                  <path
+                    stroke-linecap="round"
+                    stroke-linejoin="round"
+                    stroke-width="2"
+                    d="M13 7h8m0 0v8m0-8l-8 8-4-4-6 6"
+                  />
+                </svg>
+                Trend Watch
+              </h3>
+              <!-- D3 Sparkline Container -->
+              <div id="trendChart" class="w-full h-24 mb-4"></div>
+              <div
+                class="flex justify-between text-xs text-gray-400 border-t border-white/5 pt-3"
+              >
+                <span>YoY Growth</span>
+                <span class="text-[var(--oaria-teal)] font-bold">+45%</span>
+              </div>
+
+              <div class="mt-6">
+                <h3
+                  class="heading-font text-sm font-semibold text-gray-200 mb-3 flex items-center gap-2"
+                >
+                  <svg
+                    class="w-4 h-4 text-[var(--oaria-coral)]"
+                    fill="none"
+                    viewBox="0 0 24 24"
+                    stroke="currentColor"
+                  >
+                    <path
+                      stroke-linecap="round"
+                      stroke-linejoin="round"
+                      stroke-width="2"
+                      d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"
+                    />
+                  </svg>
+                  Research Gaps
+                </h3>
+                <div
+                  class="bg-[var(--oaria-coral)]/10 border border-[var(--oaria-coral)]/20 rounded-lg p-3"
+                >
+                  <p class="text-xs text-gray-200 leading-snug">
+                    <span class="text-[var(--oaria-coral)] font-bold"
+                      >Data Gap Detected:</span
+                    ><br />
+                    Very few studies compare
+                    <span
+                      class="text-white font-medium underline decoration-dotted"
+                      >TIGIT Inhibitors</span
+                    >
+                    vs
+                    <span
+                      class="text-white font-medium underline decoration-dotted"
+                      >PD-L1</span
+                    >
+                    in elderly populations (75+).
+                  </p>
+                </div>
+              </div>
+            </div>
+
+            <!-- Right: Nothing for now (leaving space for 3D interaction) -->
+          </div>
+
+          <!-- Bottom: Agent Insights & Actions -->
+          <div
+            class="w-full pointer-events-auto translate-y-4 opacity-0 transition-all duration-700 delay-500"
+            id="bottomPanel"
+          >
+            <div class="glass-panel rounded-2xl p-1 flex">
+              <!-- Agent Suggestion Card -->
+              <div class="p-4 w-1/3 border-r border-white/5">
+                <div class="flex items-center gap-2 mb-2">
+                  <span
+                    class="bg-[var(--oaria-teal)]/20 text-[var(--oaria-teal)] text-[10px] font-bold px-2 py-0.5 rounded-full"
+                    >AGENT SUGGESTION</span
+                  >
+                </div>
+                <h4 class="font-bold text-sm mb-1 text-white">
+                  Hypothesis Generation
+                </h4>
+                <p class="text-xs text-gray-400 line-clamp-2">
+                  Based on the graph, TIGIT blockade might show synergistic
+                  effects in EGFR-mutated subgroups.
+                </p>
+                <button
+                  class="mt-3 text-xs bg-white/10 hover:bg-[var(--oaria-teal)] hover:text-black transition-colors px-3 py-1.5 rounded-md font-medium flex items-center gap-1"
+                >
+                  Generate Hypothesis
+                  <svg
+                    class="w-3 h-3"
+                    fill="none"
+                    viewBox="0 0 24 24"
+                    stroke="currentColor"
+                  >
+                    <path
+                      stroke-linecap="round"
+                      stroke-linejoin="round"
+                      stroke-width="2"
+                      d="M9 5l7 7-7 7"
+                    />
+                  </svg>
+                </button>
+              </div>
+
+              <!-- Entity Details (Changes on click) -->
+              <div class="p-4 w-1/3 border-r border-white/5">
+                <h4 class="font-bold text-sm mb-2 text-gray-300">
+                  Selected Entity
+                </h4>
+                <div
+                  id="selected-entity-info"
+                  class="text-sm text-white font-medium flex items-center gap-2"
+                >
+                  <span class="w-2 h-2 rounded-full bg-gray-500"></span>
+                  Hover over a node...
+                </div>
+                <div class="mt-2 text-xs text-gray-500">
+                  Click node to filter related papers.
+                </div>
+              </div>
+
+              <!-- Smart Actions -->
+              <div class="p-4 w-1/3 flex flex-wrap content-start gap-2">
+                <button
+                  class="h-8 px-3 rounded-lg bg-[#1A1F2C] border border-white/10 hover:border-[var(--oaria-teal)] hover:text-[var(--oaria-teal)] transition-all text-xs font-medium"
+                >
+                  Compare Mechanisms
+                </button>
+                <button
+                  class="h-8 px-3 rounded-lg bg-[#1A1F2C] border border-white/10 hover:border-[var(--oaria-teal)] hover:text-[var(--oaria-teal)] transition-all text-xs font-medium"
+                >
+                  Find Clinical Trials
+                </button>
+                <button
+                  class="h-8 px-3 rounded-lg bg-[#1A1F2C] border border-white/10 hover:border-[var(--oaria-teal)] hover:text-[var(--oaria-teal)] transition-all text-xs font-medium"
+                >
+                  View Protocols
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <script>
+      // --- 1. Logic & Interaction ---
+      const triggerBtn = document.getElementById("triggerBtn");
+      const closeBtn = document.getElementById("closeBtn");
+      const agentWorkspace = document.getElementById("agentWorkspace");
+      const chatSidebar = document.getElementById("chatSidebar");
+      const statsPanel = document.getElementById("statsPanel");
+      const bottomPanel = document.getElementById("bottomPanel");
+      const selectedEntityInfo = document.getElementById(
+        "selected-entity-info"
+      );
+
+      let isExpanded = false;
+
+      // Mock Graph Data
+      const gData = {
+        nodes: [
+          { id: "NSCLC", group: 1, value: 20 },
+          { id: "Immunotherapy", group: 1, value: 15 },
+          { id: "Durvalumab", group: 2, value: 10 },
+          { id: "Pembrolizumab", group: 2, value: 10 },
+          { id: "PD-L1", group: 3, value: 8 },
+          { id: "CTLA-4", group: 3, value: 8 },
+          { id: "Survival (OS)", group: 4, value: 12 },
+          { id: "Toxicity", group: 4, value: 8 },
+          { id: "Chemotherapy", group: 5, value: 10 },
+          { id: "Neoadjuvant", group: 5, value: 8 },
+          { id: "TIGIT", group: 6, value: 6 }, // Emerging
+          { id: "Stage 3", group: 1, value: 12 },
+        ],
+        links: [
+          { source: "NSCLC", target: "Stage 3" },
+          { source: "NSCLC", target: "Immunotherapy" },
+          { source: "Immunotherapy", target: "Durvalumab" },
+          { source: "Immunotherapy", target: "Pembrolizumab" },
+          { source: "Durvalumab", target: "PD-L1" },
+          { source: "Pembrolizumab", target: "PD-L1" },
+          { source: "Durvalumab", target: "Survival (OS)" },
+          { source: "Pembrolizumab", target: "Survival (OS)" },
+          { source: "Immunotherapy", target: "Toxicity" },
+          { source: "Stage 3", target: "Neoadjuvant" },
+          { source: "Neoadjuvant", target: "Chemotherapy" },
+          { source: "Neoadjuvant", target: "Immunotherapy" },
+          { source: "TIGIT", target: "Immunotherapy" },
+          { source: "TIGIT", target: "PD-L1" },
+        ],
+      };
+
+      // --- 2. Three.js Force Graph ---
+      let Graph;
+
+      function initGraph() {
+        const elem = document.getElementById("3d-graph");
+        Graph = ForceGraph3D()(elem)
+          .graphData(gData)
+          .backgroundColor("#000000") // Pure black for better overlay
+          .nodeLabel("id")
+          .nodeColor((node) => {
+            const colors = [
+              "#00C7B1",
+              "#FF6B6B",
+              "#4C51BF",
+              "#ECC94B",
+              "#FF00FF",
+            ];
+            return node.id === "TIGIT"
+              ? "#FF6B6B"
+              : node.group === 1
+              ? "#00C7B1"
+              : "#4C51BF"; // TIGIT is emerging (Red)
+          })
+          .nodeVal("value")
+          .nodeResolution(16) // Lower resolution for performance
+          .linkDirectionalParticles(2) // Flowing particles
+          .linkDirectionalParticleSpeed((d) => d.value * 0.001)
+          .linkColor(() => "rgba(255,255,255,0.2)")
+          .onNodeHover((node) => {
+            elem.style.cursor = node ? "pointer" : null;
+            if (node) {
+              selectedEntityInfo.innerHTML = `
+                            <span class="w-2 h-2 rounded-full" style="background:${
+                              node.color
+                            }"></span>
+                            <span class="text-[var(--oaria-teal)]">${
+                              node.id
+                            }</span>
+                            <span class="text-xs text-gray-500 ml-2">Connected: ${
+                              gData.links.filter(
+                                (l) =>
+                                  l.source.id === node.id ||
+                                  l.target.id === node.id
+                              ).length
+                            }</span>
+                        `;
+            }
+          })
+          .onNodeClick((node) => {
+            // Camera focus animation
+            const distance = 40;
+            const distRatio = 1 + distance / Math.hypot(node.x, node.y, node.z);
+
+            Graph.cameraPosition(
+              {
+                x: node.x * distRatio,
+                y: node.y * distRatio,
+                z: node.z * distRatio,
+              }, // new position
+              node, // lookAt ({ x, y, z })
+              3000 // ms transition duration
+            );
+          });
+
+        // Auto-rotate initially
+        // Graph.controls().autoRotate = true;
+        // Graph.controls().autoRotateSpeed = 0.5;
+      }
+
+      // --- 3. D3.js Trend Sparkline ---
+      function initD3Charts() {
+        const container = document.getElementById("trendChart");
+        container.innerHTML = "";
+
+        const width = container.clientWidth;
+        const height = container.clientHeight;
+        const margin = { top: 5, right: 0, bottom: 5, left: 0 };
+
+        const svg = d3
+          .select("#trendChart")
+          .append("svg")
+          .attr("width", width)
+          .attr("height", height);
+
+        // Mock Data: Trend going up
+        const data = [10, 15, 12, 20, 25, 35, 40, 38, 50, 65, 80];
+
+        const x = d3
+          .scaleLinear()
+          .domain([0, data.length - 1])
+          .range([0, width]);
+        const y = d3.scaleLinear().domain([0, 100]).range([height, 0]);
+
+        // Gradient for the area
+        const defs = svg.append("defs");
+        const gradient = defs
+          .append("linearGradient")
+          .attr("id", "area-gradient")
+          .attr("x1", "0%")
+          .attr("y1", "0%")
+          .attr("x2", "0%")
+          .attr("y2", "100%");
+        gradient
+          .append("stop")
+          .attr("offset", "0%")
+          .attr("stop-color", "#00C7B1")
+          .attr("stop-opacity", 0.5);
+        gradient
+          .append("stop")
+          .attr("offset", "100%")
+          .attr("stop-color", "#00C7B1")
+          .attr("stop-opacity", 0);
+
+        // Area Generator
+        const area = d3
+          .area()
+          .x((d, i) => x(i))
+          .y0(height)
+          .y1((d) => y(d))
+          .curve(d3.curveMonotoneX); // Smooth curve
+
+        // Line Generator
+        const line = d3
+          .line()
+          .x((d, i) => x(i))
+          .y((d) => y(d))
+          .curve(d3.curveMonotoneX);
+
+        // Append Area
+        svg
+          .append("path")
+          .datum(data)
+          .attr("fill", "url(#area-gradient)")
+          .attr("d", area)
+          .attr("class", "fade-in");
+
+        // Append Line
+        const path = svg
+          .append("path")
+          .datum(data)
+          .attr("fill", "none")
+          .attr("stroke", "#00C7B1")
+          .attr("stroke-width", 2)
+          .attr("d", line);
+
+        // Animate Line
+        const totalLength = path.node().getTotalLength();
+        path
+          .attr("stroke-dasharray", totalLength + " " + totalLength)
+          .attr("stroke-dashoffset", totalLength)
+          .transition()
+          .duration(2000)
+          .ease(d3.easeCubicOut)
+          .attr("stroke-dashoffset", 0);
+      }
+
+      // --- Event Listeners ---
+      triggerBtn.addEventListener("click", () => {
+        if (isExpanded) return;
+        isExpanded = true;
+
+        // UI Transition
+        agentWorkspace.classList.remove("opacity-0", "translate-x-full");
+        chatSidebar.classList.add("w-[300px]"); // Shrink sidebar
+        chatSidebar.classList.remove("w-[400px]");
+
+        // Init Visuals (After transition ideally, but immediate is fine for mockup)
+        setTimeout(() => {
+          initGraph();
+          initD3Charts();
+
+          // Show Panels with sequence
+          statsPanel.classList.remove("-translate-x-4", "opacity-0");
+          bottomPanel.classList.remove("translate-y-4", "opacity-0");
+        }, 600);
+      });
+
+      closeBtn.addEventListener("click", () => {
+        if (!isExpanded) return;
+        isExpanded = false;
+
+        agentWorkspace.classList.add("opacity-0", "translate-x-full");
+        chatSidebar.classList.add("w-[400px]");
+        chatSidebar.classList.remove("w-[300px]");
+
+        // Hide panels reset
+        statsPanel.classList.add("-translate-x-4", "opacity-0");
+        bottomPanel.classList.add("translate-y-4", "opacity-0");
+      });
+    </script>
+  </body>
+</html>

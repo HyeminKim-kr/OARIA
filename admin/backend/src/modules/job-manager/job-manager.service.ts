@@ -104,6 +104,7 @@ export class JobManagerService {
       startedAt: state.started_at || null,
       completedAt: state.completed_at || null,
       heartbeat: state.heartbeat || null,
+      chunkCount: state.chunk_count ? parseInt(state.chunk_count, 10) : null,
     };
   }
 

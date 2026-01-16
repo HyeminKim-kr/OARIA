@@ -1,0 +1,590 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>OARIA Agent UI v2 - Analyst Mode</title>
+    <!-- Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- Pretendard Font -->
+    <link rel="stylesheet" as="style" crossorigin href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/static/pretendard.min.css" />
+    <!-- Libraries -->
+    <script src="https://d3js.org/d3.v7.min.js"></script>
+    <script src="https://unpkg.com/three"></script>
+    <script src="https://unpkg.com/3d-force-graph"></script>
+
+    <style>
+        :root {
+            --primary: #0F172A; /* Slate 900 */
+            --accent: #2563EB; /* Blue 600 */
+            --danger: #DC2626; /* Red 600 */
+            --success: #059669; /* Emerald 600 */
+            --bg-canvas: #F8FAFC; /* Slate 50 */
+            --border: #E2E8F0; /* Slate 200 */
+        }
+        body {
+            font-family: 'Pretendard', sans-serif;
+            background-color: white;
+            color: #1E293B;
+            overflow: hidden;
+        }
+        
+        /* Utility Classes for 'Dense' UI */
+        .dense-panel {
+            background: rgba(255, 255, 255, 0.96);
+            backdrop-filter: blur(8px);
+            border: 1px solid var(--border);
+            /* Sharp corners as requested */
+            border-radius: 0; 
+        }
+        .data-label {
+            font-size: 0.65rem;
+            text-transform: uppercase;
+            letter-spacing: 0.05em;
+            color: #64748B; /* Slate 500 */
+            font-weight: 600;
+        }
+        .data-value {
+            font-family: 'Pretendard', sans-serif;
+            font-weight: 700;
+            letter-spacing: -0.02em;
+        }
+        
+        /* Animations */
+        .slide-in-right { animation: slideInRight 0.5s cubic-bezier(0.16, 1, 0.3, 1) forwards; }
+        @keyframes slideInRight { from { transform: translateX(100%); } to { transform: translateX(0); } }
+        
+        .fade-in-up { animation: fadeInUp 0.6s cubic-bezier(0.16, 1, 0.3, 1) forwards; opacity: 0; }
+        @keyframes fadeInUp { from { opacity: 0; transform: translateY(20px); } to { opacity: 1; transform: translateY(0); } }
+
+        /* Custom Scroll & Elements */
+        ::-webkit-scrollbar { width: 4px; height: 4px; }
+        ::-webkit-scrollbar-thumb { background: #CBD5E1; }
+        
+        button { transition: all 0.2s; }
+        button:active { transform: translateY(1px); }
+    </style>
+</head>
+<body class="w-full h-screen flex flex-col">
+
+    <!-- Navbar: Dense & Pro look -->
+    <nav class="h-12 border-b border-gray-200 flex items-center justify-between px-6 bg-white z-50 shadow-sm">
+        <div class="flex items-center gap-4">
+            <div class="flex items-center gap-2">
+                <div class="w-2.5 h-2.5 bg-blue-600"></div>
+                <span class="font-extrabold text-lg tracking-tight text-slate-900">OARIA</span>
+            </div>
+            <div class="h-4 w-px bg-gray-300 mx-2"></div>
+            <span class="text-xs font-medium text-slate-500 uppercase tracking-wider">Research Intelligence v2.1</span>
+        </div>
+        <div class="flex items-center gap-4 text-xs font-mono text-slate-500">
+            <span class="flex items-center gap-1.5"><span class="w-1.5 h-1.5 rounded-full bg-green-500"></span>SYSTEM READY</span>
+            <span>LATENCY: 24ms</span>
+        </div>
+    </nav>
+
+    <!-- Main Grid -->
+    <div class="flex-1 flex overflow-hidden">
+        
+        <!-- Chat Area (Left) - Collapsed state by default for this view -->
+        <div id="chat-sidebar" class="w-[380px] border-r border-gray-200 flex flex-col bg-white z-20 flex-shrink-0 transition-all duration-300">
+            <!-- Simulated Chat History -->
+            <div class="flex-1 p-6 space-y-6 overflow-y-auto bg-slate-50/50">
+                 <!-- User Message -->
+                 <div class="flex flex-col items-end gap-1">
+                    <div class="bg-white border border-gray-200 p-4 shadow-sm max-w-[95%]">
+                        <p class="text-sm font-medium leading-relaxed text-slate-800">NSCLC 3기 환자의 면역항암제 치료 트렌드와 주요 임상시험 현황을 분석해줘.</p>
+                    </div>
+                </div>
+
+                <!-- AI Response Frame -->
+                <div class="flex flex-col items-start gap-1">
+                    <div class="bg-white border border-gray-200 p-5 shadow-sm w-full relative group hover:border-blue-300 transition-colors">
+                        <div class="absolute top-0 left-0 w-1 h-full bg-blue-600"></div>
+                        <p class="text-sm leading-7 text-slate-700 mb-4">
+                            분석 결과, <strong>Durvalumab</strong>이 표준 요법으로 자리 잡았으며, 최근 <strong>TIGIT</strong> 및 <strong>LAG-3</strong> 억제제와의 병용 요법 연구가 급증하고 있습니다.
+                        </p>
+                        
+                        <!-- Trigger Action -->
+                        <button id="trigger-btn" class="w-full mt-2 bg-slate-900 hover:bg-blue-600 text-white p-3 flex items-center justify-between group transition-all">
+                            <span class="text-xs font-bold uppercase tracking-wider pl-1">Deep Dive Analysis</span>
+                            <div class="flex items-center gap-2">
+                                <span class="text-[10px] text-slate-400 group-hover:text-blue-100">12,403 Papers</span>
+                                <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M14 5l7 7m0 0l-7 7m7-7H3"/></svg>
+                            </div>
+                        </button>
+                    </div>
+                </div>
+            </div>
+            
+            <!-- Quick Prompts Footer -->
+            <div class="h-14 border-t border-gray-200 flex items-center px-4 bg-white">
+                <input class="w-full text-xs bg-gray-100 p-2.5 border-none outline-none focus:ring-1 focus:ring-blue-500" placeholder="Type a follow-up query..." />
+            </div>
+        </div>
+
+        <!-- Analytical Dashboard Area (Right) -->
+        <div id="dashboard-area" class="flex-1 bg-slate-100 relative overflow-hidden flex flex-col">
+            
+            <!-- 3D Graph Container (Background) -->
+            <div id="graph-container" class="absolute inset-0 z-0"></div>
+
+            <!-- Dashboard Overlays (Grid Layout - High Density) -->
+            <div id="dashboard-overlay" class="absolute inset-0 z-10 p-5 pointer-events-none flex flex-col gap-4 opacity-0 transition-opacity duration-500">
+                
+                <!-- Row 1: Key Metrics (Top) -->
+                <div class="flex gap-4 pointer-events-auto h-24 shrink-0">
+                    <div class="dense-panel flex-1 p-4 flex justify-between items-center shadow-sm">
+                        <div class="flex gap-8 h-full items-center">
+                            <div class="flex flex-col">
+                                <span class="data-label">Total Volume</span>
+                                <span class="data-value text-2xl">12,403</span>
+                                <span class="text-[10px] text-green-600 font-medium">↑ 12% YoY</span>
+                            </div>
+                            <div class="w-px h-10 bg-gray-100"></div>
+                            <div class="flex flex-col">
+                                <span class="data-label">Clinical Trials</span>
+                                <span class="data-value text-2xl">842</span>
+                                <span class="text-[10px] text-blue-600 font-medium">315 Recruiting</span>
+                            </div>
+                            <div class="w-px h-10 bg-gray-100"></div>
+                            <div class="flex flex-col">
+                                <span class="data-label">Leading Entity</span>
+                                <span class="data-value text-xl text-blue-600">Durvalumab</span>
+                            </div>
+                        </div>
+                        <div class="flex items-center gap-4">
+                            <div class="text-right">
+                                <div class="data-label">Data Freshness</div>
+                                <div class="text-[10px] font-mono text-slate-500">Updated: 2h ago</div>
+                            </div>
+                             <button id="close-btn" class="w-8 h-8 rounded-none border border-gray-200 flex items-center justify-center hover:bg-red-50 hover:border-red-200 group transition-colors">
+                                <svg class="w-4 h-4 text-slate-400 group-hover:text-red-500" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M6 18L18 6M6 6l12 12"/></svg>
+                            </button>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Row 2: Charts Area (Middle) - Grid 3 Columns -->
+                <div class="grid grid-cols-12 gap-4 flex-1 min-h-0 pointer-events-none">
+                    
+                    <!-- Col 1: Distribution & Trends (Width 3/12) -->
+                    <div class="col-span-3 flex flex-col gap-4 pointer-events-auto min-h-0">
+                        <!-- Chart 1: Donut -->
+                        <div class="dense-panel p-4 h-56 relative shadow-sm">
+                            <div class="flex justify-between items-center mb-1">
+                                <span class="data-label">Research Share</span>
+                            </div>
+                            <div id="donut-chart" class="w-full h-40 flex items-center justify-center"></div>
+                            <div class="absolute inset-0 top-6 flex flex-col items-center justify-center pointer-events-none">
+                                <span class="text-[10px] font-bold text-slate-400 uppercase">Top</span>
+                                <span class="text-lg font-bold text-slate-800">Combo</span>
+                            </div>
+                        </div>
+                        <!-- Chart 2: Stacked -->
+                        <div class="dense-panel p-4 flex-1 shadow-sm flex flex-col">
+                            <span class="data-label mb-3">Clinical Phase Dist.</span>
+                            <div class="flex flex-col gap-3 overflow-y-auto pr-1" id="stacked-chart-container"></div>
+                        </div>
+                    </div>
+
+                    <!-- Col 2: Time Series & Keywords (Width 5/12) -->
+                    <div class="col-span-5 flex flex-col gap-4 pointer-events-auto min-h-0">
+                        <!-- Chart 3: Publication Trend (NEW) -->
+                        <div class="dense-panel p-4 h-48 shadow-sm flex flex-col">
+                            <span class="data-label mb-2">5-Year Publication Trend</span>
+                            <div id="bar-chart" class="flex-1 w-full"></div>
+                        </div>
+                        <!-- Panel 4: Keyword Cloud (NEW) -->
+                        <div class="dense-panel p-4 flex-1 shadow-sm flex flex-col">
+                            <span class="data-label mb-3">Trending Keywords</span>
+                            <div class="flex-1 flex flex-wrap gap-2 content-start overflow-hidden relative">
+                                <!-- Tags -->
+                                <span class="px-2 py-1 bg-blue-50 text-blue-700 text-xs font-bold border border-blue-100">#Immunotherapy</span>
+                                <span class="px-2 py-1 bg-slate-50 text-slate-600 text-[10px] border border-slate-100">#NSCLC</span>
+                                <span class="px-2 py-1 bg-slate-50 text-slate-600 text-[10px] border border-slate-100">#Biomarkers</span>
+                                <span class="px-2 py-1 bg-green-50 text-green-700 text-xs font-bold border border-green-100">#Survival Rate</span>
+                                <span class="px-2 py-1 bg-slate-50 text-slate-600 text-[10px] border border-slate-100">#Toxicity</span>
+                                <span class="px-2 py-1 bg-slate-50 text-slate-600 text-[10px] border border-slate-100">#Chemotherapy</span>
+                                <span class="px-2 py-1 bg-orange-50 text-orange-700 text-[11px] font-medium border border-orange-100">#Resistance</span>
+                                <span class="px-2 py-1 bg-slate-50 text-slate-600 text-[10px] border border-slate-100">#PD-L1</span>
+                                <span class="px-2 py-1 bg-slate-50 text-slate-600 text-[10px] border border-slate-100">#Neoadjuvant</span>
+                                <span class="px-2 py-1 bg-blue-600 text-white text-xs font-bold shadow-sm">#Durvalumab</span>
+                                <span class="px-2 py-1 bg-slate-50 text-slate-600 text-[10px] border border-slate-100">#Phase3</span>
+                                <span class="px-2 py-1 bg-purple-50 text-purple-700 text-[11px] font-medium border border-purple-100">#GeneExpression</span>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Col 3: KOLs & Insights (Width 4/12) -->
+                    <div class="col-span-4 flex flex-col gap-4 pointer-events-auto min-h-0">
+                        <!-- Panel 5: Top Authors (NEW) -->
+                        <div class="dense-panel p-0 h-56 shadow-sm flex flex-col">
+                            <div class="p-3 border-b border-gray-100 flex justify-between items-center bg-slate-50">
+                                <span class="data-label text-slate-700">Top Authors (KOL)</span>
+                                <span class="text-[10px] text-slate-400">Sort: Impact</span>
+                            </div>
+                            <div class="overflow-y-auto">
+                                <table class="w-full text-left border-collapse">
+                                    <thead class="bg-white text-[9px] text-slate-400 uppercase font-medium sticky top-0">
+                                        <tr>
+                                            <th class="pl-3 py-2 font-normal">Name</th>
+                                            <th class="py-2 font-normal">Affiliation</th>
+                                            <th class="pr-3 py-2 font-normal text-right">H-Index</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody class="text-[11px] text-slate-700 divide-y divide-gray-50">
+                                        <tr class="hover:bg-blue-50 transition-colors cursor-pointer">
+                                            <td class="pl-3 py-2 font-bold text-slate-900">Dr. Rizvi, N.</td>
+                                            <td class="py-2 text-slate-500 truncate max-w-[80px]">Columbia Univ</td>
+                                            <td class="pr-3 py-2 text-right font-mono text-blue-600">82</td>
+                                        </tr>
+                                        <tr class="hover:bg-blue-50 transition-colors cursor-pointer">
+                                            <td class="pl-3 py-2">Prof. Peters, S.</td>
+                                            <td class="py-2 text-slate-500 truncate max-w-[80px]">CHUV Lausanne</td>
+                                            <td class="pr-3 py-2 text-right font-mono text-slate-400">76</td>
+                                        </tr>
+                                        <tr class="hover:bg-blue-50 transition-colors cursor-pointer">
+                                            <td class="pl-3 py-2">Dr. Garon, E.</td>
+                                            <td class="py-2 text-slate-500 truncate max-w-[80px]">UCLA Health</td>
+                                            <td class="pr-3 py-2 text-right font-mono text-slate-400">71</td>
+                                        </tr>
+                                        <tr class="hover:bg-blue-50 transition-colors cursor-pointer">
+                                            <td class="pl-3 py-2">Dr. Paz-Ares, L.</td>
+                                            <td class="py-2 text-slate-500 truncate max-w-[80px]">Hosp. 12 Octubre</td>
+                                            <td class="pr-3 py-2 text-right font-mono text-slate-400">69</td>
+                                        </tr>
+                                         <tr class="hover:bg-blue-50 transition-colors cursor-pointer">
+                                            <td class="pl-3 py-2">Dr. Reck, M.</td>
+                                            <td class="py-2 text-slate-500 truncate max-w-[80px]">Lung Clinic</td>
+                                            <td class="pr-3 py-2 text-right font-mono text-slate-400">65</td>
+                                        </tr>
+                                    </tbody>
+                                </table>
+                            </div>
+                        </div>
+
+                         <!-- Panel 6: Findings (Existing) -->
+                         <div class="dense-panel p-0 flex-1 shadow-sm flex flex-col overflow-hidden">
+                            <div class="bg-blue-50 border-b border-blue-100 p-3 flex justify-between items-center">
+                                <span class="data-label text-blue-900">AI Findings Log</span>
+                                <div class="flex gap-1">
+                                    <span class="w-1.5 h-1.5 bg-blue-500 animate-pulse rounded-full"></span>
+                                    <span class="text-[9px] font-mono text-blue-600">LIVE</span>
+                                </div>
+                            </div>
+                            <div class="p-4 overflow-y-auto space-y-4 text-xs bg-white">
+                                <div class="border-l-2 border-green-500 pl-3">
+                                    <span class="text-[9px] font-bold text-green-600 uppercase tracking-wide">Analysis</span>
+                                    <p class="text-slate-700 mt-0.5 leading-relaxed">
+                                        <strong>Durvalumab + TIGIT</strong> 병용 요법이 2상 임상에서 기존 표준 치료 대비 <strong class="bg-green-100 px-1 text-green-800">24% 높은 ORR</strong>을 보였습니다.
+                                    </p>
+                                </div>
+                                <div class="border-l-2 border-orange-500 pl-3">
+                                    <span class="text-[9px] font-bold text-orange-600 uppercase tracking-wide">Gap Alert</span>
+                                    <p class="text-slate-700 mt-0.5 leading-relaxed">
+                                        고령 환자(>75세) 데이터 불충분 (전체 <strong>3.2%</strong>).
+                                    </p>
+                                </div>
+                                <div class="bg-slate-50 border border-slate-100 p-2 text-slate-400 font-mono text-[10px]">
+                                    > Scanning 124 new abstracts...<br/>
+                                    > Identified entity: "Sacituzumab"<br/>
+                                    > Correlating survival rates...
+                                </div>
+                            </div>
+                         </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <script>
+        // --- Configuration ---
+        const colors = {
+            primary: '#2563EB',
+            secondary: '#64748B',
+            accent: '#059669',
+            danger: '#DC2626',
+            chart: ['#2563EB', '#3B82F6', '#60A5FA', '#93C5FD', '#BFDBFE'] // Blue scale
+        };
+
+        // --- 1. Donut Chart (Interactive) ---
+        function initDonutChart() {
+            const container = document.getElementById('donut-chart');
+            const width = container.clientWidth;
+            const height = container.clientHeight;
+            const radius = Math.min(width, height) / 2 - 10;
+
+            const svg = d3.select("#donut-chart")
+                .append("svg")
+                .attr("width", width)
+                .attr("height", height)
+                .append("g")
+                .attr("transform", `translate(${width / 2},${height / 2})`);
+
+            const data = {
+                a: { label: "IO+Chemo", value: 45 },
+                b: { label: "IO Mono", value: 30 },
+                c: { label: "Dual IO", value: 15 },
+                d: { label: "ADC", value: 10 }
+            };
+
+            const color = d3.scaleOrdinal()
+                .domain(["a", "b", "c", "d"])
+                .range(['#2563EB', '#059669', '#F59E0B', '#64748B']);
+
+            const pie = d3.pie().value(d => d.value).sort(null);
+            const data_ready = pie(Object.entries(data).map(([key, val]) => ({key, ...val})));
+
+            const arc = d3.arc().innerRadius(radius * 0.6).outerRadius(radius);
+            const arcHover = d3.arc().innerRadius(radius * 0.6).outerRadius(radius * 1.1); // Expand on hover
+
+            // Tooltip Center Text
+            const centerLabel = d3.select("#donut-chart").select(".absolute span:last-child");
+            const centerTitle = d3.select("#donut-chart").select(".absolute span:first-child");
+
+            svg.selectAll('allSlices')
+                .data(data_ready)
+                .enter()
+                .append('path')
+                .attr('d', arc)
+                .attr('fill', d => color(d.data.key))
+                .attr("stroke", "white")
+                .style("stroke-width", "2px")
+                .style("cursor", "pointer")
+                .on("mouseover", function(event, d) {
+                    d3.select(this).transition().duration(200).attr('d', arcHover);
+                    centerTitle.text(d.data.key === 'a' ? 'Top' : 'Share');
+                    centerLabel.text(d.data.label);
+                    centerLabel.style("color", color(d.data.key));
+                })
+                .on("mouseout", function(event, d) {
+                    d3.select(this).transition().duration(200).attr('d', arc);
+                    centerTitle.text("Top");
+                    centerLabel.text("IO+Chemo");
+                    centerLabel.style("color", "#1E293B");
+                })
+                .transition()
+                .duration(1000)
+                .attrTween('d', function(d) {
+                    var i = d3.interpolate(d.startAngle+0.1, d.endAngle);
+                    return function(t) {
+                        d.endAngle = i(t);
+                        return arc(d);
+                    }
+                });
+        }
+
+        // --- 2. Stacked Bar Chart (Clinical Phases) ---
+        function initStackedChart() {
+            const container = document.getElementById('stacked-chart-container');
+            const data = [
+                { label: "Durvalumab", p1: 10, p2: 30, p3: 45, p4: 15 },
+                { label: "Pembrolizumab", p1: 15, p2: 25, p3: 40, p4: 20 },
+                { label: "Tiragolumab", p1: 40, p2: 50, p3: 10, p4: 0 }
+            ];
+
+            const maxVal = 100; // Percentage
+            
+            container.innerHTML = ''; // Clear
+
+            data.forEach(d => {
+                const row = document.createElement('div');
+                row.className = 'w-full';
+                row.innerHTML = `
+                    <div class="flex justify-between text-[10px] text-slate-500 mb-1">
+                        <span class="font-bold text-slate-700">${d.label}</span>
+                        <span>Phase 1-4</span>
+                    </div>
+                    <div class="h-3 w-full flex rounded-sm overflow-hidden bg-slate-100">
+                        <div style="width: ${d.p1}%" class="bg-blue-200 h-full" title="Phase 1"></div>
+                        <div style="width: ${d.p2}%" class="bg-blue-400 h-full" title="Phase 2"></div>
+                        <div style="width: ${d.p3}%" class="bg-blue-600 h-full" title="Phase 3"></div>
+                        <div style="width: ${d.p4}%" class="bg-blue-800 h-full" title="Phase 4/App"></div>
+                    </div>
+                `;
+                container.appendChild(row);
+            });
+        }
+
+        // --- 3. Bar Chart (Yearly Publications) - NEW ---
+        function initBarChart() {
+             const container = document.getElementById('bar-chart');
+             if(!container) return;
+             
+             container.innerHTML = ''; // Clear
+             
+             const width = container.clientWidth;
+             const height = container.clientHeight;
+             const margin = { top: 10, right: 10, bottom: 20, left: 30 };
+             const innerWidth = width - margin.left - margin.right;
+             const innerHeight = height - margin.top - margin.bottom;
+
+             const svg = d3.select("#bar-chart")
+                .append("svg")
+                .attr("width", width)
+                .attr("height", height)
+                .append("g")
+                .attr("transform", `translate(${margin.left},${margin.top})`);
+
+             const data = [
+                 { year: '2020', val: 1200 },
+                 { year: '2021', val: 1800 },
+                 { year: '2022', val: 2400 },
+                 { year: '2023', val: 3100 },
+                 { year: '2024', val: 4200 }
+             ];
+
+             const x = d3.scaleBand()
+                .range([0, innerWidth])
+                .domain(data.map(d => d.year))
+                .padding(0.4); // Thin bars
+
+             const y = d3.scaleLinear()
+                .domain([0, 5000])
+                .range([innerHeight, 0]);
+
+             // Axes
+             svg.append("g")
+                .attr("class", "text-[9px] text-slate-400")
+                .attr("transform", `translate(0,${innerHeight})`)
+                .call(d3.axisBottom(x).tickSize(0).tickPadding(8))
+                .select(".domain").remove();
+
+             svg.append("g")
+                .attr("class", "text-[9px] text-slate-400")
+                .call(d3.axisLeft(y).ticks(5).tickSize(-innerWidth))
+                .select(".domain").remove()
+                .selectAll("line")
+                .attr("stroke", "#F1F5F9"); // Grid lines
+
+             // Bars
+             svg.selectAll("mybar")
+                .data(data)
+                .join("rect")
+                .attr("x", d => x(d.year))
+                .attr("y", d => y(d.val))
+                .attr("width", x.bandwidth())
+                .attr("height", d => innerHeight - y(d.val))
+                .attr("fill", "#3B82F6")
+                .attr("rx", 2) // Rounded top
+                .on("mouseover", function() { d3.select(this).attr("fill", "#2563EB"); })
+                .on("mouseout", function() { d3.select(this).attr("fill", "#3B82F6"); });
+        }
+
+        // --- 3. Three.js Force Graph (Background) ---
+        let Graph;
+        function initGraph() {
+            const elem = document.getElementById('graph-container');
+            if (elem.children.length > 0) return;
+
+            // Generate "Dense" Data
+            const N = 80;
+            const nodes = [...Array(N).keys()].map(i => ({ 
+                id: i,
+                group: Math.floor(Math.random() * 5),
+                val: Math.random() * 10 
+            }));
+            const links = [...Array(N).keys()]
+                .filter(id => id)
+                .map(id => ({
+                    source: id,
+                    target: Math.round(Math.random() * (id - 1))
+                }));
+            
+            // Add clusters
+            for(let i=0; i<N/2; i++) {
+                links.push({
+                    source: Math.floor(Math.random() * N),
+                    target: Math.floor(Math.random() * N)
+                });
+            }
+
+            const gData = { nodes, links };
+
+            Graph = ForceGraph3D()
+                (elem)
+                .graphData(gData)
+                .backgroundColor('#F1F5F9') // Slate 100
+                .nodeResolution(16)
+                .nodeColor(node => {
+                    // Muted but professional colors
+                    const map = ['#3B82F6', '#10B981', '#F59E0B', '#6366F1', '#EC4899'];
+                    return map[node.group] || '#CBD5E1';
+                })
+                .nodeOpacity(0.8)
+                .linkWidth(0.5)
+                .linkColor(() => '#CBD5E1')
+                .showNavInfo(false)
+                .onNodeHover(node => {
+                   elem.style.cursor = node ? 'pointer' : null; 
+                });
+
+            // Gentle Auto Rotation
+            Graph.controls().autoRotate = true;
+            Graph.controls().autoRotateSpeed = 0.3;
+            
+            // Zoom out slightly to fill background
+            Graph.cameraPosition({ x: 0, y: 0, z: 250 });
+        }
+
+        // --- 4. Main Interaction Logic ---
+        document.addEventListener('DOMContentLoaded', () => {
+            // Initial Graph showing in background (idle state)
+            initGraph();
+            
+            const triggerBtn = document.getElementById('trigger-btn');
+            const closeBtn = document.getElementById('close-btn');
+            const chatSidebar = document.getElementById('chat-sidebar');
+            const dashboardOverlay = document.getElementById('dashboard-overlay');
+            const dashboardArea = document.getElementById('dashboard-area');
+
+            triggerBtn.addEventListener('click', () => {
+                // 1. Collapse Chat Sidebar
+                chatSidebar.style.marginLeft = '-380px';
+                
+                // 2. Expand Dashboard View
+                // (Already flex-1, but we might want to shift camera)
+                Graph.cameraPosition({ x: 0, y: 0, z: 180 }, { x: 0, y: 0, z: 0 }, 1000);
+
+                // 3. Show Dashboard Overlay
+                setTimeout(() => {
+                    dashboardOverlay.style.opacity = '1';
+                    dashboardOverlay.style.pointerEvents = 'auto'; // Enable interaction
+                    
+                    // Init Charts if not already
+                    initDonutChart();
+                    initStackedChart();
+                    initBarChart(); // NEW
+
+                    // Apply animations to children
+                    const panels = dashboardOverlay.querySelectorAll('.dense-panel, button');
+                    panels.forEach((el, index) => {
+                        el.style.animation = `fadeInUp 0.5s ease-out ${index * 0.1}s forwards`;
+                        el.style.opacity = '0'; // Start hidden
+                    });
+
+                }, 400);
+            });
+
+            closeBtn.addEventListener('click', () => {
+                // Return to Chat View
+                chatSidebar.style.marginLeft = '0';
+                dashboardOverlay.style.opacity = '0';
+                dashboardOverlay.style.pointerEvents = 'none';
+
+                // Reset Camera
+                Graph.cameraPosition({ x: 0, y: 0, z: 250 }, { x: 0, y: 0, z: 0 }, 1000);
+            });
+
+            // Handle Window Resize
+            window.addEventListener('resize', () => {
+                const elem = document.getElementById('graph-container');
+                Graph.width(elem.clientWidth);
+                Graph.height(elem.clientHeight);
+            });
+        });
+    </script>
+</body>
+</html>

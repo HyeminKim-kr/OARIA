@@ -1,7 +1,7 @@
 """Evidence Synthesizer node (OAR-51)."""
 
 import logging
-from typing import Generator
+from collections.abc import AsyncGenerator
 
 from app.schemas.chat import Reference
 from app.services.llm_service import llm_service
@@ -10,9 +10,9 @@ from ..state import AgentState, TaskResult
 logger = logging.getLogger(__name__)
 
 
-def synthesize_answer(state: AgentState) -> AgentState:
+async def synthesize_answer(state: AgentState) -> AgentState:
     """
-    Synthesize final answer from all task results using llm_service.
+    Synthesize final answer from all task results using llm_service (비동기).
 
     This node:
     1. Combines results from all executed tasks
@@ -36,6 +36,15 @@ def synthesize_answer(state: AgentState) -> AgentState:
             "citations": [],
         }
 
+    # Check for Gate 2 failures (OAR-12)
+    gate2_failure = _check_gate2_failures(task_results)
+    if gate2_failure:
+        logger.warning(f"Gate 2 failed: {gate2_failure}")
+        return {
+            "final_answer": gate2_failure,
+            "citations": [],
+        }
+
     logger.info(f"Synthesizing answer from {len(task_results)} task results...")
 
     # Collect all references and deduplicate
@@ -52,8 +61,8 @@ def synthesize_answer(state: AgentState) -> AgentState:
     # Build context from task results (for llm_service)
     context = _build_context_from_results(task_results, subtasks, all_references)
 
-    # Generate final answer using llm_service (uses the good prompt!)
-    llm_response = llm_service.generate(
+    # Generate final answer using llm_service (uses the good prompt!) - 비동기
+    llm_response = await llm_service.generate(
         question=query,
         context=context,
         references=all_references,
@@ -70,15 +79,27 @@ def synthesize_answer(state: AgentState) -> AgentState:
     }
 
 
-def synthesize_answer_stream(state: AgentState) -> Generator[str, None, AgentState]:
+async def synthesize_answer_stream(state: AgentState) -> AsyncGenerator[str, None]:
     """
-    Synthesize final answer with streaming tokens using llm_service.
+    Synthesize final answer with streaming tokens using llm_service (비동기).
 
-    Yields tokens as they are generated, then returns final state.
+    Yields tokens as they are generated.
+
+    Note: 최종 state는 별도로 관리 필요 (AsyncGenerator는 return value 지원 안함)
     """
     query = state["query"]
     task_results = state.get("task_results", {})
     subtasks = state.get("subtasks", [])
+
+    # Check for Gate 2 failures (OAR-12)
+    gate2_failure = _check_gate2_failures(task_results)
+    if gate2_failure:
+        logger.warning(f"Gate 2 failed (stream): {gate2_failure}")
+        yield gate2_failure
+        return {
+            "final_answer": gate2_failure,
+            "citations": [],
+        }
 
     # Collect references
     all_references: list[Reference] = []
@@ -94,21 +115,14 @@ def synthesize_answer_stream(state: AgentState) -> Generator[str, None, AgentSta
     # Build context from task results (for llm_service)
     context = _build_context_from_results(task_results, subtasks, all_references)
 
-    # Stream response using llm_service (uses the good prompt!)
-    full_answer = []
-    for chunk in llm_service.generate_stream(
+    # Stream response using llm_service (uses the good prompt!) - 비동기
+    async for chunk in llm_service.generate_stream(
         question=query,
         context=context,
         references=all_references,
     ):
         if chunk.token:
-            full_answer.append(chunk.token)
             yield chunk.token
-
-    return {
-        "final_answer": "".join(full_answer),
-        "citations": all_references,
-    }
 
 
 def _build_context_from_results(
@@ -133,3 +147,23 @@ def _build_context_from_results(
         )
 
     return "\n\n---\n\n".join(parts)
+
+
+def _check_gate2_failures(task_results: dict[str, TaskResult]) -> str | None:
+    """
+    Check if any RAG task failed Gate 2 validation.
+
+    Args:
+        task_results: Results from all executed tasks
+
+    Returns:
+        Error message if Gate 2 failed, None otherwise
+    """
+    for task_id, result in task_results.items():
+        # Check if this task has Gate 2 info and failed
+        if result.gate2_passed is False:
+            logger.info(f"Task {task_id} failed Gate 2: {result.gate2_reason}")
+            # Return the content which contains the failure message
+            return result.content
+
+    return None

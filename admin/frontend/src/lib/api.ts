@@ -1,6 +1,10 @@
 import axios from 'axios';
 
-const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:13000';
+// 서버사이드(SSR)에서는 Docker 내부 통신용 API_URL 사용
+// 클라이언트(브라우저)에서는 NEXT_PUBLIC_API_URL 사용
+const API_BASE_URL = typeof window === 'undefined'
+  ? (process.env.API_URL || process.env.NEXT_PUBLIC_API_URL || 'http://localhost:13000')
+  : (process.env.NEXT_PUBLIC_API_URL || 'http://localhost:13000');
 
 export const api = axios.create({
   baseURL: API_BASE_URL,
@@ -117,6 +121,14 @@ export interface Paper {
   embeddingChunkCount: number;
   embeddingError: string | null;
   embeddingAt: string | null;
+  // PDF 관련
+  hasPdf: boolean;
+  pdfSize: number | null;
+  pdfHash: string | null;
+  pdfDownloadedAt: string | null;
+  // 인용 통계
+  citationCount: number;
+  referenceCount: number;
   createdAt: string;
   updatedAt: string;
 }
@@ -144,6 +156,40 @@ export interface PaperStats {
     failed: number;
     totalChunks: number;
   };
+  pdf: {
+    withPdf: number;
+    withoutPdf: number;
+    totalSize: number;
+  };
+  citations: {
+    total: number;
+    avgPerPaper: number;
+  };
+}
+
+// PDF/Citations 관련 타입
+export interface PdfExistsResult {
+  hasPdf: boolean;
+  pdfSize: number | null;
+}
+
+export interface PdfUrlResult {
+  url: string;
+  expiresIn: number;
+}
+
+export interface CitationItem {
+  id: string;
+  paperId: string;
+  pmcid: string | null;
+  pmid: string | null;
+  collectedFrom: string;
+  createdAt: string;
+}
+
+export interface CitationListResult {
+  items: CitationItem[];
+  total: number;
 }
 
 export interface DashboardStats {
@@ -701,6 +747,10 @@ export interface EmbedJobState {
   error: string;
   startedAt: string | null;
   completedAt: string | null;
+  // 추가 필드 (2026-01-15)
+  createdAt: string | null;
+  chunkCount: number | null;
+  heartbeat: string | null;
 }
 
 export interface EmbedJobsResponse {
@@ -746,4 +796,16 @@ export const papersApi = {
     api.post<{ success: boolean }>(`/papers/embedding/jobs/${jobId}/retry`).then((res) => res.data),
   cancelEmbedJob: (jobId: string) =>
     api.post<{ success: boolean }>(`/papers/embedding/jobs/${jobId}/cancel`).then((res) => res.data),
+
+  // PDF 관련
+  checkPdfExists: (id: string) =>
+    api.get<PdfExistsResult>(`/papers/${id}/pdf/exists`).then((res) => res.data),
+  getPdfUrl: (id: string) =>
+    api.get<PdfUrlResult>(`/papers/${id}/pdf/url`).then((res) => res.data),
+
+  // Citations/References 관련
+  getCitations: (id: string) =>
+    api.get<CitationListResult>(`/papers/${id}/citations`).then((res) => res.data),
+  getReferences: (id: string) =>
+    api.get<CitationListResult>(`/papers/${id}/references`).then((res) => res.data),
 };

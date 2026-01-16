@@ -28,9 +28,36 @@ class Section:
 
 @dataclass
 class DisplayParagraph:
-    """디스플레이용 문단 (가독성)"""
+    """디스플레이용 문단 (가독성) - Legacy, DisplayContent로 대체"""
 
     text: str
+
+
+@dataclass
+class DisplayFigure:
+    """디스플레이용 Figure - Legacy, DisplayContent로 대체"""
+
+    id: str  # "fig1"
+    label: str  # "Figure 1"
+    caption: str | None = None
+    graphic_href: str = ""
+
+
+@dataclass
+class DisplayContent:
+    """디스플레이 컨텐츠 (문단 또는 Figure)
+
+    XML 원본 순서대로 저장하여 fulltext와 동일한 위치에 Figure 배치
+    """
+
+    type: str  # "paragraph" | "figure"
+    # paragraph인 경우
+    text: str | None = None
+    # figure인 경우
+    id: str | None = None
+    label: str | None = None
+    caption: str | None = None
+    graphic_href: str | None = None
 
 
 @dataclass
@@ -42,7 +69,20 @@ class DisplaySection:
 
     name: str
     title: str
+    contents: list[DisplayContent] = field(default_factory=list)  # XML 순서대로 문단/Figure 혼합
+    # Legacy fields (하위 호환)
     paragraphs: list[DisplayParagraph] = field(default_factory=list)
+    figures: list[DisplayFigure] = field(default_factory=list)
+
+
+@dataclass
+class Figure:
+    """Figure 정보 (Hotlink 이미지용)"""
+
+    id: str  # "fig1"
+    label: str  # "Figure 1"
+    caption: str | None = None  # 캡션 텍스트
+    graphic_href: str = ""  # "tlcr-14-12-5465-f1" (이미지 파일명)
 
 
 @dataclass
@@ -70,6 +110,9 @@ class Paper:
 
     # 디스플레이용 섹션 (가독성 + fulltext 오프셋)
     display_sections: list[DisplaySection] = field(default_factory=list)
+
+    # Figure (Hotlink 이미지)
+    figures: list[Figure] = field(default_factory=list)
 
     # 원문
     fulltext: str | None = None

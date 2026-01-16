@@ -3,9 +3,11 @@ import { InjectRepository } from '@nestjs/typeorm';
 import { Repository, In, IsNull } from 'typeorm';
 import { ConfigService } from '@nestjs/config';
 import { S3Client, GetObjectCommand } from '@aws-sdk/client-s3';
+import { getSignedUrl } from '@aws-sdk/s3-request-presigner';
 import Redis from 'ioredis';
 import { randomUUID } from 'crypto';
 import { Paper, PaperStatus, EmbeddingStatusValue } from '../../entities/paper.entity';
+import { PaperCitation } from '../../entities/paper-citation.entity';
 import { JobManagerService, JobType, JobStatus } from '../job-manager';
 import {
   PaperSearchOptions,
@@ -19,6 +21,10 @@ import {
   EmbedJobState,
   EmbedJobsResult,
   EmbedBatchCancelResult,
+  CitationItem,
+  CitationListResult,
+  PdfUrlResult,
+  PdfExistsResult,
 } from './types';
 
 // Re-export types for external use
@@ -31,6 +37,9 @@ export {
   EmbedBatchTriggerResult,
   EmbedJobsResult,
   EmbedBatchCancelResult,
+  CitationListResult,
+  PdfUrlResult,
+  PdfExistsResult,
 } from './types';
 
 @Injectable()
@@ -43,6 +52,8 @@ export class PapersService {
   constructor(
     @InjectRepository(Paper)
     private readonly repository: Repository<Paper>,
+    @InjectRepository(PaperCitation)
+    private readonly citationRepository: Repository<PaperCitation>,
     private readonly configService: ConfigService,
     private readonly jobManager: JobManagerService,
   ) {
@@ -155,6 +166,8 @@ export class PapersService {
       embeddingCompleted,
       embeddingFailed,
       totalChunksResult,
+      pdfStatsResult,
+      citationStatsResult,
     ] = await Promise.all([
       this.repository.count(),
       this.repository.count({ where: { status: PaperStatusEnum.COLLECTED as PaperStatus } }),
@@ -186,7 +199,23 @@ export class PapersService {
         .createQueryBuilder('paper')
         .select('COALESCE(SUM(paper.embeddingChunkCount), 0)', 'total')
         .getRawOne(),
+      // PDF 통계
+      this.repository
+        .createQueryBuilder('paper')
+        .select([
+          'COUNT(*) FILTER (WHERE has_pdf = true) as "withPdf"',
+          'COUNT(*) FILTER (WHERE has_pdf = false OR has_pdf IS NULL) as "withoutPdf"',
+          'COALESCE(SUM(pdf_size), 0) as "totalSize"',
+        ])
+        .getRawOne(),
+      // 인용 통계
+      this.citationRepository
+        .createQueryBuilder('citation')
+        .select('COUNT(*)', 'total')
+        .getRawOne(),
     ]);
+
+    const totalPapers = total || 1; // 0으로 나누기 방지
 
     return {
       total,
@@ -205,6 +234,15 @@ export class PapersService {
         completed: embeddingCompleted,
         failed: embeddingFailed,
         totalChunks: parseInt(totalChunksResult?.total ?? '0', 10),
+      },
+      pdf: {
+        withPdf: parseInt(pdfStatsResult?.withPdf ?? '0', 10),
+        withoutPdf: parseInt(pdfStatsResult?.withoutPdf ?? '0', 10),
+        totalSize: parseInt(pdfStatsResult?.totalSize ?? '0', 10),
+      },
+      citations: {
+        total: parseInt(citationStatsResult?.total ?? '0', 10),
+        avgPerPaper: parseInt(citationStatsResult?.total ?? '0', 10) / totalPapers,
       },
     };
   }
@@ -513,6 +551,10 @@ export class PapersService {
       error: job.state.error,
       startedAt: job.state.startedAt,
       completedAt: job.state.completedAt,
+      // 추가 필드 (2026-01-15)
+      createdAt: job.state.createdAt,
+      chunkCount: job.state.chunkCount,
+      heartbeat: job.state.heartbeat,
     }));
 
     return {
@@ -533,5 +575,99 @@ export class PapersService {
    */
   async cancelEmbedJob(jobId: string): Promise<boolean> {
     return this.jobManager.cancelJob(jobId, JobType.PAPER_EMBED);
+  }
+
+  // ─────────────────────────────────────────────────────────────
+  // PDF 관련
+  // ─────────────────────────────────────────────────────────────
+
+  /**
+   * PDF 존재 여부 확인
+   */
+  async checkPdfExists(id: string): Promise<PdfExistsResult> {
+    const paper = await this.findOne(id);
+    return {
+      hasPdf: paper.hasPdf,
+      pdfSize: paper.pdfSize,
+    };
+  }
+
+  /**
+   * PDF Presigned URL 생성
+   */
+  async getPdfUrl(id: string): Promise<PdfUrlResult> {
+    const paper = await this.findOne(id);
+
+    if (!paper.hasPdf || !paper.canonicalPrefix) {
+      throw new NotFoundException('PDF not available');
+    }
+
+    const pdfKey = `${paper.canonicalPrefix}/paper.pdf`;
+    const expiresIn = 3600; // 1시간
+
+    const command = new GetObjectCommand({
+      Bucket: this.bucket,
+      Key: pdfKey,
+    });
+
+    const url = await getSignedUrl(this.s3Client, command, { expiresIn });
+
+    return { url, expiresIn };
+  }
+
+  // ─────────────────────────────────────────────────────────────
+  // Citations/References 관련
+  // ─────────────────────────────────────────────────────────────
+
+  /**
+   * 이 논문을 인용한 논문 목록 (Citations)
+   * source_paper_id가 다른 논문이고, target_paper_id가 현재 논문인 경우
+   */
+  async getCitations(id: string, limit = 50): Promise<CitationListResult> {
+    const paper = await this.findOne(id);
+
+    const [items, total] = await this.citationRepository.findAndCount({
+      where: { targetPaperId: paper.paperId },
+      order: { createdAt: 'DESC' },
+      take: limit,
+    });
+
+    return {
+      items: items.map((item) => ({
+        id: item.id,
+        paperId: item.sourcePaperId,
+        pmcid: item.sourcePmcid,
+        pmid: item.sourcePmid,
+        collectedFrom: item.collectedFrom,
+        createdAt: item.createdAt,
+      })),
+      total,
+    };
+  }
+
+  /**
+   * 이 논문이 인용한 논문 목록 (References)
+   * source_paper_id가 현재 논문이고, target_paper_id가 다른 논문인 경우
+   */
+  async getReferences(id: string, limit = 50): Promise<CitationListResult> {
+    const paper = await this.findOne(id);
+
+    const [items, total] = await this.citationRepository.findAndCount({
+      where: { sourcePaperId: paper.paperId },
+      order: { createdAt: 'DESC' },
+      take: limit,
+    });
+
+    return {
+      items: items.map((item) => ({
+        id: item.id,
+        paperId: item.targetPaperId,
+        pmcid: item.targetPmcid,
+        pmid: item.targetPmid,
+        collectedFrom: item.collectedFrom,
+        createdAt: item.createdAt,
+      })),
+      total,
+    };
   }
 }

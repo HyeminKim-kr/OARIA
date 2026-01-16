@@ -1,6 +1,10 @@
 import axios from "axios";
 
-const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
+// 서버사이드(SSR)에서는 Docker 내부 통신용 API_URL 사용
+// 클라이언트(브라우저)에서는 NEXT_PUBLIC_API_URL 사용
+const API_BASE_URL = typeof window === "undefined"
+  ? (process.env.API_URL || process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000")
+  : (process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000");
 
 export const api = axios.create({
   baseURL: API_BASE_URL,
@@ -137,6 +141,138 @@ export const conversationsApi = {
     api.get<PaginatedMessages>(`/ai/conversations/${conversationId}/messages`, {
       params: { page, size },
     }),
+};
+
+// Paper Types
+export interface PaperAuthor {
+  author_name: string;
+  author_order: number;
+  is_corresponding: boolean;
+  orcid?: string;
+  affiliation?: string;
+}
+
+export interface Paper {
+  id: string;
+  paper_id: string;
+  title: string;
+  abstract?: string;
+  journal?: string;
+  year?: number;
+  keywords?: string[];
+  is_open_access: boolean;
+  created_at: string;
+  authors: PaperAuthor[];
+  citation_count?: number;
+  has_pdf?: boolean;
+}
+
+export interface PaginatedPapers {
+  items: Paper[];
+  total: number;
+  page: number;
+  limit: number;
+  total_pages: number;
+}
+
+// Paper Detail (extends Paper)
+export interface PaperDetail extends Paper {
+  pmcid?: string;
+  pmid?: string;
+  doi?: string;
+  source: string;
+  source_url?: string;
+  status: string;
+  updated_at: string;
+}
+
+// Display (fulltext) Types
+
+// DisplayContent: 문단 또는 Figure (XML 순서대로)
+export interface DisplayContent {
+  type: 'paragraph' | 'figure';
+  // paragraph인 경우
+  text?: string;
+  // figure인 경우
+  id?: string;
+  label?: string;
+  caption?: string;
+  graphic_href?: string;
+}
+
+export interface DisplaySection {
+  name: string;
+  title: string;
+  contents?: DisplayContent[];  // XML 순서대로 문단/Figure 혼합
+  // Legacy fields (하위 호환)
+  paragraphs?: { text: string }[];
+  figures?: Figure[];
+}
+
+// Figure (Hotlink 이미지용)
+export interface Figure {
+  id: string;       // "fig1"
+  label: string;    // "Figure 1"
+  caption?: string; // 캡션 텍스트
+  graphic_href: string; // "tlcr-14-12-5465-f1" (이미지 파일명)
+}
+
+export interface PaperDisplay {
+  paper_id: string;
+  title: string;
+  journal?: string;
+  year?: number;
+  sections: DisplaySection[];
+  figures: Figure[];  // Figure 목록 추가
+  has_pdf: boolean;
+}
+
+// Similar Papers Types
+export interface SimilarPaper {
+  pmcid?: string;
+  pmid?: string;
+  doi?: string;
+  title: string;
+  journal?: string;
+  year?: number;
+  authors?: string;
+  recommendation_type: "citation" | "reference" | "vector" | "hybrid";
+  score: number;
+  sources?: string[];
+}
+
+export interface SimilarPapersResponse {
+  items: SimilarPaper[];
+  source: string;
+  total: number;
+  paper_id: string;
+}
+
+// Papers API
+export const papersApi = {
+  getRecent: (limit = 10) =>
+    api.get<Paper[]>(`/papers/recent?limit=${limit}`).then((res) => res.data),
+
+  search: (params: {
+    q?: string;
+    page?: number;
+    limit?: number;
+    year_from?: number;
+    year_to?: number;
+  }) =>
+    api
+      .get<PaginatedPapers>('/papers/search', { params })
+      .then((res) => res.data),
+
+  getOne: (id: string) =>
+    api.get<PaperDetail>(`/papers/${id}`).then((res) => res.data),
+
+  getDisplay: (id: string) =>
+    api.get<PaperDisplay>(`/papers/${id}/display`).then((res) => res.data),
+
+  getSimilar: (id: string, source: string = "hybrid") =>
+    api.get<SimilarPapersResponse>(`/papers/${id}/similar`, { params: { source } })
+      .then((res) => res.data),
 };
 
 /**

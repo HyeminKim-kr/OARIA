@@ -1,6 +1,6 @@
 """Paper 모델
 
-papers, paper_authors, paper_sections, paper_relations 테이블 매핑
+papers, paper_authors, paper_sections, paper_relations, paper_citations 테이블 매핑
 """
 
 from datetime import datetime
@@ -81,6 +81,16 @@ class Paper(Base):
     has_correction: Mapped[bool] = mapped_column(Boolean, default=False)
     has_erratum: Mapped[bool] = mapped_column(Boolean, default=False)
     has_retraction: Mapped[bool] = mapped_column(Boolean, default=False)
+
+    # PDF 관련
+    has_pdf: Mapped[bool] = mapped_column(Boolean, default=False, index=True)
+    pdf_size: Mapped[Optional[int]] = mapped_column(Integer)
+    pdf_hash: Mapped[Optional[str]] = mapped_column(String(64))
+    pdf_downloaded_at: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True))
+
+    # 인용 통계
+    citation_count: Mapped[int] = mapped_column(Integer, default=0)
+    reference_count: Mapped[int] = mapped_column(Integer, default=0)
 
     # 타임스탬프
     created_at: Mapped[datetime] = mapped_column(
@@ -168,6 +178,39 @@ class PaperRelation(Base):
     relation_type: Mapped[str] = mapped_column(Text, nullable=False)
     raw_type: Mapped[Optional[str]] = mapped_column(Text)
     reference: Mapped[Optional[str]] = mapped_column(Text)
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default="NOW()"
+    )
+
+
+class PaperCitation(Base):
+    """논문 인용 관계 테이블 (Citations/References)"""
+
+    __tablename__ = "paper_citations"
+    __table_args__ = (
+        UniqueConstraint(
+            "source_paper_id", "target_paper_id",
+            name="uq_paper_citations"
+        ),
+        Index("idx_paper_citations_source", "source_paper_id"),
+        Index("idx_paper_citations_target", "target_paper_id"),
+        Index("idx_paper_citations_collected", "collected_from"),
+    )
+
+    id: Mapped[UUID] = mapped_column(
+        PGUUID(as_uuid=True), primary_key=True, server_default="gen_random_uuid()"
+    )
+    # 인용하는 논문 (citing paper)
+    source_paper_id: Mapped[str] = mapped_column(String(100), nullable=False)
+    # 인용되는 논문 (cited paper)
+    target_paper_id: Mapped[str] = mapped_column(String(100), nullable=False)
+    # 추가 식별자
+    source_pmcid: Mapped[Optional[str]] = mapped_column(String(20))
+    source_pmid: Mapped[Optional[str]] = mapped_column(String(20))
+    target_pmcid: Mapped[Optional[str]] = mapped_column(String(20))
+    target_pmid: Mapped[Optional[str]] = mapped_column(String(20))
+    # 어떤 논문 수집 시 발견됨
+    collected_from: Mapped[str] = mapped_column(String(100), nullable=False)
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), server_default="NOW()"
     )

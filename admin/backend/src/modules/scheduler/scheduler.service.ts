@@ -133,6 +133,22 @@ export class SchedulerService {
 
     for (const job of retryableJobs) {
       try {
+        // queryId가 없으면 스킵 (이미 필터링됨, 타입 가드용)
+        if (!job.queryId) continue;
+
+        // 같은 queryId에 이미 running Job이 있는지 체크 (중복 방지)
+        const existingRunningJob = await this.jobRepository.findOne({
+          where: {
+            queryId: job.queryId,
+            status: 'running' as JobStatus,
+          },
+        });
+
+        if (existingRunningJob) {
+          this.logger.debug(`Skipping auto-retry for job ${job.id}: another job is running`);
+          continue;
+        }
+
         const result = await this.collectionJobsService.retryJob(job.id);
         this.logger.log(`Auto-retry triggered for job ${job.id}`, {
           taskId: result.taskId,

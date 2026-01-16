@@ -9,8 +9,12 @@
 흐름:
 1. run_embed(query_id) → 해당 쿼리로 수집된 논문 일괄 임베딩
 2. run_embed_paper(paper_id) → 단일 논문 임베딩
+
+변경 이력:
+- 2026-01-15: asyncio.gather 기반 비동기 처리로 변경 (ThreadPoolExecutor 대체)
 """
 
+import asyncio
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from datetime import datetime, timezone
 from threading import Lock
@@ -25,7 +29,7 @@ from ..celery_app import app
 from ..config import settings
 from ..storage import S3Storage
 from ..chunker import TextChunker
-from ..embedding import EmbeddingClient, WeaviateClient
+from ..embedding import AsyncEmbeddingClient, EmbeddingClient, WeaviateClient
 from ..job_manager import get_job_manager, JobType, JobStatus
 
 logger = structlog.get_logger()
@@ -33,8 +37,9 @@ logger = structlog.get_logger()
 # 병렬 처리 설정 (OpenAI rate limit 고려)
 # - OpenAI embedding: 3,000 RPM, 1,000,000 TPM
 # - 논문당 ~30청크, 배치 10개씩 = ~3 requests/paper
-# - 5 workers × 3 requests = ~15 requests 동시 (안전 범위)
-MAX_WORKERS = 5  # 동시 처리 논문 수
+# - asyncio는 더 많은 동시성 허용 (코루틴은 경량)
+MAX_WORKERS = 5  # 동시 처리 논문 수 (ThreadPoolExecutor용, 하위 호환)
+MAX_CONCURRENT = 10  # asyncio 동시 처리 수
 PROGRESS_UPDATE_INTERVAL = 5  # N개 논문 처리 후 progress 업데이트
 
 
@@ -49,8 +54,17 @@ def get_chunker() -> TextChunker:
 
 
 def get_embedding_client() -> EmbeddingClient:
-    """EmbeddingClient 인스턴스 생성"""
+    """EmbeddingClient 인스턴스 생성 (동기)"""
     return EmbeddingClient(
+        api_key=settings.openai.api_key,
+        model=settings.openai.embedding_model,
+        dimensions=settings.openai.embedding_dimensions,
+    )
+
+
+def get_async_embedding_client() -> AsyncEmbeddingClient:
+    """AsyncEmbeddingClient 인스턴스 생성 (비동기)"""
+    return AsyncEmbeddingClient(
         api_key=settings.openai.api_key,
         model=settings.openai.embedding_model,
         dimensions=settings.openai.embedding_dimensions,
@@ -327,7 +341,7 @@ def process_single_paper(
         # 1. S3에서 fulltext 읽기
         fulltext = s3_storage.get_fulltext(paper["canonical_prefix"])
         if not fulltext:
-            raise ValueError(f"Fulltext not found: {paper['canonical_prefix']}")
+            raise ValueError(f"[TERMINAL:no_fulltext] Fulltext not found: {paper['canonical_prefix']}")
 
         # 2. 섹션 정보 조회 (paper_uuid 사용 - FK 관계)
         with pool.connection() as conn:
@@ -336,7 +350,7 @@ def process_single_paper(
             update_embedding_status(conn, paper_id, "processing")
 
         if not sections:
-            raise ValueError(f"No sections found for paper: {paper_id}")
+            raise ValueError(f"[TERMINAL:no_sections] No sections found for paper: {paper_id}")
 
         # 3. 청킹
         chunking_result = chunker.chunk_paper(
@@ -348,7 +362,7 @@ def process_single_paper(
         )
 
         if not chunking_result.chunks:
-            raise ValueError(f"No chunks created for paper: {paper_id}")
+            raise ValueError(f"[TERMINAL:no_chunks] No chunks created for paper: {paper_id}")
 
         logger.info(
             "paper_chunked",
@@ -443,7 +457,7 @@ def process_single_paper_v2(
         # 1. S3에서 fulltext 읽기
         fulltext = s3_storage.get_fulltext(paper["canonical_prefix"])
         if not fulltext:
-            raise ValueError(f"Fulltext not found: {paper['canonical_prefix']}")
+            raise ValueError(f"[TERMINAL:no_fulltext] Fulltext not found: {paper['canonical_prefix']}")
 
         # 2. 섹션 정보 조회
         with pool.connection() as conn:
@@ -452,7 +466,7 @@ def process_single_paper_v2(
             update_embedding_status(conn, paper_id, "processing")
 
         if not sections:
-            raise ValueError(f"No sections found for paper: {paper_id}")
+            raise ValueError(f"[TERMINAL:no_sections] No sections found for paper: {paper_id}")
 
         # 3. 청킹
         chunking_result = chunker.chunk_paper(
@@ -464,7 +478,7 @@ def process_single_paper_v2(
         )
 
         if not chunking_result.chunks:
-            raise ValueError(f"No chunks created for paper: {paper_id}")
+            raise ValueError(f"[TERMINAL:no_chunks] No chunks created for paper: {paper_id}")
 
         # 4. 메타데이터 구성
         pmcid = paper.get("pmcid", "")
@@ -563,6 +577,178 @@ def process_single_paper_v2(
                     "failed",
                     error_msg=error_msg,
                 )
+        except Exception:
+            pass  # 상태 업데이트 실패해도 계속 진행
+
+        return {
+            "success": False,
+            "chunk_count": 0,
+            "error": error_msg,
+        }
+
+
+async def process_single_paper_async(
+    pool: ConnectionPool,
+    s3_storage: S3Storage,
+    collection,  # Weaviate collection 객체
+    embedding_client: AsyncEmbeddingClient,
+    chunker,
+    paper: dict,
+) -> dict:
+    """단일 논문 청킹 및 임베딩 (비동기 버전)
+
+    AsyncEmbeddingClient를 사용하여 asyncio.gather()와 함께
+    병렬 처리할 수 있습니다.
+
+    Returns:
+        {"success": bool, "chunk_count": int, "error": str|None}
+    """
+    paper_id = paper["paper_id"]
+    paper_uuid = str(paper["id"])
+
+    try:
+        # 1. S3에서 fulltext 읽기 (동기 - to_thread로 래핑)
+        fulltext = await asyncio.to_thread(s3_storage.get_fulltext, paper["canonical_prefix"])
+        if not fulltext:
+            raise ValueError(f"[TERMINAL:no_fulltext] Fulltext not found: {paper['canonical_prefix']}")
+
+        # 2. 섹션 정보 조회 (동기 DB - to_thread로 래핑)
+        def _get_paper_info():
+            with pool.connection() as conn:
+                sections = get_paper_sections(conn, paper_uuid)
+                authors = get_paper_authors(conn, paper_uuid)
+                update_embedding_status(conn, paper_id, "processing")
+            return sections, authors
+
+        sections, authors = await asyncio.to_thread(_get_paper_info)
+
+        if not sections:
+            raise ValueError(f"[TERMINAL:no_sections] No sections found for paper: {paper_id}")
+
+        # 3. 청킹 (CPU 바운드 - to_thread로 래핑)
+        chunking_result = await asyncio.to_thread(
+            chunker.chunk_paper,
+            paper_id=paper_id,
+            title=paper["title"],
+            fulltext=fulltext,
+            sections=sections,
+            year=paper.get("year"),
+        )
+
+        if not chunking_result.chunks:
+            raise ValueError(f"[TERMINAL:no_chunks] No chunks created for paper: {paper_id}")
+
+        # 4. 메타데이터 구성
+        pmcid = paper.get("pmcid", "")
+        source_url = f"https://europepmc.org/article/PMC/{pmcid}" if pmcid else None
+
+        paper_metadata = {
+            "pmcid": pmcid,
+            "pmid": paper.get("pmid"),
+            "doi": paper.get("doi"),
+            "title": paper["title"],
+            "authors": authors,
+            "journal": paper.get("journal"),
+            "year": paper.get("year"),
+            "keywords": paper.get("keywords", []),
+            "sourceUrl": source_url,
+        }
+
+        # 5. 배치 임베딩 + Weaviate 저장 (비동기!)
+        chunks = chunking_result.chunks
+        uuids = []
+        batch_size = 10
+
+        for i in range(0, len(chunks), batch_size):
+            batch_chunks = chunks[i : i + batch_size]
+            batch_texts = [c.embedding_input for c in batch_chunks]
+
+            # 비동기 임베딩!
+            batch_embeddings = await embedding_client.embed_texts(batch_texts)
+
+            # Weaviate 저장 (동기 - to_thread로 래핑)
+            def _insert_batch(batch_chunks, batch_embeddings):
+                inserted = []
+                for chunk, embedding in zip(batch_chunks, batch_embeddings):
+                    object_uuid = str(
+                        uuid_module.uuid5(uuid_module.NAMESPACE_DNS, chunk.chunk_id)
+                    )
+
+                    properties = {
+                        "paperId": chunk.paper_id,
+                        "chunkId": chunk.chunk_id,
+                        "embeddingVersion": embedding_client.get_version_string(),
+                        "pmcid": paper_metadata.get("pmcid"),
+                        "pmid": paper_metadata.get("pmid"),
+                        "doi": paper_metadata.get("doi"),
+                        "title": paper_metadata.get("title", ""),
+                        "authors": paper_metadata.get("authors", []),
+                        "journal": paper_metadata.get("journal"),
+                        "year": paper_metadata.get("year"),
+                        "keywords": paper_metadata.get("keywords", []),
+                        "section": chunk.section,
+                        "chunkIndex": chunk.chunk_index,
+                        "content": chunk.text,
+                        "offsetStart": chunk.offset_start,
+                        "offsetEnd": chunk.offset_end,
+                        "textVersion": chunk.text_version,
+                        "sourceUrl": paper_metadata.get("sourceUrl"),
+                        "createdAt": datetime.now(timezone.utc),
+                    }
+
+                    collection.data.insert(
+                        uuid=object_uuid,
+                        properties=properties,
+                        vector=embedding,
+                    )
+                    inserted.append(object_uuid)
+                return inserted
+
+            batch_uuids = await asyncio.to_thread(_insert_batch, batch_chunks, batch_embeddings)
+            uuids.extend(batch_uuids)
+
+        # 6. 상태 업데이트 (동기 DB - to_thread로 래핑)
+        def _update_status():
+            with pool.connection() as conn:
+                update_embedding_status(
+                    conn,
+                    paper_id,
+                    "completed",
+                    chunk_count=len(uuids),
+                )
+
+        await asyncio.to_thread(_update_status)
+
+        logger.info(
+            "paper_embedded_async",
+            paper_id=paper_id,
+            chunk_count=len(uuids),
+        )
+
+        return {
+            "success": True,
+            "chunk_count": len(uuids),
+            "error": None,
+        }
+
+    except Exception as e:
+        error_msg = str(e)[:500]
+        logger.error(
+            "paper_embedding_failed_async",
+            paper_id=paper_id,
+            error=error_msg,
+        )
+
+        try:
+            def _update_failed():
+                with pool.connection() as conn:
+                    update_embedding_status(
+                        conn,
+                        paper_id,
+                        "failed",
+                        error_msg=error_msg,
+                    )
+            await asyncio.to_thread(_update_failed)
         except Exception:
             pass  # 상태 업데이트 실패해도 계속 진행
 
@@ -682,6 +868,116 @@ def run_embed_async(
         weaviate_client.close()
 
 
+async def run_embed_coroutine(
+    query_id: Optional[str] = None,
+    limit: Optional[int] = None,
+) -> dict:
+    """비동기 임베딩 실행 (asyncio.gather 기반)
+
+    ThreadPoolExecutor 대신 asyncio.gather()와 세마포어를 사용하여
+    I/O 바운드 작업의 병렬성을 극대화합니다.
+
+    Args:
+        query_id: 특정 쿼리로 수집된 논문만 처리 (None이면 전체)
+        limit: 처리할 최대 논문 수 (None이면 전체)
+
+    Returns:
+        실행 결과
+    """
+    pool = get_db_pool()
+    s3_storage = S3Storage()
+
+    # 비동기 임베딩 클라이언트 + Weaviate
+    async_embedding_client = get_async_embedding_client()
+    weaviate_client = get_weaviate_client()
+    chunker = get_chunker()
+
+    try:
+        # 1. 처리할 논문 조회 (동기 DB - to_thread)
+        def _get_papers():
+            with pool.connection() as conn:
+                total_pending = count_pending_papers(conn, query_id)
+                return get_papers_for_embedding(
+                    conn, query_id,
+                    limit=limit or total_pending,
+                    status_filter="pending",
+                )
+
+        papers = await asyncio.to_thread(_get_papers)
+
+        if not papers:
+            logger.info("no_papers_to_embed_async", query_id=query_id)
+            return {
+                "query_id": query_id,
+                "total": 0,
+                "completed": 0,
+                "failed": 0,
+                "status": "no_papers",
+            }
+
+        logger.info(
+            "embed_started_async",
+            query_id=query_id,
+            total_papers=len(papers),
+            max_concurrent=MAX_CONCURRENT,
+        )
+
+        # 2. 세마포어로 동시성 제어
+        semaphore = asyncio.Semaphore(MAX_CONCURRENT)
+        collection = weaviate_client.collection
+
+        async def process_with_semaphore(paper: dict) -> dict:
+            async with semaphore:
+                return await process_single_paper_async(
+                    pool=pool,
+                    s3_storage=s3_storage,
+                    collection=collection,
+                    embedding_client=async_embedding_client,
+                    chunker=chunker,
+                    paper=paper,
+                )
+
+        # 3. asyncio.gather로 병렬 처리
+        tasks = [process_with_semaphore(paper) for paper in papers]
+        results = await asyncio.gather(*tasks, return_exceptions=True)
+
+        # 4. 결과 집계
+        completed = 0
+        failed = 0
+        total_chunks = 0
+
+        for i, result in enumerate(results):
+            if isinstance(result, Exception):
+                failed += 1
+                logger.error(
+                    "paper_embed_exception",
+                    paper_id=papers[i]["paper_id"],
+                    error=str(result)[:200],
+                )
+            elif result.get("success"):
+                completed += 1
+                total_chunks += result.get("chunk_count", 0)
+            else:
+                failed += 1
+
+        # 5. 결과 반환
+        final_result = {
+            "query_id": query_id,
+            "total": len(papers),
+            "completed": completed,
+            "failed": failed,
+            "total_chunks": total_chunks,
+            "status": "completed" if failed == 0 else "partial",
+        }
+
+        logger.info("embed_completed_async", **final_result)
+        return final_result
+
+    finally:
+        weaviate_client.close()
+        await async_embedding_client.close()
+
+
 # ============================================================
 # Celery 태스크
 # ============================================================
@@ -692,6 +988,7 @@ def run_embed(
     self,
     query_id: Optional[str] = None,
     limit: Optional[int] = None,
+    use_async: bool = True,
 ) -> dict:
     """임베딩 태스크 (Celery)
 
@@ -700,6 +997,7 @@ def run_embed(
     Args:
         query_id: 특정 쿼리로 수집된 논문만 처리 (None이면 전체)
         limit: 처리할 최대 논문 수 (None이면 전체)
+        use_async: True면 asyncio.gather 사용 (기본), False면 ThreadPoolExecutor
 
     Returns:
         실행 결과 dict
@@ -709,10 +1007,16 @@ def run_embed(
         query_id=query_id,
         limit=limit,
         task_id=self.request.id,
+        use_async=use_async,
     )
 
     try:
-        result = run_embed_async(query_id, limit)
+        if use_async:
+            # 비동기 버전 (asyncio.gather 기반) - 권장
+            result = asyncio.run(run_embed_coroutine(query_id, limit))
+        else:
+            # 동기 버전 (ThreadPoolExecutor 기반) - 하위 호환
+            result = run_embed_async(query_id, limit)
         return result
 
     except Exception as e:
@@ -803,6 +1107,7 @@ def run_reembed(
     pool = get_db_pool()
 
     # 실패한 논문 상태를 pending으로 변경
+    # 단, TERMINAL 에러(재시도 의미 없음)는 제외
     with pool.connection() as conn:
         with conn.cursor() as cur:
             if query_id:
@@ -818,6 +1123,7 @@ def run_reembed(
                         JOIN collection_jobs cj ON cj.id = aj.batch_job_id
                         WHERE cj.query_id = %s
                           AND p.embedding_status = 'failed'
+                          AND (p.embedding_error IS NULL OR p.embedding_error NOT LIKE '[TERMINAL:%%]%%')
                     )
                     """,
                     (query_id,),
@@ -829,12 +1135,41 @@ def run_reembed(
                         embedding_status = 'pending',
                         embedding_error = NULL
                     WHERE embedding_status = 'failed'
+                      AND (embedding_error IS NULL OR embedding_error NOT LIKE '[TERMINAL:%%]%%')
                     """
                 )
             reset_count = cur.rowcount
             conn.commit()
 
-    logger.info("reembed_reset", reset_count=reset_count)
+        # TERMINAL 에러로 제외된 논문 수 조회
+        with conn.cursor() as cur:
+            if query_id:
+                cur.execute(
+                    """
+                    SELECT COUNT(*) FROM papers p
+                    JOIN article_jobs aj ON aj.pmcid = p.pmcid
+                    JOIN collection_jobs cj ON cj.id = aj.batch_job_id
+                    WHERE cj.query_id = %s
+                      AND p.embedding_status = 'failed'
+                      AND p.embedding_error LIKE '[TERMINAL:%%]%%'
+                    """,
+                    (query_id,),
+                )
+            else:
+                cur.execute(
+                    """
+                    SELECT COUNT(*) FROM papers
+                    WHERE embedding_status = 'failed'
+                      AND embedding_error LIKE '[TERMINAL:%%]%%'
+                    """
+                )
+            terminal_count = cur.fetchone()[0]
+
+    logger.info(
+        "reembed_reset",
+        reset_count=reset_count,
+        terminal_skipped=terminal_count,
+    )
 
     # 임베딩 실행
     return run_embed_async(query_id, limit)

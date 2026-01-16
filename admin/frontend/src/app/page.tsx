@@ -1,5 +1,6 @@
 import { DashboardStats } from '@/components/dashboard/DashboardStats';
 import { EmbeddingStats } from '@/components/dashboard/EmbeddingStats';
+import { PdfCitationsStats } from '@/components/dashboard/PdfCitationsStats';
 import { RecentJobs } from '@/components/dashboard/RecentJobs';
 import { SystemStatus } from '@/components/dashboard/SystemStatus';
 
@@ -15,6 +16,7 @@ export default function HomePage() {
       <SystemStatus />
       <DashboardStats />
       <EmbeddingStats />
+      <PdfCitationsStats />
       <RecentJobs />
     </div>
   );

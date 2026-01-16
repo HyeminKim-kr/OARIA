@@ -4,6 +4,7 @@ import { Paper } from '@/lib/api';
 import { formatDate } from '@/lib/utils';
 import { StatusBadge } from '@/components/ui/StatusBadge';
 import { EmbeddingStatusBadge } from './EmbeddingStatusBadge';
+import { PdfStatusBadge, CitationBadge } from './PdfStatusBadge';
 
 interface PaperListItemProps {
   paper: Paper;
@@ -27,6 +28,11 @@ export function PaperListItem({ paper }: PaperListItemProps) {
             <EmbeddingStatusBadge
               status={paper.embeddingStatus}
               chunkCount={paper.embeddingChunkCount}
+            />
+            <PdfStatusBadge hasPdf={paper.hasPdf} pdfSize={paper.pdfSize} />
+            <CitationBadge
+              citationCount={paper.citationCount}
+              referenceCount={paper.referenceCount}
             />
           </div>
           {paper.abstract && (

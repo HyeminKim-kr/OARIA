@@ -438,3 +438,189 @@ class DatabaseStorage:
             )
 
         return stats
+
+    # ============================================================
+    # PDF 관련 메서드
+    # ============================================================
+
+    def update_paper_pdf_info(
+        self,
+        paper_id: str,
+        pdf_size: int,
+        pdf_hash: str,
+    ) -> bool:
+        """PDF 정보 업데이트
+
+        Args:
+            paper_id: 논문 paper_id (예: "pmc:PMC12345678")
+            pdf_size: PDF 파일 크기 (bytes)
+            pdf_hash: PDF SHA256 해시
+
+        Returns:
+            bool: 업데이트 성공 여부
+        """
+        with self._pool.connection() as conn:
+            try:
+                with conn.cursor() as cur:
+                    cur.execute(
+                        """
+                        UPDATE papers SET
+                            has_pdf = true,
+                            pdf_size = %s,
+                            pdf_hash = %s,
+                            pdf_downloaded_at = NOW(),
+                            updated_at = NOW()
+                        WHERE paper_id = %s
+                        """,
+                        (pdf_size, pdf_hash, paper_id),
+                    )
+                    updated = cur.rowcount > 0
+                    conn.commit()
+
+                if updated:
+                    logger.info(
+                        "pdf_info_updated",
+                        paper_id=paper_id,
+                        pdf_size=pdf_size,
+                    )
+
+                return updated
+
+            except Exception as e:
+                conn.rollback()
+                logger.error(
+                    "pdf_info_update_failed",
+                    paper_id=paper_id,
+                    error=str(e),
+                )
+                return False
+
+    # ============================================================
+    # Citations 관련 메서드
+    # ============================================================
+
+    def save_citation(
+        self,
+        source_paper_id: str,
+        target_paper_id: str,
+        source_pmcid: str | None = None,
+        source_pmid: str | None = None,
+        target_pmcid: str | None = None,
+        target_pmid: str | None = None,
+        collected_from: str = "",
+    ) -> bool:
+        """인용 관계 저장 (UPSERT)
+
+        Args:
+            source_paper_id: 인용하는 논문 (citing paper)
+            target_paper_id: 인용되는 논문 (cited paper)
+            source_pmcid: Source PMCID
+            source_pmid: Source PMID
+            target_pmcid: Target PMCID
+            target_pmid: Target PMID
+            collected_from: 어떤 논문 수집 시 발견됨
+
+        Returns:
+            bool: 성공 여부
+        """
+        with self._pool.connection() as conn:
+            try:
+                with conn.cursor() as cur:
+                    cur.execute(
+                        """
+                        INSERT INTO paper_citations (
+                            source_paper_id, target_paper_id,
+                            source_pmcid, source_pmid,
+                            target_pmcid, target_pmid,
+                            collected_from
+                        ) VALUES (%s, %s, %s, %s, %s, %s, %s)
+                        ON CONFLICT (source_paper_id, target_paper_id) DO NOTHING
+                        """,
+                        (
+                            source_paper_id,
+                            target_paper_id,
+                            source_pmcid,
+                            source_pmid,
+                            target_pmcid,
+                            target_pmid,
+                            collected_from,
+                        ),
+                    )
+                    conn.commit()
+                    return True
+
+            except Exception as e:
+                conn.rollback()
+                logger.error(
+                    "citation_save_failed",
+                    source_paper_id=source_paper_id,
+                    target_paper_id=target_paper_id,
+                    error=str(e),
+                )
+                return False
+
+    def update_citation_counts(self, paper_id: str) -> bool:
+        """인용/참조 카운트 업데이트
+
+        Args:
+            paper_id: 논문 paper_id
+
+        Returns:
+            bool: 업데이트 성공 여부
+        """
+        with self._pool.connection() as conn:
+            try:
+                with conn.cursor() as cur:
+                    cur.execute(
+                        """
+                        UPDATE papers SET
+                            citation_count = (
+                                SELECT COUNT(*) FROM paper_citations
+                                WHERE target_paper_id = papers.paper_id
+                            ),
+                            reference_count = (
+                                SELECT COUNT(*) FROM paper_citations
+                                WHERE source_paper_id = papers.paper_id
+                            ),
+                            updated_at = NOW()
+                        WHERE paper_id = %s
+                        """,
+                        (paper_id,),
+                    )
+                    conn.commit()
+                    return True
+
+            except Exception as e:
+                conn.rollback()
+                logger.error(
+                    "citation_count_update_failed",
+                    paper_id=paper_id,
+                    error=str(e),
+                )
+                return False
+
+    def get_citation_stats(self, paper_id: str) -> dict:
+        """인용 통계 조회
+
+        Args:
+            paper_id: 논문 paper_id
+
+        Returns:
+            dict: {citation_count, reference_count}
+        """
+        with self._pool.connection() as conn:
+            with conn.cursor() as cur:
+                cur.execute(
+                    """
+                    SELECT citation_count, reference_count
+                    FROM papers WHERE paper_id = %s
+                    """,
+                    (paper_id,),
+                )
+                row = cur.fetchone()
+                if row:
+                    return {
+                        "citation_count": row[0] or 0,
+                        "reference_count": row[1] or 0,
+                    }
+                return {"citation_count": 0, "reference_count": 0}

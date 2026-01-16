@@ -12,7 +12,7 @@ from dataclasses import dataclass
 
 from lxml import etree
 
-from ..models import Author, DisplayParagraph, DisplaySection, Paper, Section
+from ..models import Author, DisplayContent, DisplayFigure, DisplayParagraph, DisplaySection, Figure, Paper, Section
 from .preprocess import clean_text, preprocess_fulltext
 
 
@@ -104,8 +104,11 @@ class XMLParser:
         # 저자 추출
         authors = self._parse_authors(root)
 
-        # 섹션 및 fulltext 추출
-        sections, display_sections, fulltext = self._extract_sections(root)
+        # Figure 추출 (Hotlink용) - 섹션 추출 전에 먼저 파싱
+        figures = self._parse_figures(root)
+
+        # 섹션 및 fulltext 추출 (figures 전달하여 섹션별 연결)
+        sections, display_sections, fulltext = self._extract_sections(root, figures)
 
         return Paper(
             paper_id=Paper.create_paper_id(metadata.get("pmcid"), metadata.get("pmid")),
@@ -120,6 +123,7 @@ class XMLParser:
             authors=authors,
             sections=sections,
             display_sections=display_sections,
+            figures=figures,
             fulltext=fulltext,
             raw_xml=xml_content,
             raw_xml_hash=raw_xml_hash,
@@ -234,20 +238,27 @@ class XMLParser:
         return authors
 
     def _extract_sections(
-        self, root: etree._Element
+        self, root: etree._Element, figures: list[Figure]
     ) -> tuple[list[Section], list[DisplaySection], str]:
         """XML에서 섹션 추출 및 fulltext 생성
+
+        Args:
+            root: XML root element
+            figures: 파싱된 Figure 목록 (섹션별 연결용)
 
         Returns:
             tuple: (sections, display_sections, fulltext)
             - sections: 임베딩용 섹션 (fulltext 오프셋)
-            - display_sections: 디스플레이용 섹션 (문단 구분)
+            - display_sections: 디스플레이용 섹션 (문단 구분 + 인라인 Figure)
             - fulltext: 전체 텍스트
         """
         sections = []
         display_sections = []
         text_parts = []
         current_offset = 0
+
+        # Figure ID → Figure 매핑 (빠른 조회용)
+        figure_map = {fig.id: fig for fig in figures}
 
         # 제목 추출
         title = root.findtext(".//article-title", default="")
@@ -282,10 +293,17 @@ class XMLParser:
 
                 # Display: Abstract는 <p> 태그 기준으로 문단 분리
                 abstract_paragraphs = self._extract_paragraphs(abstract_elem)
+                # Abstract contents (순서대로)
+                abstract_contents = [
+                    DisplayContent(type="paragraph", text=p.text)
+                    for p in abstract_paragraphs
+                ]
                 display_sections.append(DisplaySection(
                     name="abstract",
                     title="Abstract",
-                    paragraphs=abstract_paragraphs,
+                    contents=abstract_contents,
+                    paragraphs=abstract_paragraphs,  # Legacy
+                    figures=[],  # Legacy - Abstract에는 보통 Figure 없음
                 ))
 
         # Body 섹션 추출
@@ -337,16 +355,97 @@ class XMLParser:
                     offset_end=current_offset - 2,
                 ))
 
-                # Display: 각 자식 요소를 문단으로 처리
+                # Display: XML 순서대로 문단 + Figure 추출
+                sec_contents = self._extract_section_contents(sec, figure_map)
+
+                # Legacy: 별도 리스트로도 유지 (하위 호환)
                 display_paragraphs = self._extract_paragraphs_from_sec(sec)
+                sec_figures = self._extract_section_figures(sec, figure_map)
+
                 display_sections.append(DisplaySection(
                     name=sec_name,
                     title=sec_title or sec_name.title(),
-                    paragraphs=display_paragraphs,
+                    contents=sec_contents,  # XML 순서대로
+                    paragraphs=display_paragraphs,  # Legacy
+                    figures=sec_figures,  # Legacy
                 ))
 
         fulltext = "".join(text_parts)
         return sections, display_sections, fulltext
+
+    def _extract_section_contents(
+        self, sec: etree._Element, figure_map: dict[str, Figure]
+    ) -> list[DisplayContent]:
+        """섹션 내 컨텐츠를 XML 순서대로 추출 (문단 + Figure 혼합)
+
+        XML 원본 순서를 유지하여 Figure가 fulltext와 동일한 위치에 배치됨
+        """
+        contents = []
+
+        for child in sec:
+            tag = child.tag
+
+            # title은 스킵
+            if tag == "title":
+                continue
+
+            # Figure 처리
+            if tag == "fig":
+                fig_id = child.get("id", "")
+                if fig_id and fig_id in figure_map:
+                    fig = figure_map[fig_id]
+                    contents.append(DisplayContent(
+                        type="figure",
+                        id=fig.id,
+                        label=fig.label,
+                        caption=fig.caption,
+                        graphic_href=fig.graphic_href,
+                    ))
+                continue
+
+            # fig-group 처리 (여러 Figure가 묶인 경우)
+            if tag == "fig-group":
+                for fig_elem in child.findall("fig"):
+                    fig_id = fig_elem.get("id", "")
+                    if fig_id and fig_id in figure_map:
+                        fig = figure_map[fig_id]
+                        contents.append(DisplayContent(
+                            type="figure",
+                            id=fig.id,
+                            label=fig.label,
+                            caption=fig.caption,
+                            graphic_href=fig.graphic_href,
+                        ))
+                continue
+
+            # 문단 처리 (p, table-wrap, list, 기타)
+            text = clean_text(extract_text_from_element(child))
+            if text:
+                contents.append(DisplayContent(type="paragraph", text=text))
+
+        return contents
+
+    def _extract_section_figures(
+        self, sec: etree._Element, figure_map: dict[str, Figure]
+    ) -> list[DisplayFigure]:
+        """섹션 내 Figure 추출 (Legacy - 하위 호환용)
+
+        섹션 내의 <fig> 태그를 찾아 DisplayFigure 리스트 반환
+        """
+        sec_figures = []
+
+        for fig_elem in sec.iter("fig"):
+            fig_id = fig_elem.get("id", "")
+            if fig_id and fig_id in figure_map:
+                fig = figure_map[fig_id]
+                sec_figures.append(DisplayFigure(
+                    id=fig.id,
+                    label=fig.label,
+                    caption=fig.caption,
+                    graphic_href=fig.graphic_href,
+                ))
+
+        return sec_figures
 
     def _extract_paragraphs(self, elem: etree._Element) -> list[DisplayParagraph]:
         """요소 내의 <p> 태그들을 문단으로 추출"""
@@ -398,3 +497,47 @@ class XMLParser:
                     paragraphs.append(DisplayParagraph(text=text))
 
         return paragraphs
+
+    def _parse_figures(self, root: etree._Element) -> list[Figure]:
+        """XML에서 Figure 정보 추출 (Hotlink용)
+
+        PMC XML의 <fig> 태그에서 Figure 정보를 추출합니다.
+        이미지는 다운로드하지 않고 graphic_href만 저장하여
+        Europe PMC 서버에서 직접 로드합니다. (Hotlink 방식)
+
+        Returns:
+            list[Figure]: Figure 정보 목록
+        """
+        figures = []
+        xlink_ns = "{http://www.w3.org/1999/xlink}"
+
+        # body 내의 모든 <fig> 태그 찾기
+        for fig in root.findall(".//fig"):
+            fig_id = fig.get("id", "")
+
+            # label 추출 (예: "Figure 1")
+            label_elem = fig.find("label")
+            label = clean_text(extract_text_from_element(label_elem)) if label_elem is not None else ""
+
+            # caption 추출
+            caption = None
+            caption_elem = fig.find("caption")
+            if caption_elem is not None:
+                caption = clean_text(extract_text_from_element(caption_elem))
+
+            # graphic href 추출 (이미지 파일명)
+            graphic_href = ""
+            graphic_elem = fig.find(".//graphic")
+            if graphic_elem is not None:
+                graphic_href = graphic_elem.get(f"{xlink_ns}href", "")
+
+            # 최소한 id와 graphic_href가 있어야 유효한 Figure
+            if fig_id and graphic_href:
+                figures.append(Figure(
+                    id=fig_id,
+                    label=label or fig_id,  # label이 없으면 id 사용
+                    caption=caption,
+                    graphic_href=graphic_href,
+                ))
+
+        return figures

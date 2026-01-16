@@ -1,21 +1,22 @@
 """임베딩 서비스
 
 OpenAI text-embedding-3-small 모델 사용
+비동기 지원: AsyncOpenAI 사용 (2026-01-15)
 """
 
 import hashlib
 import random
 
-from openai import OpenAI
+from openai import AsyncOpenAI
 
 from app.config import settings
 
 
 class EmbeddingService:
-    """OpenAI 임베딩 서비스"""
+    """비동기 OpenAI 임베딩 서비스"""
 
     _instance: "EmbeddingService | None" = None
-    _client: OpenAI | None = None
+    _client: AsyncOpenAI | None = None
 
     def __new__(cls) -> "EmbeddingService":
         """싱글톤 패턴"""
@@ -23,10 +24,10 @@ class EmbeddingService:
             cls._instance = super().__new__(cls)
         return cls._instance
 
-    def _get_client(self) -> OpenAI | None:
-        """OpenAI 클라이언트 반환 (지연 초기화)"""
+    def _get_client(self) -> AsyncOpenAI | None:
+        """AsyncOpenAI 클라이언트 반환 (지연 초기화)"""
         if self._client is None and settings.openai_api_key:
-            self._client = OpenAI(api_key=settings.openai_api_key)
+            self._client = AsyncOpenAI(api_key=settings.openai_api_key)
         return self._client
 
     @property
@@ -34,8 +35,8 @@ class EmbeddingService:
         """Mock 모드 여부"""
         return not settings.openai_api_key
 
-    def embed_text(self, text: str) -> list[float]:
-        """단일 텍스트 임베딩 생성
+    async def embed_text(self, text: str) -> list[float]:
+        """비동기 단일 텍스트 임베딩 생성
 
         Args:
             text: 임베딩할 텍스트
@@ -47,15 +48,15 @@ class EmbeddingService:
             return self._mock_embed(text)
 
         client = self._get_client()
-        response = client.embeddings.create(
+        response = await client.embeddings.create(
             model=settings.openai_embedding_model,
             input=text,
             dimensions=settings.openai_embedding_dimensions,
         )
         return response.data[0].embedding
 
-    def embed_texts(self, texts: list[str]) -> list[list[float]]:
-        """복수 텍스트 임베딩 생성
+    async def embed_texts(self, texts: list[str]) -> list[list[float]]:
+        """비동기 복수 텍스트 임베딩 생성
 
         Args:
             texts: 임베딩할 텍스트 리스트
@@ -70,7 +71,7 @@ class EmbeddingService:
             return [self._mock_embed(t) for t in texts]
 
         client = self._get_client()
-        response = client.embeddings.create(
+        response = await client.embeddings.create(
             model=settings.openai_embedding_model,
             input=texts,
             dimensions=settings.openai_embedding_dimensions,

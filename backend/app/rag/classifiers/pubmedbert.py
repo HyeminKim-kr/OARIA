@@ -79,6 +79,29 @@ class PubMedBERTDomainClassifier:
     # 허용되는 도메인
     ALLOWED_DOMAINS = ["oncology"]
 
+    # Oncology 키워드 (한국어 + 영어) - 키워드 매칭으로 빠른 분류
+    ONCOLOGY_KEYWORDS = [
+        # Korean cancer types
+        "암", "종양", "악성", "양성", "전이", "재발",
+        "폐암", "유방암", "대장암", "위암", "간암", "췌장암", "난소암", "전립선암",
+        "백혈병", "림프종", "골수종", "육종", "흑색종", "뇌종양", "갑상선암",
+        # Korean treatments
+        "항암", "화학요법", "방사선", "면역요법", "면역항암", "표적치료", "세포치료",
+        "수술", "절제", "생검", "조직검사",
+        # Korean biomarkers & terms
+        "종양표지자", "암표지자", "병기", "스테이징",
+        # English cancer types
+        "cancer", "tumor", "tumour", "carcinoma", "adenocarcinoma",
+        "lymphoma", "leukemia", "leukaemia", "melanoma", "sarcoma",
+        "neoplasm", "malignant", "metastasis", "metastatic",
+        # English treatments
+        "chemotherapy", "radiotherapy", "immunotherapy", "targeted therapy",
+        "oncology", "oncologist",
+        # Biomarkers
+        "egfr", "kras", "braf", "her2", "brca", "pd-1", "pd-l1", "alk", "ros1",
+        "tp53", "pik3ca", "msi", "tmb",
+    ]
+
     def __init__(
         self,
         model_name: str = "facebook/bart-large-mnli",
@@ -107,6 +130,18 @@ class PubMedBERTDomainClassifier:
         if self._device is None:
             self._device = _get_best_device()
         return self._device
+
+    def _check_oncology_keywords(self, query: str) -> bool:
+        """Fast keyword-based oncology detection (Korean + English).
+
+        Returns True if query contains any oncology keyword.
+        This bypasses the slow zero-shot model for obvious oncology queries.
+        """
+        query_lower = query.lower()
+        for keyword in self.ONCOLOGY_KEYWORDS:
+            if keyword.lower() in query_lower:
+                return True
+        return False
 
     def _load_pipeline(self) -> None:
         """Zero-shot 분류 파이프라인 로드 (Lazy)"""
@@ -158,6 +193,17 @@ class PubMedBERTDomainClassifier:
                 confidence=0.0,
                 is_allowed=True,
                 reason="Empty query",
+            )
+
+        # Fast path: 키워드 기반 oncology 탐지 (한국어/영어)
+        # Zero-shot 모델이 한국어를 잘 못 이해하므로 키워드로 먼저 체크
+        if self._check_oncology_keywords(query):
+            logger.debug(f"[DomainClassifier] Oncology keyword detected in: {query[:50]}...")
+            return ClassificationResult(
+                category="oncology",
+                confidence=0.95,  # 키워드 매칭은 높은 신뢰도
+                is_allowed=True,
+                reason="Oncology keyword detected",
             )
 
         try:

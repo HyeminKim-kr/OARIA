@@ -41,7 +41,7 @@ export const AUTH_DEFAULTS = {
   JWT_REFRESH_EXPIRES_DAYS: '7',
   GOOGLE_CLIENT_ID: '',
   GOOGLE_CLIENT_SECRET: '',
-  GOOGLE_CALLBACK_URL: 'http://localhost:13000/auth/google/callback',
+  GOOGLE_CALLBACK_URL: '',
   SUPER_ADMIN_EMAIL: '',
-  ADMIN_FRONTEND_URL: 'http://localhost:13001',
+  ADMIN_FRONTEND_URL: 'http://oaria.admin.sday.me',
 };

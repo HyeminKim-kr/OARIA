@@ -16,12 +16,12 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 # uv 설치
 COPY --from=ghcr.io/astral-sh/uv:latest /uv /usr/local/bin/uv
 
-# 의존성 파일 복사 및 설치 (캐시 레이어 최적화)
+# 소스코드 및 의존성 파일 복사
 COPY batch/pyproject.toml ./
-RUN uv pip install --system --no-cache .
-
-# 소스코드 복사
 COPY batch/src/ ./src/
+
+# 의존성 설치
+RUN uv pip install --system --no-cache .
 
 # 환경 변수 기본값
 ENV PYTHONUNBUFFERED=1 \

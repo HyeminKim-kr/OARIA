@@ -12,11 +12,15 @@ Gate 1에서 Off-domain 쿼리를 감지하는 데 사용됩니다.
 사용법:
     from app.rag import get_classifier
 
-    # Zero-shot 분류기
+    # Zero-shot 분류기 (영어)
     classifier = get_classifier("pubmedbert_domain_v1")
     result = classifier.classify("EGFR mutation treatment")
 
-    # LLM 분류기 (한국어에 더 정확)
+    # 다국어 Zero-shot 분류기 (한국어/영어)
+    classifier = get_classifier("multilingual_v1")
+    result = classifier.classify("EGFR 변이 폐암 치료")
+
+    # LLM 분류기 (가장 정확, API 비용 발생)
     classifier = get_classifier("llm_gpt4o_mini_v1")
     result = classifier.classify("면역요법의 부작용은 무엇인가요?")
 
@@ -36,6 +40,7 @@ Gate 1에서 Off-domain 쿼리를 감지하는 데 사용됩니다.
 
 from .base import ClassifierProtocol
 from .pubmedbert import PubMedBERTDomainClassifier
+from .multilingual import MultilingualDomainClassifier
 from .llm import LLMDomainClassifier
 from .bc5cdr_ner import BC5CDRNERClassifier
 from .multiner import MultiNERClassifier
@@ -50,6 +55,7 @@ __all__ = [
     "ClassifierProtocol",
     # Domain Classifiers
     "PubMedBERTDomainClassifier",
+    "MultilingualDomainClassifier",
     "LLMDomainClassifier",
     # NER Classifiers
     "BC5CDRNERClassifier",

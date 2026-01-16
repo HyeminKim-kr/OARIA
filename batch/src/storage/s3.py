@@ -1,8 +1,9 @@
 """S3/MinIO 저장소
 
-논문 원문(XML, fulltext, display) 저장
+논문 원문(XML, fulltext, display, PDF) 저장
 """
 
+import hashlib
 import json
 from dataclasses import asdict, dataclass, field
 
@@ -65,10 +66,11 @@ class S3Storage:
                 content_type="text/plain; charset=utf-8",
             )
 
-        # 3. display.json 저장 (가독성용 섹션/문단 구조)
+        # 3. display.json 저장 (가독성용 섹션/문단 구조 + Figure 정보)
         if paper.display_sections:
             display_data = {
-                "sections": [asdict(sec) for sec in paper.display_sections]
+                "sections": [asdict(sec) for sec in paper.display_sections],
+                "figures": [asdict(fig) for fig in paper.figures] if paper.figures else [],
             }
             self._put_object(
                 key=f"{prefix}/display.json",
@@ -83,6 +85,7 @@ class S3Storage:
             has_xml=paper.raw_xml is not None,
             has_fulltext=paper.fulltext is not None,
             has_display=bool(paper.display_sections),
+            figure_count=len(paper.figures) if paper.figures else 0,
         )
 
         return prefix
@@ -141,6 +144,94 @@ class S3Storage:
             self._client.head_object(
                 Bucket=self.bucket,
                 Key=f"{prefix}/fulltext.txt",
+            )
+            return True
+        except ClientError:
+            return False
+
+    def save_pdf(self, paper_id: str, pdf_bytes: bytes) -> tuple[str, int, str]:
+        """PDF 저장
+
+        Args:
+            paper_id: 논문 ID (예: "pmc:PMC12345678")
+            pdf_bytes: PDF 바이트 데이터
+
+        Returns:
+            (s3_key, size, sha256_hash)
+        """
+        safe_id = paper_id.replace(":", "_")
+        key = f"canonical/{safe_id}/paper.pdf"
+
+        # SHA256 해시 계산
+        pdf_hash = hashlib.sha256(pdf_bytes).hexdigest()
+        size = len(pdf_bytes)
+
+        self._client.put_object(
+            Bucket=self.bucket,
+            Key=key,
+            Body=pdf_bytes,
+            ContentType="application/pdf",
+        )
+
+        logger.info(
+            "pdf_saved_s3",
+            paper_id=paper_id,
+            key=key,
+            size=size,
+        )
+
+        return key, size, pdf_hash
+
+    def get_pdf(self, prefix: str) -> bytes | None:
+        """PDF 조회"""
+        try:
+            response = self._client.get_object(
+                Bucket=self.bucket,
+                Key=f"{prefix}/paper.pdf",
+            )
+            return response["Body"].read()
+        except ClientError as e:
+            if e.response["Error"]["Code"] == "NoSuchKey":
+                return None
+            raise
+
+    def get_pdf_presigned_url(self, prefix: str, expires_in: int = 3600) -> str | None:
+        """PDF Presigned URL 생성
+
+        Args:
+            prefix: S3 prefix (예: "canonical/pmc_PMC12345678")
+            expires_in: URL 만료 시간 (초, 기본 1시간)
+
+        Returns:
+            Presigned URL 또는 None
+        """
+        try:
+            # PDF 존재 확인
+            self._client.head_object(
+                Bucket=self.bucket,
+                Key=f"{prefix}/paper.pdf",
+            )
+
+            url = self._client.generate_presigned_url(
+                "get_object",
+                Params={
+                    "Bucket": self.bucket,
+                    "Key": f"{prefix}/paper.pdf",
+                },
+                ExpiresIn=expires_in,
+            )
+            return url
+        except ClientError as e:
+            if e.response["Error"]["Code"] == "NoSuchKey":
+                return None
+            raise
+
+    def pdf_exists(self, prefix: str) -> bool:
+        """PDF 존재 여부"""
+        try:
+            self._client.head_object(
+                Bucket=self.bucket,
+                Key=f"{prefix}/paper.pdf",
             )
             return True
         except ClientError:
