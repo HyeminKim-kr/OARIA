@@ -183,11 +183,26 @@ export interface PaperDetail extends Paper {
 }
 
 // Display (fulltext) Types
+
+// DisplayContent: 문단 또는 Figure (XML 순서대로)
+export interface DisplayContent {
+  type: 'paragraph' | 'figure';
+  // paragraph인 경우
+  text?: string;
+  // figure인 경우
+  id?: string;
+  label?: string;
+  caption?: string;
+  graphic_href?: string;
+}
+
 export interface DisplaySection {
   name: string;
   title: string;
-  paragraphs: { text: string }[];
-  figures: Figure[];  // 섹션 내 인라인 Figure
+  contents?: DisplayContent[];  // XML 순서대로 문단/Figure 혼합
+  // Legacy fields (하위 호환)
+  paragraphs?: { text: string }[];
+  figures?: Figure[];
 }
 
 // Figure (Hotlink 이미지용)

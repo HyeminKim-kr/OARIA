@@ -235,39 +235,86 @@ export default function PaperDetailPage() {
                         {section.title}
                       </h2>
                       <div className="space-y-4">
-                        {section.paragraphs.map((para, pIdx) => {
-                          // **text** 패턴은 서브섹션 제목으로 렌더링
-                          const subsectionMatch = para.text.match(/^\*\*(.+)\*\*$/);
-                          if (subsectionMatch) {
+                        {/* contents가 있으면 XML 순서대로 렌더링 (Figure 인라인 배치) */}
+                        {section.contents && section.contents.length > 0 ? (
+                          section.contents.map((content, cIdx) => {
+                            if (content.type === 'figure') {
+                              // Figure 렌더링
+                              return paper.pmcid && content.graphic_href ? (
+                                <div key={cIdx} className="my-6">
+                                  <PaperFigure
+                                    pmcid={paper.pmcid}
+                                    figure={{
+                                      id: content.id || '',
+                                      label: content.label || '',
+                                      caption: content.caption,
+                                      graphic_href: content.graphic_href,
+                                    }}
+                                  />
+                                </div>
+                              ) : null;
+                            }
+                            // 문단 렌더링
+                            const text = content.text || '';
+                            // **text** 패턴은 서브섹션 제목으로 렌더링
+                            const subsectionMatch = text.match(/^\*\*(.+)\*\*$/);
+                            if (subsectionMatch) {
+                              return (
+                                <h3
+                                  key={cIdx}
+                                  className="mt-8 mb-4 font-[family-name:var(--font-outfit)] text-lg font-semibold text-[var(--oaria-teal)]"
+                                >
+                                  {subsectionMatch[1]}
+                                </h3>
+                              );
+                            }
                             return (
-                              <h3
-                                key={pIdx}
-                                className="mt-8 mb-4 font-[family-name:var(--font-outfit)] text-lg font-semibold text-[var(--oaria-teal)]"
+                              <p
+                                key={cIdx}
+                                className="text-justify font-[family-name:var(--font-dm-sans)] leading-relaxed text-[var(--oaria-text-secondary)]"
                               >
-                                {subsectionMatch[1]}
-                              </h3>
+                                {text}
+                              </p>
                             );
-                          }
-                          return (
-                            <p
-                              key={pIdx}
-                              className="text-justify font-[family-name:var(--font-dm-sans)] leading-relaxed text-[var(--oaria-text-secondary)]"
-                            >
-                              {para.text}
-                            </p>
-                          );
-                        })}
-                        {/* 섹션 내 인라인 Figure */}
-                        {section.figures && section.figures.length > 0 && paper.pmcid && (
-                          <div className="my-6 space-y-4">
-                            {section.figures.map((figure) => (
-                              <PaperFigure
-                                key={figure.id}
-                                pmcid={paper.pmcid!}
-                                figure={figure}
-                              />
-                            ))}
-                          </div>
+                          })
+                        ) : (
+                          /* Legacy: paragraphs + figures 별도 렌더링 */
+                          <>
+                            {section.paragraphs?.map((para, pIdx) => {
+                              // **text** 패턴은 서브섹션 제목으로 렌더링
+                              const subsectionMatch = para.text.match(/^\*\*(.+)\*\*$/);
+                              if (subsectionMatch) {
+                                return (
+                                  <h3
+                                    key={pIdx}
+                                    className="mt-8 mb-4 font-[family-name:var(--font-outfit)] text-lg font-semibold text-[var(--oaria-teal)]"
+                                  >
+                                    {subsectionMatch[1]}
+                                  </h3>
+                                );
+                              }
+                              return (
+                                <p
+                                  key={pIdx}
+                                  className="text-justify font-[family-name:var(--font-dm-sans)] leading-relaxed text-[var(--oaria-text-secondary)]"
+                                >
+                                  {para.text}
+                                </p>
+                              );
+                            })}
+                            {/* 섹션 끝에 Figure (Legacy) */}
+                            {section.figures && section.figures.length > 0 && paper.pmcid && (
+                              <div className="my-6 space-y-4">
+                                {section.figures.map((figure) => (
+                                  <PaperFigure
+                                    key={figure.id}
+                                    pmcid={paper.pmcid!}
+                                    figure={figure}
+                                  />
+                                ))}
+                              </div>
+                            )}
+                          </>
                         )}
                       </div>
                     </section>
