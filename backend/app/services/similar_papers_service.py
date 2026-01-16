@@ -1,8 +1,8 @@
 """유사 논문 추천 서비스
 
 4가지 추천 방식:
-1. Citation: 이 논문을 인용한 논문들 (Europe PMC API)
-2. Reference: 이 논문이 인용한 논문들 (Europe PMC API)
+1. Citation: 이 논문을 인용한 논문들 (DB 우선, 폴백: Europe PMC API)
+2. Reference: 이 논문이 인용한 논문들 (DB 우선, 폴백: Europe PMC API)
 3. Vector: 벡터 유사도 기반 (Weaviate)
 4. Hybrid: 위 3가지 조합 (가중치 기반)
 """
@@ -11,6 +11,9 @@ import logging
 import httpx
 from dataclasses import dataclass
 from typing import Optional
+
+from sqlalchemy import select
+from sqlalchemy.ext.asyncio import AsyncSession
 
 from .weaviate_service import weaviate_service
 
@@ -264,6 +267,118 @@ class SimilarPapersService:
 
         except Exception as e:
             logger.warning("vector_similar_error paper_id=%s error=%s", paper_id, str(e))
+            return []
+
+    async def get_references_from_db(
+        self,
+        paper_id: str,
+        db: AsyncSession,
+        limit: int = 20
+    ) -> list[SimilarPaper]:
+        """DB에서 이 논문이 인용한 논문들 (References) 조회 - 빠름
+
+        PaperCitation 테이블에서 source_paper_id = paper_id인 레코드 조회
+        → target_paper_id가 이 논문이 인용한 논문
+        """
+        from ..models.paper import PaperCitation, Paper
+
+        try:
+            # PaperCitation에서 references 조회 + Paper JOIN
+            query = (
+                select(PaperCitation, Paper)
+                .outerjoin(Paper, Paper.paper_id == PaperCitation.target_paper_id)
+                .where(PaperCitation.source_paper_id == paper_id)
+                .limit(limit)
+            )
+            result = await db.execute(query)
+            rows = result.all()
+
+            results = []
+            for citation, paper in rows:
+                if paper:
+                    # DB에 논문 정보가 있는 경우
+                    results.append(SimilarPaper(
+                        pmcid=paper.pmcid,
+                        pmid=paper.pmid,
+                        doi=paper.doi,
+                        title=paper.title,
+                        journal=paper.journal,
+                        year=paper.year,
+                        recommendation_type="reference",
+                        score=0.8,
+                    ))
+                else:
+                    # Citation 정보만 있는 경우
+                    results.append(SimilarPaper(
+                        pmcid=citation.target_pmcid,
+                        pmid=citation.target_pmid,
+                        doi=None,
+                        title=f"Paper {citation.target_paper_id}",
+                        recommendation_type="reference",
+                        score=0.8,
+                    ))
+
+            logger.info("references_from_db paper_id=%s count=%d", paper_id, len(results))
+            return results
+
+        except Exception as e:
+            logger.warning("references_from_db_error paper_id=%s error=%s", paper_id, str(e))
+            return []
+
+    async def get_citations_from_db(
+        self,
+        paper_id: str,
+        db: AsyncSession,
+        limit: int = 20
+    ) -> list[SimilarPaper]:
+        """DB에서 이 논문을 인용한 논문들 (Citations) 조회 - 빠름
+
+        PaperCitation 테이블에서 target_paper_id = paper_id인 레코드 조회
+        → source_paper_id가 이 논문을 인용한 논문
+        """
+        from ..models.paper import PaperCitation, Paper
+
+        try:
+            # PaperCitation에서 citations 조회 + Paper JOIN
+            query = (
+                select(PaperCitation, Paper)
+                .outerjoin(Paper, Paper.paper_id == PaperCitation.source_paper_id)
+                .where(PaperCitation.target_paper_id == paper_id)
+                .limit(limit)
+            )
+            result = await db.execute(query)
+            rows = result.all()
+
+            results = []
+            for citation, paper in rows:
+                if paper:
+                    # DB에 논문 정보가 있는 경우
+                    results.append(SimilarPaper(
+                        pmcid=paper.pmcid,
+                        pmid=paper.pmid,
+                        doi=paper.doi,
+                        title=paper.title,
+                        journal=paper.journal,
+                        year=paper.year,
+                        recommendation_type="citation",
+                        score=1.0,
+                    ))
+                else:
+                    # Citation 정보만 있는 경우
+                    results.append(SimilarPaper(
+                        pmcid=citation.source_pmcid,
+                        pmid=citation.source_pmid,
+                        doi=None,
+                        title=f"Paper {citation.source_paper_id}",
+                        recommendation_type="citation",
+                        score=1.0,
+                    ))
+
+            logger.info("citations_from_db paper_id=%s count=%d", paper_id, len(results))
+            return results
+
+        except Exception as e:
+            logger.warning("citations_from_db_error paper_id=%s error=%s", paper_id, str(e))
             return []
 
     def create_hybrid(
