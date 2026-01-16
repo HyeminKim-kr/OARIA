@@ -1,14 +1,14 @@
 """LLM 서비스
 
 OpenAI GPT 모델을 사용한 응답 생성
-스트리밍 지원
+비동기 지원: AsyncOpenAI 사용 (2026-01-15)
 """
 
-from collections.abc import Generator
+import asyncio
+from collections.abc import AsyncGenerator, Generator
 from dataclasses import dataclass
-from typing import Any
 
-from openai import OpenAI
+from openai import AsyncOpenAI
 
 from app.config import settings
 from app.schemas.chat import Reference
@@ -86,10 +86,10 @@ class StreamChunk:
 
 
 class LLMService:
-    """LLM 응답 생성 서비스"""
+    """비동기 LLM 응답 생성 서비스"""
 
     _instance: "LLMService | None" = None
-    _client: OpenAI | None = None
+    _client: AsyncOpenAI | None = None
 
     def __new__(cls) -> "LLMService":
         """싱글톤 패턴"""
@@ -97,10 +97,10 @@ class LLMService:
             cls._instance = super().__new__(cls)
         return cls._instance
 
-    def _get_client(self) -> OpenAI | None:
-        """OpenAI 클라이언트 반환"""
+    def _get_client(self) -> AsyncOpenAI | None:
+        """AsyncOpenAI 클라이언트 반환"""
         if self._client is None and settings.openai_api_key:
-            self._client = OpenAI(api_key=settings.openai_api_key)
+            self._client = AsyncOpenAI(api_key=settings.openai_api_key)
         return self._client
 
     @property
@@ -108,13 +108,13 @@ class LLMService:
         """Mock 모드 여부"""
         return not settings.openai_api_key
 
-    def generate(
+    async def generate(
         self,
         question: str,
         context: str,
         references: list[Reference],
     ) -> LLMResponse:
-        """동기 응답 생성 (전체 응답)
+        """비동기 응답 생성 (전체 응답)
 
         Args:
             question: 사용자 질문
@@ -142,7 +142,7 @@ class LLMService:
         client = self._get_client()
         system_prompt = SYSTEM_PROMPT.format(context=context)
 
-        response = client.chat.completions.create(
+        response = await client.chat.completions.create(
             model=settings.openai_chat_model,
             messages=[
                 {"role": "system", "content": system_prompt},
@@ -162,13 +162,13 @@ class LLMService:
             latency_ms=elapsed_ms,
         )
 
-    def generate_stream(
+    async def generate_stream(
         self,
         question: str,
         context: str,
         references: list[Reference],
-    ) -> Generator[StreamChunk, None, None]:
-        """스트리밍 응답 생성
+    ) -> AsyncGenerator[StreamChunk, None]:
+        """비동기 스트리밍 응답 생성
 
         Args:
             question: 사용자 질문
@@ -179,13 +179,14 @@ class LLMService:
             스트리밍 청크
         """
         if self.use_mock:
-            yield from self._mock_stream(question, references)
+            async for chunk in self._mock_stream_async(question, references):
+                yield chunk
             return
 
         client = self._get_client()
         system_prompt = SYSTEM_PROMPT.format(context=context)
 
-        stream = client.chat.completions.create(
+        stream = await client.chat.completions.create(
             model=settings.openai_chat_model,
             messages=[
                 {"role": "system", "content": system_prompt},
@@ -197,7 +198,7 @@ class LLMService:
             stream_options={"include_usage": True},
         )
 
-        for chunk in stream:
+        async for chunk in stream:
             if chunk.choices and chunk.choices[0].delta.content:
                 yield StreamChunk(token=chunk.choices[0].delta.content)
 
@@ -235,21 +236,19 @@ class LLMService:
 {refs_str}
 """
 
-    def _mock_stream(
+    async def _mock_stream_async(
         self,
         question: str,
         references: list[Reference],
-    ) -> Generator[StreamChunk, None, None]:
-        """Mock 스트리밍 응답"""
-        import time
-
+    ) -> AsyncGenerator[StreamChunk, None]:
+        """비동기 Mock 스트리밍 응답"""
         content = self._mock_response(question, references)
 
         # 단어 단위로 스트리밍
         words = content.split(" ")
         for i, word in enumerate(words):
             yield StreamChunk(token=word + " " if i < len(words) - 1 else word)
-            time.sleep(0.02)  # 스트리밍 효과
+            await asyncio.sleep(0.02)  # 스트리밍 효과
 
         yield StreamChunk(
             token="",

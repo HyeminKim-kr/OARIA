@@ -43,7 +43,7 @@ class RagService:
         self.use_reranker = use_reranker
         self.rerank_top_k = rerank_top_k
 
-    def retrieve(
+    async def retrieve(
         self,
         query: str,
         year_from: int | None = None,
@@ -53,7 +53,7 @@ class RagService:
         min_score: float | None = None,  # Reranker 최소 점수 임계값
         collection_name: str | None = None,  # 컬렉션 이름 (샘플 임베딩용)
     ) -> RetrievalResult:
-        """질문에 대한 관련 문서 검색
+        """비동기 질문에 대한 관련 문서 검색
 
         Args:
             query: 사용자 질문
@@ -67,6 +67,7 @@ class RagService:
         Returns:
             검색 결과 (참조 목록, 컨텍스트, 지연시간)
         """
+        import asyncio
         import time
 
         start = time.perf_counter()
@@ -79,8 +80,8 @@ class RagService:
         should_rerank = use_reranker if use_reranker is not None else self.use_reranker
         should_rerank = should_rerank and reranker_service.is_enabled
 
-        # 1. 쿼리 임베딩
-        query_vector = embedding_service.embed_text(query)
+        # 1. 쿼리 임베딩 (비동기!)
+        query_vector = await embedding_service.embed_text(query)
 
         # 2. 하이브리드 검색 (청크 단위)
         # Reranker 사용 시 더 많이 가져와서 재정렬

@@ -2,12 +2,13 @@
 
 Ask AI 엔드포인트 (SSE 스트리밍 with Agent Task Decomposition)
 대화 CRUD 엔드포인트
+
+비동기 변환: 2026-01-15
+- agent_service.execute_stream()이 AsyncGenerator로 변경됨
+- 별도 스레드 대신 async for 사용
 """
 
-import asyncio
 import json
-import queue
-import threading
 import time
 import uuid
 from typing import Annotated
@@ -191,75 +192,61 @@ async def ask_ai(
                 }
                 return  # Early return - RAG 파이프라인 스킵
 
-        # 이벤트 큐 (Agent 서비스에서 이벤트를 푸시)
-        event_queue: queue.Queue = queue.Queue()
+        # Agent 스트림 실행 (비동기)
+        agent_result_data = None
 
-        def run_agent():
-            """별도 스레드에서 Agent 실행"""
-            try:
-                # Agent 스트림 실행
-                result_gen = agent_service.execute_stream(
-                    query=request.question,
-                    conversation_id=str(request.conversation_id) if request.conversation_id else None,
-                )
+        try:
+            async for event in agent_service.execute_stream(
+                query=request.question,
+                conversation_id=str(request.conversation_id) if request.conversation_id else None,
+            ):
+                if event.event_type == "result":
+                    # 최종 결과 저장
+                    agent_result_data = event.data
+                else:
+                    # AgentEvent를 SSE 이벤트로 변환
+                    yield {
+                        "event": event.event_type,
+                        "data": json.dumps(event.data, ensure_ascii=False),
+                    }
+        except Exception as e:
+            import traceback
+            traceback.print_exc()
+            yield {
+                "event": "error",
+                "data": json.dumps({"error": str(e)}, ensure_ascii=False),
+            }
+            return
 
-                # 이벤트를 큐에 푸시하고 return value를 캡처
-                # Generator의 return 값은 StopIteration.value로 전달됨
-                try:
-                    while True:
-                        event = next(result_gen)
-                        event_queue.put(("event", event))
-                except StopIteration as e:
-                    # Generator의 return 값 (AgentResult)
-                    result = e.value
-                    event_queue.put(("result", result))
-
-            except Exception as e:
-                import traceback
-                traceback.print_exc()
-                event_queue.put(("error", str(e)))
-            finally:
-                event_queue.put(("done", None))
-
-        # 스레드 시작
-        agent_thread = threading.Thread(target=run_agent)
-        agent_thread.start()
-
-        # 이벤트 처리
-        agent_result = None
-        while True:
-            try:
-                item = await asyncio.to_thread(event_queue.get, timeout=60)
-            except Exception:
-                break
-
-            event_type, data = item
-
-            if event_type == "done":
-                break
-            elif event_type == "error":
-                yield {
-                    "event": "error",
-                    "data": json.dumps({"error": data}, ensure_ascii=False),
-                }
-                break
-            elif event_type == "result":
-                agent_result = data
-            elif event_type == "event":
-                # AgentEvent를 SSE 이벤트로 변환
-                yield {
-                    "event": data.event_type,
-                    "data": json.dumps(data.data, ensure_ascii=False),
-                }
-
-        agent_thread.join()
-
-        if not agent_result:
+        if not agent_result_data:
             yield {
                 "event": "error",
                 "data": json.dumps({"error": "Agent execution failed"}, ensure_ascii=False),
             }
             return
+
+        # agent_result_data에서 필요한 데이터 추출
+        agent_answer = agent_result_data.get("answer", "")
+        agent_references_data = agent_result_data.get("references", [])
+        agent_duration_ms = agent_result_data.get("total_duration_ms", 0)
+
+        # Reference 객체 복원
+        agent_references = [
+            Reference(
+                paper_id=r.get("paper_id", ""),
+                chunk_id=r.get("chunk_id", ""),
+                title=r.get("title", ""),
+                journal=r.get("journal"),
+                year=r.get("year"),
+                section=r.get("section", ""),
+                snippet=r.get("snippet", ""),
+                offset_start=r.get("offset_start", 0),
+                offset_end=r.get("offset_end", 0),
+                text_version=r.get("text_version", "v1"),
+                distance=r.get("distance", 0.0),
+            )
+            for r in agent_references_data
+        ]
 
         # 대화 생성/업데이트
         if not conversation:
@@ -289,7 +276,7 @@ async def ask_ai(
         assistant_message = Message(
             conversation_id=conv.id,
             role="assistant",
-            content=agent_result.answer,
+            content=agent_answer,
             tokens_used=None,  # Agent doesn't track tokens the same way
             model="agent-gpt-4o-mini",
             latency_ms=total_latency,
@@ -298,14 +285,14 @@ async def ask_ai(
         await db.flush()
 
         # Answer Log 저장 (evidence를 flat list로 저장)
-        evidence_data = [ref.model_dump() for ref in agent_result.references]
+        evidence_data = [ref.model_dump() for ref in agent_references]
 
         answer_log = AnswerLog(
             message_id=assistant_message.id,
             conversation_id=conv.id,
             user_id=current_user.id,
             question=request.question,
-            answer=agent_result.answer,
+            answer=agent_answer,
             search_query=request.question,
             search_filters=request.filters.model_dump() if request.filters else None,
             evidence=evidence_data,
@@ -313,7 +300,7 @@ async def ask_ai(
             prompt_tokens=None,
             completion_tokens=None,
             total_tokens=None,
-            search_latency_ms=agent_result.total_duration_ms,
+            search_latency_ms=agent_duration_ms,
             llm_latency_ms=0,
             total_latency_ms=total_latency,
         )
@@ -321,7 +308,7 @@ async def ask_ai(
         await db.commit()
 
         # References 이벤트 전송
-        references_data = [ref.model_dump() for ref in agent_result.references]
+        references_data = [ref.model_dump() for ref in agent_references]
         yield {
             "event": "references",
             "data": json.dumps({"references": references_data}, ensure_ascii=False),
