@@ -34,6 +34,16 @@ class DisplayParagraph:
 
 
 @dataclass
+class DisplayFigure:
+    """디스플레이용 Figure (섹션 내 인라인 배치용)"""
+
+    id: str  # "fig1"
+    label: str  # "Figure 1"
+    caption: str | None = None
+    graphic_href: str = ""
+
+
+@dataclass
 class DisplaySection:
     """디스플레이용 섹션 (가독성)
 
@@ -43,6 +53,17 @@ class DisplaySection:
     name: str
     title: str
     paragraphs: list[DisplayParagraph] = field(default_factory=list)
+    figures: list[DisplayFigure] = field(default_factory=list)  # 섹션 내 Figure (인라인)
+
+
+@dataclass
+class Figure:
+    """Figure 정보 (Hotlink 이미지용)"""
+
+    id: str  # "fig1"
+    label: str  # "Figure 1"
+    caption: str | None = None  # 캡션 텍스트
+    graphic_href: str = ""  # "tlcr-14-12-5465-f1" (이미지 파일명)
 
 
 @dataclass
@@ -70,6 +91,9 @@ class Paper:
 
     # 디스플레이용 섹션 (가독성 + fulltext 오프셋)
     display_sections: list[DisplaySection] = field(default_factory=list)
+
+    # Figure (Hotlink 이미지)
+    figures: list[Figure] = field(default_factory=list)
 
     # 원문
     fulltext: str | None = None

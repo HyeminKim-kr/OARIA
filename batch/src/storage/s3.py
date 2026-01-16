@@ -66,10 +66,11 @@ class S3Storage:
                 content_type="text/plain; charset=utf-8",
             )
 
-        # 3. display.json 저장 (가독성용 섹션/문단 구조)
+        # 3. display.json 저장 (가독성용 섹션/문단 구조 + Figure 정보)
         if paper.display_sections:
             display_data = {
-                "sections": [asdict(sec) for sec in paper.display_sections]
+                "sections": [asdict(sec) for sec in paper.display_sections],
+                "figures": [asdict(fig) for fig in paper.figures] if paper.figures else [],
             }
             self._put_object(
                 key=f"{prefix}/display.json",
@@ -84,6 +85,7 @@ class S3Storage:
             has_xml=paper.raw_xml is not None,
             has_fulltext=paper.fulltext is not None,
             has_display=bool(paper.display_sections),
+            figure_count=len(paper.figures) if paper.figures else 0,
         )
 
         return prefix

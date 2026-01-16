@@ -187,6 +187,15 @@ export interface DisplaySection {
   name: string;
   title: string;
   paragraphs: { text: string }[];
+  figures: Figure[];  // 섹션 내 인라인 Figure
+}
+
+// Figure (Hotlink 이미지용)
+export interface Figure {
+  id: string;       // "fig1"
+  label: string;    // "Figure 1"
+  caption?: string; // 캡션 텍스트
+  graphic_href: string; // "tlcr-14-12-5465-f1" (이미지 파일명)
 }
 
 export interface PaperDisplay {
@@ -195,7 +204,29 @@ export interface PaperDisplay {
   journal?: string;
   year?: number;
   sections: DisplaySection[];
+  figures: Figure[];  // Figure 목록 추가
   has_pdf: boolean;
+}
+
+// Similar Papers Types
+export interface SimilarPaper {
+  pmcid?: string;
+  pmid?: string;
+  doi?: string;
+  title: string;
+  journal?: string;
+  year?: number;
+  authors?: string;
+  recommendation_type: "citation" | "reference" | "vector" | "hybrid";
+  score: number;
+  sources?: string[];
+}
+
+export interface SimilarPapersResponse {
+  items: SimilarPaper[];
+  source: string;
+  total: number;
+  paper_id: string;
 }
 
 // Papers API
@@ -219,6 +250,10 @@ export const papersApi = {
 
   getDisplay: (id: string) =>
     api.get<PaperDisplay>(`/papers/${id}/display`).then((res) => res.data),
+
+  getSimilar: (id: string, source: string = "hybrid") =>
+    api.get<SimilarPapersResponse>(`/papers/${id}/similar`, { params: { source } })
+      .then((res) => res.data),
 };
 
 /**

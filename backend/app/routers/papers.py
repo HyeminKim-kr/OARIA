@@ -27,9 +27,13 @@ from ..schemas.paper import (
     CitationStatsResponse,
     DisplayResponse,
     DisplaySectionResponse,
+    FigureResponse,
+    SimilarPaperItem,
+    SimilarPapersResponse,
 )
 from ..services.weaviate_service import weaviate_service
 from ..services.s3_service import s3_service
+from ..services.similar_papers_service import similar_papers_service
 
 router = APIRouter(prefix="/papers", tags=["papers"])
 
@@ -276,14 +280,35 @@ async def get_paper_display(
             detail="Display data not available for this paper"
         )
 
-    # 섹션 변환
-    sections = [
-        DisplaySectionResponse(
+    # 섹션 변환 (섹션 내 인라인 Figure 포함)
+    sections = []
+    for sec in display_data.get("sections", []):
+        # 섹션 내 Figure 변환
+        sec_figures = [
+            FigureResponse(
+                id=fig.get("id", ""),
+                label=fig.get("label", ""),
+                caption=fig.get("caption"),
+                graphic_href=fig.get("graphic_href", ""),
+            )
+            for fig in sec.get("figures", [])
+        ]
+        sections.append(DisplaySectionResponse(
             name=sec.get("name", ""),
             title=sec.get("title", ""),
             paragraphs=sec.get("paragraphs", []),
+            figures=sec_figures,
+        ))
+
+    # 전체 Figure 목록 (하위 호환용)
+    figures = [
+        FigureResponse(
+            id=fig.get("id", ""),
+            label=fig.get("label", ""),
+            caption=fig.get("caption"),
+            graphic_href=fig.get("graphic_href", ""),
         )
-        for sec in display_data.get("sections", [])
+        for fig in display_data.get("figures", [])
     ]
 
     return DisplayResponse(
@@ -292,6 +317,7 @@ async def get_paper_display(
         journal=paper.journal,
         year=paper.year,
         sections=sections,
+        figures=figures,
         has_pdf=paper.has_pdf or False,
     )
 
@@ -562,4 +588,64 @@ async def get_paper_citation_stats(
         paper_id=paper.paper_id,
         citation_count=paper.citation_count or 0,
         reference_count=paper.reference_count or 0,
+    )
+
+
+# ============================================================
+# Similar Papers 엔드포인트
+# ============================================================
+@router.get("/{paper_id}/similar", response_model=SimilarPapersResponse)
+async def get_similar_papers(
+    paper_id: UUID,
+    source: str = Query("hybrid", description="추천 소스 (citation, reference, vector, hybrid)"),
+    limit: int = Query(20, ge=1, le=50, description="결과 개수"),
+    db: AsyncSession = Depends(get_db),
+):
+    """유사 논문 추천
+
+    4가지 추천 방식을 제공합니다:
+    - citation: 이 논문을 인용한 논문 (후속 연구)
+    - reference: 이 논문이 인용한 논문 (기반 연구)
+    - vector: 벡터 유사도 기반 (내용 유사성)
+    - hybrid: 위 3가지 조합 (가장 관련성 높음, 기본값)
+    """
+    # 논문 조회
+    query = select(Paper).where(Paper.id == paper_id)
+    result = await db.execute(query)
+    paper = result.scalar_one_or_none()
+
+    if not paper:
+        raise HTTPException(status_code=404, detail="Paper not found")
+
+    # 유사 논문 조회
+    similar_papers, result_source = await similar_papers_service.get_similar_papers(
+        paper_id=paper.paper_id,
+        pmcid=paper.pmcid,
+        pmid=paper.pmid,
+        source=source,
+        limit=limit,
+    )
+
+    # 응답 변환
+    items = [
+        SimilarPaperItem(
+            pmcid=sp.pmcid,
+            pmid=sp.pmid,
+            doi=sp.doi,
+            title=sp.title,
+            journal=sp.journal,
+            year=sp.year,
+            authors=sp.authors,
+            recommendation_type=sp.recommendation_type,
+            score=sp.score,
+            sources=sp.sources or [],
+        )
+        for sp in similar_papers
+    ]
+
+    return SimilarPapersResponse(
+        items=items,
+        source=result_source,
+        total=len(items),
+        paper_id=paper.paper_id,
     )

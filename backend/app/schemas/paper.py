@@ -168,6 +168,18 @@ class CitationStatsResponse(BaseModel):
 
 
 # ============================================================
+# Figure 스키마 (Hotlink 방식)
+# ============================================================
+class FigureResponse(BaseModel):
+    """Figure 정보 (이미지 hotlink용)"""
+
+    id: str  # "fig1"
+    label: str  # "Figure 1"
+    caption: Optional[str] = None  # 캡션 텍스트
+    graphic_href: str  # "tlcr-14-12-5465-f1" (이미지 파일명)
+
+
+# ============================================================
 # Display (전체 본문 조회용)
 # ============================================================
 class DisplaySectionResponse(BaseModel):
@@ -176,6 +188,7 @@ class DisplaySectionResponse(BaseModel):
     name: str
     title: str
     paragraphs: list[dict]  # [{"text": "..."}]
+    figures: list[FigureResponse] = []  # 섹션 내 인라인 Figure
 
 
 class DisplayResponse(BaseModel):
@@ -186,4 +199,32 @@ class DisplayResponse(BaseModel):
     journal: Optional[str] = None
     year: Optional[int] = None
     sections: list[DisplaySectionResponse]
+    figures: list[FigureResponse] = []  # 전체 Figure 목록 (하위 호환)
     has_pdf: bool = False
+
+
+# ============================================================
+# Similar Papers 스키마 (유사 논문 추천)
+# ============================================================
+class SimilarPaperItem(BaseModel):
+    """유사 논문 아이템"""
+
+    pmcid: Optional[str] = None
+    pmid: Optional[str] = None
+    doi: Optional[str] = None
+    title: str
+    journal: Optional[str] = None
+    year: Optional[int] = None
+    authors: Optional[str] = None  # 첫 번째 저자 등
+    recommendation_type: str  # "citation" | "reference" | "vector" | "hybrid"
+    score: float = 0.0
+    sources: list[str] = []  # hybrid의 경우 여러 소스
+
+
+class SimilarPapersResponse(BaseModel):
+    """유사 논문 목록 응답"""
+
+    items: list[SimilarPaperItem]
+    source: str  # "citation" | "reference" | "vector" | "hybrid"
+    total: int
+    paper_id: str  # 원본 논문 ID
