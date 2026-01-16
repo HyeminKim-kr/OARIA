@@ -1,0 +1,445 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>OARIA Agent UI - Light Mode</title>
+    <!-- Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- Pretendard Font (Korean Standard) -->
+    <link rel="stylesheet" as="style" crossorigin href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/static/pretendard.min.css" />
+    <!-- D3.js -->
+    <script src="https://d3js.org/d3.v7.min.css"></script>
+    <script src="https://d3js.org/d3.v7.min.js"></script>
+    <!-- Three.js & 3D Force Graph -->
+    <script src="https://unpkg.com/three"></script>
+    <script src="https://unpkg.com/3d-force-graph"></script>
+
+    <style>
+        :root {
+            --primary: #2563EB; /* Clean Blue */
+            --primary-light: #EFF6FF;
+            --text-main: #111827;
+            --text-sub: #4B5563;
+            --border: #E5E7EB;
+            --bg-panel: rgba(255, 255, 255, 0.95);
+        }
+        body {
+            font-family: 'Pretendard', -apple-system, BlinkMacSystemFont, system-ui, Roboto, sans-serif;
+            background-color: #F9FAFB;
+            color: var(--text-main);
+            overflow: hidden;
+        }
+        .clean-panel {
+            background: var(--bg-panel);
+            backdrop-filter: blur(8px);
+            border: 1px solid var(--border);
+            box-shadow: 0 4px 20px rgba(0, 0, 0, 0.05);
+        }
+        .fade-in {
+            animation: fadeIn 0.6s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+        }
+        @keyframes fadeIn {
+            from { opacity: 0; transform: translateY(20px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+        .typing-cursor::after {
+            content: '';
+            display: inline-block;
+            width: 2px;
+            height: 12px;
+            background-color: var(--text-main);
+            margin-left: 2px;
+            animation: blink 1s step-start infinite;
+        }
+        @keyframes blink {
+            50% { opacity: 0; }
+        }
+        
+        /* Custom Scrollbar */
+        ::-webkit-scrollbar {
+            width: 6px;
+        }
+        ::-webkit-scrollbar-thumb {
+            background: #E5E7EB;
+        }
+        ::-webkit-scrollbar-thumb:hover {
+            background: #D1D5DB;
+        }
+    </style>
+</head>
+<body class="w-full h-screen flex flex-col bg-white">
+
+    <!-- Top Navigation -->
+    <nav class="h-16 border-b border-gray-200 flex items-center justify-between px-8 bg-white z-50">
+        <div class="flex items-center gap-3">
+            <span class="font-bold text-xl tracking-tight text-gray-900">OARIA</span>
+            <span class="w-px h-4 bg-gray-300"></span>
+            <span class="text-sm font-medium text-gray-500">Research Intelligence</span>
+        </div>
+        <div class="flex items-center gap-6">
+            <a href="#" class="text-sm font-medium text-gray-500 hover:text-gray-900 transition-colors">가이드</a>
+            <a href="#" class="text-sm font-medium text-gray-500 hover:text-gray-900 transition-colors">설정</a>
+            <div class="w-8 h-8 bg-gray-100 flex items-center justify-center border border-gray-200">
+                <span class="text-xs font-bold text-gray-600">VP</span>
+            </div>
+        </div>
+    </nav>
+
+    <!-- Main Content Area -->
+    <div class="flex-1 flex overflow-hidden relative">
+        
+        <!-- Left Sidebar (Chat) -->
+        <div class="w-[440px] flex-shrink-0 border-r border-gray-200 flex flex-col bg-white z-40 transition-all duration-500" id="chatSidebar">
+            <div class="p-8 flex-1 overflow-y-auto space-y-8">
+                <!-- User Message -->
+                <div class="flex justify-end">
+                    <div class="bg-gray-900 text-white px-6 py-4 max-w-[90%] shadow-sm">
+                        <p class="text-[15px] leading-relaxed font-medium">비소세포폐암(NSCLC) 3기 환자를 위한 최신 면역항암제 치료법 트렌드를 알려주세요.</p>
+                    </div>
+                </div>
+
+                <!-- AI Response -->
+                <div class="flex gap-5">
+                    <div class="w-8 h-8 bg-blue-600 flex-shrink-0 flex items-center justify-center">
+                        <span class="text-xs font-bold text-white">AI</span>
+                    </div>
+                    <div class="flex-1 space-y-4">
+                        <div class="text-[15px] leading-7 text-gray-800">
+                            <p class="mb-4">비소세포폐암 3기 치료의 최신 트렌드는 <span class="bg-blue-50 text-blue-700 font-semibold px-1">방사선 요법과 면역관문억제제의 병용</span>입니다. 특히 Durvalumab 유지 요법이 표준으로 자리잡고 있습니다.</p>
+                            <p>최근 연구들은 선행화학요법(Neoadjuvant) 단계에서의 면역항암제 사용 확대에 주목하고 있습니다.</p>
+                        </div>
+                        
+                        <!-- The Trigger Button (Korean Style: Minimal, Action-oriented) -->
+                        <div class="pt-2">
+                            <button id="triggerBtn" class="group flex items-center gap-3 pl-0 pr-6 py-2 transition-all cursor-pointer hover:bg-gray-50">
+                                <div class="w-8 h-8 border border-gray-300 flex items-center justify-center bg-white group-hover:border-blue-500 group-hover:text-blue-600 transition-colors">
+                                    <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M13 5l7 7-7 7M5 5l7 7-7 7" />
+                                    </svg>
+                                </div>
+                                <div class="flex flex-col items-start">
+                                    <span class="text-sm font-bold text-gray-900 group-hover:text-blue-600 transition-colors">심층 분석 실행</span>
+                                    <span class="text-xs text-gray-500">관련 논문 12,403건 분석 및 시각화</span>
+                                </div>
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            
+            <!-- Chat Input -->
+            <div class="p-6 border-t border-gray-200">
+                <div class="h-14 bg-white border border-gray-300 flex items-center px-4 shadow-sm focus-within:border-blue-500 focus-within:ring-1 focus-within:ring-blue-500 transition-all">
+                    <input type="text" placeholder="추가 질문을 입력하세요..." class="w-full text-sm outline-none text-gray-900 placeholder-gray-400">
+                    <button class="p-2 text-gray-400 hover:text-blue-600">
+                        <svg class="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M14 5l7 7m0 0l-7 7m7-7H3" />
+                        </svg>
+                    </button>
+                </div>
+            </div>
+        </div>
+
+        <!-- Right Expanded Agent Workspace -->
+        <div id="agentWorkspace" class="flex-1 bg-gray-50 relative opacity-0 translate-x-full transition-all duration-700 ease-[cubic-bezier(0.16,1,0.3,1)] flex flex-col border-l border-gray-200">
+            
+            <!-- 3D Graph Background -->
+            <div id="3d-graph" class="absolute inset-0 z-0 bg-gray-50"></div>
+            
+            <!-- Overlay UI Container -->
+            <div class="absolute inset-0 z-10 p-8 pointer-events-none flex flex-col justify-between">
+                
+                <!-- Header Overlay -->
+                <div class="flex justify-between items-start pointer-events-auto">
+                    <div class="clean-panel px-6 py-5 fade-in bg-white/95 max-w-lg shadow-sm">
+                        <div class="flex items-center gap-2 mb-3">
+                            <span class="w-2 h-2 bg-blue-600"></span>
+                            <span class="text-xs font-bold text-blue-600 tracking-wider uppercase">Live Analysis</span>
+                            <span class="text-xs text-gray-400 mx-2">|</span>
+                            <span class="text-xs text-gray-500">Processing Time: 1.2s</span>
+                        </div>
+                        <h2 class="text-2xl font-bold text-gray-900 mb-2 leading-tight">Immunotherapy & NSCLC <br/><span class="text-gray-400 font-normal">Connection Map</span></h2>
+                        <div class="text-sm text-gray-500 typing-cursor mt-1">Durvalumab과 3기 예후 논문 간의 상관관계를 분석 중입니다...</div>
+                    </div>
+
+                    <!-- Close Button -->
+                    <button id="closeBtn" class="w-12 h-12 bg-white border border-gray-200 flex items-center justify-center hover:bg-gray-50 hover:border-gray-300 transition-all pointer-events-auto shadow-sm">
+                        <svg class="w-5 h-5 text-gray-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M6 18L18 6M6 6l12 12" />
+                        </svg>
+                    </button>
+                </div>
+
+                <!-- Middle Section: Floating Stats Panels -->
+                <div class="flex justify-between items-center w-full pointer-events-none mt-4">
+                    
+                    <!-- Left: Stats Dashboard -->
+                    <div class="clean-panel p-6 w-[22rem] pointer-events-auto -translate-x-8 opacity-0 transition-all duration-700 delay-200 bg-white/95 shadow-sm" id="statsPanel">
+                        <div class="flex items-center justify-between mb-6">
+                            <h3 class="text-base font-bold text-gray-900">연구 트렌드</h3>
+                            <span class="text-xs font-medium text-green-600 bg-green-50 px-2 py-1">+45% YoY</span>
+                        </div>
+                        
+                        <!-- D3 Sparkline Container -->
+                        <div id="trendChart" class="w-full h-32 mb-6"></div>
+                        
+                        <div class="border-t border-gray-100 pt-5">
+                            <div class="flex items-center gap-2 mb-3">
+                                <svg class="w-4 h-4 text-orange-500" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" /></svg>
+                                <h3 class="text-sm font-bold text-gray-900">Research Gap 감지</h3>
+                            </div>
+                            <div class="bg-orange-50/50 border border-orange-100 p-4">
+                                <p class="text-[13px] text-gray-700 leading-relaxed">
+                                    <span class="font-semibold text-gray-900">데이터 부족:</span> 
+                                    75세 이상 고령 환자군에서 <span class="border-b border-gray-400 border-dotted">TIGIT 억제제</span>와 <span class="border-b border-gray-400 border-dotted">PD-L1</span>의 직접 비교 연구가 현저히 부족합니다.
+                                </p>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Bottom: Agent Insights & Actions -->
+                <div class="w-full pointer-events-auto translate-y-8 opacity-0 transition-all duration-700 delay-300 pointer-events-none" id="bottomPanel">
+                    <div class="clean-panel p-0 flex bg-white/95 shadow-lg max-w-5xl mx-auto pointer-events-auto">
+                        
+                        <!-- Insight Card -->
+                        <div class="p-6 w-[35%] border-r border-gray-100">
+                            <span class="text-[10px] font-bold text-blue-600 border border-blue-100 bg-blue-50 px-2 py-1 uppercase tracking-wide">Insight</span>
+                            <h4 class="font-bold text-base mt-3 mb-2 text-gray-900">새로운 가설 제안</h4>
+                            <p class="text-sm text-gray-500 leading-relaxed mb-4">그래프 분석 결과, TIGIT 차단이 EGFR 변이 하위 그룹에서 시너지 효과를 보일 가능성이 있습니다.</p>
+                            <button class="text-sm bg-gray-900 hover:bg-black text-white px-4 py-2.5 font-medium flex items-center gap-2 transition-colors">
+                                가설 검증하기 <svg class="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 8l4 4m0 0l-4 4m4-4H3" /></svg>
+                            </button>
+                        </div>
+
+                        <!-- Entity Info -->
+                        <div class="p-6 w-[30%] border-r border-gray-100 bg-gray-50/50">
+                            <h4 class="text-xs font-bold text-gray-400 uppercase tracking-wider mb-3">Selected Node</h4>
+                            <div id="selected-entity-info" class="flex flex-col gap-1 items-start justify-center h-20">
+                                <span class="text-sm text-gray-400 italic">그래프의 노드를 클릭하세요</span>
+                            </div>
+                        </div>
+
+                        <!-- Actions -->
+                        <div class="p-6 w-[35%] flex flex-col justify-center gap-3">
+                            <button class="w-full text-left px-4 py-3 border border-gray-200 hover:border-blue-500 hover:text-blue-600 bg-white transition-all text-sm font-medium flex justify-between items-center group">
+                                기전(Mechanism) 비교하기
+                                <span class="text-gray-300 group-hover:text-blue-500">→</span>
+                            </button>
+                            <button class="w-full text-left px-4 py-3 border border-gray-200 hover:border-blue-500 hover:text-blue-600 bg-white transition-all text-sm font-medium flex justify-between items-center group">
+                                관련 임상시험(Trials) 검색
+                                <span class="text-gray-300 group-hover:text-blue-500">→</span>
+                            </button>
+                        </div>
+                    </div>
+                </div>
+
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // --- 1. Logic & Interaction ---
+        const triggerBtn = document.getElementById('triggerBtn');
+        const closeBtn = document.getElementById('closeBtn');
+        const agentWorkspace = document.getElementById('agentWorkspace');
+        const chatSidebar = document.getElementById('chatSidebar');
+        const statsPanel = document.getElementById('statsPanel');
+        const bottomPanel = document.getElementById('bottomPanel');
+        const selectedEntityInfo = document.getElementById('selected-entity-info');
+
+        let isExpanded = false;
+
+        const gData = {
+            nodes: [
+                { id: 'NSCLC', group: 1, value: 25 },
+                { id: 'Immunotherapy', group: 1, value: 18 },
+                { id: 'Durvalumab', group: 2, value: 12 },
+                { id: 'Pembrolizumab', group: 2, value: 12 },
+                { id: 'PD-L1', group: 3, value: 10 },
+                { id: 'CTLA-4', group: 3, value: 8 },
+                { id: 'Survival (OS)', group: 4, value: 14 },
+                { id: 'Toxicity', group: 4, value: 8 },
+                { id: 'Chemotherapy', group: 5, value: 10 },
+                { id: 'Neoadjuvant', group: 5, value: 10 },
+                { id: 'TIGIT', group: 6, value: 8 },
+                { id: 'Stage 3', group: 1, value: 15 }
+            ],
+            links: [
+                { source: 'NSCLC', target: 'Stage 3' },
+                { source: 'NSCLC', target: 'Immunotherapy' },
+                { source: 'Immunotherapy', target: 'Durvalumab' },
+                { source: 'Immunotherapy', target: 'Pembrolizumab' },
+                { source: 'Durvalumab', target: 'PD-L1' },
+                { source: 'Pembrolizumab', target: 'PD-L1' },
+                { source: 'Durvalumab', target: 'Survival (OS)' },
+                { source: 'Pembrolizumab', target: 'Survival (OS)' },
+                { source: 'Immunotherapy', target: 'Toxicity' },
+                { source: 'Stage 3', target: 'Neoadjuvant' },
+                { source: 'Neoadjuvant', target: 'Chemotherapy' },
+                { source: 'Neoadjuvant', target: 'Immunotherapy' },
+                { source: 'TIGIT', target: 'Immunotherapy' },
+                { source: 'TIGIT', target: 'PD-L1' }
+            ]
+        };
+        
+        // --- 2. Three.js Force Graph ---
+        let Graph;
+        function initGraph() {
+            const elem = document.getElementById('3d-graph');
+            // Check if graph already exists to prevent duplication
+            if (elem.children.length > 0) return;
+
+            Graph = ForceGraph3D()
+                (elem)
+                .graphData(gData)
+                .backgroundColor('#F9FAFB') // Light Gray Background
+                .nodeLabel('id')
+                .nodeColor(node => {
+                    // Modern Light/Vivid Palette
+                    return node.id === 'TIGIT' ? '#EF4444' : (node.group === 1 ? '#2563EB' : (node.group === 2 ? '#059669' : '#4B5563'));
+                })
+                .nodeVal('value')
+                .nodeResolution(16)
+                .nodeOpacity(0.9)
+                .linkWidth(0.5)
+                .linkColor(() => '#CBD5E1') // Light Gray Links
+                .linkDirectionalParticles(2)
+                .linkDirectionalParticleWidth(1.5)
+                .linkDirectionalParticleSpeed(d => 0.003)
+                .linkDirectionalParticleColor(() => '#3B82F6') // Blue particles
+                .onNodeHover(node => {
+                    elem.style.cursor = node ? 'pointer' : null;
+                    if (node) {
+                        selectedEntityInfo.innerHTML = `
+                            <div class="flex items-center gap-2">
+                                <span class="w-3 h-3 block" style="background:${node.color}"></span>
+                                <span class="text-base font-bold text-gray-900">${node.id}</span>
+                            </div>
+                            <span class="text-xs text-gray-500 mt-1">연관 논문: ${Math.floor(Math.random() * 500) + 50}편</span>
+                        `;
+                    } else {
+                        selectedEntityInfo.innerHTML = `<span class="text-sm text-gray-400 italic">그래프의 노드를 클릭하세요</span>`;
+                    }
+                })
+                .onNodeClick(node => {
+                    const distance = 60;
+                    const distRatio = 1 + distance/Math.hypot(node.x, node.y, node.z);
+                    Graph.cameraPosition(
+                        { x: node.x * distRatio, y: node.y * distRatio, z: node.z * distRatio },
+                        node,
+                        2000
+                    );
+                });
+        }
+
+        // --- 3. D3.js Trend Sparkline (Clean Style) ---
+        function initD3Charts() {
+            const container = document.getElementById('trendChart');
+            container.innerHTML = '';
+            
+            const width = container.clientWidth;
+            const height = container.clientHeight;
+            const margin = {top: 10, right: 0, bottom: 20, left: 0};
+
+            const svg = d3.select("#trendChart")
+                .append("svg")
+                .attr("width", width)
+                .attr("height", height);
+
+            const data = [10, 25, 20, 35, 40, 50, 45, 60, 75, 90, 85];
+            
+            const x = d3.scaleLinear().domain([0, data.length - 1]).range([0, width]);
+            const y = d3.scaleLinear().domain([0, 100]).range([height, 0]);
+
+            // Area Gradient
+            const defs = svg.append("defs");
+            const gradient = defs.append("linearGradient")
+                .attr("id", "area-gradient-light")
+                .attr("x1", "0%").attr("y1", "0%")
+                .attr("x2", "0%").attr("y2", "100%");
+            gradient.append("stop").attr("offset", "0%").attr("stop-color", "#3B82F6").attr("stop-opacity", 0.15);
+            gradient.append("stop").attr("offset", "100%").attr("stop-color", "#3B82F6").attr("stop-opacity", 0);
+
+            const area = d3.area()
+                .x((d, i) => x(i))
+                .y0(height)
+                .y1(d => y(d))
+                .curve(d3.curveMonotoneX);
+
+            const line = d3.line()
+                .x((d, i) => x(i))
+                .y(d => y(d))
+                .curve(d3.curveMonotoneX);
+
+            svg.append("path")
+                .datum(data)
+                .attr("fill", "url(#area-gradient-light)")
+                .attr("d", area);
+
+            const path = svg.append("path")
+                .datum(data)
+                .attr("fill", "none")
+                .attr("stroke", "#2563EB")
+                .attr("stroke-width", 2)
+                .attr("d", line);
+
+            const totalLength = path.node().getTotalLength();
+            path
+                .attr("stroke-dasharray", totalLength + " " + totalLength)
+                .attr("stroke-dashoffset", totalLength)
+                .transition()
+                .duration(1500)
+                .ease(d3.easeCubicOut)
+                .attr("stroke-dashoffset", 0);
+            
+            // Add dots at peaks
+            svg.selectAll(".dot")
+                .data(data)
+                .enter().append("circle")
+                .attr("class", "dot")
+                .attr("cx", (d, i) => x(i))
+                .attr("cy", d => y(d))
+                .attr("r", 0)
+                .attr("fill", "white")
+                .attr("stroke", "#2563EB")
+                .attr("stroke-width", 2)
+                .transition()
+                .delay((d, i) => i * 100)
+                .attr("r", (d, i) => i === data.length - 1 ? 4 : 0); // Only show last dot
+        }
+
+        // --- Event Listeners ---
+        triggerBtn.addEventListener('click', () => {
+            if (isExpanded) return;
+            isExpanded = true;
+            
+            agentWorkspace.classList.remove('opacity-0', 'translate-x-full');
+            chatSidebar.classList.add('w-[320px]');
+            chatSidebar.classList.remove('w-[440px]');
+
+            setTimeout(() => {
+                initGraph();
+                initD3Charts();
+                
+                statsPanel.classList.remove('-translate-x-8', 'opacity-0');
+                bottomPanel.classList.remove('translate-y-8', 'opacity-0');
+            }, 500);
+        });
+
+        closeBtn.addEventListener('click', () => {
+            if (!isExpanded) return;
+            isExpanded = false;
+
+            agentWorkspace.classList.add('opacity-0', 'translate-x-full');
+            chatSidebar.classList.add('w-[440px]');
+            chatSidebar.classList.remove('w-[320px]');
+            
+            statsPanel.classList.add('-translate-x-8', 'opacity-0');
+            bottomPanel.classList.add('translate-y-8', 'opacity-0');
+        });
+
+    </script>
+</body>
+</html>
