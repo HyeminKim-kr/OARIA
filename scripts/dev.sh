@@ -91,7 +91,7 @@ start_docker() {
     cd "$PROJECT_ROOT"
 
     echo -e "  ${YELLOW}▸${NC} Docker Compose 실행 중..."
-    docker-compose up -d
+    docker compose up -d
 
     echo -e "  ${YELLOW}▸${NC} 서비스 헬스체크 대기 중..."
 
@@ -112,7 +112,7 @@ start_docker() {
 stop_docker() {
     print_header "Docker Compose 중지"
     cd "$PROJECT_ROOT"
-    docker-compose down
+    docker compose down
     echo -e "  ${GREEN}✓${NC} Docker 서비스 중지됨"
 }
 
@@ -412,7 +412,7 @@ show_logs() {
 
     case $choice in
         1)
-            cd "$PROJECT_ROOT" && docker-compose logs -f
+            cd "$PROJECT_ROOT" && docker compose logs -f
             ;;
         2)
             tail -f "$LOG_DIR/admin-backend.log"
