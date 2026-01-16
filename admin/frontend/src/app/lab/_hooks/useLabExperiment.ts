@@ -1,8 +1,8 @@
 import { useState, useCallback, useEffect } from 'react';
 import { useQuery, useMutation } from '@tanstack/react-query';
 import { labApi, ragSettingsApi, sampleEmbeddingsApi } from '@/lib/api';
-import { TestMode, CompareResults, LabConfig, FeedbackState, SearchConfig, DataSource } from '../_lib';
-import { DEFAULT_CONFIG } from '../_lib';
+import { TestMode, CompareResults, LabConfig, FeedbackState, SearchConfig, DataSourceConfig, SearchSettings } from '../_lib';
+import { DEFAULT_CONFIG, DEFAULT_PRODUCTION_DATA_SOURCE, DEFAULT_SEARCH_SETTINGS } from '../_lib';
 
 export function useLabExperiment() {
   const [mode, setMode] = useState<TestMode>('search');
@@ -45,21 +45,38 @@ export function useLabExperiment() {
     staleTime: 60 * 1000, // 1분간 캐시
   });
 
-  // 활성 설정이 로드되면 selectedStrategies 초기화
+  // 활성 설정이 로드되면 초기화
   useEffect(() => {
     if (activeSettings) {
+      const newSearchSettings: SearchSettings = {
+        retriever: activeSettings.retriever,
+        reranker: activeSettings.reranker || 'none',
+        classifier: activeSettings.classifier || 'none',
+      };
+
+      const newDataSource: DataSourceConfig = {
+        type: 'production',
+        collectionName: null,
+        chunker: activeSettings.chunker,
+        embedder: activeSettings.embedder,
+      };
+
       setConfig((prev) => ({
         ...prev,
+        // 새 구조
+        searchSettings: newSearchSettings,
+        dataSource: newDataSource,
+        // 검색 파라미터
+        limit: activeSettings.parameters?.limit ?? prev.limit,
+        alpha: activeSettings.parameters?.alpha ?? prev.alpha,
+        // 레거시 호환용
         selectedStrategies: {
           chunker: activeSettings.chunker,
           embedder: activeSettings.embedder,
           retriever: activeSettings.retriever,
           reranker: activeSettings.reranker || 'none',
-          classifier: activeSettings.classifier || 'none',  // 프로덕션 설정 반영
+          classifier: activeSettings.classifier || 'none',
         },
-        // 기본 검색 설정도 활성 설정 기반으로
-        limit: activeSettings.parameters?.limit ?? prev.limit,
-        alpha: activeSettings.parameters?.alpha ?? prev.alpha,
         reranker: activeSettings.reranker || 'bge',
         useReranker: !!activeSettings.reranker,
       }));
@@ -73,10 +90,10 @@ export function useLabExperiment() {
         query: config.query,
         limit: config.limit,
         alpha: config.alpha,
-        useReranker: config.useReranker,
-        reranker: config.useReranker ? config.reranker : undefined,
-        collectionName: config.dataSource === 'sample' && config.collectionName ? config.collectionName : undefined,
-        classifier: config.selectedStrategies.classifier !== 'none' ? config.selectedStrategies.classifier : undefined,
+        useReranker: config.searchSettings.reranker !== 'none',
+        reranker: config.searchSettings.reranker !== 'none' ? config.searchSettings.reranker : undefined,
+        collectionName: config.dataSource.type === 'sample' ? config.dataSource.collectionName ?? undefined : undefined,
+        classifier: config.searchSettings.classifier !== 'none' ? config.searchSettings.classifier : undefined,
       }),
   });
 
@@ -87,21 +104,30 @@ export function useLabExperiment() {
         query: config.query,
         limit: config.limit,
         alpha: config.alpha,
-        useReranker: config.useReranker,
-        reranker: config.useReranker ? config.reranker : undefined,
-        collectionName: config.dataSource === 'sample' && config.collectionName ? config.collectionName : undefined,
-        classifier: config.selectedStrategies.classifier !== 'none' ? config.selectedStrategies.classifier : undefined,
+        useReranker: config.searchSettings.reranker !== 'none',
+        reranker: config.searchSettings.reranker !== 'none' ? config.searchSettings.reranker : undefined,
+        collectionName: config.dataSource.type === 'sample' ? config.dataSource.collectionName ?? undefined : undefined,
+        classifier: config.searchSettings.classifier !== 'none' ? config.searchSettings.classifier : undefined,
       }),
   });
 
   // A/B 비교 테스트
   const compareMutation = useMutation({
-    mutationFn: () =>
-      labApi.testCompare({
+    mutationFn: () => {
+      // 새 SearchConfig를 API의 CompareSearchConfig 형식으로 변환
+      const toApiConfig = (cfg: SearchConfig) => ({
+        limit: cfg.limit,
+        alpha: cfg.alpha,
+        reranker: config.searchSettings.reranker !== 'none' ? config.searchSettings.reranker : null,
+        collectionName: cfg.dataSource.type === 'sample' ? cfg.dataSource.collectionName : null,
+      });
+
+      return labApi.testCompare({
         query: config.query,
-        configA: config.configA,
-        configB: config.configB,
-      }),
+        configA: toApiConfig(config.configA),
+        configB: toApiConfig(config.configB),
+      });
+    },
     onSuccess: (data) => {
       setCompareResults({
         configA: data.configA,
@@ -125,20 +151,47 @@ export function useLabExperiment() {
     }));
   }, []);
 
-  // 전략 선택 업데이트
+  // 검색 설정 업데이트 (Retriever, Reranker, Classifier)
+  const updateSearchSettings = useCallback((settings: SearchSettings) => {
+    setConfig((prev) => ({
+      ...prev,
+      searchSettings: settings,
+      // 레거시 호환용
+      selectedStrategies: {
+        ...prev.selectedStrategies,
+        retriever: settings.retriever,
+        reranker: settings.reranker,
+        classifier: settings.classifier,
+      },
+      useReranker: settings.reranker !== 'none',
+      reranker: settings.reranker !== 'none' ? settings.reranker : prev.reranker,
+    }));
+  }, []);
+
+  // 전략 선택 업데이트 (레거시 호환용)
   const updateStrategy = useCallback((key: string, value: string) => {
     setConfig((prev) => ({
       ...prev,
       selectedStrategies: { ...prev.selectedStrategies, [key]: value },
+      // 검색 설정에도 반영
+      searchSettings: ['retriever', 'reranker', 'classifier'].includes(key)
+        ? { ...prev.searchSettings, [key]: value }
+        : prev.searchSettings,
     }));
   }, []);
 
   // 데이터 소스 업데이트
-  const updateDataSource = useCallback((dataSource: DataSource, collectionName: string | null) => {
+  const updateDataSource = useCallback((dataSource: DataSourceConfig) => {
     setConfig((prev) => ({
       ...prev,
       dataSource,
-      collectionName,
+      // 레거시 호환용
+      collectionName: dataSource.collectionName,
+      selectedStrategies: {
+        ...prev.selectedStrategies,
+        chunker: dataSource.chunker,
+        embedder: dataSource.embedder,
+      },
     }));
   }, []);
 
@@ -174,6 +227,7 @@ export function useLabExperiment() {
     updateConfigA,
     updateConfigB,
     updateStrategy,
+    updateSearchSettings,  // 새 검색 설정 업데이트 함수
     updateDataSource,
     status,
     strategies,

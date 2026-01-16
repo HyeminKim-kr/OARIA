@@ -8,7 +8,7 @@ import {
   LabStatsPanel,
   LabHelpPanel,
   LabHistoryPanel,
-  StrategySelectionPanel,
+  SearchSettingsPanel,
   RAGSettingsPanel,
   DataSourceSelector,
   LabConfigForm,
@@ -33,7 +33,7 @@ export default function LabPage() {
     updateConfig,
     updateConfigA,
     updateConfigB,
-    updateStrategy,
+    updateSearchSettings,
     updateDataSource,
     status,
     strategies,
@@ -129,28 +129,28 @@ export default function LabPage() {
         />
       )}
 
-      <StrategySelectionPanel
-        strategies={strategies}
-        strategiesDetail={strategiesDetail}
-        selectedStrategies={config.selectedStrategies}
-        onStrategyChange={updateStrategy}
-      />
-
-      <RAGSettingsPanel strategies={strategies} />
-
+      {/* 데이터 소스 선택 (Chunker + Embedder 조합) */}
       <DataSourceSelector
         dataSource={config.dataSource}
-        collectionName={config.collectionName}
         sampleEmbeddings={sampleEmbeddings}
         onDataSourceChange={updateDataSource}
       />
+
+      {/* 검색 설정 (Retriever, Reranker, Classifier) */}
+      <SearchSettingsPanel
+        strategies={strategies}
+        strategiesDetail={strategiesDetail}
+        searchSettings={config.searchSettings}
+        onSettingsChange={updateSearchSettings}
+      />
+
+      <RAGSettingsPanel strategies={strategies} />
 
       <LabConfigForm
         mode={mode}
         config={config}
         isLoading={isLoading}
         isAvailable={status?.available ?? false}
-        strategies={strategies}
         sampleEmbeddings={sampleEmbeddings}
         onModeChange={setMode}
         onConfigChange={updateConfig}
