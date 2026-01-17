@@ -13,7 +13,12 @@ oauth.register(
     client_id=settings.google_client_id,
     client_secret=settings.google_client_secret,
     server_metadata_url="https://accounts.google.com/.well-known/openid-configuration",
-    client_kwargs={"scope": "openid email profile"},
+    client_kwargs={
+        "scope": "openid email profile",
+        "prompt": "select_account",  # 항상 계정 선택 화면 표시
+    },
+    # 토큰을 세션에 저장하지 않음 (stateless)
+    update_token=False,
 )
 
 

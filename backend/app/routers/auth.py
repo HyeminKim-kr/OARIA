@@ -7,7 +7,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from starlette.responses import RedirectResponse
 
 from ..config import settings
-from ..core.oauth import get_google_user_info, oauth
+from ..core.oauth import oauth
 from ..core.security import create_access_token
 from ..database import get_db
 from ..dependencies import CurrentUser
@@ -46,17 +46,58 @@ async def google_callback(
     Google에서 인증 후 리다이렉트되는 엔드포인트
     JWT 토큰을 발급하고 프론트엔드로 리다이렉트
     """
+    import logging
+    from authlib.integrations.httpx_client import AsyncOAuth2Client
+    
+    logger = logging.getLogger(__name__)
+    
     try:
-        token = await oauth.google.authorize_access_token(request)
+        logger.info(f"OAuth callback received. Query params: {dict(request.query_params)}")
+        
+        # 쿼리 파라미터에서 code 가져오기
+        code = request.query_params.get("code")
+        if not code:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Authorization code not provided",
+            )
+        
+        # 수동으로 토큰 교환 (세션 없이)
+        client = AsyncOAuth2Client(
+            client_id=settings.google_client_id,
+            client_secret=settings.google_client_secret,
+            redirect_uri=settings.google_redirect_uri,
+        )
+        
+        # Google OAuth 토큰 엔드포인트
+        token_endpoint = "https://oauth2.googleapis.com/token"
+        
+        token = await client.fetch_token(
+            token_endpoint,
+            authorization_response=str(request.url),
+            grant_type="authorization_code",
+        )
+        
+        logger.info(f"Token received successfully")
+        
+        # UserInfo 엔드포인트에서 사용자 정보 가져오기
+        userinfo_endpoint = "https://openidconnect.googleapis.com/v1/userinfo"
+        async with AsyncOAuth2Client(token=token) as client:
+            resp = await client.get(userinfo_endpoint)
+            userinfo = resp.json()
+        
+        logger.info(f"User info received: {userinfo.get('email')}")
+        
     except Exception as e:
+        logger.error(f"OAuth authorization failed: {str(e)}", exc_info=True)
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail=f"Failed to authorize: {str(e)}",
         )
 
-    user_info = await get_google_user_info(token)
-
-    if not user_info.email:
+    # userinfo에서 필요한 정보 추출
+    email = userinfo.get("email")
+    if not email:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail="Email not provided by Google",
@@ -66,10 +107,10 @@ async def google_callback(
     user_service = UserService(db)
     user, created = await user_service.get_or_create_by_social(
         provider="google",
-        provider_id=user_info.sub,
-        email=user_info.email,
-        name=user_info.name,
-        picture=user_info.picture,
+        provider_id=userinfo.get("sub"),
+        email=email,
+        name=userinfo.get("name"),
+        picture=userinfo.get("picture"),
     )
 
     # JWT Access Token 생성

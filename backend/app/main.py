@@ -49,9 +49,14 @@ app = FastAPI(
 )
 
 # 세션 미들웨어 (OAuth용)
+# OAuth 콜백은 외부에서 오므로 세션 쿠키 설정이 중요
 app.add_middleware(
     SessionMiddleware,
     secret_key=settings.jwt_secret_key,
+    session_cookie="oaria_session",
+    max_age=3600,  # 1시간
+    same_site="lax",  # OAuth 리다이렉트를 위해 lax 사용
+    https_only=False,  # 개발 환경에서 HTTP 허용
 )
 
 # CORS 미들웨어
@@ -60,6 +65,7 @@ app.add_middleware(
     allow_origins=[
         settings.frontend_url,
         "http://localhost:3000",
+        "http://oaria.sday.me",  # Production frontend
     ],
     allow_credentials=True,
     allow_methods=["*"],
