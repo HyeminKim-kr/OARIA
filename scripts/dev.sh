@@ -415,11 +415,17 @@ stop_service() {
         fi
     fi
 
-    # 포트로도 프로세스 종료 시도
+    # 포트로도 프로세스 종료 시도 (Docker 프로세스 제외)
     if [ -n "$port" ]; then
         local pids=$(lsof -t -i :$port 2>/dev/null || true)
         if [ -n "$pids" ]; then
-            echo "$pids" | xargs kill 2>/dev/null || true
+            for pid in $pids; do
+                # Docker 관련 프로세스는 skip (com.docker, docker-proxy 등)
+                local proc_name=$(ps -p $pid -o comm= 2>/dev/null || true)
+                if [[ "$proc_name" != *"docker"* ]] && [[ "$proc_name" != "com.docker"* ]]; then
+                    kill $pid 2>/dev/null || true
+                fi
+            done
         fi
     fi
 }
@@ -632,8 +638,10 @@ select_stop_mode() {
             stop_docker_dev
             ;;
         3)
-            stop_all_local
-            stop_docker_dev 2>/dev/null || true
+            # 로컬 프로세스만 중지 (docker는 stop_docker_dev에서 한 번만 처리)
+            stop_dev_servers
+            # docker compose down은 한 번만 실행 (중복 실행 시 Docker Desktop crash 발생)
+            stop_docker_dev
             ;;
         q)
             echo -e "  ${YELLOW}취소됨${NC}"
