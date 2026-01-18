@@ -136,9 +136,24 @@ start_docker_prod() {
 
     echo -e "  ${YELLOW}▸${NC} 서비스 헬스체크 대기 중..."
 
-    # 모든 서비스 대기
-    local services=("postgres:15432" "redis:16379" "weaviate:18080" "minio:19000" "service-backend:8000" "service-frontend:3000" "admin-backend:13000" "admin-frontend:13001")
-    for svc in "${services[@]}"; do
+    # 인프라 서비스 먼저 대기 (마이그레이션을 위해)
+    local infra_services=("postgres:15432" "redis:16379" "weaviate:18080" "minio:19000")
+    for svc in "${infra_services[@]}"; do
+        IFS=':' read -r name port <<< "$svc"
+        printf "    - %-20s" "$name"
+        if wait_for_port $port $name 30; then
+            echo -e "${GREEN}ready${NC}"
+        else
+            echo -e "${RED}timeout${NC}"
+        fi
+    done
+
+    # DB 마이그레이션 실행
+    run_migrations
+
+    # 앱 서비스 대기
+    local app_services=("service-backend:8000" "service-frontend:3000" "admin-backend:13000" "admin-frontend:13001")
+    for svc in "${app_services[@]}"; do
         IFS=':' read -r name port <<< "$svc"
         printf "    - %-20s" "$name"
         if wait_for_port $port $name 30; then
@@ -165,14 +180,32 @@ start_docker_dev() {
 
     cd "$PROJECT_ROOT"
 
-    echo -e "  ${YELLOW}▸${NC} 인프라 + 개발 앱 서비스 빌드 및 실행 중..."
+    # 1. 인프라 서비스만 먼저 시작 (마이그레이션을 위해)
+    echo -e "  ${YELLOW}▸${NC} 인프라 서비스 시작 중..."
+    docker compose up -d
+
+    echo -e "  ${YELLOW}▸${NC} 인프라 헬스체크 대기 중..."
+    local infra_services=("postgres:15432" "redis:16379" "weaviate:18080" "minio:19000")
+    for svc in "${infra_services[@]}"; do
+        IFS=':' read -r name port <<< "$svc"
+        printf "    - %-20s" "$name"
+        if wait_for_port $port $name 30; then
+            echo -e "${GREEN}ready${NC}"
+        else
+            echo -e "${RED}timeout${NC}"
+        fi
+    done
+
+    # 2. DB 마이그레이션 실행 (앱 서비스 시작 전에!)
+    run_migrations
+
+    # 3. 앱 서비스 시작 (마이그레이션 완료 후)
+    echo -e "  ${YELLOW}▸${NC} 앱 서비스 빌드 및 시작 중..."
     docker compose -f docker-compose.yml -f docker-compose.dev.yml up -d --build
 
-    echo -e "  ${YELLOW}▸${NC} 서비스 헬스체크 대기 중..."
-
-    # 모든 서비스 대기
-    local services=("postgres:15432" "redis:16379" "weaviate:18080" "minio:19000" "service-backend:8000" "service-frontend:3000" "admin-backend:13000" "admin-frontend:13001")
-    for svc in "${services[@]}"; do
+    echo -e "  ${YELLOW}▸${NC} 앱 서비스 헬스체크 대기 중..."
+    local app_services=("service-backend:8000" "service-frontend:3000" "admin-backend:13000" "admin-frontend:13001")
+    for svc in "${app_services[@]}"; do
         IFS=':' read -r name port <<< "$svc"
         printf "    - %-20s" "$name"
         if wait_for_port $port $name 30; then
@@ -252,21 +285,15 @@ run_migrations() {
 
     # 1. Service Backend (Alembic)
     echo -e "  ${YELLOW}▸${NC} Service Backend 마이그레이션..."
-    cd "$PROJECT_ROOT/backend"
-    if uv run alembic upgrade head; then
-        echo -e "    ${GREEN}✓${NC} Alembic 마이그레이션 완료"
-    else
+    (cd "$PROJECT_ROOT/backend" && uv run alembic upgrade head) && \
+        echo -e "    ${GREEN}✓${NC} Alembic 마이그레이션 완료" || \
         echo -e "    ${RED}✗${NC} Alembic 마이그레이션 실패"
-    fi
 
     # 2. Admin Backend (TypeORM)
     echo -e "  ${YELLOW}▸${NC} Admin Backend 마이그레이션..."
-    cd "$PROJECT_ROOT/admin/backend"
-    if npm run migration:run; then
-        echo -e "    ${GREEN}✓${NC} TypeORM 마이그레이션 완료"
-    else
+    (cd "$PROJECT_ROOT/admin/backend" && npm run migration:run) && \
+        echo -e "    ${GREEN}✓${NC} TypeORM 마이그레이션 완료" || \
         echo -e "    ${RED}✗${NC} TypeORM 마이그레이션 실패"
-    fi
 
     echo -e "  ${GREEN}✓${NC} 마이그레이션 완료"
 }
@@ -385,11 +412,17 @@ stop_service() {
         fi
     fi
 
-    # 포트로도 프로세스 종료 시도
+    # 포트로도 프로세스 종료 시도 (Docker 프로세스 제외)
     if [ -n "$port" ]; then
         local pids=$(lsof -t -i :$port 2>/dev/null || true)
         if [ -n "$pids" ]; then
-            echo "$pids" | xargs kill 2>/dev/null || true
+            for pid in $pids; do
+                # Docker 관련 프로세스는 skip (com.docker, docker-proxy 등)
+                local proc_name=$(ps -p $pid -o comm= 2>/dev/null || true)
+                if [[ "$proc_name" != *"docker"* ]] && [[ "$proc_name" != "com.docker"* ]]; then
+                    kill $pid 2>/dev/null || true
+                fi
+            done
         fi
     fi
 }
@@ -602,8 +635,10 @@ select_stop_mode() {
             stop_docker_dev
             ;;
         3)
-            stop_all_local
-            stop_docker_dev 2>/dev/null || true
+            # 로컬 프로세스만 중지 (docker는 stop_docker_dev에서 한 번만 처리)
+            stop_dev_servers
+            # docker compose down은 한 번만 실행 (중복 실행 시 Docker Desktop crash 발생)
+            stop_docker_dev
             ;;
         q)
             echo -e "  ${YELLOW}취소됨${NC}"
