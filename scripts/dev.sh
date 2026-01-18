@@ -180,12 +180,11 @@ start_docker_dev() {
 
     cd "$PROJECT_ROOT"
 
-    echo -e "  ${YELLOW}▸${NC} 인프라 + 개발 앱 서비스 빌드 및 실행 중..."
-    docker compose -f docker-compose.yml -f docker-compose.dev.yml up -d --build
+    # 1. 인프라 서비스만 먼저 시작 (마이그레이션을 위해)
+    echo -e "  ${YELLOW}▸${NC} 인프라 서비스 시작 중..."
+    docker compose up -d
 
-    echo -e "  ${YELLOW}▸${NC} 서비스 헬스체크 대기 중..."
-
-    # 인프라 서비스 먼저 대기 (마이그레이션을 위해)
+    echo -e "  ${YELLOW}▸${NC} 인프라 헬스체크 대기 중..."
     local infra_services=("postgres:15432" "redis:16379" "weaviate:18080" "minio:19000")
     for svc in "${infra_services[@]}"; do
         IFS=':' read -r name port <<< "$svc"
@@ -197,10 +196,14 @@ start_docker_dev() {
         fi
     done
 
-    # DB 마이그레이션 실행
+    # 2. DB 마이그레이션 실행 (앱 서비스 시작 전에!)
     run_migrations
 
-    # 앱 서비스 대기
+    # 3. 앱 서비스 시작 (마이그레이션 완료 후)
+    echo -e "  ${YELLOW}▸${NC} 앱 서비스 빌드 및 시작 중..."
+    docker compose -f docker-compose.yml -f docker-compose.dev.yml up -d --build
+
+    echo -e "  ${YELLOW}▸${NC} 앱 서비스 헬스체크 대기 중..."
     local app_services=("service-backend:8000" "service-frontend:3000" "admin-backend:13000" "admin-frontend:13001")
     for svc in "${app_services[@]}"; do
         IFS=':' read -r name port <<< "$svc"
@@ -282,21 +285,15 @@ run_migrations() {
 
     # 1. Service Backend (Alembic)
     echo -e "  ${YELLOW}▸${NC} Service Backend 마이그레이션..."
-    cd "$PROJECT_ROOT/backend"
-    if uv run alembic upgrade head; then
-        echo -e "    ${GREEN}✓${NC} Alembic 마이그레이션 완료"
-    else
+    (cd "$PROJECT_ROOT/backend" && uv run alembic upgrade head) && \
+        echo -e "    ${GREEN}✓${NC} Alembic 마이그레이션 완료" || \
         echo -e "    ${RED}✗${NC} Alembic 마이그레이션 실패"
-    fi
 
     # 2. Admin Backend (TypeORM)
     echo -e "  ${YELLOW}▸${NC} Admin Backend 마이그레이션..."
-    cd "$PROJECT_ROOT/admin/backend"
-    if npm run migration:run; then
-        echo -e "    ${GREEN}✓${NC} TypeORM 마이그레이션 완료"
-    else
+    (cd "$PROJECT_ROOT/admin/backend" && npm run migration:run) && \
+        echo -e "    ${GREEN}✓${NC} TypeORM 마이그레이션 완료" || \
         echo -e "    ${RED}✗${NC} TypeORM 마이그레이션 실패"
-    fi
 
     echo -e "  ${GREEN}✓${NC} 마이그레이션 완료"
 }
