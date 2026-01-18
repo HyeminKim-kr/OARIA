@@ -136,9 +136,24 @@ start_docker_prod() {
 
     echo -e "  ${YELLOW}▸${NC} 서비스 헬스체크 대기 중..."
 
-    # 모든 서비스 대기
-    local services=("postgres:15432" "redis:16379" "weaviate:18080" "minio:19000" "service-backend:8000" "service-frontend:3000" "admin-backend:13000" "admin-frontend:13001")
-    for svc in "${services[@]}"; do
+    # 인프라 서비스 먼저 대기 (마이그레이션을 위해)
+    local infra_services=("postgres:15432" "redis:16379" "weaviate:18080" "minio:19000")
+    for svc in "${infra_services[@]}"; do
+        IFS=':' read -r name port <<< "$svc"
+        printf "    - %-20s" "$name"
+        if wait_for_port $port $name 30; then
+            echo -e "${GREEN}ready${NC}"
+        else
+            echo -e "${RED}timeout${NC}"
+        fi
+    done
+
+    # DB 마이그레이션 실행
+    run_migrations
+
+    # 앱 서비스 대기
+    local app_services=("service-backend:8000" "service-frontend:3000" "admin-backend:13000" "admin-frontend:13001")
+    for svc in "${app_services[@]}"; do
         IFS=':' read -r name port <<< "$svc"
         printf "    - %-20s" "$name"
         if wait_for_port $port $name 30; then
@@ -170,9 +185,24 @@ start_docker_dev() {
 
     echo -e "  ${YELLOW}▸${NC} 서비스 헬스체크 대기 중..."
 
-    # 모든 서비스 대기
-    local services=("postgres:15432" "redis:16379" "weaviate:18080" "minio:19000" "service-backend:8000" "service-frontend:3000" "admin-backend:13000" "admin-frontend:13001")
-    for svc in "${services[@]}"; do
+    # 인프라 서비스 먼저 대기 (마이그레이션을 위해)
+    local infra_services=("postgres:15432" "redis:16379" "weaviate:18080" "minio:19000")
+    for svc in "${infra_services[@]}"; do
+        IFS=':' read -r name port <<< "$svc"
+        printf "    - %-20s" "$name"
+        if wait_for_port $port $name 30; then
+            echo -e "${GREEN}ready${NC}"
+        else
+            echo -e "${RED}timeout${NC}"
+        fi
+    done
+
+    # DB 마이그레이션 실행
+    run_migrations
+
+    # 앱 서비스 대기
+    local app_services=("service-backend:8000" "service-frontend:3000" "admin-backend:13000" "admin-frontend:13001")
+    for svc in "${app_services[@]}"; do
         IFS=':' read -r name port <<< "$svc"
         printf "    - %-20s" "$name"
         if wait_for_port $port $name 30; then
