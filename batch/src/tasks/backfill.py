@@ -588,15 +588,16 @@ async def _phase_search(
     OAR-19 스타일: Connection Pool 사용
     pubType 기반 필터링 적용
     시간 기반 heartbeat: API가 느려도 30초마다 heartbeat 전송
+    취소 체크: heartbeat 시점에 취소 여부 확인
 
     Returns:
-        dict: {registered: int, dropped: int, total_searched: int}
+        dict: {registered: int, dropped: int, total_searched: int, cancelled: bool}
     """
     import time
 
     logger.info("search_phase_started", job_id=job_id)
 
-    stats = {"registered": 0, "dropped": 0, "total_searched": 0}
+    stats = {"registered": 0, "dropped": 0, "total_searched": 0, "cancelled": False}
     page_batch = []
     batch_size = 100
     last_heartbeat = time.time()
@@ -608,10 +609,19 @@ async def _phase_search(
         ):
             stats["total_searched"] += 1
 
-            # 시간 기반 heartbeat: HEARTBEAT_INTERVAL_SECONDS마다 업데이트
+            # 시간 기반 heartbeat + 취소 체크: HEARTBEAT_INTERVAL_SECONDS마다
             current_time = time.time()
             if current_time - last_heartbeat >= HEARTBEAT_INTERVAL_SECONDS:
                 with pool.connection() as conn:
+                    # 취소 여부 확인
+                    if check_job_cancelled(conn, job_id):
+                        logger.info(
+                            "search_phase_cancelled",
+                            job_id=job_id,
+                            **stats,
+                        )
+                        stats["cancelled"] = True
+                        return stats
                     update_heartbeat(conn, job_id)
                 last_heartbeat = current_time
                 logger.debug("search_heartbeat_sent", job_id=job_id, total_searched=stats["total_searched"])
@@ -649,6 +659,16 @@ async def _phase_search(
 
             if len(page_batch) >= batch_size:
                 with pool.connection() as conn:
+                    # 배치 저장 전 취소 체크
+                    if check_job_cancelled(conn, job_id):
+                        logger.info(
+                            "search_phase_cancelled_at_batch",
+                            job_id=job_id,
+                            **stats,
+                        )
+                        stats["cancelled"] = True
+                        return stats
+
                     batch_upsert_article_jobs(conn, job_id, page_batch)
                     stats["registered"] += len(page_batch)
 
@@ -1171,8 +1191,16 @@ async def _phase_collect(
                 ]
                 await asyncio.gather(*tasks, return_exceptions=True)
 
-                # 진행률 업데이트 (이 함수도 heartbeat 업데이트함)
+                # 진행률 업데이트 + 취소 체크 (이 함수도 heartbeat 업데이트함)
                 with pool.connection() as conn:
+                    # 배치 처리 후 취소 체크
+                    if check_job_cancelled(conn, job_id):
+                        logger.info(
+                            "collect_phase_cancelled_after_batch",
+                            job_id=job_id,
+                        )
+                        break
+
                     stats = get_article_job_stats(conn, job_id)
                     update_job_progress(
                         conn,
@@ -1348,7 +1376,15 @@ async def _phase_embed(
                 else:
                     stats["failed"] += 1
 
-            # 배치 처리 후 heartbeat 갱신
+            # 배치 처리 후 취소 체크 + heartbeat 갱신
+            with pool.connection() as conn:
+                if check_job_cancelled(conn, job_id):
+                    logger.info(
+                        "embed_phase_cancelled_after_batch",
+                        job_id=job_id,
+                        **stats,
+                    )
+                    break
             last_heartbeat = time.time()
 
             logger.info(
