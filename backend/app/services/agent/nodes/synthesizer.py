@@ -96,10 +96,7 @@ async def synthesize_answer_stream(state: AgentState) -> AsyncGenerator[str, Non
     if gate2_failure:
         logger.warning(f"Gate 2 failed (stream): {gate2_failure}")
         yield gate2_failure
-        return {
-            "final_answer": gate2_failure,
-            "citations": [],
-        }
+        return  # AsyncGenerator는 return value 지원 안함
 
     # Collect references
     all_references: list[Reference] = []
