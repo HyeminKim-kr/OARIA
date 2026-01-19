@@ -130,6 +130,7 @@ async def _execute_rag_search(task: SubTask) -> TaskResult:
             references=retrieval_result.references,  # 참조는 전달 (경고와 함께)
             gate2_passed=False,
             gate2_reason=gate2_result.reason.value if gate2_result.reason else None,
+            gate2_suggestions=gate2_result.suggestions,
         )
 
     return TaskResult(
@@ -234,6 +235,7 @@ async def execute_direct_rag(state: AgentState) -> AgentState:
             duration_ms=duration_ms,
             gate2_passed=False,
             gate2_reason=gate2_result.reason.value if gate2_result.reason else None,
+            gate2_suggestions=gate2_result.suggestions,
         )
     else:
         task_result = TaskResult(
