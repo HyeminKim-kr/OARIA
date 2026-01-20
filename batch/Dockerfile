@@ -1,6 +1,6 @@
 # 암 논문 수집 배치 시스템 (Celery Worker)
-# 빌드 컨텍스트: 프로젝트 루트에서 실행
-# docker build -f batch/Dockerfile -t oaria-batch .
+# 빌드 컨텍스트: batch/ 디렉토리에서 실행
+# docker build -t oaria-batch ./batch
 
 FROM python:3.11-slim
 
@@ -17,8 +17,8 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 COPY --from=ghcr.io/astral-sh/uv:latest /uv /usr/local/bin/uv
 
 # 소스코드 및 의존성 파일 복사
-COPY batch/pyproject.toml ./
-COPY batch/src/ ./src/
+COPY pyproject.toml ./
+COPY src/ ./src/
 
 # 의존성 설치
 RUN uv pip install --system --no-cache .
