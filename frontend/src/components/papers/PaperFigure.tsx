@@ -1,7 +1,6 @@
 "use client";
 
 import { useState } from "react";
-import Image from "next/image";
 import type { Figure } from "@/lib/api";
 
 interface PaperFigureProps {
