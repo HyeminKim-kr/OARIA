@@ -260,7 +260,7 @@ export function PaperChatPanel({
                       <span className="text-xs font-medium text-[var(--oaria-teal)]">선택된 텍스트</span>
                     </div>
                     <p className="text-xs text-[var(--oaria-text-secondary)] line-clamp-2">
-                      "{highlightContext.slice(0, 150)}{highlightContext.length > 150 ? "..." : ""}"
+                      &quot;{highlightContext.slice(0, 150)}{highlightContext.length > 150 ? "..." : ""}&quot;
                     </p>
                   </div>
                   <button
@@ -439,7 +439,7 @@ export function PaperChatPanel({
 function MessageBubble({
   message,
   isLoading,
-  onReferenceClick,
+  onReferenceClick: _onReferenceClick,
   onHighlightRequest,
 }: {
   message: PaperChatMessage;
