@@ -4,7 +4,7 @@ papers, paper_authors, paper_sections, paper_relations, paper_citations 테이�
 """
 
 from datetime import datetime
-from typing import Optional
+from typing import TYPE_CHECKING, Optional
 from uuid import UUID
 
 from sqlalchemy import (
@@ -22,6 +22,9 @@ from sqlalchemy.dialects.postgresql import ARRAY, UUID as PGUUID
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from .base import Base
+
+if TYPE_CHECKING:
+    from .chat import Conversation
 
 
 class Paper(Base):
@@ -108,6 +111,12 @@ class Paper(Base):
     sections: Mapped[list["PaperSection"]] = relationship(
         "PaperSection", back_populates="paper", order_by="PaperSection.section_order",
         cascade="all, delete-orphan"
+    )
+    conversations: Mapped[list["Conversation"]] = relationship(
+        "Conversation", back_populates="paper"
+    )
+    summaries: Mapped[list["PaperSummary"]] = relationship(
+        "PaperSummary", back_populates="paper", cascade="all, delete-orphan"
     )
 
 
@@ -214,3 +223,44 @@ class PaperCitation(Base):
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), server_default="NOW()"
     )
+
+
+class PaperSummary(Base):
+    """논문 요약 캐시 테이블
+
+    LLM이 생성한 논문 요약을 캐싱하여 중복 생성을 방지합니다.
+    임베딩은 백그라운드에서 처리되어 기존 PaperChunk 컬렉션에 저장됩니다.
+    """
+
+    __tablename__ = "paper_summaries"
+    __table_args__ = (
+        UniqueConstraint("paper_id", "summary_type", name="uq_paper_summary"),
+        Index("idx_paper_summaries_paper_id", "paper_id"),
+        Index("idx_paper_summaries_embedding_status", "embedding_status"),
+    )
+
+    id: Mapped[UUID] = mapped_column(
+        PGUUID(as_uuid=True), primary_key=True, server_default="gen_random_uuid()"
+    )
+    paper_id: Mapped[UUID] = mapped_column(
+        PGUUID(as_uuid=True), ForeignKey("papers.id", ondelete="CASCADE"), nullable=False
+    )
+    summary_type: Mapped[str] = mapped_column(String(20), nullable=False, default="full")
+    summary: Mapped[str] = mapped_column(Text, nullable=False)
+    sections_used: Mapped[Optional[list[str]]] = mapped_column(ARRAY(Text))
+    tokens_used: Mapped[Optional[int]] = mapped_column(Integer)
+
+    # 임베딩 상태
+    embedding_status: Mapped[Optional[str]] = mapped_column(String(20), default="pending")
+    embedding_at: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True))
+
+    # 타임스탬프
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default="NOW()"
+    )
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default="NOW()"
+    )
+
+    # Relationships
+    paper: Mapped["Paper"] = relationship("Paper", back_populates="summaries")

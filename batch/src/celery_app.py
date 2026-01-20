@@ -14,6 +14,7 @@ app = Celery(
         "src.tasks.embed",
         "src.tasks.sample_embed",
         "src.tasks.job_dispatcher",
+        "src.tasks.embed_summary",
     ],
 )
 
@@ -35,6 +36,7 @@ app.conf.update(
         "src.tasks.incremental.*": {"queue": "incremental"},
         "src.tasks.repair.*": {"queue": "repair"},
         "src.tasks.embed.*": {"queue": "embed"},
+        "src.tasks.embed_summary.*": {"queue": "embed"},
     },
     # 기본 큐
     task_default_queue="backfill",
