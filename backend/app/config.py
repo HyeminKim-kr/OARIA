@@ -16,6 +16,7 @@ class Settings(BaseSettings):
         env_file=".env",
         env_file_encoding="utf-8",
         extra="ignore",
+        populate_by_name=True,  # alias와 필드명 모두 사용 가능
     )
 
     # Database
@@ -59,13 +60,27 @@ class Settings(BaseSettings):
     weaviate_host: str = Field(default="localhost", description="Weaviate 호스트")
     weaviate_port: int = Field(default=18080, description="Weaviate 포트")
 
-    # S3/MinIO
+    # S3/MinIO (batch와 동일한 환경변수명 사용)
     s3_endpoint_url: str = Field(
-        default="http://localhost:19000", description="S3/MinIO 엔드포인트"
+        default="http://localhost:19000",
+        description="S3/MinIO 엔드포인트",
+        alias="S3_ENDPOINT",
     )
-    s3_access_key: str = Field(default="minioadmin", description="S3 Access Key")
-    s3_secret_key: str = Field(default="minioadmin_2024", description="S3 Secret Key")
-    s3_bucket: str = Field(default="oaria-papers", description="S3 버킷 이름")
+    s3_access_key: str = Field(
+        default="minioadmin",
+        description="S3 Access Key",
+        alias="S3_ACCESS_KEY",
+    )
+    s3_secret_key: str = Field(
+        default="minioadmin_2024",
+        description="S3 Secret Key",
+        alias="S3_SECRET_KEY",
+    )
+    s3_bucket: str = Field(
+        default="oaria-papers",
+        description="S3 버킷 이름",
+        alias="S3_BUCKET",
+    )
 
     # OpenAI
     openai_api_key: str = Field(default="", description="OpenAI API 키")

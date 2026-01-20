@@ -4,6 +4,8 @@
 # OARIA 개발 환경 시작 및 모니터링 스크립트
 # ============================================================
 #
+# 자세한 도움말: ./scripts/dev.sh help
+#
 # 기본 명령어 (인터랙티브):
 #   ./scripts/dev.sh start     - 개발 환경 시작 (로컬/Docker 선택)
 #   ./scripts/dev.sh stop      - 개발 환경 중지
@@ -12,16 +14,27 @@
 #   ./scripts/dev.sh logs      - 로그 보기
 #   ./scripts/dev.sh monitor   - 실시간 모니터링
 #
-# Docker 모드 (직접 실행):
-#   ./scripts/dev.sh prod start/stop/restart        - 프로덕션 모드
-#   ./scripts/dev.sh docker-dev start/stop/restart  - 개발 모드 (Hot Reload)
+# 로컬 개발 모드 (직접 실행):
+#   ./scripts/dev.sh local start/stop/restart       - 로컬 모드 (인프라 Docker + 로컬 앱)
 #
-# 개별 제어 (로컬):
-#   ./scripts/dev.sh docker start/stop   - 인프라만 (DB, Redis 등)
-#   ./scripts/dev.sh admin start/stop    - Admin 서비스만
-#   ./scripts/dev.sh service start/stop  - User 서비스만
-#   ./scripts/dev.sh install             - 의존성 설치
-#   ./scripts/dev.sh migrate             - DB 마이그레이션
+# Docker 개발 모드 (직접 실행):
+#   ./scripts/dev.sh docker-dev start/stop/restart/rebuild  - 개발 모드 (Hot Reload)
+#   ./scripts/dev.sh prod start/stop/restart/rebuild        - 프로덕션 모드
+#
+# 인프라 제어:
+#   ./scripts/dev.sh docker start/stop/restart  - 인프라만 (DB, Redis 등)
+#
+# 로컬 서비스 개별 제어:
+#   ./scripts/dev.sh admin start/stop/restart    - Admin 서비스만 (로컬)
+#   ./scripts/dev.sh service start/stop/restart  - User 서비스만 (로컬)
+#
+# 개별 컨테이너 제어:
+#   ./scripts/dev.sh container <name> start/stop/restart/rebuild/logs
+#   예: ./scripts/dev.sh container celery-backfill restart
+#
+# 유틸리티:
+#   ./scripts/dev.sh install   - 의존성 설치
+#   ./scripts/dev.sh migrate   - DB 마이그레이션
 #
 # ============================================================
 
@@ -174,6 +187,21 @@ stop_docker_prod() {
     echo -e "  ${GREEN}✓${NC} 프로덕션 서비스 중지됨"
 }
 
+# Docker 프로덕션 모드 리빌드
+rebuild_docker_prod() {
+    print_header "Docker Compose 리빌드 (프로덕션 모드)"
+    cd "$PROJECT_ROOT"
+
+    echo -e "  ${YELLOW}▸${NC} 기존 컨테이너 중지 및 제거..."
+    docker compose -f docker-compose.yml -f docker-compose.prod.yml down
+
+    echo -e "  ${YELLOW}▸${NC} 이미지 리빌드 중 (--no-cache)..."
+    docker compose -f docker-compose.yml -f docker-compose.prod.yml build --no-cache
+
+    echo -e "  ${YELLOW}▸${NC} 서비스 시작..."
+    start_docker_prod
+}
+
 # Docker 개발 모드 시작
 start_docker_dev() {
     print_header "Docker Compose 시작 (개발 모드 - Hot Reload)"
@@ -226,12 +254,35 @@ stop_docker_dev() {
     echo -e "  ${GREEN}✓${NC} 개발 서비스 중지됨"
 }
 
+# Docker 개발 모드 리빌드
+rebuild_docker_dev() {
+    print_header "Docker Compose 리빌드 (개발 모드)"
+    cd "$PROJECT_ROOT"
+
+    echo -e "  ${YELLOW}▸${NC} 기존 컨테이너 중지 및 제거..."
+    docker compose -f docker-compose.yml -f docker-compose.dev.yml down
+
+    echo -e "  ${YELLOW}▸${NC} 이미지 리빌드 중 (--no-cache)..."
+    docker compose -f docker-compose.yml -f docker-compose.dev.yml build --no-cache
+
+    echo -e "  ${YELLOW}▸${NC} 서비스 시작..."
+    start_docker_dev
+}
+
 # Docker 서비스 중지
 stop_docker() {
     print_header "Docker Compose 중지"
     cd "$PROJECT_ROOT"
     docker compose down
     echo -e "  ${GREEN}✓${NC} Docker 서비스 중지됨"
+}
+
+# Docker 서비스 재시작 (인프라만)
+restart_docker() {
+    print_header "Docker Compose 재시작 (인프라)"
+    stop_docker
+    sleep 2
+    start_docker
 }
 
 # 의존성 패키지 설치
@@ -448,6 +499,112 @@ stop_dev_servers() {
     echo -e "  ${GREEN}✓${NC} 개발 서버 중지됨"
 }
 
+# Admin 서비스 재시작 (로컬)
+restart_admin() {
+    print_header "Admin 서비스 재시작"
+    echo -e "  ${YELLOW}▸${NC} Admin Backend 중지..."
+    stop_service "admin-backend" 13000
+    echo -e "  ${YELLOW}▸${NC} Admin Frontend 중지..."
+    stop_service "admin-frontend" 13001
+    sleep 1
+    start_admin_backend
+    start_admin_frontend
+}
+
+# Service 서비스 재시작 (로컬)
+restart_service_local() {
+    print_header "Service 서비스 재시작"
+    echo -e "  ${YELLOW}▸${NC} Service Backend 중지..."
+    stop_service "service-backend" 8000
+    echo -e "  ${YELLOW}▸${NC} Service Frontend 중지..."
+    stop_service "service-frontend" 3000
+    sleep 1
+    start_service_backend
+    start_service_frontend
+}
+
+# 개별 컨테이너 제어
+container_control() {
+    local container_name=$1
+    local action=$2
+
+    # oaria- 접두사가 없으면 추가
+    if [[ ! "$container_name" =~ ^oaria- ]]; then
+        container_name="oaria-$container_name"
+    fi
+
+    # 유효한 컨테이너 목록
+    local valid_containers=(
+        "oaria-postgres" "oaria-redis" "oaria-minio" "oaria-weaviate"
+        "oaria-celery-backfill" "oaria-celery-embed" "oaria-celery-beat" "oaria-flower"
+        "oaria-service-backend" "oaria-service-frontend" "oaria-admin-backend" "oaria-admin-frontend"
+    )
+
+    # 컨테이너 이름 유효성 검사
+    local is_valid=false
+    for valid in "${valid_containers[@]}"; do
+        if [ "$container_name" = "$valid" ]; then
+            is_valid=true
+            break
+        fi
+    done
+
+    if [ "$is_valid" = false ]; then
+        echo -e "${RED}오류: 유효하지 않은 컨테이너 이름입니다: $container_name${NC}"
+        echo ""
+        echo -e "${YELLOW}사용 가능한 컨테이너:${NC}"
+        echo -e "  ${BLUE}[인프라]${NC}"
+        echo "    postgres, redis, minio, weaviate"
+        echo -e "  ${BLUE}[배치]${NC}"
+        echo "    celery-backfill, celery-embed, celery-beat, flower"
+        echo -e "  ${BLUE}[앱]${NC}"
+        echo "    service-backend, service-frontend, admin-backend, admin-frontend"
+        return 1
+    fi
+
+    # docker-compose 서비스 이름 추출 (oaria- 제거)
+    local service_name="${container_name#oaria-}"
+
+    cd "$PROJECT_ROOT"
+
+    case "$action" in
+        start)
+            print_header "컨테이너 시작: $container_name"
+            docker compose -f docker-compose.yml -f docker-compose.dev.yml up -d "$service_name"
+            echo -e "  ${GREEN}✓${NC} $container_name 시작됨"
+            ;;
+        stop)
+            print_header "컨테이너 중지: $container_name"
+            docker compose -f docker-compose.yml -f docker-compose.dev.yml stop "$service_name"
+            echo -e "  ${GREEN}✓${NC} $container_name 중지됨"
+            ;;
+        restart)
+            print_header "컨테이너 재시작: $container_name"
+            docker compose -f docker-compose.yml -f docker-compose.dev.yml restart "$service_name"
+            echo -e "  ${GREEN}✓${NC} $container_name 재시작됨"
+            ;;
+        rebuild)
+            print_header "컨테이너 리빌드: $container_name"
+            echo -e "  ${YELLOW}▸${NC} 컨테이너 중지..."
+            docker compose -f docker-compose.yml -f docker-compose.dev.yml stop "$service_name"
+            echo -e "  ${YELLOW}▸${NC} 이미지 리빌드 (--no-cache)..."
+            docker compose -f docker-compose.yml -f docker-compose.dev.yml build --no-cache "$service_name"
+            echo -e "  ${YELLOW}▸${NC} 컨테이너 시작..."
+            docker compose -f docker-compose.yml -f docker-compose.dev.yml up -d "$service_name"
+            echo -e "  ${GREEN}✓${NC} $container_name 리빌드 완료"
+            ;;
+        logs)
+            print_header "컨테이너 로그: $container_name"
+            docker compose -f docker-compose.yml -f docker-compose.dev.yml logs -f "$service_name"
+            ;;
+        *)
+            echo -e "${RED}오류: 유효하지 않은 액션입니다: $action${NC}"
+            echo "사용법: $0 container <name> [start|stop|restart|rebuild|logs]"
+            return 1
+            ;;
+    esac
+}
+
 # 상태 확인
 show_status() {
     print_header "서비스 상태"
@@ -662,6 +819,104 @@ stop_all() {
     select_stop_mode
 }
 
+# Help 메시지 출력
+show_help() {
+    echo ""
+    echo -e "${CYAN}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}"
+    echo -e "${CYAN}  OARIA 개발 환경 관리 스크립트${NC}"
+    echo -e "${CYAN}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}"
+    echo ""
+    echo -e "${BLUE}[기본 명령어]${NC} 인터랙티브 메뉴로 로컬/Docker 모드를 선택합니다."
+    echo ""
+    echo -e "  ${GREEN}$0 start${NC}        개발 환경 시작 (로컬/Docker 선택)"
+    echo -e "  ${GREEN}$0 stop${NC}         개발 환경 중지 (로컬/Docker 선택)"
+    echo -e "  ${GREEN}$0 restart${NC}      개발 환경 재시작"
+    echo -e "  ${GREEN}$0 status${NC}       모든 서비스 상태 확인"
+    echo -e "  ${GREEN}$0 logs${NC}         로그 선택 보기"
+    echo -e "  ${GREEN}$0 monitor${NC}      실시간 상태 모니터링 (5초마다 갱신)"
+    echo ""
+    echo -e "${BLUE}[로컬 개발 모드]${NC} 인프라는 Docker, 앱은 호스트에서 직접 실행합니다."
+    echo -e "  ${YELLOW}장점:${NC} 빠른 Hot Reload, 디버깅 용이"
+    echo ""
+    echo -e "  ${GREEN}$0 local start${NC}      인프라 Docker 시작 + 로컬 앱 서버 시작"
+    echo -e "  ${GREEN}$0 local stop${NC}       로컬 앱 서버 + 인프라 Docker 중지"
+    echo -e "  ${GREEN}$0 local restart${NC}    로컬 모드 전체 재시작"
+    echo ""
+    echo -e "${BLUE}[Docker 개발 모드]${NC} 모든 서비스를 Docker 컨테이너로 실행합니다."
+    echo -e "  ${YELLOW}장점:${NC} 볼륨 마운트로 Hot Reload 지원, 환경 일관성"
+    echo ""
+    echo -e "  ${GREEN}$0 docker-dev start${NC}     Docker 개발 모드 시작"
+    echo -e "  ${GREEN}$0 docker-dev stop${NC}      Docker 개발 모드 중지"
+    echo -e "  ${GREEN}$0 docker-dev restart${NC}   Docker 개발 모드 재시작"
+    echo -e "  ${GREEN}$0 docker-dev rebuild${NC}   이미지 리빌드 후 시작 (캐시 무시)"
+    echo ""
+    echo -e "${BLUE}[Docker 프로덕션 모드]${NC} 프로덕션 환경과 동일한 설정으로 실행합니다."
+    echo ""
+    echo -e "  ${GREEN}$0 prod start${NC}       프로덕션 모드 시작"
+    echo -e "  ${GREEN}$0 prod stop${NC}        프로덕션 모드 중지"
+    echo -e "  ${GREEN}$0 prod restart${NC}     프로덕션 모드 재시작"
+    echo -e "  ${GREEN}$0 prod rebuild${NC}     이미지 리빌드 후 시작 (캐시 무시)"
+    echo ""
+    echo -e "${BLUE}[인프라 제어]${NC} 데이터베이스, 캐시 등 인프라 서비스만 제어합니다."
+    echo ""
+    echo -e "  ${GREEN}$0 docker start${NC}     인프라 Docker 시작 (postgres, redis, minio, weaviate)"
+    echo -e "  ${GREEN}$0 docker stop${NC}      인프라 Docker 중지"
+    echo -e "  ${GREEN}$0 docker restart${NC}   인프라 Docker 재시작"
+    echo ""
+    echo -e "${BLUE}[로컬 서비스 개별 제어]${NC} 로컬에서 실행 중인 개별 서비스를 제어합니다."
+    echo ""
+    echo -e "  ${GREEN}$0 admin start${NC}      Admin Backend + Frontend 시작"
+    echo -e "  ${GREEN}$0 admin stop${NC}       Admin Backend + Frontend 중지"
+    echo -e "  ${GREEN}$0 admin restart${NC}    Admin Backend + Frontend 재시작"
+    echo ""
+    echo -e "  ${GREEN}$0 service start${NC}    Service Backend + Frontend 시작"
+    echo -e "  ${GREEN}$0 service stop${NC}     Service Backend + Frontend 중지"
+    echo -e "  ${GREEN}$0 service restart${NC}  Service Backend + Frontend 재시작"
+    echo ""
+    echo -e "${BLUE}[개별 컨테이너 제어]${NC} Docker 컨테이너를 개별적으로 제어합니다."
+    echo ""
+    echo -e "  ${GREEN}$0 container <name> start${NC}     컨테이너 시작"
+    echo -e "  ${GREEN}$0 container <name> stop${NC}      컨테이너 중지"
+    echo -e "  ${GREEN}$0 container <name> restart${NC}   컨테이너 재시작"
+    echo -e "  ${GREEN}$0 container <name> rebuild${NC}   이미지 리빌드 후 시작"
+    echo -e "  ${GREEN}$0 container <name> logs${NC}      컨테이너 로그 보기 (실시간)"
+    echo ""
+    echo -e "  ${YELLOW}사용 가능한 컨테이너 이름:${NC}"
+    echo -e "    인프라: ${CYAN}postgres${NC}, ${CYAN}redis${NC}, ${CYAN}minio${NC}, ${CYAN}weaviate${NC}"
+    echo -e "    배치:   ${CYAN}celery-backfill${NC}, ${CYAN}celery-embed${NC}, ${CYAN}celery-beat${NC}, ${CYAN}flower${NC}"
+    echo -e "    앱:     ${CYAN}service-backend${NC}, ${CYAN}service-frontend${NC}, ${CYAN}admin-backend${NC}, ${CYAN}admin-frontend${NC}"
+    echo ""
+    echo -e "${BLUE}[유틸리티]${NC}"
+    echo ""
+    echo -e "  ${GREEN}$0 install${NC}      모든 의존성 패키지 설치 (uv sync, npm install)"
+    echo -e "  ${GREEN}$0 migrate${NC}      DB 마이그레이션 실행 (Alembic, TypeORM)"
+    echo ""
+    echo -e "${BLUE}[서비스 URL]${NC}"
+    echo ""
+    echo -e "  Service Frontend:  ${CYAN}http://localhost:3000${NC}"
+    echo -e "  Service Backend:   ${CYAN}http://localhost:8000${NC}"
+    echo -e "  API Docs:          ${CYAN}http://localhost:8000/docs${NC}"
+    echo -e "  Admin Frontend:    ${CYAN}http://localhost:13001${NC}"
+    echo -e "  Admin Backend:     ${CYAN}http://localhost:13000${NC}"
+    echo -e "  Flower (Celery):   ${CYAN}http://localhost:15555${NC}"
+    echo -e "  MinIO Console:     ${CYAN}http://localhost:19001${NC}"
+    echo ""
+    echo -e "${BLUE}[예시]${NC}"
+    echo ""
+    echo -e "  # 처음 개발 시작할 때 (로컬 모드)"
+    echo -e "  ${CYAN}$0 local start${NC}"
+    echo ""
+    echo -e "  # Celery 워커만 재시작"
+    echo -e "  ${CYAN}$0 container celery-backfill restart${NC}"
+    echo ""
+    echo -e "  # 백엔드 코드 변경 후 Docker 이미지 리빌드"
+    echo -e "  ${CYAN}$0 container service-backend rebuild${NC}"
+    echo ""
+    echo -e "  # 전체 Docker 개발환경 리빌드"
+    echo -e "  ${CYAN}$0 docker-dev rebuild${NC}"
+    echo ""
+}
+
 # 메인 명령어 처리
 case "${1:-}" in
     start)
@@ -688,7 +943,8 @@ case "${1:-}" in
         case "${2:-}" in
             start) start_docker ;;
             stop) stop_docker ;;
-            *) echo "Usage: $0 docker [start|stop]" ;;
+            restart) restart_docker ;;
+            *) echo "Usage: $0 docker [start|stop|restart]" ;;
         esac
         ;;
     prod)
@@ -700,7 +956,8 @@ case "${1:-}" in
                 sleep 2
                 start_docker_prod
                 ;;
-            *) echo "Usage: $0 prod [start|stop|restart]" ;;
+            rebuild) rebuild_docker_prod ;;
+            *) echo "Usage: $0 prod [start|stop|restart|rebuild]" ;;
         esac
         ;;
     docker-dev)
@@ -712,7 +969,8 @@ case "${1:-}" in
                 sleep 2
                 start_docker_dev
                 ;;
-            *) echo "Usage: $0 docker-dev [start|stop|restart]" ;;
+            rebuild) rebuild_docker_dev ;;
+            *) echo "Usage: $0 docker-dev [start|stop|restart|rebuild]" ;;
         esac
         ;;
     admin)
@@ -725,7 +983,8 @@ case "${1:-}" in
                 stop_service "admin-backend" 13000
                 stop_service "admin-frontend" 13001
                 ;;
-            *) echo "Usage: $0 admin [start|stop]" ;;
+            restart) restart_admin ;;
+            *) echo "Usage: $0 admin [start|stop|restart]" ;;
         esac
         ;;
     service)
@@ -738,8 +997,38 @@ case "${1:-}" in
                 stop_service "service-backend" 8000
                 stop_service "service-frontend" 3000
                 ;;
-            *) echo "Usage: $0 service [start|stop]" ;;
+            restart) restart_service_local ;;
+            *) echo "Usage: $0 service [start|stop|restart]" ;;
         esac
+        ;;
+    local)
+        case "${2:-}" in
+            start) start_all_local ;;
+            stop) stop_all_local ;;
+            restart)
+                stop_all_local
+                sleep 2
+                start_all_local
+                ;;
+            *) echo "Usage: $0 local [start|stop|restart]" ;;
+        esac
+        ;;
+    container)
+        if [ -z "${2:-}" ] || [ -z "${3:-}" ]; then
+            echo -e "${RED}오류: 컨테이너 이름과 액션이 필요합니다${NC}"
+            echo ""
+            echo "Usage: $0 container <name> [start|stop|restart|rebuild|logs]"
+            echo ""
+            echo -e "${YELLOW}사용 가능한 컨테이너:${NC}"
+            echo -e "  ${BLUE}[인프라]${NC}"
+            echo "    postgres, redis, minio, weaviate"
+            echo -e "  ${BLUE}[배치]${NC}"
+            echo "    celery-backfill, celery-embed, celery-beat, flower"
+            echo -e "  ${BLUE}[앱]${NC}"
+            echo "    service-backend, service-frontend, admin-backend, admin-frontend"
+            exit 1
+        fi
+        container_control "$2" "$3"
         ;;
     migrate)
         run_migrations
@@ -747,26 +1036,7 @@ case "${1:-}" in
     install)
         install_dependencies
         ;;
-    *)
-        echo -e "${CYAN}OARIA 개발 환경 관리 스크립트${NC}"
-        echo ""
-        echo -e "${BLUE}기본 명령어 (인터랙티브 선택):${NC}"
-        echo "  $0 start        개발 환경 시작 (로컬/Docker 선택)"
-        echo "  $0 stop         개발 환경 중지 (로컬/Docker 선택)"
-        echo "  $0 restart      개발 환경 재시작"
-        echo "  $0 status       서비스 상태 확인"
-        echo "  $0 logs         로그 보기"
-        echo "  $0 monitor      실시간 모니터링 (5초마다 갱신)"
-        echo ""
-        echo -e "${BLUE}직접 실행 (선택 없이):${NC}"
-        echo "  $0 prod start/stop/restart         프로덕션 모드 (Docker)"
-        echo "  $0 docker-dev start/stop/restart   개발 모드 (Docker + Hot Reload)"
-        echo ""
-        echo -e "${BLUE}개별 제어:${NC}"
-        echo "  $0 docker start/stop    인프라만 시작/중지 (DB, Redis 등)"
-        echo "  $0 admin start/stop     Admin 서비스만 시작/중지 (로컬)"
-        echo "  $0 service start/stop   User 서비스만 시작/중지 (로컬)"
-        echo "  $0 install              의존성 패키지 설치"
-        echo "  $0 migrate              DB 마이그레이션만 실행"
+    help|--help|-h|*)
+        show_help
         ;;
 esac

@@ -2,7 +2,7 @@
 
 > **논문 메타데이터 및 관련 테이블**
 >
-> **Last Updated**: 2026-01-14
+> **Last Updated**: 2026-01-20
 >
 > **Owner**: Backend (Alembic)
 
@@ -21,6 +21,7 @@
 | `paper_sections` | 논문 섹션 오프셋 정보 (청킹용) |
 | `paper_relations` | 논문 간 관계 (정정/철회/코멘트) |
 | `paper_citations` | 논문 인용 관계 (Citations/References) |
+| `paper_summaries` | 논문 요약 캐시 (LLM 생성 요약 저장) |
 
 ---
 
@@ -347,6 +348,74 @@ CREATE TABLE paper_sections (
     created_at TIMESTAMPTZ DEFAULT NOW(),
     UNIQUE(paper_id, section_order)
 );
+```
+
+---
+
+## paper_summaries (요약 캐시)
+
+논문의 LLM 생성 요약을 캐싱하여 중복 생성을 방지합니다.
+
+### 컬럼 정의
+
+| 컬럼 | 타입 | Nullable | 기본값 | 설명 |
+|------|------|----------|--------|------|
+| **id** | `UUID` | NO | `gen_random_uuid()` | Primary Key |
+| **paper_id** | `UUID` | NO | - | FK → papers.id |
+| **summary_type** | `VARCHAR(20)` | NO | `'full'` | 요약 유형 |
+| **summary** | `TEXT` | NO | - | 생성된 요약 내용 |
+| sections_used | `TEXT[]` | YES | - | 요약에 사용된 섹션 목록 |
+| tokens_used | `INTEGER` | YES | - | LLM 토큰 사용량 |
+| embedding_status | `VARCHAR(20)` | YES | `'pending'` | 임베딩 상태 |
+| embedding_at | `TIMESTAMPTZ` | YES | - | 임베딩 완료 시각 |
+| created_at | `TIMESTAMPTZ` | YES | `NOW()` | 생성 시각 |
+| updated_at | `TIMESTAMPTZ` | YES | `NOW()` | 수정 시각 |
+
+### summary_type 값
+
+| 값 | 설명 |
+|----|------|
+| `full` | 논문 전체 요약 |
+| `abstract` | 초록 기반 요약 |
+| `methods` | 연구 방법론 요약 |
+| `results` | 연구 결과 요약 |
+| `conclusion` | 결론 및 시사점 요약 |
+
+### embedding_status 값
+
+| 값 | 설명 |
+|----|------|
+| `pending` | 임베딩 대기 |
+| `processing` | 임베딩 처리 중 |
+| `completed` | 임베딩 완료 (Weaviate에 저장됨) |
+| `failed` | 임베딩 실패 |
+
+### 인덱스
+
+```sql
+CREATE INDEX idx_paper_summaries_paper_id ON paper_summaries(paper_id);
+CREATE INDEX idx_paper_summaries_embedding_status ON paper_summaries(embedding_status);
+```
+
+### DDL
+
+```sql
+CREATE TABLE paper_summaries (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    paper_id UUID NOT NULL REFERENCES papers(id) ON DELETE CASCADE,
+    summary_type VARCHAR(20) NOT NULL DEFAULT 'full',
+    summary TEXT NOT NULL,
+    sections_used TEXT[],
+    tokens_used INTEGER,
+    embedding_status VARCHAR(20) DEFAULT 'pending',
+    embedding_at TIMESTAMPTZ,
+    created_at TIMESTAMPTZ DEFAULT NOW(),
+    updated_at TIMESTAMPTZ DEFAULT NOW(),
+    UNIQUE(paper_id, summary_type)
+);
+
+CREATE INDEX idx_paper_summaries_paper_id ON paper_summaries(paper_id);
+CREATE INDEX idx_paper_summaries_embedding_status ON paper_summaries(embedding_status);
 ```
 
 ---

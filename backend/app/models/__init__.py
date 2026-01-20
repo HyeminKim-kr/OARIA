@@ -4,7 +4,7 @@ from .base import Base
 from .user import User
 from .social_account import SocialAccount
 from .refresh_token import UserRefreshToken
-from .paper import Paper, PaperAuthor, PaperSection, PaperRelation
+from .paper import Paper, PaperAuthor, PaperSection, PaperRelation, PaperSummary
 from .batch import (
     SearchQuery,
     BatchJob,
@@ -31,6 +31,7 @@ __all__ = [
     "PaperAuthor",
     "PaperSection",
     "PaperRelation",
+    "PaperSummary",
     # Batch
     "SearchQuery",
     "BatchJob",
