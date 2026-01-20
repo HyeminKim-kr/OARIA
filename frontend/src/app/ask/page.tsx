@@ -30,7 +30,11 @@ function parseSuggestions(content: string): { mainContent: string; suggestions: 
     return { mainContent: content, suggestions: [] };
   }
 
-  const mainContent = content.replace(/### 5\. 추천 질문[\s\S]*```suggestions[\s\S]*?```/, "").trim();
+  // Remove the suggestions code block (and optional header) from displayed content
+  const mainContent = content
+    .replace(/### 5\. 추천 질문\s*\n?/, "")  // Remove header if present
+    .replace(/```suggestions[\s\S]*?```/, "")  // Remove code block
+    .trim();
   const suggestions = suggestionsMatch[1]
     .split("\n")
     .filter((line) => line.startsWith("- "))
@@ -512,7 +516,7 @@ export default function AskPage() {
                                   <div className="flex items-center gap-2 mb-3">
                                     <Lightbulb size={16} className="text-[var(--oaria-teal)]" />
                                     <span className="font-[family-name:var(--font-outfit)] text-sm font-medium">
-                                      관련 질문
+                                      추천 질문
                                     </span>
                                   </div>
                                   <div className="flex flex-wrap gap-2">
@@ -589,15 +593,15 @@ export default function AskPage() {
                   <div className="ml-11 mb-4 p-4 rounded-lg bg-[var(--oaria-border)]/20 border border-[var(--oaria-border)]">
                     {/* Complexity Badge */}
                     {agentProgress.complexity && (
-                      <div className="flex items-center gap-2 mb-3">
-                        <span className={`px-2 py-1 rounded-full text-xs font-medium ${
+                      <div className="flex items-center justify-center gap-2 mb-3">
+                        <span className={`px-3 py-1 rounded-full text-xs font-medium ${
                           agentProgress.complexity.level === "simple"
                             ? "bg-green-100 text-green-700"
                             : agentProgress.complexity.level === "medium"
                             ? "bg-yellow-100 text-yellow-700"
                             : "bg-purple-100 text-purple-700"
                         }`}>
-                          {agentProgress.complexity.level.toUpperCase()} Query
+                          {agentProgress.complexity.level.toUpperCase()}
                         </span>
                         <span className="text-xs text-[var(--oaria-text-secondary)]">
                           {agentProgress.complexity.reasoning}
