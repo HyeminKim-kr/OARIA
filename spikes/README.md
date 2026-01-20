@@ -19,25 +19,30 @@
 
 ## 디렉토리 네이밍 규칙
 
-스파이크 폴더는 다음 규칙을 권장합니다.
+스파이크 폴더는 **Jira 메인 테스크 티켓 번호**를 사용합니다.
 
 ```text
 spikes/
-  YYYY-MM-<간단주제>-spike/
+  OAR-XX/           # 메인 테스크 티켓 번호
+    README.md       # 공통: 목표, 비교 결과
+    <이니셜>/       # 서브테스크 담당자별 폴더
+      src/
+      output/
 ```
 
 예시:
 
 ```text
 spikes/
-  2025-01-vector-store-spike/
-  2025-02-rag-chat-flow-spike/
-  2025-03-bio-etl-pipeline-spike/
+  OAR-18/           # PubMed API 연동
+  OAR-19/           # 저널 품질 필터링
+  OAR-20/           # 데이터 정제 파이프라인
 ```
 
-* `YYYY-MM` : 스파이크를 시작한 년/월
-* `<간단주제>` : 한눈에 주제가 보이도록 짧게
-* `-spike` : 실험 코드임을 명확히 표시
+**장점:**
+- 심플: 날짜/주제 고민 필요 없음
+- Jira 연동: 티켓 번호로 바로 검색 가능
+- 명확한 매핑: 폴더 = 메인 테스크
 
 ---
 
@@ -45,7 +50,7 @@ spikes/
 
 ```text
 spikes/
-  2025-01-vector-store-spike/
+  OAR-18/
     README.md        # 이 스파이크의 목적/결론 정리
     docker-compose.yml
     src/
@@ -95,11 +100,344 @@ spikes/
 
 ---
 
+## 팀 스파이크 (동일 주제, 다중 구현)
+
+여러 명이 같은 주제를 **각자 다르게 구현**하여 비교/검토할 때 사용합니다.
+
+### 목적
+
+- 같은 문제에 대한 다양한 접근 방식 탐색
+- 팀원 간 상호 피드백 및 학습
+- 최적의 구현 방식 선택
+
+### 폴더 구조
+
+**메인 테스크 티켓 번호 + 이니셜:**
+
+```text
+spikes/
+  OAR-XX/                  # 메인 테스크 티켓 번호
+    README.md              # 공통: 목표, 비교 결과, 최종 결론
+    <이니셜>/              # 서브테스크 담당자 (개인별 구현)
+      README.md            # 개인: 접근 방식, 결과
+      src/
+      output/
+```
+
+예시:
+
+```text
+spikes/
+  OAR-18/                  # 메인 테스크: PubMed API 연동
+    README.md
+    tsy/                   # 서브테스크 OAR-50 담당
+      README.md
+      src/
+        crawler.py
+      output/
+    kjh/                   # 서브테스크 OAR-51 담당
+      README.md
+      src/
+        crawler.py
+      output/
+    plk/                   # 서브테스크 OAR-52 담당
+      README.md
+      src/
+        crawler.py
+      output/
+```
+
+### 전체 워크플로우
+
+```text
+┌─────────────────────────────────────────────────────────────────┐
+│  1단계: 스파이크 (각자 실험)                                      │
+├─────────────────────────────────────────────────────────────────┤
+│                                                                 │
+│  spike/OAR-18-tsy ──┐                                           │
+│  spike/OAR-18-kjh ──┼──► dev (PR 없이 직접 머지)                  │
+│  spike/OAR-18-plk ──┘                                           │
+│                                                                 │
+│  * 각자 spikes/OAR-18/<이니셜>/ 폴더에서 실험                      │
+│  * 커밋 메시지에 Sub-task 번호 포함 (OAR-50, OAR-51, ...)         │
+│  * 빠른 반복을 위해 PR 생략                                       │
+│                                                                 │
+├─────────────────────────────────────────────────────────────────┤
+│  2단계: 비교 & 결론                                               │
+├─────────────────────────────────────────────────────────────────┤
+│                                                                 │
+│  spikes/OAR-18/README.md                                        │
+│  └── Findings / Decision 섹션에 비교 결과 정리                    │
+│                                                                 │
+├─────────────────────────────────────────────────────────────────┤
+│  3단계: 통합 (서비스 코드 작성)                                    │
+├─────────────────────────────────────────────────────────────────┤
+│                                                                 │
+│  dev ──► feature/OAR-9-batch-collector                          │
+│          │                                                      │
+│          ├── 스파이크 결과 기반으로 backend/ 또는 frontend/ 구현   │
+│          ├── 테스트 코드 작성                                     │
+│          └── PR 생성 ──► dev 머지                                │
+│                                                                 │
+│  * 한 명이 담당하여 Claude 등으로 서비스 코드 작성                  │
+│  * 통합 단계에서는 PR 필수 (코드 리뷰)                             │
+│                                                                 │
+└─────────────────────────────────────────────────────────────────┘
+```
+
+### 1단계: 스파이크 브랜치
+
+**브랜치 네이밍:** `spike/OAR-XX-<이니셜>`
+
+```bash
+# 브랜치 생성
+git checkout dev
+git checkout -b spike/OAR-18-tsy
+
+# 자기 폴더에서 작업
+cd spikes/OAR-18/tsy/
+
+# 커밋 (Jira Sub-task 번호 필수!)
+git commit -m "OAR-50 requests 기반 PubMed API 구현"
+git commit -m "OAR-50 에러 핸들링 추가"
+
+# ⚠️ git push 하지 않음! 로컬 커밋까지만 하면 됩니다.
+
+# dev에 머지 (스크립트 사용 권장!)
+./git-merge.sh
+
+# 머지 후 브랜치 삭제까지 한번에
+./git-merge.sh -d
+```
+
+**스크립트가 하는 일:**
+1. `origin/dev` 최신화
+2. 현재 브랜치를 dev 위로 rebase (일직선 정리)
+3. fast-forward 머지 (머지 커밋 없음)
+4. `origin/dev`에 push ← 스크립트가 자동으로 push
+
+**장점:**
+- 각자 다른 폴더에서 작업 → **충돌 없이 머지 가능**
+- PR 생략 → **빠른 실험 반복**
+- 커밋에 Sub-task 번호 → **Jira 추적 유지**
+- 스크립트 사용 → **깔끔한 Git 그래프 유지**
+
+### 2단계: 비교 & 결론
+
+스파이크 완료 후 **공통 README.md**에 비교 결과 정리:
+
+```markdown
+## Findings
+
+| 구현 | 접근 방식 | 장점 | 단점 | 성능 |
+|------|----------|------|------|------|
+| tsy | requests (동기) | 단순함 | 느림 | 100건/분 |
+| kjh | httpx (비동기) | 빠름, 깔끔 | 약간 복잡 | 300건/분 |
+| plk | aiohttp | 가장 빠름 | 러닝커브 | 350건/분 |
+
+## Decision
+
+✅ **kjh 구현 채택** - 성능과 복잡도 밸런스 최적
+
+### 이유
+- 비동기 지원으로 충분한 성능
+- httpx는 requests와 API가 유사하여 팀 적응 용이
+- 타임아웃, 재시도 등 기본 제공
+```
+
+### 3단계: 통합 (서비스 코드)
+
+에픽 하위의 메인 테스크들이 완료되면, **한 명이 통합 담당**:
+
+```bash
+# 통합 브랜치 생성
+git checkout dev
+git checkout -b feature/OAR-9-batch-collector
+
+# Claude 등을 활용해 서비스 코드 작성
+# - 스파이크 결과 중 채택된 구현 기반
+# - backend/app/services/ 등에 정리된 코드로 구현
+# - 테스트 코드 작성
+
+# PR 생성 (통합 단계는 PR 필수)
+git push -u origin feature/OAR-9-batch-collector
+# GitHub에서 PR 생성 → 리뷰 → dev 머지
+```
+
+**통합 담당자 체크리스트:**
+- [ ] 각 스파이크 README 비교 결과 확인
+- [ ] 채택할 구현 방식 결정
+- [ ] `backend/` 또는 `frontend/`에 정리된 코드로 구현
+- [ ] 테스트 코드 작성
+- [ ] PR 생성 시 "어떤 스파이크를 기반으로 했는지" 명시
+
+### Jira 연동
+
+```text
+Epic: OAR-9 (암 논문 자동 BATCH 수집기)
+├── Task: OAR-18 (PubMed API 연동)
+│   ├── Sub-task: OAR-50 (tsy) → spike/OAR-18-tsy 커밋
+│   ├── Sub-task: OAR-51 (kjh) → spike/OAR-18-kjh 커밋
+│   └── Sub-task: OAR-52 (plk) → spike/OAR-18-plk 커밋
+│
+└── 통합: feature/OAR-9-batch-collector → OAR-9 커밋
+```
+
+**핵심:** 커밋 메시지에 이슈 키를 포함하면 Jira에서 자동 추적됩니다.
+
+```bash
+# 스파이크 커밋 (Sub-task 번호)
+git commit -m "OAR-50 PubMed API 구현"
+
+# 통합 커밋 (Epic 번호)
+git commit -m "OAR-9 batch collector 서비스 통합"
+```
+
+---
+
+## 스파이크 간 연결 (파이프라인 구성)
+
+하나의 기능이 여러 단계로 나뉠 때 (예: 크롤링 → 임베딩 → 벡터DB), 각 스파이크를 **독립적으로 실험**하되 **나중에 연결 가능**하도록 구성합니다.
+
+### 원칙
+
+1. **input/output 포맷을 명확히 정의**
+2. **각 스파이크는 파일로 입출력** (스파이크 단계)
+3. **프로덕션 반영 시 함수 호출로 연결** (통합 단계)
+
+### 폴더 구조 예시
+
+```text
+spikes/
+  OAR-18/                   # 크롤링 테스크
+    tsy/
+      src/
+        crawler.py
+      output/
+        papers.json         # 출력 결과물
+
+  OAR-19/                   # 임베딩 테스크
+    tsy/
+      src/
+        embedder.py
+      output/
+        embeddings.json
+
+  OAR-20/                   # 벡터DB 테스크
+    tsy/
+      src/
+        store.py
+```
+
+### 작업 흐름
+
+**Step 1: 크롤링 스파이크**
+
+```python
+# spikes/OAR-18/tsy/src/crawler.py
+import json
+
+OUTPUT_PATH = "spikes/OAR-18/tsy/output/papers.json"
+
+def crawl_papers(query: str, limit: int) -> list[dict]:
+    # ... API 호출
+    return papers
+
+if __name__ == "__main__":
+    papers = crawl_papers("lung cancer", limit=100)
+    with open(OUTPUT_PATH, "w") as f:
+        json.dump(papers, f, ensure_ascii=False, indent=2)
+
+    print(f"출력 경로: {OUTPUT_PATH}")
+```
+
+**Step 2: 임베딩 스파이크**
+
+```python
+# spikes/OAR-19/tsy/src/embedder.py
+import json
+
+# 이전 스파이크 출력 경로 직접 참조
+INPUT_PATH = "spikes/OAR-18/tsy/output/papers.json"
+OUTPUT_PATH = "spikes/OAR-19/tsy/output/embeddings.json"
+
+def embed_papers(papers: list[dict]) -> list[dict]:
+    # ... 임베딩 로직
+    return embeddings
+
+if __name__ == "__main__":
+    with open(INPUT_PATH) as f:
+        papers = json.load(f)
+    embeddings = embed_papers(papers)
+    with open(OUTPUT_PATH, "w") as f:
+        json.dump(embeddings, f, indent=2)
+
+    print(f"출력 경로: {OUTPUT_PATH}")
+```
+
+**Step 3: 프로덕션 통합**
+
+스파이크 검증 완료 후 `backend/`에 통합 시:
+
+```python
+# backend/app/services/paper_pipeline.py
+from .crawler import crawl_papers
+from .embedder import embed_papers
+from .store import store_to_qdrant
+
+def run_pipeline(query: str, limit: int):
+    """파이프라인으로 연결"""
+    papers = crawl_papers(query, limit)
+    embeddings = embed_papers(papers)
+    store_to_qdrant(embeddings)
+    return {"processed": len(papers)}
+```
+
+### 핵심 포인트
+
+| 단계 | 방식 | 이유 |
+|------|------|------|
+| 스파이크 | 파일로 입출력 | 독립 실험, 디버깅 용이 |
+| 프로덕션 | 함수 호출로 연결 | 성능, 메모리 효율 |
+
+### 데이터 포맷 합의
+
+스파이크 시작 전 팀원 간 **output 포맷만 먼저 합의**하면 나중에 연결이 쉬워집니다.
+
+```python
+# 예: 크롤링 output 포맷
+{
+    "pmid": "12345678",
+    "title": "...",
+    "abstract": "...",
+    "full_text": "..."  # nullable
+}
+```
+
+---
+
+## Python 환경 설정
+
+스파이크에서 Python을 사용할 때는 **uv**를 사용합니다.
+
+```bash
+# 가상환경 생성 및 의존성 설치
+uv sync
+
+# 스크립트 실행
+uv run python main.py
+
+# 또는 FastAPI 등 서버 실행
+uv run uvicorn app:app --reload
+```
+
+---
+
 ## 주의사항
 
 * 이 디렉토리의 코드는 **실험용**이므로
 
-  * 보안, 예외처리, 성능 등은 “필요 최소한”만 신경 씁니다.
+  * 보안, 예외처리, 성능 등은 "필요 최소한"만 신경 씁니다.
   * 대신 **결론과 배운 점을 잘 남기는 것**이 더 중요합니다.
 * 실제 제품 코드에 들어갈 때는 반드시
 

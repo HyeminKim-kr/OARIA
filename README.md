@@ -1,179 +1,200 @@
-# OARIA
+# OARIA - Cancer Paper Collection & Embedding Service
 
-AI Bootcamp - OARIA Team
+암 연구 논문 자동 수집, 청킹, 임베딩 및 벡터 검색 시스템
 
-## Tech Stack
+## 아키텍처
 
-- **Frontend**: Next.js 15.5.7, React 19, TypeScript, Tailwind CSS
-- **Backend**: Python 3.11, FastAPI, Pydantic
+```
+┌─────────────────────────────────────────────────────────────────────┐
+│                        Docker Compose Stack                         │
+├─────────────────────────────────────────────────────────────────────┤
+│  인프라                                                              │
+│  ├── postgres (15432)      - 메타데이터 저장                          │
+│  ├── redis (16379)         - Celery 브로커                           │
+│  ├── minio (19000/19001)   - 논문 원문 저장 (S3 호환)                  │
+│  └── weaviate (18080)      - 벡터 저장소                              │
+├─────────────────────────────────────────────────────────────────────┤
+│  Celery 워커                                                         │
+│  ├── celery-worker-backfill - 논문 수집 워커                          │
+│  ├── celery-worker-embed    - 청킹/임베딩 워커                         │
+│  ├── celery-beat            - 스케줄러 (매시간 임베딩)                  │
+│  └── flower (15555)         - 모니터링 대시보드                        │
+├─────────────────────────────────────────────────────────────────────┤
+│  Admin                                                               │
+│  ├── admin-backend (13000)  - NestJS API                             │
+│  └── admin-frontend (13001) - Next.js UI                             │
+└─────────────────────────────────────────────────────────────────────┘
+                              │
+                              ▼
+              ┌─────────────────────────┐
+              │     Europe PMC API      │
+              │  (Paper Collection)     │
+              └─────────────────────────┘
+```
 
-## Project Structure
+## 빠른 시작
+
+### 옵션 1: Docker Compose (권장)
+
+```bash
+# 1. 환경 변수 설정
+cp .env.example .env
+# .env 파일에서 OPENAI_API_KEY 설정
+
+# 2. 전체 서비스 실행
+docker-compose up -d
+
+# 3. 로그 확인
+docker-compose logs -f
+```
+
+### 옵션 2: 개발 모드 (인프라만 Docker)
+
+```bash
+# 1. 인프라만 실행
+docker-compose up -d postgres redis minio weaviate minio-init
+
+# 2. DB 마이그레이션 (최초 1회)
+cd backend && uv sync && uv run alembic upgrade head
+cd admin/backend && npm install && npm run migration:run
+
+# 3. 배치 워커 로컬 실행
+cd batch
+uv run celery -A src.celery_app worker -Q backfill,embed --loglevel=info
+
+# 4. Admin 백엔드 로컬 실행
+cd admin/backend
+npm run start:dev
+
+# 5. Admin 프론트엔드 로컬 실행
+cd admin/frontend
+npm install && npm run dev
+
+# 6. User 백엔드 로컬 실행
+cd backend
+uv run uvicorn app.main:app --reload --port 8000
+
+# 7. User 프론트엔드 로컬 실행
+cd frontend
+npm install && npm run dev
+```
+
+## 서비스 URL
+
+| 서비스 | URL | 설명 |
+|--------|-----|------|
+| User Frontend | http://localhost:3000 | 사용자 UI |
+| User API | http://localhost:8000 | FastAPI 백엔드 |
+| User API Docs | http://localhost:8000/docs | Swagger UI |
+| Admin UI | http://localhost:13001 | 어드민 대시보드 |
+| Admin API | http://localhost:13000 | NestJS 백엔드 |
+| Admin API Docs | http://localhost:13000/api | Swagger UI |
+| Flower | http://localhost:15555 | Celery 모니터링 |
+| MinIO Console | http://localhost:19001 | 오브젝트 스토리지 |
+| Weaviate | http://localhost:18080 | 벡터 DB |
+
+## 주요 기능
+
+### 논문 수집 (Backfill)
+- Europe PMC API를 통한 암 논문 수집
+- Rate Limiting + Circuit Breaker
+- Checkpoint 기반 중단점 복구
+
+### 임베딩 파이프라인
+- **Chunking**: OAR-29 TextChunker (섹션 + 재귀 청킹)
+- **Embedding**: OpenAI text-embedding-3-small
+- **Storage**: Weaviate 벡터 DB
+
+### Celery Beat 스케줄
+
+| 태스크 | 스케줄 | 설명 |
+|--------|--------|------|
+| `embed-hourly` | 매시 정각 | 새 논문 50개씩 임베딩 |
+| `reembed-daily` | 매일 03:00 | 실패한 논문 재임베딩 |
+
+### Admin UI
+- **Dashboard**: 수집/임베딩 현황 개요
+- **Search Queries**: 검색 쿼리 관리 (CRUD)
+- **Collection Jobs**: 수집 작업 모니터링
+- **Papers**: 수집된 논문 목록 + 임베딩 상태
+
+## 프로젝트 구조
 
 ```
 oaria/
-├── frontend/          # Next.js 프론트엔드
+├── docker-compose.yml        # 전체 스택 정의
+├── .env.example              # 환경 변수 템플릿
+├── infra/                    # DB 초기화 스크립트
+│   └── init/
+├── batch/                    # Celery 배치 시스템
+│   ├── Dockerfile
 │   ├── src/
-│   │   ├── app/       # App Router
-│   │   └── ...
-│   └── package.json
-├── backend/           # Python 백엔드
-│   ├── app/
-│   │   └── main.py    # FastAPI 엔트리포인트
+│   │   ├── celery_app.py     # Celery 설정 + Beat 스케줄
+│   │   ├── tasks/
+│   │   │   ├── backfill.py   # 논문 수집 태스크
+│   │   │   └── embed.py      # 임베딩 태스크
+│   │   ├── collectors/       # API 클라이언트
+│   │   ├── parsers/          # XML 파서
+│   │   └── storage/          # DB/S3 저장
 │   └── pyproject.toml
+├── admin/
+│   ├── backend/              # NestJS API
+│   │   ├── Dockerfile
+│   │   └── src/
+│   └── frontend/             # Next.js UI
+│       ├── Dockerfile
+│       └── src/
+├── backend/                  # FastAPI User Backend
+├── frontend/                 # Next.js User Frontend
 └── README.md
 ```
 
-## Getting Started
+## 환경 변수
 
-### Prerequisites
-
-- Node.js 18+
-- Python 3.11
-- uv (Python package manager)
-
-### Frontend
-
-```bash
-cd frontend
-npm install
-npm run dev
+### .env (필수)
+```env
+OPENAI_API_KEY=sk-your-openai-api-key-here
 ```
 
-Frontend runs at `http://localhost:3000`
+### 기타 환경 변수 (docker-compose에 기본값 설정됨)
+- `DATABASE_URL` - PostgreSQL 연결 문자열
+- `REDIS_URL` - Redis 연결 문자열
+- `S3_ENDPOINT`, `S3_ACCESS_KEY`, `S3_SECRET_KEY` - MinIO 설정
+- `WEAVIATE_HOST`, `WEAVIATE_PORT` - Weaviate 설정
 
-### Backend
+## DB 마이그레이션
 
+### User Backend (Alembic)
 ```bash
 cd backend
-uv sync
-uv run uvicorn app.main:app --reload
+uv sync                           # 의존성 설치
+uv run alembic upgrade head       # 마이그레이션 실행
+uv run alembic revision --autogenerate -m "description"  # 새 마이그레이션 생성
 ```
 
-Backend runs at `http://localhost:8000`
-
----
-
-## Development Conventions
-
-### Git Commit Convention
-
-```
-<type>(<scope>): <subject>
-
-<body>
-
-<footer>
+### Admin Backend (TypeORM)
+```bash
+cd admin/backend
+npm install                       # 의존성 설치
+npm run migration:run             # 마이그레이션 실행
+npm run migration:generate -- src/migrations/Description  # 새 마이그레이션 생성
 ```
 
-**Types:**
-- `feat`: 새로운 기능
-- `fix`: 버그 수정
-- `docs`: 문서 변경
-- `style`: 코드 포맷팅 (세미콜론 등)
-- `refactor`: 코드 리팩토링
-- `test`: 테스트 추가/수정
-- `chore`: 빌드, 설정 파일 변경
+## 트러블슈팅
 
-**Examples:**
-```
-feat(auth): add user login API
-fix(frontend): resolve hydration error on dashboard
-docs: update README with setup instructions
+### 임베딩 실패 시
+1. Admin UI → Papers → "실패" 필터로 확인
+2. 에러 메시지 확인
+3. "재시도" 버튼으로 재실행
+
+### Weaviate 연결 오류
+```bash
+curl http://localhost:18080/v1/.well-known/ready
 ```
 
-### Branch Naming
+### OpenAI API 오류
+`.env` 파일에 `OPENAI_API_KEY`가 올바르게 설정되었는지 확인
 
-```
-<type>/<issue-number>-<short-description>
-```
+## 라이선스
 
-**Examples:**
-```
-feat/12-user-authentication
-fix/34-dashboard-loading
-```
-
-### Code Style
-
-#### Frontend (TypeScript/React)
-
-- ESLint + Prettier 사용
-- 함수형 컴포넌트 + hooks 사용
-- 파일명: PascalCase (컴포넌트), camelCase (유틸리티)
-- 절대 경로 import (`@/`) 사용
-
-```typescript
-// Good
-import { Button } from '@/components/ui/Button';
-
-// Bad
-import { Button } from '../../../components/ui/Button';
-```
-
-#### Backend (Python)
-
-- Ruff 또는 Black + isort 사용 권장
-- Type hints 필수
-- 함수/변수: snake_case
-- 클래스: PascalCase
-- 상수: UPPER_SNAKE_CASE
-
-```python
-# Good
-async def get_user_by_id(user_id: int) -> User:
-    ...
-
-# Bad
-async def getUserById(userId):
-    ...
-```
-
-### API Design
-
-- RESTful 규칙 준수
-- 응답 형식 통일 (JSON)
-- HTTP 상태 코드 적절히 사용
-- 버전 관리: `/api/v1/...`
-
-### File Organization
-
-#### Frontend
-
-```
-src/
-├── app/              # App Router pages
-├── components/       # 재사용 컴포넌트
-│   ├── ui/           # 기본 UI 컴포넌트
-│   └── features/     # 기능별 컴포넌트
-├── hooks/            # Custom hooks
-├── lib/              # 유틸리티, API 클라이언트
-├── types/            # TypeScript 타입 정의
-└── styles/           # 글로벌 스타일
-```
-
-#### Backend
-
-```
-app/
-├── main.py           # FastAPI 앱 엔트리포인트
-├── api/              # API 라우터
-│   └── v1/
-├── core/             # 설정, 보안
-├── models/           # Pydantic 모델
-├── services/         # 비즈니스 로직
-└── utils/            # 유틸리티 함수
-```
-
-### PR Guidelines
-
-1. PR 제목은 commit convention 따르기
-2. 관련 이슈 번호 연결
-3. 변경 사항 요약 작성
-4. 스크린샷 첨부 (UI 변경 시)
-5. 리뷰어 최소 1명 승인 필요
-
-### Environment Variables
-
-- `.env` 파일은 gitignore에 포함
-- `.env.example` 파일로 필요한 변수 문서화
-- 민감한 정보는 절대 커밋하지 않기
+Internal Use Only

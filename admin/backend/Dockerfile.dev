@@ -1,0 +1,20 @@
+# NestJS 개발용 Dockerfile
+FROM node:20-alpine
+
+WORKDIR /app
+
+# 패키지 파일 복사
+COPY package.json package-lock.json* ./
+
+# 모든 의존성 설치 (devDependencies 포함)
+RUN npm ci
+
+# 소스 코드 복사 (볼륨 마운트로 덮어씌워짐)
+COPY . .
+
+ENV NODE_ENV=development
+
+EXPOSE 13000
+
+# 개발 서버 실행 (watch mode)
+CMD ["npm", "run", "start:dev"]

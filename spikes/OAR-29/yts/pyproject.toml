@@ -1,0 +1,22 @@
+[project]
+name = "oar-29-chunker"
+version = "0.1.0"
+description = "OAR-29: 텍스트 Chunker 구현 - Section + Recursive Chunking with offset tracking"
+requires-python = ">=3.11"
+dependencies = [
+    "tiktoken>=0.7.0",
+    "psycopg[binary]>=3.1.0",
+    "boto3>=1.34.0",
+]
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src"]
+
+[dependency-groups]
+dev = [
+    "pytest>=8.0.0",
+]

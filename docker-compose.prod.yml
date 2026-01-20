@@ -1,0 +1,136 @@
+# ============================================================
+# 프로덕션 앱 서비스
+# docker-compose.prod.yml
+# ============================================================
+#
+# 사용법:
+#   docker compose -f docker-compose.yml -f docker-compose.prod.yml up -d
+#   또는: ./scripts/dev.sh prod start
+#
+# 환경변수 파일:
+#   - .env: Celery 배치용 공통 설정 (OPENAI_API_KEY 등)
+#   - backend/.env.docker: User Backend Docker 설정
+#   - admin/backend/.env.docker: Admin Backend Docker 설정
+#
+# ============================================================
+
+services:
+  # ========================================
+  # Service Backend (FastAPI)
+  # ========================================
+  service-backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: oaria-service-backend
+    env_file:
+      - .env                      # 공통 (OPENAI_API_KEY 등)
+      - ./backend/.env            # 기본 설정 (localhost)
+      - ./backend/.env.docker     # Docker 덮어쓰기 (컨테이너 이름)
+    ports:
+      - "8000:8000"
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      minio:
+        condition: service_healthy
+      weaviate:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://localhost:8000/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 10s
+    restart: unless-stopped
+
+  # ========================================
+  # Service Frontend (Next.js)
+  # ========================================
+  service-frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+      args:
+        - NEXT_PUBLIC_API_URL=${NEXT_PUBLIC_API_URL:-http://localhost:8000}
+    container_name: oaria-service-frontend
+    env_file:
+      - .env
+    ports:
+      - "3000:3000"
+    environment:
+      - NODE_ENV=production
+      # 서버사이드(SSR)용 - Docker 내부 통신
+      - API_URL=http://service-backend:8000
+    depends_on:
+      service-backend:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://localhost:3000"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 10s
+    restart: unless-stopped
+
+  # ========================================
+  # Admin Backend (NestJS)
+  # ========================================
+  admin-backend:
+    build:
+      context: ./admin/backend
+      dockerfile: Dockerfile
+    container_name: oaria-admin-backend
+    env_file:
+      - .env                           # 공통 (OPENAI_API_KEY 등)
+      - ./admin/backend/.env           # 기본 설정 (localhost)
+      - ./admin/backend/.env.docker    # Docker 덮어쓰기 (컨테이너 이름)
+    ports:
+      - "13000:13000"
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      weaviate:
+        condition: service_healthy
+      flower:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://localhost:13000/system/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 10s
+    restart: unless-stopped
+
+  # ========================================
+  # Admin Frontend (Next.js)
+  # ========================================
+  admin-frontend:
+    build:
+      context: ./admin/frontend
+      dockerfile: Dockerfile
+      args:
+        - NEXT_PUBLIC_API_URL=${NEXT_PUBLIC_ADMIN_API_URL:-http://localhost:13000}
+    container_name: oaria-admin-frontend
+    env_file:
+      - .env
+    ports:
+      - "13001:13001"
+    environment:
+      - NODE_ENV=production
+      # 서버사이드(SSR)용 - Docker 내부 통신
+      - API_URL=http://admin-backend:13000
+    depends_on:
+      admin-backend:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://localhost:13001"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 10s
+    restart: unless-stopped

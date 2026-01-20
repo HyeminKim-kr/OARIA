@@ -1,0 +1,555 @@
+<!DOCTYPE article PUBLIC "-//NLM//DTD JATS (Z39.96) Journal Archiving and Interchange DTD with MathML3 v1.3 20210610//EN" "JATS-archivearticle1-3-mathml3.dtd"> 
+<article xmlns:mml="http://www.w3.org/1998/Math/MathML" xmlns:xlink="http://www.w3.org/1999/xlink" dtd-version="1.3" xml:lang="en" article-type="other"><?DTDIdentifier.IdentifierValue -//NLM//DTD JATS (Z39.96) Journal Publishing DTD v1.3 20210610//EN?><?DTDIdentifier.IdentifierType public?><?SourceDTD.DTDName JATS-journalpublishing1-3.dtd?><?SourceDTD.Version 1.3?><?ConverterInfo.XSLTName jats2jats3.xsl?><?ConverterInfo.Version 1?><?properties open_access?><processing-meta base-tagset="archiving" mathml-version="3.0" table-model="xhtml" tagset-family="jats"><restricted-by>pmc</restricted-by></processing-meta><front><journal-meta><journal-id journal-id-type="nlm-ta">Biomolecules</journal-id><journal-id journal-id-type="iso-abbrev">Biomolecules</journal-id><journal-id journal-id-type="publisher-id">biomolecules</journal-id><journal-title-group><journal-title>Biomolecules</journal-title></journal-title-group><issn pub-type="epub">2218-273X</issn><publisher><publisher-name>MDPI</publisher-name></publisher></journal-meta>
+<article-meta><article-id pub-id-type="pmcid">12650373</article-id><article-id pub-id-type="doi">10.3390/biom15111525</article-id><article-id pub-id-type="publisher-id">biomolecules-15-01525</article-id><article-categories><subj-group subj-group-type="heading"><subject>Perspective</subject></subj-group></article-categories><title-group><article-title>Emerging Issues Regarding the Effects of the Microbiome on Lung Cancer Immunotherapy</article-title></title-group><contrib-group><contrib contrib-type="author"><contrib-id contrib-id-type="orcid" authenticated="true">https://orcid.org/0000-0001-9620-745X</contrib-id><name><surname>Papavassiliou</surname><given-names>Kostas A.</given-names></name><xref rid="af1-biomolecules-15-01525" ref-type="aff">1</xref><xref rid="c1-biomolecules-15-01525" ref-type="corresp">*</xref></contrib><contrib contrib-type="author"><contrib-id contrib-id-type="orcid" authenticated="true">https://orcid.org/0009-0005-9882-9478</contrib-id><name><surname>Sofianidi</surname><given-names>Amalia A.</given-names></name><xref rid="af2-biomolecules-15-01525" ref-type="aff">2</xref></contrib><contrib contrib-type="author"><contrib-id contrib-id-type="orcid" authenticated="true">https://orcid.org/0009-0005-6764-8826</contrib-id><name><surname>Spiliopoulos</surname><given-names>Fotios G.</given-names></name><xref rid="af2-biomolecules-15-01525" ref-type="aff">2</xref></contrib><contrib contrib-type="author"><contrib-id contrib-id-type="orcid" authenticated="true">https://orcid.org/0009-0007-0798-6262</contrib-id><name><surname>Margoni</surname><given-names>Angeliki</given-names></name><xref rid="af2-biomolecules-15-01525" ref-type="aff">2</xref></contrib><contrib contrib-type="author"><contrib-id contrib-id-type="orcid" authenticated="true">https://orcid.org/0000-0001-5803-4527</contrib-id><name><surname>Papavassiliou</surname><given-names>Athanasios G.</given-names></name><xref rid="af2-biomolecules-15-01525" ref-type="aff">2</xref><xref rid="c1-biomolecules-15-01525" ref-type="corresp">*</xref></contrib></contrib-group><contrib-group><contrib contrib-type="editor"><name><surname>Liu</surname><given-names>Chang</given-names></name><role>Academic Editor</role></contrib></contrib-group><aff id="af1-biomolecules-15-01525"><label>1</label>First University Department of Respiratory Medicine, &#x02018;Sotiria&#x02019; Chest Hospital, Medical School, National and Kapodistrian University of Athens, 11527 Athens, Greece</aff><aff id="af2-biomolecules-15-01525"><label>2</label>Department of Biological Chemistry, Medical School, National and Kapodistrian University of Athens, 11527 Athens, Greece; <email>amaliasof@med.uoa.gr</email> (A.A.S.); <email>spiliopoulosfotis99@gmail.com</email> (F.G.S.); <email>angeliki.margoni@gmail.com</email> (A.M.)</aff><author-notes><corresp id="c1-biomolecules-15-01525"><label>*</label>Correspondence: <email>konpapav@med.uoa.gr</email> (K.A.P.); <email>papavas@med.uoa.gr</email> (A.G.P.); Tel.: +30-210-746-2508 (A.G.P.)</corresp></author-notes><pub-date pub-type="epub"><day>29</day><month>10</month><year>2025</year></pub-date><pub-date pub-type="collection"><month>11</month><year>2025</year></pub-date><volume>15</volume><issue>11</issue><elocation-id>1525</elocation-id><history><date date-type="received"><day>30</day><month>9</month><year>2025</year></date><date date-type="rev-recd"><day>23</day><month>10</month><year>2025</year></date><date date-type="accepted"><day>28</day><month>10</month><year>2025</year></date></history><permissions><copyright-statement>&#x000a9; 2025 by the authors.</copyright-statement><copyright-year>2025</copyright-year><license><ali:license_ref xmlns:ali="http://www.niso.org/schemas/ali/1.0/" specific-use="textmining" content-type="ccbylicense">https://creativecommons.org/licenses/by/4.0/</ali:license_ref><license-p>Licensee MDPI, Basel, Switzerland. This article is an open access article distributed under the terms and conditions of the Creative Commons Attribution (CC BY) license (<ext-link ext-link-type="uri" xlink:href="https://creativecommons.org/licenses/by/4.0/">https://creativecommons.org/licenses/by/4.0/</ext-link>).</license-p></license></permissions><abstract><p>Lung cancer remains the deadliest malignancy, with limited effective and long-term therapeutic options. Immunotherapy has revolutionized the therapeutic landscape of lung cancer. However, not everyone with lung cancer responds to immunotherapy, while, inpatients who temporarily derive clinical benefit, resistance eventually develops. The host microbiome has emerged as a pivotal player in cancer growth and progression. It has been implicated in the intricate connections between immune cells and tumor cells, ultimately augmenting immunotherapy efficacy in solid tumors, while simultaneously mitigating the immune-related adverse events associated with this type of treatment. Notably, lung cancer patients who obtain benefit from immunotherapy have been found to be colonized with specific bacterial populations, and it is this observation that the scientific community is trying to exploit, aspiring to improve lung cancer immunotherapy response rates. Delving deeper into the molecular mechanisms underpinning the effects of the microbiome on immunotherapy is an area that we should pay attention to if we want to utilize microbiome modulation in everyday clinical practice. Fecal microbiota transplantation, probiotics, targeted antibiotic interventions, and dietary modifications are among the strategies that are under investigation in clinical trials, with the ultimate endpoint of lengthening the life expectancy of lung cancer patients.</p></abstract><kwd-group><kwd>lung cancer</kwd><kwd>microbiome</kwd><kwd>immunotherapy</kwd><kwd>immune checkpoint blockade</kwd><kwd>immune checkpoint inhibitors</kwd></kwd-group><funding-group><funding-statement>This research received no external funding.</funding-statement></funding-group></article-meta></front><body><sec sec-type="intro" id="sec1-biomolecules-15-01525"><title>1. Introduction</title><p>Immunotherapy has transformed the therapeutic landscape for many solid malignancies. Exploiting innate immune mechanisms to attack tumor cells is a clever evolution in oncology, fostering the body&#x02019;s natural &#x0201c;intelligence&#x0201d; [<xref rid="B1-biomolecules-15-01525" ref-type="bibr">1</xref>]. In lung cancer, immunotherapy indications are diverse. Immunotherapy regimens including anti-programmed cell death protein 1 (PD-1) or anti-programmed cell death ligand 1 (PD-L1) agents are widely used in patients with resectable stage II-III non-small cell lung cancer (NSCLC) who do not harbor <italic toggle="yes">epidermal growth factor receptor</italic> (<italic toggle="yes">EGFR</italic>) or <italic toggle="yes">anaplastic lymphoma kinase</italic> (<italic toggle="yes">ALK</italic>) alterations, or patients with unresectable stage III <italic toggle="yes">EGFR</italic>-wild type NSCLC after chemoradiotherapy completion [<xref rid="B2-biomolecules-15-01525" ref-type="bibr">2</xref>]. In metastatic NSCLC, anti-PD-1 or anti-PD-L1 agents are used as first-line treatment for patients without specific driver mutations [<xref rid="B3-biomolecules-15-01525" ref-type="bibr">3</xref>,<xref rid="B4-biomolecules-15-01525" ref-type="bibr">4</xref>]. Nonetheless, responses to immunotherapy are diverse, yielding only a 20&#x02013;30% response rate in NSCLC [<xref rid="B2-biomolecules-15-01525" ref-type="bibr">2</xref>,<xref rid="B5-biomolecules-15-01525" ref-type="bibr">5</xref>]. Similar disappointing results are observed in small cell lung cancer (SCLC) [<xref rid="B6-biomolecules-15-01525" ref-type="bibr">6</xref>], which is considered one of the most fatal solid cancers. The efficacy of immunotherapy in the treatment of SCLC is even poorer than that in NSCLC, remaining limited to first-line treatment of extensive-stage disease in conjunction with chemotherapy, with only moderate effects on life expectancy [<xref rid="B7-biomolecules-15-01525" ref-type="bibr">7</xref>]. Even when immunotherapy is successful, its long-term benefits are restricted [<xref rid="B8-biomolecules-15-01525" ref-type="bibr">8</xref>]. Improved strategies are urgently needed to ameliorate antitumor immune responses and enhance the immunotherapeutic armamentarium against lung cancer. Leveraging the human microbiome provides a vigorous approach in this direction. Indeed, the microbiome has been recognized as an emerging hallmark of cancer, as it is present not only systemically, but also within tumors [<xref rid="B9-biomolecules-15-01525" ref-type="bibr">9</xref>]. This plethora of microorganisms creates ecosystems that reside within the human body&#x02013;&#x02013;in the colon, on other mucosal surfaces, in organs, or in tumors themselves&#x02013;&#x02013;affecting how tumors develop, progress, and respond to treatment [<xref rid="B9-biomolecules-15-01525" ref-type="bibr">9</xref>,<xref rid="B10-biomolecules-15-01525" ref-type="bibr">10</xref>]. Therefore, the interaction between the microbiome and immunotherapy in lung cancer and the underlying molecular mechanisms are a novel field of investigation.</p></sec><sec id="sec2-biomolecules-15-01525"><title>2. Gut Microbiome Composition in Lung Cancer Immunotherapy Responders Versus Non-Responders</title><p>The host gut microbiota has been shown to regulate the tumor microenvironment (TME) by modulating immune responses and influencing reactions to anticancer therapeutic modalities [<xref rid="B11-biomolecules-15-01525" ref-type="bibr">11</xref>]. Several immune cells are involved in this process, including T-helper 1 cells (Th1), CD8+ cytotoxic T-cells (CD8+ T-cells), macrophages, regulatory T-cells (Tregs), and dendritic cells (DCs) [<xref rid="B12-biomolecules-15-01525" ref-type="bibr">12</xref>]. Notably, different gut microbiota compositions have been found amongst patients with lung cancer who respond and do not respond to immune checkpoint inhibitors (ICIs). In lung cancer, particularly in NSCLC, a more diverse gut microbiome has been correlated with ameliorated immune checkpoint blockade (ICB) therapy outcomes [<xref rid="B13-biomolecules-15-01525" ref-type="bibr">13</xref>]. A recently published systematic literature review revealed a higher abundance of <italic toggle="yes">Actinobacteria</italic>, <italic toggle="yes">Bacteroidetes</italic>, and <italic toggle="yes">Verrucomicrobiota</italic> in patients with NSCLC who responded well to ICI treatment [<xref rid="B14-biomolecules-15-01525" ref-type="bibr">14</xref>]. <italic toggle="yes">Bifidobacterium</italic>, a genus within the phylum <italic toggle="yes">Actinobacteria</italic>, has been preclinically found to promote DC function and trigger the accumulation of CD8<sup>+</sup> T-cells in the TME [<xref rid="B15-biomolecules-15-01525" ref-type="bibr">15</xref>]. This observation is further strengthened by another preclinical study, which demonstrated heightened immune responses against NSCLC induced by specific <italic toggle="yes">Bifidobacteria</italic> strains that enhanced the biogenesis of immune-stimulating molecules and metabolites [<xref rid="B16-biomolecules-15-01525" ref-type="bibr">16</xref>]. Notably, the bacterium <italic toggle="yes">Bifidobacterium longum</italic> was found to be more common in lung cancer patients who responded to ICB [<xref rid="B13-biomolecules-15-01525" ref-type="bibr">13</xref>]. However, controversial results were recently reported, indicating that abundant <italic toggle="yes">Actinobacteria</italic> in the gut microbiome of NSCLC patients was associated with shorter progression-free survival (PFS) [<xref rid="B17-biomolecules-15-01525" ref-type="bibr">17</xref>]. <italic toggle="yes">Alistipes putredinis</italic> and <italic toggle="yes">Parabacteroides distasonis</italic>, both classified in the <italic toggle="yes">Bacteroidetes</italic> phylum, are enriched in patients with NSCLC who respond well to ICB [<xref rid="B14-biomolecules-15-01525" ref-type="bibr">14</xref>]. The immunostimulatory effects of this phylum are mainly attributed to the activation of Toll-like receptor 4 (TLR4), which in turn potentiates transcription factors such as nuclear factor kappa B (NF-&#x003ba;B), thereby inducing the release of pro-inflammatory cytokines [<xref rid="B18-biomolecules-15-01525" ref-type="bibr">18</xref>]. <italic toggle="yes">Akkermansia municiphila</italic>, a member of the <italic toggle="yes">Verrucomicrobiota</italic> phylum, has been also abundantly found in the feces of patients with NSCLC who exhibit an adequate response to PD-1 inhibition [<xref rid="B19-biomolecules-15-01525" ref-type="bibr">19</xref>]. Aligned with the previous observations, a profusion of <italic toggle="yes">Faecalibacterium</italic> has been linked to increased immunotherapy efficacy in advanced NSCLC [<xref rid="B20-biomolecules-15-01525" ref-type="bibr">20</xref>].</p></sec><sec id="sec3-biomolecules-15-01525"><title>3. Molecular Mechanisms Engaged in the Interplay Between Lung Cancer Immunotherapy and Microbiome</title><p>Exploring further the interplay between lung cancer immunotherapy and the gut microbiome, the exact mechanisms driving this association are not fully understood. The available data to date derives only from preclinical observations. Gut microbiota ferment complex compounds found in dietary fibers produce metabolites such as short-chain fatty acids (SCFAs), which include butyrate, acetate, propionate, and vafetate [<xref rid="B21-biomolecules-15-01525" ref-type="bibr">21</xref>]. The connection between SCFAs and ICI treatment has been recently confirmed by evaluating fecal and plasma SCFAs in patients with solid tumors [<xref rid="B22-biomolecules-15-01525" ref-type="bibr">22</xref>]. Although the majority of patients were diagnosed with melanoma, patients with lung adenocarcinoma were also included [<xref rid="B22-biomolecules-15-01525" ref-type="bibr">22</xref>]. These metabolites enter the bloodstream and have regulatory effects on immune cells, alongside tumor cells. For instance, the <italic toggle="yes">Bifidobacteriaceae</italic> family exploits butyrate to activate G protein-coupled receptor (GPCR) 43, also known as free fatty acid receptor 2 (FFAR2), in DCs. This leads to DC maturation, improved antigen presentation, secretion of interleukin-12 (IL-12), and increased antitumor activity of CD8+ T-cells, ultimately fostering the efficacy of anti-PD-1 therapy [<xref rid="B23-biomolecules-15-01525" ref-type="bibr">23</xref>]. SCFAs can also induce epigenetic changes, impeding histone deacetylases (HDACs) [<xref rid="B24-biomolecules-15-01525" ref-type="bibr">24</xref>]. How these changes impact on immune regulation and surveillance in lung cancer remains to be elucidated. Nevertheless, current data supports the application of HDAC inhibitors for enhanced immunotherapy outcomes [<xref rid="B25-biomolecules-15-01525" ref-type="bibr">25</xref>,<xref rid="B26-biomolecules-15-01525" ref-type="bibr">26</xref>].</p><p>SCFAs also generate energy for immune cells. They supply B-cells, memory T-cells, and effector T-cells with energy by regulating biochemical pathways such as glycolysis, the tricarboxylic acid (TCA) cycle, and &#x003b2;-oxidation to augment ICI efficacy [<xref rid="B27-biomolecules-15-01525" ref-type="bibr">27</xref>]. Butyrate in particular promotes oxidative and glycolytic activity in memory T-cells [<xref rid="B28-biomolecules-15-01525" ref-type="bibr">28</xref>]. Another gut microbiota-derived metabolite, tryptophan (Trp), has been shown to exert variable effects on immune cells, while its immunosuppressive actions are often highlighted [<xref rid="B29-biomolecules-15-01525" ref-type="bibr">29</xref>]. Low levels of its metabolite, 3-hydroxyphthalate, were linked to prolonged median progression-free survival (PFS) in patients with NSCLC [<xref rid="B30-biomolecules-15-01525" ref-type="bibr">30</xref>]. Although the exact mechanisms are not fully comprehended, there is room to suggest that immunosuppression attenuation plays a role in this relationship.</p><p>Intriguingly, <italic toggle="yes">Bifidobacterium pseudocatenulatum</italic> has been shown to secrete inosine (Ino), a purine metabolite that binds to the adenosine 2A receptor (A2AR), inducing Th1 differentiation and amplifying the impact of immunotherapy. The Ino-A2AR-cAMP-protein kinase A (PKA) signaling cascade is activated, contributing to the phosphorylation of cAMP response element-binding protein (CREB), which in turn upregulates the transcription of Il-12 receptor, beta 2 subunit (IL12R&#x003b2;2) and interferon &#x003b3; (IFN&#x003b3;), ultimately prompting Th1 differentiation and assemblage in the TME. While these observations have been made primarily in colorectal cancer (CRC) models and not in lung cancer models, several <italic toggle="yes">Bifidocacteria</italic> strains have been implicated in increased immunotherapy response rates in lung cancer as well [<xref rid="B31-biomolecules-15-01525" ref-type="bibr">31</xref>]. Additionally, Ino could be a surrogate nutrient supply for CD8+ T-cells. It is well established that cancer cells possess reprogrammed metabolic pathways and have augmented metabolic demands, leading immune cells to starve. Ino provides an alternative carbon source for CD8+ T-cells; it is metabolized by T-cells into hypoxanthine (Hyp) and ribose-5-phosphate (R5P) through the enzyme purine nucleoside phosphorylase (PNP). Of note, the &#x0201c;ribosomal subunit&#x0201d; of Ino enters the central metabolic pathway, providing ATP and biosynthetic precursors for the glycolytic pathway and the pentose phosphate pathway (PPP) [<xref rid="B32-biomolecules-15-01525" ref-type="bibr">32</xref>].</p><p>The cyclic GMP-AMP synthase (cGAS)-stimulator of interferon genes (STING) signaling axis has been implicated in the intricate connection between the gut microbiota and immunotherapy efficacy [<xref rid="B33-biomolecules-15-01525" ref-type="bibr">33</xref>]. Microbial-derived cyclic dinucleotides (CDNs), such as cyclic diadenosine monophosphate (cdAMP), trigger activation of the STING pathway in macrophages, inducing the production of IFN-1 and the recruitment of immune cells to the TME [<xref rid="B33-biomolecules-15-01525" ref-type="bibr">33</xref>]. Interestingly, several studies have examined oral administration of microbes in conjunction with anti-PD-1/PD-L1 antibodies to enhance antitumor effects [<xref rid="B34-biomolecules-15-01525" ref-type="bibr">34</xref>]. Although this strategy will be discussed later in this article, oral administration of <italic toggle="yes">Lactobacillus rhamnosus</italic> GG (LGG) was investigated in combination with ICB in murine models of CRC and melanoma. LGG, part of the human gut microbiome, triggered IFN-1 production in DCs through the cGAS-STING-TANK-binding kinase 1 (TBK1)-IFN regulatory factor 7 (IRF7) axis, which is briefly described in <xref rid="biomolecules-15-01525-f001" ref-type="fig">Figure 1</xref>. Eventually, CD8+ T-cell cross priming is potentiated, improving the response to ICIs [<xref rid="B35-biomolecules-15-01525" ref-type="bibr">35</xref>]. However, these observations have been made in murine models of CRC and melanoma and have not been validated in lung cancer models yet.</p><p>Programmed cell death ligand 2 (PD-L2) is another molecule that mediates immunotherapy responses induced by the host gut microbiome [<xref rid="B36-biomolecules-15-01525" ref-type="bibr">36</xref>]. PD-L1 and PD-L2 both use PD-1 as a binding partner, but PD-L2 can also attach to repulsive guidance molecule b (RGMb), also known as DRG11-responsive axonal guidance and outgrowth of neurite (DRAGON) [<xref rid="B37-biomolecules-15-01525" ref-type="bibr">37</xref>]. PD-L2 serves as a cancer cell immune escape mechanism [<xref rid="B38-biomolecules-15-01525" ref-type="bibr">38</xref>]. It has been demonstrated that the gut microbiome downregulates PD-L2 expression and RGMb, stimulating antitumor immunity [<xref rid="B36-biomolecules-15-01525" ref-type="bibr">36</xref>]. Certain gut bacteria abolish PD-L2 expression on DCs in lymphatic tissues, and DCs with low PD-L2 expression activate CD8+ T-cells to facilitate immune-mediated tumor destruction [<xref rid="B36-biomolecules-15-01525" ref-type="bibr">36</xref>]. Blocking the PD-L2-RGMb pathway by antibodies in conjunction with anti-PD-1/anti-PD-L1 treatment promoted antitumor responses in mice that failed to respond to ICB monotherapy [<xref rid="B36-biomolecules-15-01525" ref-type="bibr">36</xref>].</p><p>Apparently, deciphering the molecular mechanisms that support the promoting or even inhibitory effects of the microbiome on immunotherapy is an area in which we are falling behind. Most of the aforementioned observations are based on preclinical, rather than real-world, data and are not specifically derived from lung cancer models. More research in this field is anticipated in the coming years.</p></sec><sec id="sec4-biomolecules-15-01525"><title>4. Microbiome-Centered Interventions to Improve Immunotherapy Responses in Lung Cancer</title><p>Employment of broad-spectrum antibiotics, repeated chemotherapy, and other therapeutic regimens disrupt gut microflora, restraining its tumor-fighting capacity. The intestinal microbiome could be manipulated with techniques that include fecal microbiota transplantation (FMT), probiotics, and dietary intervention. Actually, the enrichment of specific bacteria populations in the gut of immunotherapy responders suggests that strategies modulating microbiome diversity in cancer patients could yield promising antitumor results.</p><sec id="sec4dot1-biomolecules-15-01525"><title>4.1. Fecal Microbiota Transplantation (FMT)</title><p>FMT is an innovative approach that could prove to be effective in expanding ICI efficacy [<xref rid="B39-biomolecules-15-01525" ref-type="bibr">39</xref>]. ICI responder-derived FMT was explored in conjunction with PD-1 inhibition in patients with PD-1-refractory melanoma [<xref rid="B40-biomolecules-15-01525" ref-type="bibr">40</xref>]. This successful phase II clinical trial paved the way for the clinical investigation of FMT in combination with immunotherapy in solid malignancies, not only for its anticancer responses, but also for the subsequent mitigation of the immune-related adverse events (irAEs) associated with immunotherapy [<xref rid="B41-biomolecules-15-01525" ref-type="bibr">41</xref>]. Several early-stage clinical trials are ongoing in lung cancer [<xref rid="B42-biomolecules-15-01525" ref-type="bibr">42</xref>], recruiting patients with distinct molecular profiles, such as NSCLC patients who do not harbor driver-gene mutations, to study the effects of FMT on immunotherapy efficacy [<xref rid="B43-biomolecules-15-01525" ref-type="bibr">43</xref>]. Exploiting the microbiome diversity of this small proportion of NSCLC patients who respond to ICIs and further developing the technique of FMT could help increase immunotherapy response rates in lung cancer. It is a cost-effective method that does not require exquisite expertise and could be universally implemented, even in low-income countries. Whether FMT could also reduce the irAEs associated with ICB through modulation of host microflora is another area of future research [<xref rid="B44-biomolecules-15-01525" ref-type="bibr">44</xref>]. It has been shown that <italic toggle="yes">Bacteroidetes fragilis</italic>, <italic toggle="yes">Barnesiellaceae</italic>, <italic toggle="yes">Ikenellaceae</italic>, <italic toggle="yes">Bacteroidaceae</italic> [<xref rid="B45-biomolecules-15-01525" ref-type="bibr">45</xref>], and <italic toggle="yes">Caloramator coolhaasii</italic> [<xref rid="B46-biomolecules-15-01525" ref-type="bibr">46</xref>] gut enrichment in patients with lung cancer correlates with decreased ICB toxicity. Similar observations have been made with <italic toggle="yes">Bifidobacterium</italic> and <italic toggle="yes">Dialister</italic> gut enrichment in patients with metastatic NSCLC [<xref rid="B47-biomolecules-15-01525" ref-type="bibr">47</xref>]. Adverse events associated with FMT are usually mild, limited to gastrointestinal symptoms, such as bloating, flatulence, abdominal pain, and diarrhea. Less frequently, major complications such as bowel perforation, bacteremia, sepsis, and death due to multidrug-resistant pathogen transmission have also been described [<xref rid="B48-biomolecules-15-01525" ref-type="bibr">48</xref>].</p></sec><sec id="sec4dot2-biomolecules-15-01525"><title>4.2. Probiotics</title><p>While both probiotics and FMT aim to restore balance within the gut microbiome, probiotics are over-the-counter drugs containing specific microbial populations [<xref rid="B49-biomolecules-15-01525" ref-type="bibr">49</xref>]. FMT is a more targeted approach derived from patients with already displayed beneficial clinical outcomes, yet probiotics could be another successful method to deliver specific microbial strains with established immunotherapy benefit. Probiotic <italic toggle="yes">Clostridium butyricum</italic> MIYAIRI 588 strain therapy significantly improved PFS and overall survival (OS) in patients with NSCLC treated with ICB. Objective response rate (ORR) and disease control rate (DCR) were also ameliorated in lung cancer patients receiving probiotics alongside ICI therapy [<xref rid="B50-biomolecules-15-01525" ref-type="bibr">50</xref>]. Remarkably, probiotic supplementation may also improve the declined efficacy of ICB during antibiotic treatment, which disrupts gut microflora composition [<xref rid="B51-biomolecules-15-01525" ref-type="bibr">51</xref>]. Antibiotic use one month before or during ICI treatment has a negative impact on ICI efficacy [<xref rid="B14-biomolecules-15-01525" ref-type="bibr">14</xref>]. The term antibiotic-immunotherapy exposure ratio (AIER) has been introduced, defined as &#x0201c;days of antibiotic/days of immunotherapy&#x0201d; during the whole period a patient receives ICB; notably, NSCLC patients with a higher AIER had shorter PFS and OS than those with low AIER [<xref rid="B52-biomolecules-15-01525" ref-type="bibr">52</xref>]. However, medical oncologists are parsimonious when it comes to providing cancer patients with probiotics supplements as they can trigger active infection and subsequent bacteremia in immunocompromised subjects [<xref rid="B53-biomolecules-15-01525" ref-type="bibr">53</xref>]. Minor adverse events of probiotic administration include, again, gastrointestinal symptoms, such as bloating and diarrhea. Safe manufacture of probiotics is also of utmost importance, in order to avoid administration of harmful pathogens [<xref rid="B54-biomolecules-15-01525" ref-type="bibr">54</xref>]. The latest data is groundbreaking, rigorously supporting the use of probiotics in patients with solid tumors undergoing immunotherapy [<xref rid="B14-biomolecules-15-01525" ref-type="bibr">14</xref>]. Probiotics are even easier than FMT to be launched and applied in the clinical setting. However, there are several limitations to this approach; diet is a confounding factor when it comes to probiotic administration. Dietary habits alter the microbiome composition of the gut, and, even if probiotics seem to improve immunotherapy efficacy in cancer patients, it might actually be diet promoting the effect [<xref rid="B50-biomolecules-15-01525" ref-type="bibr">50</xref>].</p></sec><sec id="sec4dot3-biomolecules-15-01525"><title>4.3. Diet and Nutrition</title><p>There is growing evidence that diet can modify gut microbiome composition and, consequently, affect immune responses in the TME. Plant-based diets have the potential to augment ICI efficacy in NSCLC patients. It has been demonstrated that they boosted the abundance of <italic toggle="yes">Actinobacteria</italic>, <italic toggle="yes">Bacteroidetes</italic>, and <italic toggle="yes">Verrucomicrobia</italic>, simultaneously enhancing gut microbiome heterogeneity [<xref rid="B14-biomolecules-15-01525" ref-type="bibr">14</xref>,<xref rid="B53-biomolecules-15-01525" ref-type="bibr">53</xref>]. On the contrary, animal protein diets reduce the diversity of these microbiomes, hindering ICB [<xref rid="B14-biomolecules-15-01525" ref-type="bibr">14</xref>]. Nevertheless, Gustafson et al. noted that patients who follow plant-centered diets tend to have a more healthy lifestyle, adopting exercise and physical activity in their everyday routine, strategies that improve overall health and can serve as converging factors in the previous observation [<xref rid="B55-biomolecules-15-01525" ref-type="bibr">55</xref>]. The effects of different dietary compositions on microbiome diversity and immunotherapy effectiveness are another untrodden area; recent research unveiled that the ketogenic diet, a diet comprised of high-fat, adequate-protein, low-carbohydrate configurations, alters the epigenetic and immune environment of prostate cancer to defeat resistance to ICB remedies [<xref rid="B56-biomolecules-15-01525" ref-type="bibr">56</xref>]. Long-term side effects of the ketogenic diet encompass hepatic steatosis, kidney stones, hypoproteinemia, and vitamin deficiencies [<xref rid="B57-biomolecules-15-01525" ref-type="bibr">57</xref>]. A Mediterranean diet has been also proposed as a strategy to improve response to immunotherapy. As an established form of healthy eating, it has been shown to increase the efficacy of ICIs in advanced melanoma patients [<xref rid="B58-biomolecules-15-01525" ref-type="bibr">58</xref>]. The outcomes of different dietary structures should also be investigated in lung cancer treatment. However, compliance with a specific type of diet is difficult, especially when it comes to cancer patients, where food aversion is common.</p></sec></sec><sec sec-type="conclusions" id="sec5-biomolecules-15-01525"><title>5. Conclusions&#x02014;Outlook</title><p>The microbiome is an easily modifiable target that could augment the antitumor potency of ICB and attenuate its toxicity (<xref rid="biomolecules-15-01525-f002" ref-type="fig">Figure 2</xref>).</p><p>Whereas intratumoral microbiomes are not effortlessly accessible, the gut microbiota is a reachable target. The gut microbiome can regulate the functions of immune cells, such as T-cells and B-cells, preserving immune homeostasis and refining the body&#x02019;s tumor immunosurveillance. The gut microbiome holds the potential to be a novel biomarker for predicting sensitivity and adverse reactions related to immunotherapy in patients with lung cancer. Several signaling pathways have been proposed to be implicated in this interaction, with the STING signaling pathway being the most thoroughly explored. Microbiota-derived metabolites, such as SCFAs and amino acid metabolites, also modulate host innate immunity mechanisms and play a vital role in cancer growth and invasion. Nonetheless, further research is necessary in this field. Comprehending the molecular landscape behind microbiome and immunotherapy interconnection in lung cancer could help develop more targeted interventions.</p><p>Intriguingly, beyond bacteria, gut microbiota ecosystems are composed of several species of microorganisms, including protozoa, yeast, and viruses. Their contribution to immune homeostasis and their implication in TME behavior have not been studied to date. Future research should adopt a more holistic approach to the human microbiome located in different parts of the body and its role in tumorigenesis.</p><p>A forward-looking perspective embraces targeted antibiotic interventions to modulate the microbiome of lung cancer patients who do not obtain clinical benefit from immunotherapy. Illuminating the microbial composition of ICB responders could guide these interventions. Non-invasive fecal testing prior to ICI initiation could also predict which lung cancer patients are expected to respond to ICB. Various algorithms have already been launched, with the aim of implementation in clinical practice. FMT and probiotics have already been tested in the clinic, with favorable results so far. STING agonists could also be examined as a strategy to achieve maximum efficiency of ICB. The optimal composition of the gut microbiome remains largely unknown. Nonetheless, it should be highlighted that this approach has a major limitation; microbial composition is dynamic and can be independently modified by concurrent medications, dietary habits, and drug administration at any time during ICB. Forthcoming investigation should be directed to characterizing microbial signatures related to treatment success and evolving targeted microbiome modulation approaches to reinforce patient outcomes. More microbiome-centered clinical trials should be designed if we want to exploit human gut microbiota compositions for achieving better anti-lung cancer treatments.</p></sec></body><back><fn-group><fn><p><bold>Disclaimer/Publisher&#x02019;s Note:</bold> The statements, opinions and data contained in all publications are solely those of the individual author(s) and contributor(s) and not of MDPI and/or the editor(s). MDPI and/or the editor(s) disclaim responsibility for any injury to people or property resulting from any ideas, methods, instructions or products referred to in the content.</p></fn></fn-group><notes><title>Author Contributions</title><p>Conceptualization, K.A.P. and A.G.P.; writing&#x02014;original draft preparation, K.A.P., A.A.S., F.G.S. and A.M.; literature search and preparation of all references, A.A.S., F.G.S. and A.M.; supervision, A.G.P.; writing&#x02014;review and editing, K.A.P. and A.G.P. All authors have read and agreed to the published version of the manuscript.</p></notes><notes><title>Institutional Review Board Statement</title><p>Not applicable.</p></notes><notes><title>Informed Consent Statement</title><p>Not applicable.</p></notes><notes notes-type="data-availability"><title>Data Availability Statement</title><p>No new data were created or analyzed in this study.</p></notes><notes notes-type="COI-statement"><title>Conflicts of Interest</title><p>The authors declare no conflicts of interest.</p></notes><ref-list><title>References</title><ref id="B1-biomolecules-15-01525"><label>1.</label><element-citation publication-type="journal"><person-group person-group-type="author">
+<name><surname>Zhang</surname><given-names>M.</given-names></name>
+<name><surname>Liu</surname><given-names>C.</given-names></name>
+<name><surname>Tu</surname><given-names>J.</given-names></name>
+<name><surname>Tang</surname><given-names>M.</given-names></name>
+<name><surname>Ashrafizadeh</surname><given-names>M.</given-names></name>
+<name><surname>Nabavi</surname><given-names>N.</given-names></name>
+<name><surname>Sethi</surname><given-names>G.</given-names></name>
+<name><surname>Zhao</surname><given-names>P.</given-names></name>
+<name><surname>Liu</surname><given-names>S.</given-names></name>
+</person-group><article-title>Advances in Cancer Immunotherapy: Historical Perspectives, Current Developments, and Future Directions</article-title><source>Mol. Cancer</source><year>2025</year><volume>24</volume><fpage>136</fpage><pub-id pub-id-type="doi">10.1186/s12943-025-02305-x</pub-id><pub-id pub-id-type="pmid">40336045</pub-id>
+</element-citation></ref><ref id="B2-biomolecules-15-01525"><label>2.</label><element-citation publication-type="other"><person-group person-group-type="author">
+<name><surname>Zer</surname><given-names>A.</given-names></name>
+<name><surname>Ahn</surname><given-names>M.-J.</given-names></name>
+<name><surname>Barlesi</surname><given-names>F.</given-names></name>
+<name><surname>Bubendorf</surname><given-names>L.</given-names></name>
+<name><surname>De Ruysscher</surname><given-names>D.</given-names></name>
+<name><surname>Garrido</surname><given-names>P.</given-names></name>
+<name><surname>Gautschi</surname><given-names>O.</given-names></name>
+<name><surname>Hendriks</surname><given-names>L.E.</given-names></name>
+<name><surname>J&#x000e4;nne</surname><given-names>P.A.</given-names></name>
+<name><surname>Kerr</surname><given-names>K.M.</given-names></name>
+<etal/>
+</person-group><article-title>Early and Locally Advanced Non-Small-Cell Lung Cancer: ESMO Clinical Practice Guideline for Diagnosis, Treatment and Follow-Up</article-title><source>Ann. Oncol.</source><year>2025</year><comment>
+<italic toggle="yes">in press</italic>
+</comment><pub-id pub-id-type="doi">10.1016/j.annonc.2025.08.003</pub-id></element-citation></ref><ref id="B3-biomolecules-15-01525"><label>3.</label><element-citation publication-type="journal"><person-group person-group-type="author">
+<name><surname>Resuli</surname><given-names>B.</given-names></name>
+<name><surname>Kauffmann-Guerrero</surname><given-names>D.</given-names></name>
+</person-group><article-title>Novel Immunotherapeutic Approaches in Lung Cancer: Driving beyond Programmed Death-1/Programmed Death Ligand-1 and Cytotoxic T-Lymphocyte-Associated Protein-4</article-title><source>Curr. Opin. Oncol.</source><year>2025</year><volume>37</volume><fpage>48</fpage><lpage>62</lpage><pub-id pub-id-type="doi">10.1097/CCO.0000000000001106</pub-id><?supplied-pmid 39526686?><pub-id pub-id-type="pmid">39526686</pub-id>
+</element-citation></ref><ref id="B4-biomolecules-15-01525"><label>4.</label><element-citation publication-type="journal"><person-group person-group-type="author">
+<name><surname>Russano</surname><given-names>M.</given-names></name>
+<name><surname>La Cava</surname><given-names>G.</given-names></name>
+<name><surname>Cortellini</surname><given-names>A.</given-names></name>
+<name><surname>Citarella</surname><given-names>F.</given-names></name>
+<name><surname>Galletti</surname><given-names>A.</given-names></name>
+<name><surname>Di Fazio</surname><given-names>G.R.</given-names></name>
+<name><surname>Santo</surname><given-names>V.</given-names></name>
+<name><surname>Brunetti</surname><given-names>L.</given-names></name>
+<name><surname>Vendittelli</surname><given-names>A.</given-names></name>
+<name><surname>Fioroni</surname><given-names>I.</given-names></name>
+<etal/>
+</person-group><article-title>Immunotherapy for Metastatic Non-Small Cell Lung Cancer: Therapeutic Advances and Biomarkers</article-title><source>Curr. Oncol. Tor. Ont.</source><year>2023</year><volume>30</volume><fpage>2366</fpage><lpage>2387</lpage><pub-id pub-id-type="doi">10.3390/curroncol30020181</pub-id><?supplied-pmid 36826142?><pub-id pub-id-type="pmid">36826142</pub-id>
+</element-citation></ref><ref id="B5-biomolecules-15-01525"><label>5.</label><element-citation publication-type="journal"><person-group person-group-type="author">
+<name><surname>Putzu</surname><given-names>C.</given-names></name>
+<name><surname>Canova</surname><given-names>S.</given-names></name>
+<name><surname>Paliogiannis</surname><given-names>P.</given-names></name>
+<name><surname>Lobrano</surname><given-names>R.</given-names></name>
+<name><surname>Sala</surname><given-names>L.</given-names></name>
+<name><surname>Cortinovis</surname><given-names>D.L.</given-names></name>
+<name><surname>Colonese</surname><given-names>F.</given-names></name>
+</person-group><article-title>Duration of Immunotherapy in Non-Small Cell Lung Cancer Survivors: A Lifelong Commitment?</article-title><source>Cancers</source><year>2023</year><volume>15</volume><elocation-id>689</elocation-id><pub-id pub-id-type="doi">10.3390/cancers15030689</pub-id><?supplied-pmid 36765647?><pub-id pub-id-type="pmid">36765647</pub-id>
+</element-citation></ref><ref id="B6-biomolecules-15-01525"><label>6.</label><element-citation publication-type="journal"><person-group person-group-type="author">
+<name><surname>Moliner</surname><given-names>L.</given-names></name>
+<name><surname>Zellweger</surname><given-names>N.</given-names></name>
+<name><surname>Schmid</surname><given-names>S.</given-names></name>
+<name><surname>Bertschinger</surname><given-names>M.</given-names></name>
+<name><surname>Waibel</surname><given-names>C.</given-names></name>
+<name><surname>Cerciello</surname><given-names>F.</given-names></name>
+<name><surname>Froesch</surname><given-names>P.</given-names></name>
+<name><surname>Mark</surname><given-names>M.</given-names></name>
+<name><surname>Bettini</surname><given-names>A.</given-names></name>
+<name><surname>H&#x000e4;uptle</surname><given-names>P.</given-names></name>
+<etal/>
+</person-group><article-title>First-Line Chemo-Immunotherapy in SCLC: Outcomes of a Binational Real-World Study</article-title><source>JTO Clin. Res. Rep.</source><year>2025</year><volume>6</volume><fpage>100744</fpage><pub-id pub-id-type="doi">10.1016/j.jtocrr.2024.100744</pub-id><pub-id pub-id-type="pmid">39802819</pub-id>
+</element-citation></ref><ref id="B7-biomolecules-15-01525"><label>7.</label><element-citation publication-type="journal"><person-group person-group-type="author">
+<name><surname>Zugazagoitia</surname><given-names>J.</given-names></name>
+<name><surname>Osma</surname><given-names>H.</given-names></name>
+<name><surname>Baena</surname><given-names>J.</given-names></name>
+<name><surname>Ucero</surname><given-names>A.C.</given-names></name>
+<name><surname>Paz-Ares</surname><given-names>L.</given-names></name>
+</person-group><article-title>Facts and Hopes on Cancer Immunotherapy for Small Cell Lung Cancer</article-title><source>Clin. Cancer Res. Off. J. Am. Assoc. Cancer Res.</source><year>2024</year><volume>30</volume><fpage>2872</fpage><lpage>2883</lpage><pub-id pub-id-type="doi">10.1158/1078-0432.CCR-23-1159</pub-id></element-citation></ref><ref id="B8-biomolecules-15-01525"><label>8.</label><element-citation publication-type="journal"><person-group person-group-type="author">
+<name><surname>Cali Daylan</surname><given-names>A.E.</given-names></name>
+<name><surname>Halmos</surname><given-names>B.</given-names></name>
+</person-group><article-title>Long-Term Benefit of Immunotherapy in Metastatic Non-Small Cell Lung Cancer: The Tale of the Tail</article-title><source>Transl. Lung Cancer Res.</source><year>2023</year><volume>12</volume><fpage>1636</fpage><lpage>1642</lpage><pub-id pub-id-type="doi">10.21037/tlcr-23-245</pub-id><pub-id pub-id-type="pmid">37577318</pub-id>
+</element-citation></ref><ref id="B9-biomolecules-15-01525"><label>9.</label><element-citation publication-type="journal"><person-group person-group-type="author">
+<name><surname>Hanahan</surname><given-names>D.</given-names></name>
+</person-group><article-title>Hallmarks of Cancer: New Dimensions</article-title><source>Cancer Discov.</source><year>2022</year><volume>12</volume><fpage>31</fpage><lpage>46</lpage><pub-id pub-id-type="doi">10.1158/2159-8290.CD-21-1059</pub-id><pub-id pub-id-type="pmid">35022204</pub-id>
+</element-citation></ref><ref id="B10-biomolecules-15-01525"><label>10.</label><element-citation publication-type="journal"><person-group person-group-type="author">
+<name><surname>Nobels</surname><given-names>A.</given-names></name>
+<name><surname>Van Marcke</surname><given-names>C.</given-names></name>
+<name><surname>Jordan</surname><given-names>B.F.</given-names></name>
+<name><surname>Van Hul</surname><given-names>M.</given-names></name>
+<name><surname>Cani</surname><given-names>P.D.</given-names></name>
+</person-group><article-title>The Gut Microbiome and Cancer: From Tumorigenesis to Therapy</article-title><source>Nat. Metab.</source><year>2025</year><volume>7</volume><fpage>895</fpage><lpage>917</lpage><pub-id pub-id-type="doi">10.1038/s42255-025-01287-w</pub-id><pub-id pub-id-type="pmid">40329009</pub-id>
+</element-citation></ref><ref id="B11-biomolecules-15-01525"><label>11.</label><element-citation publication-type="journal"><person-group person-group-type="author">
+<name><surname>Feng</surname><given-names>P.</given-names></name>
+<name><surname>Xue</surname><given-names>X.</given-names></name>
+<name><surname>Bukhari</surname><given-names>I.</given-names></name>
+<name><surname>Qiu</surname><given-names>C.</given-names></name>
+<name><surname>Li</surname><given-names>Y.</given-names></name>
+<name><surname>Zheng</surname><given-names>P.</given-names></name>
+<name><surname>Mi</surname><given-names>Y.</given-names></name>
+</person-group><article-title>Gut Microbiota and Its Therapeutic Implications in Tumor Microenvironment Interactions</article-title><source>Front. Microbiol.</source><year>2024</year><volume>15</volume><elocation-id>1287077</elocation-id><pub-id pub-id-type="doi">10.3389/fmicb.2024.1287077</pub-id><pub-id pub-id-type="pmid">38322318</pub-id>
+</element-citation></ref><ref id="B12-biomolecules-15-01525"><label>12.</label><element-citation publication-type="journal"><person-group person-group-type="author">
+<name><surname>Hu</surname><given-names>J.</given-names></name>
+<name><surname>Feng</surname><given-names>T.</given-names></name>
+<name><surname>Zhang</surname><given-names>L.</given-names></name>
+<name><surname>Zhou</surname><given-names>Q.</given-names></name>
+<name><surname>Zhu</surname><given-names>L.</given-names></name>
+</person-group><article-title>Leveraging Gut Microbiota for Enhanced Immune Checkpoint Blockade in Solid Tumor Therapy</article-title><source>Chin. Med. J.</source><year>2025</year><pub-id pub-id-type="doi">10.1097/CM9.0000000000003687</pub-id></element-citation></ref><ref id="B13-biomolecules-15-01525"><label>13.</label><element-citation publication-type="journal"><person-group person-group-type="author">
+<name><surname>Jin</surname><given-names>Y.</given-names></name>
+<name><surname>Dong</surname><given-names>H.</given-names></name>
+<name><surname>Xia</surname><given-names>L.</given-names></name>
+<name><surname>Yang</surname><given-names>Y.</given-names></name>
+<name><surname>Zhu</surname><given-names>Y.</given-names></name>
+<name><surname>Shen</surname><given-names>Y.</given-names></name>
+<name><surname>Zheng</surname><given-names>H.</given-names></name>
+<name><surname>Yao</surname><given-names>C.</given-names></name>
+<name><surname>Wang</surname><given-names>Y.</given-names></name>
+<name><surname>Lu</surname><given-names>S.</given-names></name>
+</person-group><article-title>The Diversity of Gut Microbiome Is Associated with Favorable Responses to Anti&#x02013;Programmed Death 1 Immunotherapy in Chinese Patients with NSCLC</article-title><source>J. Thorac. Oncol.</source><year>2019</year><volume>14</volume><fpage>1378</fpage><lpage>1389</lpage><pub-id pub-id-type="doi">10.1016/j.jtho.2019.04.007</pub-id><pub-id pub-id-type="pmid">31026576</pub-id>
+</element-citation></ref><ref id="B14-biomolecules-15-01525"><label>14.</label><element-citation publication-type="journal"><person-group person-group-type="author">
+<name><surname>Jin</surname><given-names>Y.</given-names></name>
+<name><surname>Jie</surname><given-names>Z.</given-names></name>
+<name><surname>Fan</surname><given-names>X.</given-names></name>
+</person-group><article-title>Gut Microbes and Immunotherapy for Non-Small Cell Lung Cancer: A Systematic Review</article-title><source>Front. Oncol.</source><year>2025</year><volume>15</volume><elocation-id>1518474</elocation-id><pub-id pub-id-type="doi">10.3389/fonc.2025.1518474</pub-id><?supplied-pmid 40406244?><pub-id pub-id-type="pmid">40406244</pub-id>
+</element-citation></ref><ref id="B15-biomolecules-15-01525"><label>15.</label><element-citation publication-type="journal"><person-group person-group-type="author">
+<name><surname>Watanabe</surname><given-names>S.</given-names></name>
+<name><surname>Kikuchi</surname><given-names>T.</given-names></name>
+</person-group><article-title>Does the Gut Microbiota Play a Key Role in PD-1/PD-L1 Blockade Therapy?</article-title><source>Transl. Lung Cancer Res.</source><year>2020</year><volume>9</volume><fpage>438</fpage><lpage>440</lpage><pub-id pub-id-type="doi">10.21037/tlcr.2020.03.31</pub-id><pub-id pub-id-type="pmid">32676307</pub-id>
+</element-citation></ref><ref id="B16-biomolecules-15-01525"><label>16.</label><element-citation publication-type="journal"><person-group person-group-type="author">
+<name><surname>Lee</surname><given-names>S.-H.</given-names></name>
+<name><surname>Cho</surname><given-names>S.-Y.</given-names></name>
+<name><surname>Yoon</surname><given-names>Y.</given-names></name>
+<name><surname>Park</surname><given-names>C.</given-names></name>
+<name><surname>Sohn</surname><given-names>J.</given-names></name>
+<name><surname>Jeong</surname><given-names>J.-J.</given-names></name>
+<name><surname>Jeon</surname><given-names>B.-N.</given-names></name>
+<name><surname>Jang</surname><given-names>M.</given-names></name>
+<name><surname>An</surname><given-names>C.</given-names></name>
+<name><surname>Lee</surname><given-names>S.</given-names></name>
+<etal/>
+</person-group><article-title>Bifidobacterium Bifidum Strains Synergize with Immune Checkpoint Inhibitors to Reduce Tumour Burden in Mice</article-title><source>Nat. Microbiol.</source><year>2021</year><volume>6</volume><fpage>277</fpage><lpage>288</lpage><pub-id pub-id-type="doi">10.1038/s41564-020-00831-6</pub-id><pub-id pub-id-type="pmid">33432149</pub-id>
+</element-citation></ref><ref id="B17-biomolecules-15-01525"><label>17.</label><element-citation publication-type="journal"><person-group person-group-type="author">
+<name><surname>Dora</surname><given-names>D.</given-names></name>
+<name><surname>Ligeti</surname><given-names>B.</given-names></name>
+<name><surname>Kovacs</surname><given-names>T.</given-names></name>
+<name><surname>Revisnyei</surname><given-names>P.</given-names></name>
+<name><surname>Galffy</surname><given-names>G.</given-names></name>
+<name><surname>Dulka</surname><given-names>E.</given-names></name>
+<name><surname>Krizs&#x000e1;n</surname><given-names>D.</given-names></name>
+<name><surname>Kalcsevszki</surname><given-names>R.</given-names></name>
+<name><surname>Megyesfalvi</surname><given-names>Z.</given-names></name>
+<name><surname>Dome</surname><given-names>B.</given-names></name>
+<etal/>
+</person-group><article-title>Non-Small Cell Lung Cancer Patients Treated with Anti-PD1 Immunotherapy Show Distinct Microbial Signatures and Metabolic Pathways According to Progression-Free Survival and PD-L1 Status</article-title><source>OncoImmunology</source><year>2023</year><volume>12</volume><fpage>2204746</fpage><pub-id pub-id-type="doi">10.1080/2162402X.2023.2204746</pub-id><pub-id pub-id-type="pmid">37197440</pub-id>
+</element-citation></ref><ref id="B18-biomolecules-15-01525"><label>18.</label><element-citation publication-type="journal"><person-group person-group-type="author">
+<name><surname>Brown</surname><given-names>R.L.</given-names></name>
+<name><surname>Larkinson</surname><given-names>M.L.Y.</given-names></name>
+<name><surname>Clarke</surname><given-names>T.B.</given-names></name>
+</person-group><article-title>Immunological Design of Commensal Communities to Treat Intestinal Infection and Inflammation</article-title><source>PLoS Pathog.</source><year>2021</year><volume>17</volume><elocation-id>e1009191</elocation-id><pub-id pub-id-type="doi">10.1371/journal.ppat.1009191</pub-id><pub-id pub-id-type="pmid">33465156</pub-id>
+</element-citation></ref><ref id="B19-biomolecules-15-01525"><label>19.</label><element-citation publication-type="journal"><person-group person-group-type="author">
+<name><surname>Routy</surname><given-names>B.</given-names></name>
+<name><surname>Le Chatelier</surname><given-names>E.</given-names></name>
+<name><surname>Derosa</surname><given-names>L.</given-names></name>
+<name><surname>Duong</surname><given-names>C.P.M.</given-names></name>
+<name><surname>Alou</surname><given-names>M.T.</given-names></name>
+<name><surname>Daill&#x000e8;re</surname><given-names>R.</given-names></name>
+<name><surname>Fluckiger</surname><given-names>A.</given-names></name>
+<name><surname>Messaoudene</surname><given-names>M.</given-names></name>
+<name><surname>Rauber</surname><given-names>C.</given-names></name>
+<name><surname>Roberti</surname><given-names>M.P.</given-names></name>
+<etal/>
+</person-group><article-title>Gut Microbiome Influences Efficacy of PD-1&#x02013;Based Immunotherapy against Epithelial Tumors</article-title><source>Science</source><year>2018</year><volume>359</volume><fpage>91</fpage><lpage>97</lpage><pub-id pub-id-type="doi">10.1126/science.aan3706</pub-id><?supplied-pmid 29097494?><pub-id pub-id-type="pmid">29097494</pub-id>
+</element-citation></ref><ref id="B20-biomolecules-15-01525"><label>20.</label><element-citation publication-type="journal"><person-group person-group-type="author">
+<name><surname>Ren</surname><given-names>S.</given-names></name>
+<name><surname>Feng</surname><given-names>L.</given-names></name>
+<name><surname>Liu</surname><given-names>H.</given-names></name>
+<name><surname>Mao</surname><given-names>Y.</given-names></name>
+<name><surname>Yu</surname><given-names>Z.</given-names></name>
+</person-group><article-title>Gut Microbiome Affects the Response to Immunotherapy in Non-small Cell Lung Cancer</article-title><source>Thorac. Cancer</source><year>2024</year><volume>15</volume><fpage>1149</fpage><lpage>1163</lpage><pub-id pub-id-type="doi">10.1111/1759-7714.15303</pub-id><?supplied-pmid 38572783?><pub-id pub-id-type="pmid">38572783</pub-id>
+</element-citation></ref><ref id="B21-biomolecules-15-01525"><label>21.</label><element-citation publication-type="journal"><person-group person-group-type="author">
+<name><surname>Mukhopadhya</surname><given-names>I.</given-names></name>
+<name><surname>Louis</surname><given-names>P.</given-names></name>
+</person-group><article-title>Gut Microbiota-Derived Short-Chain Fatty Acids and Their Role in Human Health and Disease</article-title><source>Nat. Rev. Microbiol.</source><year>2025</year><volume>23</volume><fpage>635</fpage><lpage>651</lpage><pub-id pub-id-type="doi">10.1038/s41579-025-01183-w</pub-id><pub-id pub-id-type="pmid">40360779</pub-id>
+</element-citation></ref><ref id="B22-biomolecules-15-01525"><label>22.</label><element-citation publication-type="journal"><person-group person-group-type="author">
+<name><surname>Nomura</surname><given-names>M.</given-names></name>
+<name><surname>Nagatomo</surname><given-names>R.</given-names></name>
+<name><surname>Doi</surname><given-names>K.</given-names></name>
+<name><surname>Shimizu</surname><given-names>J.</given-names></name>
+<name><surname>Baba</surname><given-names>K.</given-names></name>
+<name><surname>Saito</surname><given-names>T.</given-names></name>
+<name><surname>Matsumoto</surname><given-names>S.</given-names></name>
+<name><surname>Inoue</surname><given-names>K.</given-names></name>
+<name><surname>Muto</surname><given-names>M.</given-names></name>
+</person-group><article-title>Association of Short-Chain Fatty Acids in the Gut Microbiome with Clinical Response to Treatment with Nivolumab or Pembrolizumab in Patients with Solid Cancer Tumors</article-title><source>JAMA Netw. Open</source><year>2020</year><volume>3</volume><fpage>e202895</fpage><pub-id pub-id-type="doi">10.1001/jamanetworkopen.2020.2895</pub-id><pub-id pub-id-type="pmid">32297948</pub-id>
+</element-citation></ref><ref id="B23-biomolecules-15-01525"><label>23.</label><element-citation publication-type="journal"><person-group person-group-type="author">
+<name><surname>Gao</surname><given-names>X.</given-names></name>
+<name><surname>Jiang</surname><given-names>J.</given-names></name>
+</person-group><article-title>Exploring the Regulatory Mechanism of Intestinal Flora Based on PD-1 Receptor/Ligand Targeted Cancer Immunotherapy</article-title><source>Front. Immunol.</source><year>2024</year><volume>15</volume><elocation-id>1359029</elocation-id><pub-id pub-id-type="doi">10.3389/fimmu.2024.1359029</pub-id><pub-id pub-id-type="pmid">38617841</pub-id>
+</element-citation></ref><ref id="B24-biomolecules-15-01525"><label>24.</label><element-citation publication-type="journal"><person-group person-group-type="author">
+<name><surname>Traisaeng</surname><given-names>S.</given-names></name>
+<name><surname>Herr</surname><given-names>D.R.</given-names></name>
+<name><surname>Kao</surname><given-names>H.-J.</given-names></name>
+<name><surname>Chuang</surname><given-names>T.-H.</given-names></name>
+<name><surname>Huang</surname><given-names>C.-M.</given-names></name>
+</person-group><article-title>A Derivative of Butyric Acid, the Fermentation Metabolite of Staphylococcus Epidermidis, Inhibits the Growth of a Staphylococcus Aureus Strain Isolated from Atopic Dermatitis Patients</article-title><source>Toxins</source><year>2019</year><volume>11</volume><elocation-id>311</elocation-id><pub-id pub-id-type="doi">10.3390/toxins11060311</pub-id><pub-id pub-id-type="pmid">31159213</pub-id>
+</element-citation></ref><ref id="B25-biomolecules-15-01525"><label>25.</label><element-citation publication-type="journal"><person-group person-group-type="author">
+<name><surname>Hedayat</surname><given-names>F.</given-names></name>
+<name><surname>Faghfuri</surname><given-names>E.</given-names></name>
+</person-group><article-title>Harnessing Histone Deacetylase Inhibitors for Enhanced Cancer Immunotherapy</article-title><source>Eur. J. Pharmacol.</source><year>2025</year><volume>997</volume><fpage>177620</fpage><pub-id pub-id-type="doi">10.1016/j.ejphar.2025.177620</pub-id><pub-id pub-id-type="pmid">40239887</pub-id>
+</element-citation></ref><ref id="B26-biomolecules-15-01525"><label>26.</label><element-citation publication-type="journal"><person-group person-group-type="author">
+<name><surname>Mazziotta</surname><given-names>C.</given-names></name>
+<name><surname>Lanzillotti</surname><given-names>C.</given-names></name>
+<name><surname>Gaf&#x000e0;</surname><given-names>R.</given-names></name>
+<name><surname>Touz&#x000e9;</surname><given-names>A.</given-names></name>
+<name><surname>Durand</surname><given-names>M.-A.</given-names></name>
+<name><surname>Martini</surname><given-names>F.</given-names></name>
+<name><surname>Rotondo</surname><given-names>J.C.</given-names></name>
+</person-group><article-title>The Role of Histone Post-Translational Modifications in Merkel Cell Carcinoma</article-title><source>Front. Oncol.</source><year>2022</year><volume>12</volume><elocation-id>832047</elocation-id><pub-id pub-id-type="doi">10.3389/fonc.2022.832047</pub-id><pub-id pub-id-type="pmid">35350569</pub-id>
+</element-citation></ref><ref id="B27-biomolecules-15-01525"><label>27.</label><element-citation publication-type="journal"><person-group person-group-type="author">
+<name><surname>Liu</surname><given-names>X.-F.</given-names></name>
+<name><surname>Shao</surname><given-names>J.-H.</given-names></name>
+<name><surname>Liao</surname><given-names>Y.-T.</given-names></name>
+<name><surname>Wang</surname><given-names>L.-N.</given-names></name>
+<name><surname>Jia</surname><given-names>Y.</given-names></name>
+<name><surname>Dong</surname><given-names>P.-J.</given-names></name>
+<name><surname>Liu</surname><given-names>Z.-Z.</given-names></name>
+<name><surname>He</surname><given-names>D.-D.</given-names></name>
+<name><surname>Li</surname><given-names>C.</given-names></name>
+<name><surname>Zhang</surname><given-names>X.</given-names></name>
+</person-group><article-title>Regulation of Short-Chain Fatty Acids in the Immune System</article-title><source>Front. Immunol.</source><year>2023</year><volume>14</volume><elocation-id>1186892</elocation-id><pub-id pub-id-type="doi">10.3389/fimmu.2023.1186892</pub-id><?supplied-pmid 37215145?><pub-id pub-id-type="pmid">37215145</pub-id>
+</element-citation></ref><ref id="B28-biomolecules-15-01525"><label>28.</label><element-citation publication-type="journal"><person-group person-group-type="author">
+<name><surname>Bachem</surname><given-names>A.</given-names></name>
+<name><surname>Makhlouf</surname><given-names>C.</given-names></name>
+<name><surname>Binger</surname><given-names>K.J.</given-names></name>
+<name><surname>De Souza</surname><given-names>D.P.</given-names></name>
+<name><surname>Tull</surname><given-names>D.</given-names></name>
+<name><surname>Hochheiser</surname><given-names>K.</given-names></name>
+<name><surname>Whitney</surname><given-names>P.G.</given-names></name>
+<name><surname>Fernandez-Ruiz</surname><given-names>D.</given-names></name>
+<name><surname>D&#x000e4;hling</surname><given-names>S.</given-names></name>
+<name><surname>Kastenm&#x000fc;ller</surname><given-names>W.</given-names></name>
+<etal/>
+</person-group><article-title>Microbiota-Derived Short-Chain Fatty Acids Promote the Memory Potential of Antigen-Activated CD8+ T Cells</article-title><source>Immunity</source><year>2019</year><volume>51</volume><fpage>285</fpage><lpage>297.e5</lpage><pub-id pub-id-type="doi">10.1016/j.immuni.2019.06.002</pub-id><?supplied-pmid 31272808?><pub-id pub-id-type="pmid">31272808</pub-id>
+</element-citation></ref><ref id="B29-biomolecules-15-01525"><label>29.</label><element-citation publication-type="journal"><person-group person-group-type="author">
+<name><surname>Sorgdrager</surname><given-names>F.J.H.</given-names></name>
+<name><surname>Naud&#x000e9;</surname><given-names>P.J.W.</given-names></name>
+<name><surname>Kema</surname><given-names>I.P.</given-names></name>
+<name><surname>Nollen</surname><given-names>E.A.</given-names></name>
+<name><surname>Deyn</surname><given-names>P.P.D.</given-names></name>
+</person-group><article-title>Tryptophan Metabolism in Inflammaging: From Biomarker to Therapeutic Target</article-title><source>Front. Immunol.</source><year>2019</year><volume>10</volume><elocation-id>2565</elocation-id><pub-id pub-id-type="doi">10.3389/fimmu.2019.02565</pub-id><?supplied-pmid 31736978?><pub-id pub-id-type="pmid">31736978</pub-id>
+</element-citation></ref><ref id="B30-biomolecules-15-01525"><label>30.</label><element-citation publication-type="journal"><person-group person-group-type="author">
+<name><surname>Tintelnot</surname><given-names>J.</given-names></name>
+<name><surname>Xu</surname><given-names>Y.</given-names></name>
+<name><surname>Lesker</surname><given-names>T.R.</given-names></name>
+<name><surname>Sch&#x000f6;nlein</surname><given-names>M.</given-names></name>
+<name><surname>Konczalla</surname><given-names>L.</given-names></name>
+<name><surname>Giannou</surname><given-names>A.D.</given-names></name>
+<name><surname>Pelczar</surname><given-names>P.</given-names></name>
+<name><surname>Kylies</surname><given-names>D.</given-names></name>
+<name><surname>Puelles</surname><given-names>V.G.</given-names></name>
+<name><surname>Bielecka</surname><given-names>A.A.</given-names></name>
+<etal/>
+</person-group><article-title>Microbiota-Derived 3-IAA Influences Chemotherapy Efficacy in Pancreatic Cancer</article-title><source>Nature</source><year>2023</year><volume>615</volume><fpage>168</fpage><lpage>174</lpage><pub-id pub-id-type="doi">10.1038/s41586-023-05728-y</pub-id><pub-id pub-id-type="pmid">36813961</pub-id>
+</element-citation></ref><ref id="B31-biomolecules-15-01525"><label>31.</label><element-citation publication-type="journal"><person-group person-group-type="author">
+<name><surname>Mager</surname><given-names>L.F.</given-names></name>
+<name><surname>Burkhard</surname><given-names>R.</given-names></name>
+<name><surname>Pett</surname><given-names>N.</given-names></name>
+<name><surname>Cooke</surname><given-names>N.C.A.</given-names></name>
+<name><surname>Brown</surname><given-names>K.</given-names></name>
+<name><surname>Ramay</surname><given-names>H.</given-names></name>
+<name><surname>Paik</surname><given-names>S.</given-names></name>
+<name><surname>Stagg</surname><given-names>J.</given-names></name>
+<name><surname>Groves</surname><given-names>R.A.</given-names></name>
+<name><surname>Gallo</surname><given-names>M.</given-names></name>
+<etal/>
+</person-group><article-title>Microbiome-Derived Inosine Modulates Response to Checkpoint Inhibitor Immunotherapy</article-title><source>Science</source><year>2020</year><volume>369</volume><fpage>1481</fpage><lpage>1489</lpage><pub-id pub-id-type="doi">10.1126/science.abc3421</pub-id><pub-id pub-id-type="pmid">32792462</pub-id>
+</element-citation></ref><ref id="B32-biomolecules-15-01525"><label>32.</label><element-citation publication-type="journal"><person-group person-group-type="author">
+<name><surname>Wang</surname><given-names>T.</given-names></name>
+<name><surname>Gnanaprakasam</surname><given-names>J.N.R.</given-names></name>
+<name><surname>Chen</surname><given-names>X.</given-names></name>
+<name><surname>Kang</surname><given-names>S.</given-names></name>
+<name><surname>Xu</surname><given-names>X.</given-names></name>
+<name><surname>Sun</surname><given-names>H.</given-names></name>
+<name><surname>Liu</surname><given-names>L.</given-names></name>
+<name><surname>Rodgers</surname><given-names>H.</given-names></name>
+<name><surname>Miller</surname><given-names>E.</given-names></name>
+<name><surname>Cassel</surname><given-names>T.A.</given-names></name>
+<etal/>
+</person-group><article-title>Inosine Is an Alternative Carbon Source for CD8+-T-Cell Function under Glucose Restriction</article-title><source>Nat. Metab.</source><year>2020</year><volume>2</volume><fpage>635</fpage><lpage>647</lpage><pub-id pub-id-type="doi">10.1038/s42255-020-0219-4</pub-id><pub-id pub-id-type="pmid">32694789</pub-id>
+</element-citation></ref><ref id="B33-biomolecules-15-01525"><label>33.</label><element-citation publication-type="journal"><person-group person-group-type="author">
+<name><surname>Lam</surname><given-names>K.C.</given-names></name>
+<name><surname>Araya</surname><given-names>R.E.</given-names></name>
+<name><surname>Huang</surname><given-names>A.</given-names></name>
+<name><surname>Chen</surname><given-names>Q.</given-names></name>
+<name><surname>Di Modica</surname><given-names>M.</given-names></name>
+<name><surname>Rodrigues</surname><given-names>R.R.</given-names></name>
+<name><surname>Lop&#x000e8;s</surname><given-names>A.</given-names></name>
+<name><surname>Johnson</surname><given-names>S.B.</given-names></name>
+<name><surname>Schwarz</surname><given-names>B.</given-names></name>
+<name><surname>Bohrnsen</surname><given-names>E.</given-names></name>
+<etal/>
+</person-group><article-title>Microbiota Triggers STING-Type I IFN-Dependent Monocyte Reprogramming of the Tumor Microenvironment</article-title><source>Cell</source><year>2021</year><volume>184</volume><fpage>5338</fpage><lpage>5356.e21</lpage><pub-id pub-id-type="doi">10.1016/j.cell.2021.09.019</pub-id><pub-id pub-id-type="pmid">34624222</pub-id>
+</element-citation></ref><ref id="B34-biomolecules-15-01525"><label>34.</label><element-citation publication-type="journal"><person-group person-group-type="author">
+<name><surname>Baruch</surname><given-names>E.N.</given-names></name>
+<name><surname>Youngster</surname><given-names>I.</given-names></name>
+<name><surname>Ben-Betzalel</surname><given-names>G.</given-names></name>
+<name><surname>Ortenberg</surname><given-names>R.</given-names></name>
+<name><surname>Lahat</surname><given-names>A.</given-names></name>
+<name><surname>Katz</surname><given-names>L.</given-names></name>
+<name><surname>Adler</surname><given-names>K.</given-names></name>
+<name><surname>Dick-Necula</surname><given-names>D.</given-names></name>
+<name><surname>Raskin</surname><given-names>S.</given-names></name>
+<name><surname>Bloch</surname><given-names>N.</given-names></name>
+<etal/>
+</person-group><article-title>Fecal Microbiota Transplant Promotes Response in Immunotherapy-Refractory Melanoma Patients</article-title><source>Science</source><year>2021</year><volume>371</volume><fpage>602</fpage><lpage>609</lpage><pub-id pub-id-type="doi">10.1126/science.abb5920</pub-id><pub-id pub-id-type="pmid">33303685</pub-id>
+</element-citation></ref><ref id="B35-biomolecules-15-01525"><label>35.</label><element-citation publication-type="journal"><person-group person-group-type="author">
+<name><surname>Si</surname><given-names>W.</given-names></name>
+<name><surname>Liang</surname><given-names>H.</given-names></name>
+<name><surname>Bugno</surname><given-names>J.</given-names></name>
+<name><surname>Xu</surname><given-names>Q.</given-names></name>
+<name><surname>Ding</surname><given-names>X.</given-names></name>
+<name><surname>Yang</surname><given-names>K.</given-names></name>
+<name><surname>Fu</surname><given-names>Y.</given-names></name>
+<name><surname>Weichselbaum</surname><given-names>R.R.</given-names></name>
+<name><surname>Zhao</surname><given-names>X.</given-names></name>
+<name><surname>Wang</surname><given-names>L.</given-names></name>
+</person-group><article-title><italic toggle="yes">Lactobacillus rhamnosus</italic> GG Induces cGAS/STING- Dependent Type I Interferon and Improves Response to Immune Checkpoint Blockade</article-title><source>Gut</source><year>2022</year><volume>71</volume><fpage>521</fpage><lpage>533</lpage><pub-id pub-id-type="doi">10.1136/gutjnl-2020-323426</pub-id><?supplied-pmid 33685966?><pub-id pub-id-type="pmid">33685966</pub-id>
+</element-citation></ref><ref id="B36-biomolecules-15-01525"><label>36.</label><element-citation publication-type="journal"><person-group person-group-type="author">
+<name><surname>Park</surname><given-names>J.S.</given-names></name>
+<name><surname>Gazzaniga</surname><given-names>F.S.</given-names></name>
+<name><surname>Wu</surname><given-names>M.</given-names></name>
+<name><surname>Luthens</surname><given-names>A.K.</given-names></name>
+<name><surname>Gillis</surname><given-names>J.</given-names></name>
+<name><surname>Zheng</surname><given-names>W.</given-names></name>
+<name><surname>LaFleur</surname><given-names>M.W.</given-names></name>
+<name><surname>Johnson</surname><given-names>S.B.</given-names></name>
+<name><surname>Morad</surname><given-names>G.</given-names></name>
+<name><surname>Park</surname><given-names>E.M.</given-names></name>
+<etal/>
+</person-group><article-title>Targeting PD-L2&#x02013;RGMb Overcomes Microbiome-Related Immunotherapy Resistance</article-title><source>Nature</source><year>2023</year><volume>617</volume><fpage>377</fpage><lpage>385</lpage><pub-id pub-id-type="doi">10.1038/s41586-023-06026-3</pub-id><pub-id pub-id-type="pmid">37138075</pub-id>
+</element-citation></ref><ref id="B37-biomolecules-15-01525"><label>37.</label><element-citation publication-type="journal"><person-group person-group-type="author">
+<name><surname>Xiao</surname><given-names>Y.</given-names></name>
+<name><surname>Yu</surname><given-names>S.</given-names></name>
+<name><surname>Zhu</surname><given-names>B.</given-names></name>
+<name><surname>Bedoret</surname><given-names>D.</given-names></name>
+<name><surname>Bu</surname><given-names>X.</given-names></name>
+<name><surname>Francisco</surname><given-names>L.M.</given-names></name>
+<name><surname>Hua</surname><given-names>P.</given-names></name>
+<name><surname>Duke-Cohan</surname><given-names>J.S.</given-names></name>
+<name><surname>Umetsu</surname><given-names>D.T.</given-names></name>
+<name><surname>Sharpe</surname><given-names>A.H.</given-names></name>
+<etal/>
+</person-group><article-title>RGMb Is a Novel Binding Partner for PD-L2 and Its Engagement with PD-L2 Promotes Respiratory Tolerance</article-title><source>J. Exp. Med.</source><year>2014</year><volume>211</volume><fpage>943</fpage><lpage>959</lpage><pub-id pub-id-type="doi">10.1084/jem.20130790</pub-id><pub-id pub-id-type="pmid">24752301</pub-id>
+</element-citation></ref><ref id="B38-biomolecules-15-01525"><label>38.</label><element-citation publication-type="journal"><person-group person-group-type="author">
+<name><surname>Wang</surname><given-names>Y.</given-names></name>
+<name><surname>Du</surname><given-names>J.</given-names></name>
+<name><surname>Gao</surname><given-names>Z.</given-names></name>
+<name><surname>Sun</surname><given-names>H.</given-names></name>
+<name><surname>Mei</surname><given-names>M.</given-names></name>
+<name><surname>Wang</surname><given-names>Y.</given-names></name>
+<name><surname>Ren</surname><given-names>Y.</given-names></name>
+<name><surname>Zhou</surname><given-names>X.</given-names></name>
+</person-group><article-title>Evolving Landscape of PD-L2: Bring New Light to Checkpoint Immunotherapy</article-title><source>Br. J. Cancer</source><year>2023</year><volume>128</volume><fpage>1196</fpage><lpage>1207</lpage><pub-id pub-id-type="doi">10.1038/s41416-022-02084-y</pub-id><?supplied-pmid 36522474?><pub-id pub-id-type="pmid">36522474</pub-id>
+</element-citation></ref><ref id="B39-biomolecules-15-01525"><label>39.</label><element-citation publication-type="journal"><person-group person-group-type="author">
+<name><surname>Kang</surname><given-names>Y.-B.</given-names></name>
+<name><surname>Cai</surname><given-names>Y.</given-names></name>
+</person-group><article-title>Faecal Microbiota Transplantation Enhances Efficacy of Immune Checkpoint Inhibitors Therapy against Cancer</article-title><source>World J. Gastroenterol.</source><year>2021</year><volume>27</volume><fpage>5362</fpage><lpage>5375</lpage><pub-id pub-id-type="doi">10.3748/wjg.v27.i32.5362</pub-id><pub-id pub-id-type="pmid">34539138</pub-id>
+</element-citation></ref><ref id="B40-biomolecules-15-01525"><label>40.</label><element-citation publication-type="journal"><person-group person-group-type="author">
+<name><surname>Davar</surname><given-names>D.</given-names></name>
+<name><surname>Dzutsev</surname><given-names>A.K.</given-names></name>
+<name><surname>McCulloch</surname><given-names>J.A.</given-names></name>
+<name><surname>Rodrigues</surname><given-names>R.R.</given-names></name>
+<name><surname>Chauvin</surname><given-names>J.-M.</given-names></name>
+<name><surname>Morrison</surname><given-names>R.M.</given-names></name>
+<name><surname>Deblasio</surname><given-names>R.N.</given-names></name>
+<name><surname>Menna</surname><given-names>C.</given-names></name>
+<name><surname>Ding</surname><given-names>Q.</given-names></name>
+<name><surname>Pagliano</surname><given-names>O.</given-names></name>
+<etal/>
+</person-group><article-title>Fecal Microbiota Transplant Overcomes Resistance to Anti-PD-1 Therapy in Melanoma Patients</article-title><source>Science</source><year>2021</year><volume>371</volume><fpage>595</fpage><lpage>602</lpage><pub-id pub-id-type="doi">10.1126/science.abf3363</pub-id><?supplied-pmid 33542131?><pub-id pub-id-type="pmid">33542131</pub-id>
+</element-citation></ref><ref id="B41-biomolecules-15-01525"><label>41.</label><element-citation publication-type="journal"><person-group person-group-type="author">
+<name><surname>Gopalakrishnan</surname><given-names>V.</given-names></name>
+<name><surname>Helmink</surname><given-names>B.A.</given-names></name>
+<name><surname>Spencer</surname><given-names>C.N.</given-names></name>
+<name><surname>Reuben</surname><given-names>A.</given-names></name>
+<name><surname>Wargo</surname><given-names>J.A.</given-names></name>
+</person-group><article-title>The Influence of the Gut Microbiome on Cancer, Immunity, and Cancer Immunotherapy</article-title><source>Cancer Cell</source><year>2018</year><volume>33</volume><fpage>570</fpage><lpage>580</lpage><pub-id pub-id-type="doi">10.1016/j.ccell.2018.03.015</pub-id><pub-id pub-id-type="pmid">29634945</pub-id>
+</element-citation></ref><ref id="B42-biomolecules-15-01525"><label>42.</label><element-citation publication-type="journal"><person-group person-group-type="author">
+<name><surname>Duttagupta</surname><given-names>S.</given-names></name>
+<name><surname>Messaoudene</surname><given-names>M.</given-names></name>
+<name><surname>Jamal</surname><given-names>R.</given-names></name>
+<name><surname>Mihalcioiu</surname><given-names>C.</given-names></name>
+<name><surname>Marcoux</surname><given-names>N.</given-names></name>
+<name><surname>Hunter</surname><given-names>S.</given-names></name>
+<name><surname>Piccinno</surname><given-names>G.</given-names></name>
+<name><surname>Puncoch&#x000e1;r</surname><given-names>M.</given-names></name>
+<name><surname>B&#x000e9;langer</surname><given-names>K.</given-names></name>
+<name><surname>Tehfe</surname><given-names>M.</given-names></name>
+<etal/>
+</person-group><article-title>Abstract 2210: Microbiome Profiling Reveals That Fecal Microbiota Transplantation (FMT) Modulates Response and Toxicity When Combined with Immunotherapy in Patients with Lung Cancer and Melanoma (FMT-LUMINate NCT04951583)</article-title><source>Cancer Res.</source><year>2025</year><volume>85</volume><fpage>2210</fpage><pub-id pub-id-type="doi">10.1158/1538-7445.AM2025-2210</pub-id></element-citation></ref><ref id="B43-biomolecules-15-01525"><label>43.</label><element-citation publication-type="journal"><person-group person-group-type="author">
+<name><surname>Wei</surname><given-names>Y.</given-names></name>
+<name><surname>Qin</surname><given-names>L.</given-names></name>
+<name><surname>Wu</surname><given-names>X.</given-names></name>
+<name><surname>Li</surname><given-names>D.</given-names></name>
+<name><surname>Qian</surname><given-names>D.</given-names></name>
+<name><surname>Jiang</surname><given-names>H.</given-names></name>
+<name><surname>Geng</surname><given-names>Q.</given-names></name>
+</person-group><article-title>Faecal Microbiota Transplantation Combined with Platinum-Based Doublet Chemotherapy and Tislelizumab as First-Line Treatment for Driver-Gene Negative Advanced Non-Small Cell Lung Cancer (NSCLC): Study Protocol for a Prospective, Multicentre, Single-Arm Exploratory Trial</article-title><source>BMJ Open</source><year>2025</year><volume>15</volume><fpage>e094366</fpage><pub-id pub-id-type="doi">10.1136/bmjopen-2024-094366</pub-id></element-citation></ref><ref id="B44-biomolecules-15-01525"><label>44.</label><element-citation publication-type="journal"><person-group person-group-type="author">
+<name><surname>Groenewegen</surname><given-names>B.</given-names></name>
+<name><surname>Terveer</surname><given-names>E.M.</given-names></name>
+<name><surname>Joosse</surname><given-names>A.</given-names></name>
+<name><surname>Barnhoorn</surname><given-names>M.C.</given-names></name>
+<name><surname>Zwittink</surname><given-names>R.D.</given-names></name>
+</person-group><article-title>Fecal Microbiota Transplantation for Immune Checkpoint Inhibitor-Induced Colitis Is Safe and Contributes to Recovery: Two Case Reports</article-title><source>J. Immunother.</source><year>2023</year><volume>46</volume><fpage>216</fpage><lpage>220</lpage><pub-id pub-id-type="doi">10.1097/CJI.0000000000000474</pub-id><pub-id pub-id-type="pmid">37216289</pub-id>
+</element-citation></ref><ref id="B45-biomolecules-15-01525"><label>45.</label><element-citation publication-type="journal"><person-group person-group-type="author">
+<name><surname>Sakai</surname><given-names>K.</given-names></name>
+<name><surname>Sakurai</surname><given-names>T.</given-names></name>
+<name><surname>De Velasco</surname><given-names>M.A.</given-names></name>
+<name><surname>Nagai</surname><given-names>T.</given-names></name>
+<name><surname>Chikugo</surname><given-names>T.</given-names></name>
+<name><surname>Ueshima</surname><given-names>K.</given-names></name>
+<name><surname>Kura</surname><given-names>Y.</given-names></name>
+<name><surname>Takahama</surname><given-names>T.</given-names></name>
+<name><surname>Hayashi</surname><given-names>H.</given-names></name>
+<name><surname>Nakagawa</surname><given-names>K.</given-names></name>
+<etal/>
+</person-group><article-title>Intestinal Microbiota and Gene Expression Reveal Similarity and Dissimilarity Between Immune-Mediated Colitis and Ulcerative Colitis</article-title><source>Front. Oncol.</source><year>2021</year><volume>11</volume><elocation-id>763468</elocation-id><pub-id pub-id-type="doi">10.3389/fonc.2021.763468</pub-id><pub-id pub-id-type="pmid">34778085</pub-id>
+</element-citation></ref><ref id="B46-biomolecules-15-01525"><label>46.</label><element-citation publication-type="journal"><person-group person-group-type="author">
+<name><surname>Andrews</surname><given-names>M.C.</given-names></name>
+<name><surname>Duong</surname><given-names>C.P.M.</given-names></name>
+<name><surname>Gopalakrishnan</surname><given-names>V.</given-names></name>
+<name><surname>Iebba</surname><given-names>V.</given-names></name>
+<name><surname>Chen</surname><given-names>W.-S.</given-names></name>
+<name><surname>Derosa</surname><given-names>L.</given-names></name>
+<name><surname>Khan</surname><given-names>M.A.W.</given-names></name>
+<name><surname>Cogdill</surname><given-names>A.P.</given-names></name>
+<name><surname>White</surname><given-names>M.G.</given-names></name>
+<name><surname>Wong</surname><given-names>M.C.</given-names></name>
+<etal/>
+</person-group><article-title>Gut Microbiota Signatures Are Associated with Toxicity to Combined CTLA-4 and PD-1 Blockade</article-title><source>Nat. Med.</source><year>2021</year><volume>27</volume><fpage>1432</fpage><lpage>1441</lpage><pub-id pub-id-type="doi">10.1038/s41591-021-01406-6</pub-id><?supplied-pmid 34239137?><pub-id pub-id-type="pmid">34239137</pub-id>
+</element-citation></ref><ref id="B47-biomolecules-15-01525"><label>47.</label><element-citation publication-type="journal"><person-group person-group-type="author">
+<name><surname>Cascone</surname><given-names>T.</given-names></name>
+<name><surname>William</surname><given-names>W.N.</given-names></name>
+<name><surname>Weissferdt</surname><given-names>A.</given-names></name>
+<name><surname>Leung</surname><given-names>C.H.</given-names></name>
+<name><surname>Lin</surname><given-names>H.Y.</given-names></name>
+<name><surname>Pataer</surname><given-names>A.</given-names></name>
+<name><surname>Godoy</surname><given-names>M.C.B.</given-names></name>
+<name><surname>Carter</surname><given-names>B.W.</given-names></name>
+<name><surname>Federico</surname><given-names>L.</given-names></name>
+<name><surname>Reuben</surname><given-names>A.</given-names></name>
+<etal/>
+</person-group><article-title>Neoadjuvant Nivolumab or Nivolumab plus Ipilimumab in Operable Non-Small Cell Lung Cancer: The Phase 2 Randomized NEOSTAR Trial</article-title><source>Nat. Med.</source><year>2021</year><volume>27</volume><fpage>504</fpage><lpage>514</lpage><pub-id pub-id-type="doi">10.1038/s41591-020-01224-2</pub-id><?supplied-pmid 33603241?><pub-id pub-id-type="pmid">33603241</pub-id>
+</element-citation></ref><ref id="B48-biomolecules-15-01525"><label>48.</label><element-citation publication-type="journal"><person-group person-group-type="author">
+<name><surname>Park</surname><given-names>S.-Y.</given-names></name>
+<name><surname>Seo</surname><given-names>G.S.</given-names></name>
+</person-group><article-title>Fecal Microbiota Transplantation: Is It Safe?</article-title><source>Clin. Endosc.</source><year>2021</year><volume>54</volume><fpage>157</fpage><lpage>160</lpage><pub-id pub-id-type="doi">10.5946/ce.2021.072</pub-id><?supplied-pmid 33827154?><pub-id pub-id-type="pmid">33827154</pub-id>
+</element-citation></ref><ref id="B49-biomolecules-15-01525"><label>49.</label><element-citation publication-type="journal"><person-group person-group-type="author">
+<name><surname>Williams</surname><given-names>N.T.</given-names></name>
+</person-group><article-title>Probiotics</article-title><source>Am. J. Health-Syst. Pharm.</source><year>2010</year><volume>67</volume><fpage>449</fpage><lpage>458</lpage><pub-id pub-id-type="doi">10.2146/ajhp090168</pub-id><pub-id pub-id-type="pmid">20208051</pub-id>
+</element-citation></ref><ref id="B50-biomolecules-15-01525"><label>50.</label><element-citation publication-type="journal"><person-group person-group-type="author">
+<name><surname>Zhao</surname><given-names>S.</given-names></name>
+<name><surname>Lu</surname><given-names>Z.</given-names></name>
+<name><surname>Zhao</surname><given-names>F.</given-names></name>
+<name><surname>Tang</surname><given-names>S.</given-names></name>
+<name><surname>Zhang</surname><given-names>L.</given-names></name>
+<name><surname>Feng</surname><given-names>C.</given-names></name>
+</person-group><article-title>Assessing the Impact of Probiotics on Immunotherapy Effectiveness and Antibiotic-Mediated Resistance in Cancer: A Systematic Review and Meta-Analysis</article-title><source>Front. Immunol.</source><year>2025</year><volume>16</volume><elocation-id>1538969</elocation-id><pub-id pub-id-type="doi">10.3389/fimmu.2025.1538969</pub-id><pub-id pub-id-type="pmid">40191197</pub-id>
+</element-citation></ref><ref id="B51-biomolecules-15-01525"><label>51.</label><element-citation publication-type="journal"><person-group person-group-type="author">
+<name><surname>Tomita</surname><given-names>Y.</given-names></name>
+<name><surname>Ikeda</surname><given-names>T.</given-names></name>
+<name><surname>Sakata</surname><given-names>S.</given-names></name>
+<name><surname>Saruwatari</surname><given-names>K.</given-names></name>
+<name><surname>Sato</surname><given-names>R.</given-names></name>
+<name><surname>Iyama</surname><given-names>S.</given-names></name>
+<name><surname>Jodai</surname><given-names>T.</given-names></name>
+<name><surname>Akaike</surname><given-names>K.</given-names></name>
+<name><surname>Ishizuka</surname><given-names>S.</given-names></name>
+<name><surname>Saeki</surname><given-names>S.</given-names></name>
+<etal/>
+</person-group><article-title>Association of Probiotic <italic toggle="yes">Clostridium butyricum</italic> Therapy with Survival and Response to Immune Checkpoint Blockade in Patients with Lung Cancer</article-title><source>Cancer Immunol. Res.</source><year>2020</year><volume>8</volume><fpage>1236</fpage><lpage>1242</lpage><pub-id pub-id-type="doi">10.1158/2326-6066.cir-20-0051</pub-id><pub-id pub-id-type="pmid">32665261</pub-id>
+</element-citation></ref><ref id="B52-biomolecules-15-01525"><label>52.</label><element-citation publication-type="journal"><person-group person-group-type="author">
+<name><surname>He</surname><given-names>Z.</given-names></name>
+<name><surname>Gharaibeh</surname><given-names>R.Z.</given-names></name>
+<name><surname>Newsome</surname><given-names>R.C.</given-names></name>
+<name><surname>Pope</surname><given-names>J.L.</given-names></name>
+<name><surname>Dougherty</surname><given-names>M.W.</given-names></name>
+<name><surname>Tomkovich</surname><given-names>S.</given-names></name>
+<name><surname>Pons</surname><given-names>B.</given-names></name>
+<name><surname>Mirey</surname><given-names>G.</given-names></name>
+<name><surname>Vignard</surname><given-names>J.</given-names></name>
+<name><surname>Hendrixson</surname><given-names>D.R.</given-names></name>
+<etal/>
+</person-group><article-title><italic toggle="yes">Campylobacter jejuni</italic> Promotes Colorectal Tumorigenesis through the Action of Cytolethal Distending Toxin</article-title><source>Gut</source><year>2019</year><volume>68</volume><fpage>289</fpage><lpage>300</lpage><pub-id pub-id-type="doi">10.1136/gutjnl-2018-317200</pub-id><pub-id pub-id-type="pmid">30377189</pub-id>
+</element-citation></ref><ref id="B53-biomolecules-15-01525"><label>53.</label><element-citation publication-type="journal"><person-group person-group-type="author">
+<name><surname>Lee</surname><given-names>K.A.</given-names></name>
+<name><surname>Shaw</surname><given-names>H.M.</given-names></name>
+<name><surname>Bataille</surname><given-names>V.</given-names></name>
+<name><surname>Nathan</surname><given-names>P.</given-names></name>
+<name><surname>Spector</surname><given-names>T.D.</given-names></name>
+</person-group><article-title>Role of the Gut Microbiome for Cancer Patients Receiving Immunotherapy: Dietary and Treatment Implications</article-title><source>Eur. J. Cancer</source><year>2020</year><volume>138</volume><fpage>149</fpage><lpage>155</lpage><pub-id pub-id-type="doi">10.1016/j.ejca.2020.07.026</pub-id><?supplied-pmid 32889369?><pub-id pub-id-type="pmid">32889369</pub-id>
+</element-citation></ref><ref id="B54-biomolecules-15-01525"><label>54.</label><element-citation publication-type="journal"><person-group person-group-type="author">
+<name><surname>Ahmad</surname><given-names>M.F.</given-names></name>
+<name><surname>Ahmad</surname><given-names>F.A.</given-names></name>
+<name><surname>Alsayegh</surname><given-names>A.A.</given-names></name>
+<name><surname>Zeyaullah</surname><given-names>M.</given-names></name>
+<name><surname>Babalghith</surname><given-names>A.O.</given-names></name>
+<name><surname>Faidah</surname><given-names>H.</given-names></name>
+<name><surname>Ahmed</surname><given-names>F.</given-names></name>
+<name><surname>Khanam</surname><given-names>A.</given-names></name>
+<name><surname>Mozaffar</surname><given-names>B.</given-names></name>
+<name><surname>Kambal</surname><given-names>N.</given-names></name>
+<etal/>
+</person-group><article-title>Probiotics and Cancer: Mechanistic Insights and Organ-Specific Impact</article-title><source>Biomolecules</source><year>2025</year><volume>15</volume><elocation-id>879</elocation-id><pub-id pub-id-type="doi">10.3390/biom15060879</pub-id><pub-id pub-id-type="pmid">40563519</pub-id>
+</element-citation></ref><ref id="B55-biomolecules-15-01525"><label>55.</label><element-citation publication-type="journal"><person-group person-group-type="author">
+<name><surname>Gustafson</surname><given-names>M.P.</given-names></name>
+<name><surname>Wheatley-Guy</surname><given-names>C.M.</given-names></name>
+<name><surname>Rosenthal</surname><given-names>A.C.</given-names></name>
+<name><surname>Gastineau</surname><given-names>D.A.</given-names></name>
+<name><surname>Katsanis</surname><given-names>E.</given-names></name>
+<name><surname>Johnson</surname><given-names>B.D.</given-names></name>
+<name><surname>Simpson</surname><given-names>R.J.</given-names></name>
+</person-group><article-title>Exercise and the Immune System: Taking Steps to Improve Responses to Cancer Immunotherapy</article-title><source>J. Immunother. Cancer</source><year>2021</year><volume>9</volume><fpage>e001872</fpage><pub-id pub-id-type="doi">10.1136/jitc-2020-001872</pub-id><pub-id pub-id-type="pmid">34215686</pub-id>
+</element-citation></ref><ref id="B56-biomolecules-15-01525"><label>56.</label><element-citation publication-type="journal"><person-group person-group-type="author">
+<name><surname>Murphy</surname><given-names>S.</given-names></name>
+<name><surname>Rahmy</surname><given-names>S.</given-names></name>
+<name><surname>Gan</surname><given-names>D.</given-names></name>
+<name><surname>Liu</surname><given-names>G.</given-names></name>
+<name><surname>Zhu</surname><given-names>Y.</given-names></name>
+<name><surname>Manyak</surname><given-names>M.</given-names></name>
+<name><surname>Duong</surname><given-names>L.</given-names></name>
+<name><surname>He</surname><given-names>J.</given-names></name>
+<name><surname>Schofield</surname><given-names>J.H.</given-names></name>
+<name><surname>Schafer</surname><given-names>Z.T.</given-names></name>
+<etal/>
+</person-group><article-title>Ketogenic Diet Alters the Epigenetic and Immune Landscape of Prostate Cancer to Overcome Resistance to Immune Checkpoint Blockade Therapy</article-title><source>Cancer Res.</source><year>2024</year><volume>84</volume><fpage>1597</fpage><lpage>1612</lpage><pub-id pub-id-type="doi">10.1158/0008-5472.CAN-23-2742</pub-id><pub-id pub-id-type="pmid">38588411</pub-id>
+</element-citation></ref><ref id="B57-biomolecules-15-01525"><label>57.</label><element-citation publication-type="journal"><person-group person-group-type="author">
+<name><surname>Batch</surname><given-names>J.T.</given-names></name>
+<name><surname>Lamsal</surname><given-names>S.P.</given-names></name>
+<name><surname>Adkins</surname><given-names>M.</given-names></name>
+<name><surname>Sultan</surname><given-names>S.</given-names></name>
+<name><surname>Ramirez</surname><given-names>M.N.</given-names></name>
+</person-group><article-title>Advantages and Disadvantages of the Ketogenic Diet: A Review Article</article-title><source>Cureus</source><year>2020</year><volume>12</volume><fpage>e9639</fpage><pub-id pub-id-type="doi">10.7759/cureus.9639</pub-id><?supplied-pmid 32923239?><pub-id pub-id-type="pmid">32923239</pub-id>
+</element-citation></ref><ref id="B58-biomolecules-15-01525"><label>58.</label><element-citation publication-type="journal"><person-group person-group-type="author">
+<name><surname>Bolte</surname><given-names>L.A.</given-names></name>
+<name><surname>Lee</surname><given-names>K.A.</given-names></name>
+<name><surname>Bj&#x000f6;rk</surname><given-names>J.R.</given-names></name>
+<name><surname>Leeming</surname><given-names>E.R.</given-names></name>
+<name><surname>Campmans-Kuijpers</surname><given-names>M.J.E.</given-names></name>
+<name><surname>De Haan</surname><given-names>J.J.</given-names></name>
+<name><surname>Vila</surname><given-names>A.V.</given-names></name>
+<name><surname>Maltez-Thomas</surname><given-names>A.</given-names></name>
+<name><surname>Segata</surname><given-names>N.</given-names></name>
+<name><surname>Board</surname><given-names>R.</given-names></name>
+<etal/>
+</person-group><article-title>Association of a Mediterranean Diet with Outcomes for Patients Treated with Immune Checkpoint Blockade for Advanced Melanoma</article-title><source>JAMA Oncol.</source><year>2023</year><volume>9</volume><fpage>705</fpage><pub-id pub-id-type="doi">10.1001/jamaoncol.2022.7753</pub-id><?supplied-pmid 36795408?><pub-id pub-id-type="pmid">36795408</pub-id>
+</element-citation></ref><ref id="B59-biomolecules-15-01525"><label>59.</label><element-citation publication-type="journal"><person-group person-group-type="author">
+<name><surname>Kennedy</surname><given-names>M.S.</given-names></name>
+<name><surname>Chang</surname><given-names>E.B.</given-names></name>
+</person-group><article-title>The Microbiome: Composition and Locations</article-title><source>Prog. Mol. Biol. Transl. Sci.</source><year>2020</year><volume>176</volume><fpage>1</fpage><lpage>42</lpage><pub-id pub-id-type="doi">10.1016/bs.pmbts.2020.08.013</pub-id><pub-id pub-id-type="pmid">33814111</pub-id>
+</element-citation></ref></ref-list></back><floats-group><fig position="float" id="biomolecules-15-01525-f001"><label>Figure 1</label><caption><p>Cyclic GMP-AMP synthase (cGAS) senses double-stranded DNA (dsDNA) created by microbial-derived cyclic dinucleotides in the cytosol of macrophages and dendritic cells and synthesizes cGAMP. cGAMP, acting as the second messenger, activates cGAS-stimulator of interferon genes (STING), which is located in the endoplasmic reticulum (ER). STING then translocates from the ER to the Golgi apparatus, where it recruits TANK-binding kinase 1 (TBK1). The key substrate is interferon regulatory factor 7 (IRF7), which is phosphorylated and enters the nucleus to trigger type I IFN production, ultimately modulating the immune responses and improving immune checkpoint blockade (ICB) efficacy. Created using the tools provided by BioRender.com (accessed on 21 October 2025).</p></caption><graphic xlink:href="biomolecules-15-01525-g001" position="float"/></fig><fig position="float" id="biomolecules-15-01525-f002"><label>Figure 2</label><caption><p>The microbiome intervenes in the immune checkpoint blockade (ICB), molding an immune tumor microenvironment (TME) that can enhance the antitumor effects of immunotherapy, while mitigating associated immune-related adverse events (irAEs). PD-1, programmed cell death protein 1; PD-L1, programmed cell death ligand 1; ICIs, immune checkpoint inhibitors; Microbiome, bacteria and various species of microorganisms [<xref rid="B59-biomolecules-15-01525" ref-type="bibr">59</xref>]. Created using the tools provided by BioRender.com (accessed on 21 October 2025).</p></caption><graphic xlink:href="biomolecules-15-01525-g002" position="float"/></fig></floats-group></article>

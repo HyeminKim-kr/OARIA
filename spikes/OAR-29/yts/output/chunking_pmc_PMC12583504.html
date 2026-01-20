@@ -1,0 +1,1023 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>OAR-29: 청킹 시각화 데모</title>
+    <style>
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+        }
+        body {
+            font-family: 'Pretendard', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            background: #f8fafc;
+            color: #1e293b;
+            line-height: 1.6;
+        }
+        .container {
+            max-width: 1400px;
+            margin: 0 auto;
+            padding: 2rem;
+        }
+        header {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            padding: 3rem 2rem;
+            margin-bottom: 2rem;
+            border-radius: 1rem;
+        }
+        header h1 {
+            font-size: 2rem;
+            margin-bottom: 0.5rem;
+        }
+        header p {
+            opacity: 0.9;
+        }
+        .step {
+            background: white;
+            border-radius: 1rem;
+            padding: 2rem;
+            margin-bottom: 2rem;
+            box-shadow: 0 4px 6px -1px rgba(0,0,0,0.1);
+        }
+        .step-header {
+            display: flex;
+            align-items: center;
+            gap: 1rem;
+            margin-bottom: 1.5rem;
+            padding-bottom: 1rem;
+            border-bottom: 2px solid #e2e8f0;
+        }
+        .step-number {
+            background: #667eea;
+            color: white;
+            width: 3rem;
+            height: 3rem;
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-weight: bold;
+            font-size: 1.25rem;
+        }
+        .step-title {
+            font-size: 1.5rem;
+            font-weight: 600;
+        }
+        .stats-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 1rem;
+            margin-bottom: 1.5rem;
+        }
+        .stat-card {
+            background: #f1f5f9;
+            padding: 1.25rem;
+            border-radius: 0.75rem;
+            text-align: center;
+        }
+        .stat-value {
+            font-size: 2rem;
+            font-weight: bold;
+            color: #667eea;
+        }
+        .stat-label {
+            color: #64748b;
+            font-size: 0.875rem;
+        }
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            margin-top: 1rem;
+        }
+        th, td {
+            padding: 0.75rem 1rem;
+            text-align: left;
+            border-bottom: 1px solid #e2e8f0;
+        }
+        th {
+            background: #f8fafc;
+            font-weight: 600;
+            color: #475569;
+        }
+        tr:hover {
+            background: #f8fafc;
+        }
+        .section-tag {
+            display: inline-block;
+            padding: 0.25rem 0.75rem;
+            border-radius: 9999px;
+            font-size: 0.75rem;
+            font-weight: 600;
+            text-transform: uppercase;
+        }
+        .chunk-preview {
+            font-family: 'JetBrains Mono', monospace;
+            font-size: 0.8rem;
+            background: #f1f5f9;
+            padding: 0.5rem;
+            border-radius: 0.5rem;
+            max-width: 400px;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            white-space: nowrap;
+        }
+        .fulltext-preview {
+            font-family: 'JetBrains Mono', monospace;
+            font-size: 0.8rem;
+            background: #1e293b;
+            color: #e2e8f0;
+            padding: 1.5rem;
+            border-radius: 0.75rem;
+            max-height: 400px;
+            overflow-y: auto;
+            white-space: pre-wrap;
+            word-break: break-word;
+        }
+        .highlight {
+            background: #fef08a;
+            padding: 0 2px;
+            border-radius: 2px;
+        }
+        .section-block {
+            margin-bottom: 1rem;
+            border-left: 4px solid;
+            padding-left: 1rem;
+        }
+        .valid {
+            color: #16a34a;
+        }
+        .invalid {
+            color: #dc2626;
+        }
+        .chunk-card {
+            background: #f8fafc;
+            border-radius: 0.75rem;
+            padding: 1rem;
+            margin-bottom: 1rem;
+            border-left: 4px solid #667eea;
+        }
+        .chunk-card-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 0.75rem;
+        }
+        .chunk-id {
+            font-weight: 600;
+            font-family: monospace;
+        }
+        .chunk-meta {
+            display: flex;
+            gap: 1rem;
+            font-size: 0.875rem;
+            color: #64748b;
+        }
+        .chunk-text {
+            font-size: 0.875rem;
+            color: #475569;
+            background: white;
+            padding: 1rem;
+            border-radius: 0.5rem;
+            max-height: 150px;
+            overflow-y: auto;
+        }
+        .tabs {
+            display: flex;
+            gap: 0.5rem;
+            margin-bottom: 1rem;
+        }
+        .tab {
+            padding: 0.5rem 1rem;
+            border: none;
+            background: #e2e8f0;
+            border-radius: 0.5rem;
+            cursor: pointer;
+            font-weight: 500;
+        }
+        .tab.active {
+            background: #667eea;
+            color: white;
+        }
+        .tab-content {
+            display: none;
+        }
+        .tab-content.active {
+            display: block;
+        }
+        .verification-badge {
+            display: inline-flex;
+            align-items: center;
+            gap: 0.25rem;
+            padding: 0.25rem 0.5rem;
+            border-radius: 0.25rem;
+            font-size: 0.75rem;
+            font-weight: 600;
+        }
+        .verification-badge.pass {
+            background: #dcfce7;
+            color: #16a34a;
+        }
+        .verification-badge.fail {
+            background: #fee2e2;
+            color: #dc2626;
+        }
+        .flow-diagram {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 1rem;
+            padding: 2rem;
+            background: #f8fafc;
+            border-radius: 0.75rem;
+            margin: 1rem 0;
+            flex-wrap: wrap;
+        }
+        .flow-box {
+            background: white;
+            padding: 1rem 1.5rem;
+            border-radius: 0.5rem;
+            text-align: center;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+            min-width: 120px;
+        }
+        .flow-arrow {
+            font-size: 1.5rem;
+            color: #667eea;
+        }
+        footer {
+            text-align: center;
+            padding: 2rem;
+            color: #64748b;
+            font-size: 0.875rem;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <header>
+            <h1>OAR-29: 텍스트 청킹 시각화 데모</h1>
+            <p>논문 전문을 RAG 검색에 최적화된 청크로 분할하는 과정</p>
+            <p style="margin-top: 0.5rem; font-size: 0.875rem; opacity: 0.8;">
+                생성 시각: 2025-12-30 06:33:35
+            </p>
+        </header>
+
+        <!-- Step 1: 원본 데이터 -->
+        <div class="step">
+            <div class="step-header">
+                <div class="step-number">1</div>
+                <div class="step-title">원본 Fulltext 로드</div>
+            </div>
+
+            <div class="stats-grid">
+                <div class="stat-card">
+                    <div class="stat-value">PMC12583504</div>
+                    <div class="stat-label">Paper ID</div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-value">53,394</div>
+                    <div class="stat-label">총 문자 수</div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-value">12,824</div>
+                    <div class="stat-label">총 토큰 수</div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-value">15</div>
+                    <div class="stat-label">섹션 수</div>
+                </div>
+            </div>
+
+            <h4 style="margin-bottom: 0.5rem;">논문 제목</h4>
+            <p style="color: #475569; margin-bottom: 1rem;">Oncogenic KRAS mutations drive immune suppression through immune-related regulatory network and metabolic reprogramming</p>
+
+            <h4 style="margin-bottom: 0.5rem;">Fulltext 미리보기 (처음 2000자)</h4>
+            <div class="fulltext-preview">[TITLE] Oncogenic KRAS mutations drive immune suppression through immune-related regulatory network and metabolic reprogramming
+
+[ABSTRACT]
+The KRAS mutation represents the most prevalent oncogenic alteration observed in human cancers. Its primary role involves directly driving malignant tumor development and growth through the activation of downstream signaling pathways. Increasing evidence suggests that KRAS significantly affects the immune response of KRAS-mutant tumors by modulating immune-related signaling and inflammatory pathways. In addition to broadly regulating the KRAS-associated immune signaling, KRAS influences immune cell phenotype and function by triggering tumor metabolic pathways. Here, we reviewed the KRAS mutation-associated immune microenvironment features and discussed how KRAS remodels the immune microenvironment by regulating immune-related molecules, inflammatory factors, and multiple metabolic pathways, offering insights that could be useful for developing effective immune-responsive therapies for KRAS-mutant tumors.
+
+[FACTS]
+Oncogenic KRAS directly induces immunosuppressive cell infiltration and attenuates immune cell function by inflammatory pathways and immune-related signaling.Oncogenic KRAS drives the crosstalk between metabolism and tumor immunosuppression to facilitate tumorigenesis.Innovative combination therapies that target immune-related molecules and tumor metabolism are emerging as promising strategies to overcome immunotherapy resistance in KRAS-driven tumors.
+
+[OPEN QUESTIONS]
+What are the defining characteristics of immune microenvironment in KRAS-driven tumors, and what are the primary mechanisms by which KRAS mutations remodel the immune cell function?What are the distinct metabolism features of KRAS-driven tumors, and what are the precise mechanisms by which the tumor metabolism drives immune escape in KRAS-driven tumors?How can novel therapeutic combinations be optimized to enhance the efficacy of immunotherapies or targe...</div>
+        </div>
+
+        <!-- Step 2: 섹션 분리 -->
+        <div class="step">
+            <div class="step-header">
+                <div class="step-number">2</div>
+                <div class="step-title">섹션 분리</div>
+            </div>
+
+            <div class="flow-diagram">
+                <div class="flow-box">
+                    <div style="font-size: 2rem;">📄</div>
+                    <div>Fulltext</div>
+                </div>
+                <div class="flow-arrow">→</div>
+                <div class="flow-box">
+                    <div style="font-size: 2rem;">✂️</div>
+                    <div>섹션 분리</div>
+                </div>
+                <div class="flow-arrow">→</div>
+                <div class="flow-box" style="border-top: 3px solid #e3f2fd"><div style="font-size: 1.5rem;">📑</div><div>abstract</div></div> <div class="flow-box" style="border-top: 3px solid #f5f5f5"><div style="font-size: 1.5rem;">📑</div><div>facts</div></div> <div class="flow-box" style="border-top: 3px solid #f5f5f5"><div style="font-size: 1.5rem;">📑</div><div>open questions</div></div> <div class="flow-box" style="border-top: 3px solid #f3e5f5"><div style="font-size: 1.5rem;">📑</div><div>introduction</div></div> <div class="flow-box" style="border-top: 3px solid #f5f5f5"><div style="font-size: 1.5rem;">📑</div><div>immunomodulatory effects of oncogenic kras</div></div>
+            </div>
+
+            <table>
+                <thead>
+                    <tr>
+                        <th>순서</th>
+                        <th>섹션</th>
+                        <th>길이 (문자)</th>
+                        <th>Offset 범위</th>
+                        <th>미리보기</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    
+                    <tr>
+                        <td>1</td>
+                        <td><span class="section-tag" style="background: #e3f2fd">abstract</span></td>
+                        <td>917자</td>
+                        <td><code>140 ~ 1,057</code></td>
+                        <td><div class="chunk-preview">The KRAS mutation represents the most prevalent oncogenic alteration observed in...</div></td>
+                    </tr>
+                    
+                    <tr>
+                        <td>2</td>
+                        <td><span class="section-tag" style="background: #f5f5f5">facts</span></td>
+                        <td>456자</td>
+                        <td><code>1,067 ~ 1,523</code></td>
+                        <td><div class="chunk-preview">Oncogenic KRAS directly induces immunosuppressive cell infiltration and attenuat...</div></td>
+                    </tr>
+                    
+                    <tr>
+                        <td>3</td>
+                        <td><span class="section-tag" style="background: #f5f5f5">open questions</span></td>
+                        <td>494자</td>
+                        <td><code>1,542 ~ 2,036</code></td>
+                        <td><div class="chunk-preview">What are the defining characteristics of immune microenvironment in KRAS-driven ...</div></td>
+                    </tr>
+                    
+                    <tr>
+                        <td>4</td>
+                        <td><span class="section-tag" style="background: #f3e5f5">introduction</span></td>
+                        <td>3,836자</td>
+                        <td><code>2,053 ~ 5,889</code></td>
+                        <td><div class="chunk-preview">Somatic mutations leading to activation of oncogenes or functional deficiency of...</div></td>
+                    </tr>
+                    
+                    <tr>
+                        <td>5</td>
+                        <td><span class="section-tag" style="background: #f5f5f5">immunomodulatory effects of oncogenic kras</span></td>
+                        <td>6,588자</td>
+                        <td><code>5,936 ~ 12,524</code></td>
+                        <td><div class="chunk-preview">KRAS-mutant TME exhibits significant immunosuppression, characterized by CD8+T c...</div></td>
+                    </tr>
+                    
+                    <tr>
+                        <td>6</td>
+                        <td><span class="section-tag" style="background: #f5f5f5">cancer-specific neoantigens of kras-mutant tumors</span></td>
+                        <td>2,064자</td>
+                        <td><code>12,578 ~ 14,642</code></td>
+                        <td><div class="chunk-preview">KRAS mutations can initiate multi-mechanism immune escape events involving T cel...</div></td>
+                    </tr>
+                    
+                    <tr>
+                        <td>7</td>
+                        <td><span class="section-tag" style="background: #f5f5f5">crosstalk between kras and t-cell based immunosuppressive molecules</span></td>
+                        <td>2,757자</td>
+                        <td><code>14,714 ~ 17,471</code></td>
+                        <td><div class="chunk-preview">Clinical observations have revealed that PD-L1 gene alterations in the context o...</div></td>
+                    </tr>
+                    
+                    <tr>
+                        <td>8</td>
+                        <td><span class="section-tag" style="background: #f5f5f5">modulation of the immune microenvironment by co-mutations with kras and different kras subtypes</span></td>
+                        <td>8,130자</td>
+                        <td><code>17,571 ~ 25,701</code></td>
+                        <td><div class="chunk-preview">KRAS-mutant tumors exhibit biological differences, heterogeneous characteristics...</div></td>
+                    </tr>
+                    
+                    <tr>
+                        <td>9</td>
+                        <td><span class="section-tag" style="background: #f5f5f5">inflammatory response in kras-mutant tumors</span></td>
+                        <td>4,129자</td>
+                        <td><code>25,749 ~ 29,878</code></td>
+                        <td><div class="chunk-preview">Oncogenic KRAS mutations are strongly associated with pro-tumoral inflammation. ...</div></td>
+                    </tr>
+                    
+                    <tr>
+                        <td>10</td>
+                        <td><span class="section-tag" style="background: #f5f5f5">metabolic programming and immune response in the kras-mutant tme</span></td>
+                        <td>589자</td>
+                        <td><code>29,947 ~ 30,536</code></td>
+                        <td><div class="chunk-preview">A growing number of studies have focused on the relationship between metabolic a...</div></td>
+                    </tr>
+                    
+                    <tr>
+                        <td>11</td>
+                        <td><span class="section-tag" style="background: #f5f5f5">lipid metabolism in the kras-mutant tme</span></td>
+                        <td>4,190자</td>
+                        <td><code>30,580 ~ 34,770</code></td>
+                        <td><div class="chunk-preview">Lipid metabolism reprogramming in cancer represents a cross-link between the tum...</div></td>
+                    </tr>
+                    
+                    <tr>
+                        <td>12</td>
+                        <td><span class="section-tag" style="background: #f5f5f5">glucose metabolism in the kras-mutant tme</span></td>
+                        <td>3,989자</td>
+                        <td><code>34,816 ~ 38,805</code></td>
+                        <td><div class="chunk-preview">Glucose metabolism has been established as the primary fuel for tumor proliferat...</div></td>
+                    </tr>
+                    
+                    <tr>
+                        <td>13</td>
+                        <td><span class="section-tag" style="background: #f5f5f5">amino acids metabolism in the kras-mutant tme</span></td>
+                        <td>4,135자</td>
+                        <td><code>38,855 ~ 42,990</code></td>
+                        <td><div class="chunk-preview">Amino acids and their derivatives serve as important metabolic substrates that s...</div></td>
+                    </tr>
+                    
+                    <tr>
+                        <td>14</td>
+                        <td><span class="section-tag" style="background: #f5f5f5">kras targeted therapy and immunomodulatory-related clinical studies</span></td>
+                        <td>8,355자</td>
+                        <td><code>43,062 ~ 51,417</code></td>
+                        <td><div class="chunk-preview">KRAS mutation has long been considered “undruggable” owing to its unique spatial...</div></td>
+                    </tr>
+                    
+                    <tr>
+                        <td>15</td>
+                        <td><span class="section-tag" style="background: #fce4ec">discussion</span></td>
+                        <td>1,948자</td>
+                        <td><code>51,444 ~ 53,392</code></td>
+                        <td><div class="chunk-preview">The KRAS-mutant tumors exhibit mutation-specific TMEs, primarily accounting for ...</div></td>
+                    </tr>
+                    
+                </tbody>
+            </table>
+        </div>
+
+        <!-- Step 3: 청킹 -->
+        <div class="step">
+            <div class="step-header">
+                <div class="step-number">3</div>
+                <div class="step-title">섹션별 Recursive Chunking</div>
+            </div>
+
+            <div class="stats-grid">
+                <div class="stat-card">
+                    <div class="stat-value">28</div>
+                    <div class="stat-label">총 청크 수</div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-value">449</div>
+                    <div class="stat-label">평균 토큰/청크</div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-value">700</div>
+                    <div class="stat-label">목표 토큰</div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-value">100</div>
+                    <div class="stat-label">오버랩 토큰</div>
+                </div>
+            </div>
+
+            <h4 style="margin: 1rem 0;">섹션별 청크 분포</h4>
+            <div style="display: flex; gap: 0.5rem; flex-wrap: wrap; margin-bottom: 1.5rem;">
+                <div style="background: #e3f2fd; padding: 0.5rem 1rem; border-radius: 0.5rem;"><span style="font-weight: 600;">abstract</span>: 1개</div><div style="background: #f5f5f5; padding: 0.5rem 1rem; border-radius: 0.5rem;"><span style="font-weight: 600;">facts</span>: 1개</div><div style="background: #f5f5f5; padding: 0.5rem 1rem; border-radius: 0.5rem;"><span style="font-weight: 600;">open questions</span>: 1개</div><div style="background: #f3e5f5; padding: 0.5rem 1rem; border-radius: 0.5rem;"><span style="font-weight: 600;">introduction</span>: 2개</div><div style="background: #f5f5f5; padding: 0.5rem 1rem; border-radius: 0.5rem;"><span style="font-weight: 600;">immunomodulatory effects of oncogenic kras</span>: 3개</div><div style="background: #f5f5f5; padding: 0.5rem 1rem; border-radius: 0.5rem;"><span style="font-weight: 600;">cancer-specific neoantigens of kras-mutant tumors</span>: 1개</div><div style="background: #f5f5f5; padding: 0.5rem 1rem; border-radius: 0.5rem;"><span style="font-weight: 600;">crosstalk between kras and t-cell based immunosuppressive molecules</span>: 1개</div><div style="background: #f5f5f5; padding: 0.5rem 1rem; border-radius: 0.5rem;"><span style="font-weight: 600;">modulation of the immune microenvironment by co-mutations with kras and different kras subtypes</span>: 4개</div><div style="background: #f5f5f5; padding: 0.5rem 1rem; border-radius: 0.5rem;"><span style="font-weight: 600;">inflammatory response in kras-mutant tumors</span>: 2개</div><div style="background: #f5f5f5; padding: 0.5rem 1rem; border-radius: 0.5rem;"><span style="font-weight: 600;">metabolic programming and immune response in the kras-mutant tme</span>: 1개</div><div style="background: #f5f5f5; padding: 0.5rem 1rem; border-radius: 0.5rem;"><span style="font-weight: 600;">lipid metabolism in the kras-mutant tme</span>: 2개</div><div style="background: #f5f5f5; padding: 0.5rem 1rem; border-radius: 0.5rem;"><span style="font-weight: 600;">glucose metabolism in the kras-mutant tme</span>: 2개</div><div style="background: #f5f5f5; padding: 0.5rem 1rem; border-radius: 0.5rem;"><span style="font-weight: 600;">amino acids metabolism in the kras-mutant tme</span>: 2개</div><div style="background: #f5f5f5; padding: 0.5rem 1rem; border-radius: 0.5rem;"><span style="font-weight: 600;">kras targeted therapy and immunomodulatory-related clinical studies</span>: 4개</div><div style="background: #fce4ec; padding: 0.5rem 1rem; border-radius: 0.5rem;"><span style="font-weight: 600;">discussion</span>: 1개</div>
+            </div>
+
+            <h4 style="margin: 1rem 0;">청크 상세</h4>
+            <div class="tabs">
+                <button class="tab active" onclick="showSection('abstract')">abstract (1)</button><button class="tab" onclick="showSection('facts')">facts (1)</button><button class="tab" onclick="showSection('open questions')">open questions (1)</button><button class="tab" onclick="showSection('introduction')">introduction (2)</button><button class="tab" onclick="showSection('immunomodulatory effects of oncogenic kras')">immunomodulatory effects of oncogenic kras (3)</button><button class="tab" onclick="showSection('cancer-specific neoantigens of kras-mutant tumors')">cancer-specific neoantigens of kras-mutant tumors (1)</button><button class="tab" onclick="showSection('crosstalk between kras and t-cell based immunosuppressive molecules')">crosstalk between kras and t-cell based immunosuppressive molecules (1)</button><button class="tab" onclick="showSection('modulation of the immune microenvironment by co-mutations with kras and different kras subtypes')">modulation of the immune microenvironment by co-mutations with kras and different kras subtypes (4)</button><button class="tab" onclick="showSection('inflammatory response in kras-mutant tumors')">inflammatory response in kras-mutant tumors (2)</button><button class="tab" onclick="showSection('metabolic programming and immune response in the kras-mutant tme')">metabolic programming and immune response in the kras-mutant tme (1)</button><button class="tab" onclick="showSection('lipid metabolism in the kras-mutant tme')">lipid metabolism in the kras-mutant tme (2)</button><button class="tab" onclick="showSection('glucose metabolism in the kras-mutant tme')">glucose metabolism in the kras-mutant tme (2)</button><button class="tab" onclick="showSection('amino acids metabolism in the kras-mutant tme')">amino acids metabolism in the kras-mutant tme (2)</button><button class="tab" onclick="showSection('kras targeted therapy and immunomodulatory-related clinical studies')">kras targeted therapy and immunomodulatory-related clinical studies (4)</button><button class="tab" onclick="showSection('discussion')">discussion (1)</button>
+            </div>
+
+            <div id="section-abstract" class="tab-content active">
+            <div class="chunk-card" style="border-left-color: #e3f299">
+                <div class="chunk-card-header">
+                    <span class="chunk-id">pmc:PMC12583504|abstract|0</span>
+                    <div class="chunk-meta">
+                        <span>🔢 147 토큰</span>
+                        <span>📍 140 ~ 1,057</span>
+                    </div>
+                </div>
+                <div class="chunk-text">The KRAS mutation represents the most prevalent oncogenic alteration observed in human cancers. Its primary role involves directly driving malignant tumor development and growth through the activation of downstream signaling pathways. Increasing evidence suggests that KRAS significantly affects the immune response of KRAS-mutant tumors by modulating immune-related signaling and inflammatory pathways. In addition to broadly regulating the KRAS-associated immune signaling, KRAS influences immune c...</div>
+            </div>
+            </div><div id="section-facts" class="tab-content">
+            <div class="chunk-card" style="border-left-color: #999999">
+                <div class="chunk-card-header">
+                    <span class="chunk-id">pmc:PMC12583504|facts|0</span>
+                    <div class="chunk-meta">
+                        <span>🔢 79 토큰</span>
+                        <span>📍 1,067 ~ 1,523</span>
+                    </div>
+                </div>
+                <div class="chunk-text">Oncogenic KRAS directly induces immunosuppressive cell infiltration and attenuates immune cell function by inflammatory pathways and immune-related signaling.Oncogenic KRAS drives the crosstalk between metabolism and tumor immunosuppression to facilitate tumorigenesis.Innovative combination therapies that target immune-related molecules and tumor metabolism are emerging as promising strategies to overcome immunotherapy resistance in KRAS-driven tumors.</div>
+            </div>
+            </div><div id="section-open questions" class="tab-content">
+            <div class="chunk-card" style="border-left-color: #999999">
+                <div class="chunk-card-header">
+                    <span class="chunk-id">pmc:PMC12583504|open questions|0</span>
+                    <div class="chunk-meta">
+                        <span>🔢 91 토큰</span>
+                        <span>📍 1,542 ~ 2,036</span>
+                    </div>
+                </div>
+                <div class="chunk-text">What are the defining characteristics of immune microenvironment in KRAS-driven tumors, and what are the primary mechanisms by which KRAS mutations remodel the immune cell function?What are the distinct metabolism features of KRAS-driven tumors, and what are the precise mechanisms by which the tumor metabolism drives immune escape in KRAS-driven tumors?How can novel therapeutic combinations be optimized to enhance the efficacy of immunotherapies or targeted therapies in KRAS-mutant tumors?</div>
+            </div>
+            </div><div id="section-introduction" class="tab-content">
+            <div class="chunk-card" style="border-left-color: #f3e599">
+                <div class="chunk-card-header">
+                    <span class="chunk-id">pmc:PMC12583504|introduction|0</span>
+                    <div class="chunk-meta">
+                        <span>🔢 693 토큰</span>
+                        <span>📍 2,053 ~ 5,460</span>
+                    </div>
+                </div>
+                <div class="chunk-text">Somatic mutations leading to activation of oncogenes or functional deficiency of tumor-suppressor gene are known to induce tumorigenesis. Hundreds of driver genes have been identified in cancers that cause abnormal and uncontrolled cell growth. Among these, RAS mutations represent the most frequent oncogenic alteration in human cancers [1]. The RAS gene family consists of Kirsten rat sarcoma (KRAS), Harvey rat sarcoma (HRAS), and Neuroblastoma RAS viral oncogene homolog (NRAS) genes. RAS is a me...</div>
+            </div>
+            
+            <div class="chunk-card" style="border-left-color: #f3e599">
+                <div class="chunk-card-header">
+                    <span class="chunk-id">pmc:PMC12583504|introduction|1</span>
+                    <div class="chunk-meta">
+                        <span>🔢 89 토큰</span>
+                        <span>📍 5,460 ~ 5,889</span>
+                    </div>
+                </div>
+                <div class="chunk-text">KRAS mutation increase glycolysis metabolism, oxidative phosphorylation, and hypoxia pathway activation, promoting tumor development and restricting CD8+PD-1-T infiltration, thereby suppressing the anti-tumor immune response [19]. Conversely, KRAS also increased glutamate levels and glutaminase expression. Glutamate abundance facilitates the activation of T cells in response to anti-programmed cell death protein 1(PD-1) [20].</div>
+            </div>
+            </div><div id="section-immunomodulatory effects of oncogenic kras" class="tab-content">
+            <div class="chunk-card" style="border-left-color: #999999">
+                <div class="chunk-card-header">
+                    <span class="chunk-id">pmc:PMC12583504|immunomodulatory effects of oncogenic kras|0</span>
+                    <div class="chunk-meta">
+                        <span>🔢 668 토큰</span>
+                        <span>📍 5,936 ~ 8,687</span>
+                    </div>
+                </div>
+                <div class="chunk-text">KRAS-mutant TME exhibits significant immunosuppression, characterized by CD8+T cell exhaustion, suppressive monocyte and macrophage subsets, and an increased abundance of Tregs [21]. These immunosuppressive cells reshape the TME and affect the fate of the tumor cells by prompting further mutations and accelerating immune evasion. Circulating monocytes and tumor-infiltrating macrophages play a key role in stabilizing immunosuppressive state of KRAS-mutant TME [22, 23], as illustrated in Fig. 1. K...</div>
+            </div>
+            
+            <div class="chunk-card" style="border-left-color: #999999">
+                <div class="chunk-card-header">
+                    <span class="chunk-id">pmc:PMC12583504|immunomodulatory effects of oncogenic kras|1</span>
+                    <div class="chunk-meta">
+                        <span>🔢 688 토큰</span>
+                        <span>📍 8,687 ~ 11,433</span>
+                    </div>
+                </div>
+                <div class="chunk-text">1Effects of KRAS on the phenotype and function of TAMs.Oncogenic KRAS facilitates the pro-tumor activity of TAMs by eliciting the production of various immunosuppressive molecules, inflammatory factors, chemokines, and signaling pathways. KRAS drives the expression and secretion of ICAM-1, CSF-2, and CXCL3 to recruit TAMs and regulate the immune function. KRAS accelerates immune evasion by regulating macrophage-associated immune checkpoint expression such as CD47 and CD155. Tregs also show signi...</div>
+            </div>
+            
+            <div class="chunk-card" style="border-left-color: #999999">
+                <div class="chunk-card-header">
+                    <span class="chunk-id">pmc:PMC12583504|immunomodulatory effects of oncogenic kras|2</span>
+                    <div class="chunk-meta">
+                        <span>🔢 292 토큰</span>
+                        <span>📍 11,433 ~ 12,524</span>
+                    </div>
+                </div>
+                <div class="chunk-text">PDAC cell lines generated from the KPC (KrasLSL-G12D/+; Trp53fl/fl; Ptf1aCre/+) mouse model showed high levels of transglutaminase 2 (TGM2) expression, which regulates vesicle trafficking by modulating microtubule network density and dynamics and promotes the secretion of immunosuppressive cytokines such as G-CSF and GM-CSF, thus impairing T cell activation [34]. In the KMF (KRAS, MYC, Focal adhesion kinase (FAK)) synthetic ovarian tumor model, FAK activation regulates the expression of CD155, a...</div>
+            </div>
+            </div><div id="section-cancer-specific neoantigens of kras-mutant tumors" class="tab-content">
+            <div class="chunk-card" style="border-left-color: #999999">
+                <div class="chunk-card-header">
+                    <span class="chunk-id">pmc:PMC12583504|cancer-specific neoantigens of kras-mutant tumors|0</span>
+                    <div class="chunk-meta">
+                        <span>🔢 478 토큰</span>
+                        <span>📍 12,578 ~ 14,642</span>
+                    </div>
+                </div>
+                <div class="chunk-text">KRAS mutations can initiate multi-mechanism immune escape events involving T cell-mediated immunotherapy. Cancer-specific neoantigens induced by somatic mutations are critical immune modulators. Neoantigens presented by class I or II human leukocyte antigens (HLA) can trigger antitumor responses of cytotoxic T cells via alpha-beta T cell receptors (αβTCR). Several KRAS mutation-specific peptides presented by HLA have been identified as targets in TCR-dependent immunotherapy [36, 37]. The peptide...</div>
+            </div>
+            </div><div id="section-crosstalk between kras and t-cell based immunosuppressive molecules" class="tab-content">
+            <div class="chunk-card" style="border-left-color: #999999">
+                <div class="chunk-card-header">
+                    <span class="chunk-id">pmc:PMC12583504|crosstalk between kras and t-cell based immunosuppressive molecules|0</span>
+                    <div class="chunk-meta">
+                        <span>🔢 699 토큰</span>
+                        <span>📍 14,714 ~ 17,471</span>
+                    </div>
+                </div>
+                <div class="chunk-text">Clinical observations have revealed that PD-L1 gene alterations in the context of KRAS mutations lead to in an inflammatory TME and tumor immunogenicity [43]. KRAS mutation-induced PD-L1 up-regulation triggers CD3+T cell apoptosis via the PD-1/PD-L1 axis [44]. Direct regulation of PD-L1 expression by KRAS has been reported to be dependent on the MEK-ERK pathway [45]. FOS-related antigen 1 (FRA1), a MEK/ERK-dependent oncogenic transcription factor, induced the expression of PD-L1 in the KRAS muta...</div>
+            </div>
+            </div><div id="section-modulation of the immune microenvironment by co-mutations with kras and different kras subtypes" class="tab-content">
+            <div class="chunk-card" style="border-left-color: #999999">
+                <div class="chunk-card-header">
+                    <span class="chunk-id">pmc:PMC12583504|modulation of the immune microenvironment by co-mutations with kras and different kras subtypes|0</span>
+                    <div class="chunk-meta">
+                        <span>🔢 693 토큰</span>
+                        <span>📍 17,571 ~ 20,542</span>
+                    </div>
+                </div>
+                <div class="chunk-text">KRAS-mutant tumors exhibit biological differences, heterogeneous characteristics of the immune microenvironment characteristics, and distinct responses to treatments, which may be associated with co-mutations in other genes (TP53, STK11/LKB1, MYC, KEAP1, and CDKN2A/CDKN2B) [55-58]. Among these, TP53 and LKB1 are two genes that are frequently co-mutated with KRAS. Tumors with KRAS/TP53 co-mutations highly express PD-L1 and induce cytotoxic T-cell infiltration [59, 60]. Conversely, an increasing b...</div>
+            </div>
+            
+            <div class="chunk-card" style="border-left-color: #999999">
+                <div class="chunk-card-header">
+                    <span class="chunk-id">pmc:PMC12583504|modulation of the immune microenvironment by co-mutations with kras and different kras subtypes|1</span>
+                    <div class="chunk-meta">
+                        <span>🔢 685 토큰</span>
+                        <span>📍 20,542 ~ 22,579</span>
+                    </div>
+                </div>
+                <div class="chunk-text">The Myc/Miz1 transcriptional repressor complex could suppress the expression of promoters of type I interferon regulators IRF5, IRF7, STAT1, and STAT2 and consequently inhibited the interferon-related B and NK cell-mediated immune surveillance [72].Table 1Modulation of the immune microenvironment by co-mutations with KRAS.GroupsKRAS/LKB1KRAS/TP53KRAS/MYCKRAS/LKB1/TP53 tri-mutationCharacteristicsMutation frequency8-31% [60, 61]31-46% [60, 61]rare11-19% [63, 64]Percentage of PD-L1-positive tumors1...</div>
+            </div>
+            
+            <div class="chunk-card" style="border-left-color: #999999">
+                <div class="chunk-card-header">
+                    <span class="chunk-id">pmc:PMC12583504|modulation of the immune microenvironment by co-mutations with kras and different kras subtypes|2</span>
+                    <div class="chunk-meta">
+                        <span>🔢 674 토큰</span>
+                        <span>📍 22,579 ~ 25,294</span>
+                    </div>
+                </div>
+                <div class="chunk-text">HLA-DR, CD28, ICOS, CD80 and CD86 downregulation [61]4. Presentation of antigen recognition and presentation [62, 67]ORR to ICI (NSCLC)≤10% [62]≥30% [62]__KRAS kirsten rat sarcoma viral oncogene, LKB1 liver kinase B1, TP53 tumor protein P53, PD-L1 programmed death-1, TIL tumor infiltrating lymphocyte, LAG3 lymphocyte activation gene 3, CTLA4 cytotoxic T-lymphocyte-associated antigen 4, FOLR2 folate receptor 2, LYVE1 recombinant lymphatic vessel endothelial hyaluronan receptor 1, PD-1 programmed ...</div>
+            </div>
+            
+            <div class="chunk-card" style="border-left-color: #999999">
+                <div class="chunk-card-header">
+                    <span class="chunk-id">pmc:PMC12583504|modulation of the immune microenvironment by co-mutations with kras and different kras subtypes|3</span>
+                    <div class="chunk-meta">
+                        <span>🔢 83 토큰</span>
+                        <span>📍 25,294 ~ 25,701</span>
+                    </div>
+                </div>
+                <div class="chunk-text">The G12A and G12V subtypes were more enriched in interferon-related responses, with G12V exhibiting greater abundance in inflammatory pathway and TNF-α signaling mediated by NF-κB [75]. In view of the variations in the characteristics of the immune microenvironment among different KRAS subtypes, KRAS subtypes could serve as potential biomarkers for predicting the efficacy of immune checkpoint inhibitors.</div>
+            </div>
+            </div><div id="section-inflammatory response in kras-mutant tumors" class="tab-content">
+            <div class="chunk-card" style="border-left-color: #999999">
+                <div class="chunk-card-header">
+                    <span class="chunk-id">pmc:PMC12583504|inflammatory response in kras-mutant tumors|0</span>
+                    <div class="chunk-meta">
+                        <span>🔢 688 토큰</span>
+                        <span>📍 25,749 ~ 28,721</span>
+                    </div>
+                </div>
+                <div class="chunk-text">Oncogenic KRAS mutations are strongly associated with pro-tumoral inflammation. As an anti-inflammatory modulator, KRAS can reshape the TME by secreting inflammatory cytokines and chemokines. The KRAS mutation induces the NF-κB pathway, promoting the transcription of several cytokines and chemokines [76, 77]. This aberrant signaling facilitates cytotoxic CD8+T cell exhaustion and monocyte differentiation and converts pro-inflammatory CD4+T cells to anti-inflammatory Tregs. Increased inflammatory...</div>
+            </div>
+            
+            <div class="chunk-card" style="border-left-color: #999999">
+                <div class="chunk-card-header">
+                    <span class="chunk-id">pmc:PMC12583504|inflammatory response in kras-mutant tumors|1</span>
+                    <div class="chunk-meta">
+                        <span>🔢 277 토큰</span>
+                        <span>📍 28,721 ~ 29,878</span>
+                    </div>
+                </div>
+                <div class="chunk-text">TANK-binding kinase 1 (TBK1) is essential for oncogenic KRAS-induced cell transformation and maintains the survival of KRAS-dependent cancer cells. IKK-related kinases TBK1 and IKKε promote the activation of CCL5 and IL-6. Autocrine CCL5 and IL-6 promote KRASG12V-dependent lung cancer transformation [86]. CCL5 secreted by mesenchymal stem cells has also been found to promote the invasion and metastasis of RAS-expressing breast cancer cells [87]. The KRASG12D mutation was found to be negatively c...</div>
+            </div>
+            </div><div id="section-metabolic programming and immune response in the kras-mutant tme" class="tab-content">
+            <div class="chunk-card" style="border-left-color: #999999">
+                <div class="chunk-card-header">
+                    <span class="chunk-id">pmc:PMC12583504|metabolic programming and immune response in the kras-mutant tme|0</span>
+                    <div class="chunk-meta">
+                        <span>🔢 111 토큰</span>
+                        <span>📍 29,947 ~ 30,536</span>
+                    </div>
+                </div>
+                <div class="chunk-text">A growing number of studies have focused on the relationship between metabolic alteration and tumor development or immune regulation in KRAS-mutant tumors [17, 89]. Oncogenic KRAS mutations actively participate in multiple metabolic processes, including lipometabolism, glycometabolism, amino acid metabolism, and nucleotide metabolism, to meet the high biosynthetic demands and accelerate tumor cell proliferation. Besides, the accumulation or consumption of specific metabolites in the TME drives m...</div>
+            </div>
+            </div><div id="section-lipid metabolism in the kras-mutant tme" class="tab-content">
+            <div class="chunk-card" style="border-left-color: #999999">
+                <div class="chunk-card-header">
+                    <span class="chunk-id">pmc:PMC12583504|lipid metabolism in the kras-mutant tme|0</span>
+                    <div class="chunk-meta">
+                        <span>🔢 693 토큰</span>
+                        <span>📍 30,580 ~ 33,772</span>
+                    </div>
+                </div>
+                <div class="chunk-text">Lipid metabolism reprogramming in cancer represents a cross-link between the tumor-oncogenic signaling pathways and the function of immune-associated cells within the TME. The TME is primarily characterized by hypoxia, acidity, and nutrient deficiencies, conditions that cause cancer and immune cells to preferentially uptake more lipids for energy storage, biofilm formation, and signaling molecule production. Due to the complex processes of lipid uptake and synthesis, coupled with tumor heterogen...</div>
+            </div>
+            
+            <div class="chunk-card" style="border-left-color: #999999">
+                <div class="chunk-card-header">
+                    <span class="chunk-id">pmc:PMC12583504|lipid metabolism in the kras-mutant tme|1</span>
+                    <div class="chunk-meta">
+                        <span>🔢 224 토큰</span>
+                        <span>📍 33,772 ~ 34,770</span>
+                    </div>
+                </div>
+                <div class="chunk-text">Cholesterol metabolism has also been found to drive regulatory B cell anti-inflammatory function by modulating IL-10 expression. The synthesis of the metabolic intermediate geranylgeranyl pyrophosphate (GGPP) represents a critical regulator of IL-10 production [98]. GGPP plays a key role in mediating cholesterol metabolism and inflammatory responses. In KRAS-mutant colorectal cancer (CRC), de novo cholesterol biosynthesis induced GGPP biosynthesis-dependent proliferation of APC/KRAS-mutant CRCs ...</div>
+            </div>
+            </div><div id="section-glucose metabolism in the kras-mutant tme" class="tab-content">
+            <div class="chunk-card" style="border-left-color: #999999">
+                <div class="chunk-card-header">
+                    <span class="chunk-id">pmc:PMC12583504|glucose metabolism in the kras-mutant tme|0</span>
+                    <div class="chunk-meta">
+                        <span>🔢 694 토큰</span>
+                        <span>📍 34,816 ~ 38,007</span>
+                    </div>
+                </div>
+                <div class="chunk-text">Glucose metabolism has been established as the primary fuel for tumor proliferation, including glycolysis, pentose phosphate pathway (PPP), and serine synthesis pathway in the cytoplasm, and the tricarboxylic acid (TCA) cycle in the mitochondria. Augmented aerobic glycolysis promotes cancer cell anabolism by increasing carbon intermediates for the biosynthesis of lipids, nucleotides, and amino acids [100]. Tumors consume glucose in the presence of oxygen to produce lactic acid. Proliferating mal...</div>
+            </div>
+            
+            <div class="chunk-card" style="border-left-color: #999999">
+                <div class="chunk-card-header">
+                    <span class="chunk-id">pmc:PMC12583504|glucose metabolism in the kras-mutant tme|1</span>
+                    <div class="chunk-meta">
+                        <span>🔢 187 토큰</span>
+                        <span>📍 38,007 ~ 38,805</span>
+                    </div>
+                </div>
+                <div class="chunk-text">KRAS-induced high calcium and integrin-binding protein 1 (CIB1) expression also alters the metabolic profile, leading to increased glycolysis metabolism, oxidative phosphorylation, and hypoxia pathway activation, which promotes tumor development (Fig. 5). CIB1 acts as a reprogrammed glucose metabolism mediator, restricting CD8+PD-1-T infiltration and suppressing the immune response in KRAS-mutant PDAC [19].Fig. 5KRAS affects the TME by modulating glucose metabolism.KRAS upregulates HK1/2 and LDH...</div>
+            </div>
+            </div><div id="section-amino acids metabolism in the kras-mutant tme" class="tab-content">
+            <div class="chunk-card" style="border-left-color: #999999">
+                <div class="chunk-card-header">
+                    <span class="chunk-id">pmc:PMC12583504|amino acids metabolism in the kras-mutant tme|0</span>
+                    <div class="chunk-meta">
+                        <span>🔢 617 토큰</span>
+                        <span>📍 38,855 ~ 41,595</span>
+                    </div>
+                </div>
+                <div class="chunk-text">Amino acids and their derivatives serve as important metabolic substrates that support KRAS-mutant cancer progression. In carcinoma cells, glutamine, an anaerobic metabolite, functions as a major amino acid that drives the TCA cycle to support the production of mitochondrial adenosine triphosphate. A coordinated metabolic network of glutamine transporters, glutaminases, transaminases, and redox homeostasis associated with glutamine metabolism is essential for cancer cell survival [108]. The repr...</div>
+            </div>
+            
+            <div class="chunk-card" style="border-left-color: #999999">
+                <div class="chunk-card-header">
+                    <span class="chunk-id">pmc:PMC12583504|amino acids metabolism in the kras-mutant tme|1</span>
+                    <div class="chunk-meta">
+                        <span>🔢 463 토큰</span>
+                        <span>📍 41,595 ~ 42,990</span>
+                    </div>
+                </div>
+                <div class="chunk-text">Glutamate abundance in LKB1-deficient TME promoted T cell activation in response to anti-PD-1.Table 2KRAS and metabolism in TME.Cancer typeTargetMetabolism typeImmune-related moleculesimmune cellsRefs.PDACUGCGGlycosphingolipidsIFNγ /IFNGR1NK and CD8 + T cells[93]Lung cancerFASNPhosphatidylcholines and triacylglycerides--[94]PDACPPARδLipid metabolismCCL2/CCR2Macrophages and MDSCs[97]CRCGGPPCholesterol metabolismIL-10B cell[98]PDACCIB1Glycolysis metabolismPD-1CD8 + T cells[19]PDACHK1/2 and LDHALac...</div>
+            </div>
+            </div><div id="section-kras targeted therapy and immunomodulatory-related clinical studies" class="tab-content">
+            <div class="chunk-card" style="border-left-color: #999999">
+                <div class="chunk-card-header">
+                    <span class="chunk-id">pmc:PMC12583504|kras targeted therapy and immunomodulatory-related clinical studies|0</span>
+                    <div class="chunk-meta">
+                        <span>🔢 668 토큰</span>
+                        <span>📍 43,062 ~ 45,959</span>
+                    </div>
+                </div>
+                <div class="chunk-text">KRAS mutation has long been considered “undruggable” owing to its unique spatial structural features. However, recent technological advancements have identified a “hidden pocket” of KRASG12C mutants in the KRAS structure that can be targeted. Consequently, the Lumakras (Sotorasib, AMG510) emerged as the first FDA-approved inhibitor for the treatment of patients with advanced NSCLC harboring the KRASG12C mutation [113]. Krazati (Adagrasib) was approved as the second inhibitor indicated for patien...</div>
+            </div>
+            
+            <div class="chunk-card" style="border-left-color: #999999">
+                <div class="chunk-card-header">
+                    <span class="chunk-id">pmc:PMC12583504|kras targeted therapy and immunomodulatory-related clinical studies|1</span>
+                    <div class="chunk-meta">
+                        <span>🔢 408 토큰</span>
+                        <span>📍 45,959 ~ 47,343</span>
+                    </div>
+                </div>
+                <div class="chunk-text">HRS-4642 treatment increased the proportion of CD45+, CD4+, and CD8+ leukocytes and the number of effector T cell populations (CD44+CD62L- CD4+ or CD8+ cells) [123]. Numerous clinical trials have evaluated the efficacy of KRAS inhibitors combined with anti-PD-1/L1 in the treatment of patients with advanced solid tumors (Clinical Trials.gov identifier: NCT04185883, NCT03785249). In this respect, the LOXO-RAS-20001 study found that Olomorasib (LY3537982) may serve as a second-generation KRASG12C i...</div>
+            </div>
+            
+            <div class="chunk-card" style="border-left-color: #999999">
+                <div class="chunk-card-header">
+                    <span class="chunk-id">pmc:PMC12583504|kras targeted therapy and immunomodulatory-related clinical studies|2</span>
+                    <div class="chunk-meta">
+                        <span>🔢 688 토큰</span>
+                        <span>📍 47,343 ~ 49,434</span>
+                    </div>
+                </div>
+                <div class="chunk-text">Further clinical studies are needed to validate these findings.Table 3Clinical trials evaluating the combination of KRAS inhibitors with immune checkpoint inhibitors.DrugCombinationCancer TypeStudy overviewClinical trialSotorasibPembrolizumab (PD-1)mCRC、NSCLCPhase 1: safety and tolerabilityCodeBreak101 (NCT04185883)Atezolizumab (PD-L1)Phase 2: ORR、DCR、DoRAdagrasibPembrolizumab (PD-1)NSCLCPhase 1: safety and tolerabilityKRYSTAL-1 (NCT03785249)Phase 2: ORR、DCR、DoRLY3537982Pembrolizumab (PD-1)NSCLC...</div>
+            </div>
+            
+            <div class="chunk-card" style="border-left-color: #999999">
+                <div class="chunk-card-header">
+                    <span class="chunk-id">pmc:PMC12583504|kras targeted therapy and immunomodulatory-related clinical studies|3</span>
+                    <div class="chunk-meta">
+                        <span>🔢 455 토큰</span>
+                        <span>📍 49,434 ~ 51,417</span>
+                    </div>
+                </div>
+                <div class="chunk-text">Moreover, the anti-IL-6 monoclonal antibody saltuximab showed marginal benefits when applied as monotherapy in KRAS-mutant solid tumors (NCT00841191) [129]. Neoantigens generated by mutations in tumor DNA are among the targets for developing tumor immunotherapy. A Phase Ib clinical trial found that neoantigen-vaccine NEO-PV-01 reshapes the TME of KRASG12C-mutated NSCLC, including activated T cell cytotoxicity, enhanced tetramer+ (neoantigen-specific) CD4+ T cell populations, high expression of M...</div>
+            </div>
+            </div><div id="section-discussion" class="tab-content">
+            <div class="chunk-card" style="border-left-color: #fce499">
+                <div class="chunk-card-header">
+                    <span class="chunk-id">pmc:PMC12583504|discussion|0</span>
+                    <div class="chunk-meta">
+                        <span>🔢 353 토큰</span>
+                        <span>📍 51,444 ~ 53,392</span>
+                    </div>
+                </div>
+                <div class="chunk-text">The KRAS-mutant tumors exhibit mutation-specific TMEs, primarily accounting for the heterogeneity of anti-tumor responses of immunotherapy in KRAS-mutant tumors. The present review expounded on the diverse immune-related molecules and inflammatory factors regulated by KRAS which irreversibly affect the TME and the direct effects of KRAS-downstream signaling on tumorigenesis. The reviewed data indicate that activating KRAS mutations exert diverse effects on immune cells by modulating immune-relat...</div>
+            </div>
+            </div>
+        </div>
+
+        <!-- Step 4: Offset 검증 -->
+        <div class="step">
+            <div class="step-header">
+                <div class="step-number">4</div>
+                <div class="step-title">Offset 검증 (근거 재현 테스트)</div>
+            </div>
+
+            <div class="stats-grid">
+                <div class="stat-card">
+                    <div class="stat-value" style="color: #16a34a">28/28</div>
+                    <div class="stat-label">검증 통과</div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-value">✅</div>
+                    <div class="stat-label">모든 offset 정확</div>
+                </div>
+            </div>
+
+            <p style="margin: 1rem 0; color: #64748b;">
+                각 청크의 <code>offset_start</code>와 <code>offset_end</code>로 원문에서 추출한 텍스트가
+                저장된 청크 텍스트와 일치하는지 검증합니다.
+            </p>
+
+            <div style="background: #f1f5f9; padding: 1rem; border-radius: 0.5rem; font-family: monospace; font-size: 0.875rem;">
+                <div style="color: #64748b; margin-bottom: 0.5rem;"># 검증 로직</div>
+                <div>extracted = fulltext[chunk.offset_start : chunk.offset_end]</div>
+                <div>assert extracted == chunk.text  <span style="color: #16a34a;"># ✅ 통과</span></div>
+            </div>
+
+            <h4 style="margin: 1.5rem 0 1rem;">검증 결과 샘플 (처음 10개)</h4>
+            <table>
+                <thead>
+                    <tr>
+                        <th>Chunk ID</th>
+                        <th>Offset</th>
+                        <th>결과</th>
+                        <th>저장된 텍스트</th>
+                        <th>추출된 텍스트</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    
+                    <tr>
+                        <td><code>pmc:PMC12583504|abstract|0</code></td>
+                        <td><code>140 ~ 1,057</code></td>
+                        <td><span class="verification-badge pass">✅ PASS</span></td>
+                        <td><div class="chunk-preview">The KRAS mutation represents the most prevalent on...</div></td>
+                        <td><div class="chunk-preview">The KRAS mutation represents the most prevalent on...</div></td>
+                    </tr>
+                    
+                    <tr>
+                        <td><code>pmc:PMC12583504|facts|0</code></td>
+                        <td><code>1,067 ~ 1,523</code></td>
+                        <td><span class="verification-badge pass">✅ PASS</span></td>
+                        <td><div class="chunk-preview">Oncogenic KRAS directly induces immunosuppressive ...</div></td>
+                        <td><div class="chunk-preview">Oncogenic KRAS directly induces immunosuppressive ...</div></td>
+                    </tr>
+                    
+                    <tr>
+                        <td><code>pmc:PMC12583504|open questions|0</code></td>
+                        <td><code>1,542 ~ 2,036</code></td>
+                        <td><span class="verification-badge pass">✅ PASS</span></td>
+                        <td><div class="chunk-preview">What are the defining characteristics of immune mi...</div></td>
+                        <td><div class="chunk-preview">What are the defining characteristics of immune mi...</div></td>
+                    </tr>
+                    
+                    <tr>
+                        <td><code>pmc:PMC12583504|introduction|0</code></td>
+                        <td><code>2,053 ~ 5,460</code></td>
+                        <td><span class="verification-badge pass">✅ PASS</span></td>
+                        <td><div class="chunk-preview">Somatic mutations leading to activation of oncogen...</div></td>
+                        <td><div class="chunk-preview">Somatic mutations leading to activation of oncogen...</div></td>
+                    </tr>
+                    
+                    <tr>
+                        <td><code>pmc:PMC12583504|introduction|1</code></td>
+                        <td><code>5,460 ~ 5,889</code></td>
+                        <td><span class="verification-badge pass">✅ PASS</span></td>
+                        <td><div class="chunk-preview">KRAS mutation increase glycolysis metabolism, oxid...</div></td>
+                        <td><div class="chunk-preview">KRAS mutation increase glycolysis metabolism, oxid...</div></td>
+                    </tr>
+                    
+                    <tr>
+                        <td><code>pmc:PMC12583504|immunomodulatory effects of oncogenic kras|0</code></td>
+                        <td><code>5,936 ~ 8,687</code></td>
+                        <td><span class="verification-badge pass">✅ PASS</span></td>
+                        <td><div class="chunk-preview">KRAS-mutant TME exhibits significant immunosuppres...</div></td>
+                        <td><div class="chunk-preview">KRAS-mutant TME exhibits significant immunosuppres...</div></td>
+                    </tr>
+                    
+                    <tr>
+                        <td><code>pmc:PMC12583504|immunomodulatory effects of oncogenic kras|1</code></td>
+                        <td><code>8,687 ~ 11,433</code></td>
+                        <td><span class="verification-badge pass">✅ PASS</span></td>
+                        <td><div class="chunk-preview">1Effects of KRAS on the phenotype and function of ...</div></td>
+                        <td><div class="chunk-preview">1Effects of KRAS on the phenotype and function of ...</div></td>
+                    </tr>
+                    
+                    <tr>
+                        <td><code>pmc:PMC12583504|immunomodulatory effects of oncogenic kras|2</code></td>
+                        <td><code>11,433 ~ 12,524</code></td>
+                        <td><span class="verification-badge pass">✅ PASS</span></td>
+                        <td><div class="chunk-preview">PDAC cell lines generated from the KPC (KrasLSL-G1...</div></td>
+                        <td><div class="chunk-preview">PDAC cell lines generated from the KPC (KrasLSL-G1...</div></td>
+                    </tr>
+                    
+                    <tr>
+                        <td><code>pmc:PMC12583504|cancer-specific neoantigens of kras-mutant tumors|0</code></td>
+                        <td><code>12,578 ~ 14,642</code></td>
+                        <td><span class="verification-badge pass">✅ PASS</span></td>
+                        <td><div class="chunk-preview">KRAS mutations can initiate multi-mechanism immune...</div></td>
+                        <td><div class="chunk-preview">KRAS mutations can initiate multi-mechanism immune...</div></td>
+                    </tr>
+                    
+                    <tr>
+                        <td><code>pmc:PMC12583504|crosstalk between kras and t-cell based immunosuppressive molecules|0</code></td>
+                        <td><code>14,714 ~ 17,471</code></td>
+                        <td><span class="verification-badge pass">✅ PASS</span></td>
+                        <td><div class="chunk-preview">Clinical observations have revealed that PD-L1 gen...</div></td>
+                        <td><div class="chunk-preview">Clinical observations have revealed that PD-L1 gen...</div></td>
+                    </tr>
+                    
+                </tbody>
+            </table>
+        </div>
+
+        <!-- Step 5: 최종 요약 -->
+        <div class="step">
+            <div class="step-header">
+                <div class="step-number">5</div>
+                <div class="step-title">최종 요약</div>
+            </div>
+
+            <div class="flow-diagram" style="background: linear-gradient(135deg, #667eea20 0%, #764ba220 100%);">
+                <div class="flow-box">
+                    <div style="font-size: 2rem;">📄</div>
+                    <div style="font-weight: 600;">53,394자</div>
+                    <div style="font-size: 0.75rem; color: #64748b;">원본 Fulltext</div>
+                </div>
+                <div class="flow-arrow">→</div>
+                <div class="flow-box">
+                    <div style="font-size: 2rem;">📑</div>
+                    <div style="font-weight: 600;">15개</div>
+                    <div style="font-size: 0.75rem; color: #64748b;">섹션</div>
+                </div>
+                <div class="flow-arrow">→</div>
+                <div class="flow-box">
+                    <div style="font-size: 2rem;">✂️</div>
+                    <div style="font-weight: 600;">28개</div>
+                    <div style="font-size: 0.75rem; color: #64748b;">청크</div>
+                </div>
+                <div class="flow-arrow">→</div>
+                <div class="flow-box" style="border: 2px solid #16a34a;">
+                    <div style="font-size: 2rem;">✅</div>
+                    <div style="font-weight: 600;">28/28</div>
+                    <div style="font-size: 0.75rem; color: #64748b;">Offset 검증</div>
+                </div>
+            </div>
+
+            <h4 style="margin: 1.5rem 0 1rem;">청킹 설정</h4>
+            <table>
+                <tbody>
+                    <tr><td><strong>청킹 전략</strong></td><td>Section + Recursive Character Text Splitter</td></tr>
+                    <tr><td><strong>목표 청크 크기</strong></td><td>700 토큰 (600-800 범위)</td></tr>
+                    <tr><td><strong>오버랩</strong></td><td>100 토큰 (~14%)</td></tr>
+                    <tr><td><strong>분할 우선순위</strong></td><td><code>["\n\n", "\n", ". ", " "]</code></td></tr>
+                    <tr><td><strong>Offset 기준</strong></td><td>char index (UTF-8 decoded str)</td></tr>
+                </tbody>
+            </table>
+
+            <h4 style="margin: 1.5rem 0 1rem;">다음 단계</h4>
+            <ul style="list-style: none; padding: 0;">
+                <li style="padding: 0.5rem 0; border-bottom: 1px solid #e2e8f0;">
+                    <span style="margin-right: 0.5rem;">1️⃣</span>
+                    임베딩 생성 (<code>[TITLE][SECTION][TEXT]</code> prefix 적용)
+                </li>
+                <li style="padding: 0.5rem 0; border-bottom: 1px solid #e2e8f0;">
+                    <span style="margin-right: 0.5rem;">2️⃣</span>
+                    Weaviate에 청크 + 벡터 저장
+                </li>
+                <li style="padding: 0.5rem 0; border-bottom: 1px solid #e2e8f0;">
+                    <span style="margin-right: 0.5rem;">3️⃣</span>
+                    검색 시 Parent 확장 (S3에서 ±500자)
+                </li>
+                <li style="padding: 0.5rem 0;">
+                    <span style="margin-right: 0.5rem;">4️⃣</span>
+                    LLM 답변 생성 + 근거 하이라이트
+                </li>
+            </ul>
+        </div>
+
+        <footer>
+            <p>OAR-29: 텍스트 Chunker 구현 | OAR-11 Evidence RAG 시스템</p>
+            <p>Generated by chunking demo script</p>
+        </footer>
+    </div>
+
+    <script>
+        function showSection(sectionName) {
+            // 모든 탭 비활성화
+            document.querySelectorAll('.tab').forEach(tab => tab.classList.remove('active'));
+            document.querySelectorAll('.tab-content').forEach(content => content.classList.remove('active'));
+
+            // 선택된 탭 활성화
+            event.target.classList.add('active');
+            document.getElementById('section-' + sectionName).classList.add('active');
+        }
+    </script>
+</body>
+</html>

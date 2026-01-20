@@ -1,0 +1,869 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>OAR-29: 청킹 시각화 데모</title>
+    <style>
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+        }
+        body {
+            font-family: 'Pretendard', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            background: #f8fafc;
+            color: #1e293b;
+            line-height: 1.6;
+        }
+        .container {
+            max-width: 1400px;
+            margin: 0 auto;
+            padding: 2rem;
+        }
+        header {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            padding: 3rem 2rem;
+            margin-bottom: 2rem;
+            border-radius: 1rem;
+        }
+        header h1 {
+            font-size: 2rem;
+            margin-bottom: 0.5rem;
+        }
+        header p {
+            opacity: 0.9;
+        }
+        .step {
+            background: white;
+            border-radius: 1rem;
+            padding: 2rem;
+            margin-bottom: 2rem;
+            box-shadow: 0 4px 6px -1px rgba(0,0,0,0.1);
+        }
+        .step-header {
+            display: flex;
+            align-items: center;
+            gap: 1rem;
+            margin-bottom: 1.5rem;
+            padding-bottom: 1rem;
+            border-bottom: 2px solid #e2e8f0;
+        }
+        .step-number {
+            background: #667eea;
+            color: white;
+            width: 3rem;
+            height: 3rem;
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-weight: bold;
+            font-size: 1.25rem;
+        }
+        .step-title {
+            font-size: 1.5rem;
+            font-weight: 600;
+        }
+        .stats-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 1rem;
+            margin-bottom: 1.5rem;
+        }
+        .stat-card {
+            background: #f1f5f9;
+            padding: 1.25rem;
+            border-radius: 0.75rem;
+            text-align: center;
+        }
+        .stat-value {
+            font-size: 2rem;
+            font-weight: bold;
+            color: #667eea;
+        }
+        .stat-label {
+            color: #64748b;
+            font-size: 0.875rem;
+        }
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            margin-top: 1rem;
+        }
+        th, td {
+            padding: 0.75rem 1rem;
+            text-align: left;
+            border-bottom: 1px solid #e2e8f0;
+        }
+        th {
+            background: #f8fafc;
+            font-weight: 600;
+            color: #475569;
+        }
+        tr:hover {
+            background: #f8fafc;
+        }
+        .section-tag {
+            display: inline-block;
+            padding: 0.25rem 0.75rem;
+            border-radius: 9999px;
+            font-size: 0.75rem;
+            font-weight: 600;
+            text-transform: uppercase;
+        }
+        .chunk-preview {
+            font-family: 'JetBrains Mono', monospace;
+            font-size: 0.8rem;
+            background: #f1f5f9;
+            padding: 0.5rem;
+            border-radius: 0.5rem;
+            max-width: 400px;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            white-space: nowrap;
+        }
+        .fulltext-preview {
+            font-family: 'JetBrains Mono', monospace;
+            font-size: 0.8rem;
+            background: #1e293b;
+            color: #e2e8f0;
+            padding: 1.5rem;
+            border-radius: 0.75rem;
+            max-height: 400px;
+            overflow-y: auto;
+            white-space: pre-wrap;
+            word-break: break-word;
+        }
+        .highlight {
+            background: #fef08a;
+            padding: 0 2px;
+            border-radius: 2px;
+        }
+        .section-block {
+            margin-bottom: 1rem;
+            border-left: 4px solid;
+            padding-left: 1rem;
+        }
+        .valid {
+            color: #16a34a;
+        }
+        .invalid {
+            color: #dc2626;
+        }
+        .chunk-card {
+            background: #f8fafc;
+            border-radius: 0.75rem;
+            padding: 1rem;
+            margin-bottom: 1rem;
+            border-left: 4px solid #667eea;
+        }
+        .chunk-card-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 0.75rem;
+        }
+        .chunk-id {
+            font-weight: 600;
+            font-family: monospace;
+        }
+        .chunk-meta {
+            display: flex;
+            gap: 1rem;
+            font-size: 0.875rem;
+            color: #64748b;
+        }
+        .chunk-text {
+            font-size: 0.875rem;
+            color: #475569;
+            background: white;
+            padding: 1rem;
+            border-radius: 0.5rem;
+            max-height: 150px;
+            overflow-y: auto;
+        }
+        .tabs {
+            display: flex;
+            gap: 0.5rem;
+            margin-bottom: 1rem;
+        }
+        .tab {
+            padding: 0.5rem 1rem;
+            border: none;
+            background: #e2e8f0;
+            border-radius: 0.5rem;
+            cursor: pointer;
+            font-weight: 500;
+        }
+        .tab.active {
+            background: #667eea;
+            color: white;
+        }
+        .tab-content {
+            display: none;
+        }
+        .tab-content.active {
+            display: block;
+        }
+        .verification-badge {
+            display: inline-flex;
+            align-items: center;
+            gap: 0.25rem;
+            padding: 0.25rem 0.5rem;
+            border-radius: 0.25rem;
+            font-size: 0.75rem;
+            font-weight: 600;
+        }
+        .verification-badge.pass {
+            background: #dcfce7;
+            color: #16a34a;
+        }
+        .verification-badge.fail {
+            background: #fee2e2;
+            color: #dc2626;
+        }
+        .flow-diagram {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 1rem;
+            padding: 2rem;
+            background: #f8fafc;
+            border-radius: 0.75rem;
+            margin: 1rem 0;
+            flex-wrap: wrap;
+        }
+        .flow-box {
+            background: white;
+            padding: 1rem 1.5rem;
+            border-radius: 0.5rem;
+            text-align: center;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+            min-width: 120px;
+        }
+        .flow-arrow {
+            font-size: 1.5rem;
+            color: #667eea;
+        }
+        footer {
+            text-align: center;
+            padding: 2rem;
+            color: #64748b;
+            font-size: 0.875rem;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <header>
+            <h1>OAR-29: 텍스트 청킹 시각화 데모</h1>
+            <p>논문 전문을 RAG 검색에 최적화된 청크로 분할하는 과정</p>
+            <p style="margin-top: 0.5rem; font-size: 0.875rem; opacity: 0.8;">
+                생성 시각: 2025-12-30 06:33:35
+            </p>
+        </header>
+
+        <!-- Step 1: 원본 데이터 -->
+        <div class="step">
+            <div class="step-header">
+                <div class="step-number">1</div>
+                <div class="step-title">원본 Fulltext 로드</div>
+            </div>
+
+            <div class="stats-grid">
+                <div class="stat-card">
+                    <div class="stat-value">PMC12625643</div>
+                    <div class="stat-label">Paper ID</div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-value">64,409</div>
+                    <div class="stat-label">총 문자 수</div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-value">14,241</div>
+                    <div class="stat-label">총 토큰 수</div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-value">3</div>
+                    <div class="stat-label">섹션 수</div>
+                </div>
+            </div>
+
+            <h4 style="margin-bottom: 0.5rem;">논문 제목</h4>
+            <p style="color: #475569; margin-bottom: 1rem;">Neutrophils in non-small cell lung cancer and immunotherapy with PD-1/PD-L1 inhibitors</p>
+
+            <h4 style="margin-bottom: 0.5rem;">Fulltext 미리보기 (처음 2000자)</h4>
+            <div class="fulltext-preview">[TITLE] Neutrophils in non-small cell lung cancer and immunotherapy with PD-1/PD-L1 inhibitors
+
+[ABSTRACT]
+Neutrophils, which represent about 50-70% of circulating leukocytes in humans, have been viewed as short-lived effector cells of the innate immune system with a primary role in the clearance of pathogens and taking part in inflammatory processes. More recent evidence shows that neutrophils make up a significant portion of the inflammatory cell infiltration in many types of cancer, including non-small cell lung cancer (NSCLC). These tumor-associated neutrophils (TANs) can be divided into protumorigenic and antitumorigenic phenotypes. The biological features and functions of these TANs are under the influence of the tumor microenvironment. TANs also play a role in determining the responsiveness of NSCLC to immunotherapies targeting the programmed cell death-1 (PD-1)/programmed death ligand 1 (PD-L1) axis. This review aimed to summarize recent findings regarding the role of TANs in NSCLC progression and PD-1/PD-L1 targeted immunotherapy.
+
+[INTRODUCTION]
+Neutrophils are the predominant circulating leukocyte population involving in microbial clearance at sites of infection and in wound healing [1]. The microenvironment of tumors often resembles that of chronic inflammation. Increased numbers of neutrophils have been observed in several tumors [2, 3]. Recent studies show that neutrophils dominate the immune cell composition in non-small cell lung cancer (NSCLC) [4]. Tumor microenvironments (TME) affect lifespan and the function of neutrophils [5]. Tumor-associated neutrophils (TANs) are polarized into anti-tumoral N1 and pro-tumoral N2 TANs subgroups [6]. N1 and N2 TANs are induced by IFN-β and TGF-β, respectively [7]. Although the binary N1/N2 classification is oversimplified the roles of TANs in tumor progression, the overall N1 signature is cytotoxic to tumor cells, whereas N2 neutrophils contribute to tumor growth [8]. The role of TANs in tumor progression is rel...</div>
+        </div>
+
+        <!-- Step 2: 섹션 분리 -->
+        <div class="step">
+            <div class="step-header">
+                <div class="step-number">2</div>
+                <div class="step-title">섹션 분리</div>
+            </div>
+
+            <div class="flow-diagram">
+                <div class="flow-box">
+                    <div style="font-size: 2rem;">📄</div>
+                    <div>Fulltext</div>
+                </div>
+                <div class="flow-arrow">→</div>
+                <div class="flow-box">
+                    <div style="font-size: 2rem;">✂️</div>
+                    <div>섹션 분리</div>
+                </div>
+                <div class="flow-arrow">→</div>
+                <div class="flow-box" style="border-top: 3px solid #e3f2fd"><div style="font-size: 1.5rem;">📑</div><div>abstract</div></div> <div class="flow-box" style="border-top: 3px solid #f3e5f5"><div style="font-size: 1.5rem;">📑</div><div>introduction</div></div> <div class="flow-box" style="border-top: 3px solid #fce4ec"><div style="font-size: 1.5rem;">📑</div><div>discussion</div></div>
+            </div>
+
+            <table>
+                <thead>
+                    <tr>
+                        <th>순서</th>
+                        <th>섹션</th>
+                        <th>길이 (문자)</th>
+                        <th>Offset 범위</th>
+                        <th>미리보기</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    
+                    <tr>
+                        <td>1</td>
+                        <td><span class="section-tag" style="background: #e3f2fd">abstract</span></td>
+                        <td>948자</td>
+                        <td><code>107 ~ 1,055</code></td>
+                        <td><div class="chunk-preview">Neutrophils, which represent about 50-70% of circulating leukocytes in humans, h...</div></td>
+                    </tr>
+                    
+                    <tr>
+                        <td>2</td>
+                        <td><span class="section-tag" style="background: #f3e5f5">introduction</span></td>
+                        <td>62,554자</td>
+                        <td><code>1,072 ~ 63,626</code></td>
+                        <td><div class="chunk-preview">Neutrophils are the predominant circulating leukocyte population involving in mi...</div></td>
+                    </tr>
+                    
+                    <tr>
+                        <td>3</td>
+                        <td><span class="section-tag" style="background: #fce4ec">discussion</span></td>
+                        <td>754자</td>
+                        <td><code>63,653 ~ 64,407</code></td>
+                        <td><div class="chunk-preview">The presence of neutrophils in the lung tumor microenvironment plays a crucial r...</div></td>
+                    </tr>
+                    
+                </tbody>
+            </table>
+        </div>
+
+        <!-- Step 3: 청킹 -->
+        <div class="step">
+            <div class="step-header">
+                <div class="step-number">3</div>
+                <div class="step-title">섹션별 Recursive Chunking</div>
+            </div>
+
+            <div class="stats-grid">
+                <div class="stat-card">
+                    <div class="stat-value">23</div>
+                    <div class="stat-label">총 청크 수</div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-value">618</div>
+                    <div class="stat-label">평균 토큰/청크</div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-value">700</div>
+                    <div class="stat-label">목표 토큰</div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-value">100</div>
+                    <div class="stat-label">오버랩 토큰</div>
+                </div>
+            </div>
+
+            <h4 style="margin: 1rem 0;">섹션별 청크 분포</h4>
+            <div style="display: flex; gap: 0.5rem; flex-wrap: wrap; margin-bottom: 1.5rem;">
+                <div style="background: #e3f2fd; padding: 0.5rem 1rem; border-radius: 0.5rem;"><span style="font-weight: 600;">abstract</span>: 1개</div><div style="background: #f3e5f5; padding: 0.5rem 1rem; border-radius: 0.5rem;"><span style="font-weight: 600;">introduction</span>: 21개</div><div style="background: #fce4ec; padding: 0.5rem 1rem; border-radius: 0.5rem;"><span style="font-weight: 600;">discussion</span>: 1개</div>
+            </div>
+
+            <h4 style="margin: 1rem 0;">청크 상세</h4>
+            <div class="tabs">
+                <button class="tab active" onclick="showSection('abstract')">abstract (1)</button><button class="tab" onclick="showSection('introduction')">introduction (21)</button><button class="tab" onclick="showSection('discussion')">discussion (1)</button>
+            </div>
+
+            <div id="section-abstract" class="tab-content active">
+            <div class="chunk-card" style="border-left-color: #e3f299">
+                <div class="chunk-card-header">
+                    <span class="chunk-id">pmc:PMC12625643|abstract|0</span>
+                    <div class="chunk-meta">
+                        <span>🔢 210 토큰</span>
+                        <span>📍 107 ~ 1,055</span>
+                    </div>
+                </div>
+                <div class="chunk-text">Neutrophils, which represent about 50-70% of circulating leukocytes in humans, have been viewed as short-lived effector cells of the innate immune system with a primary role in the clearance of pathogens and taking part in inflammatory processes. More recent evidence shows that neutrophils make up a significant portion of the inflammatory cell infiltration in many types of cancer, including non-small cell lung cancer (NSCLC). These tumor-associated neutrophils (TANs) can be divided into protumor...</div>
+            </div>
+            </div><div id="section-introduction" class="tab-content">
+            <div class="chunk-card" style="border-left-color: #f3e599">
+                <div class="chunk-card-header">
+                    <span class="chunk-id">pmc:PMC12625643|introduction|0</span>
+                    <div class="chunk-meta">
+                        <span>🔢 696 토큰</span>
+                        <span>📍 1,072 ~ 4,030</span>
+                    </div>
+                </div>
+                <div class="chunk-text">Neutrophils are the predominant circulating leukocyte population involving in microbial clearance at sites of infection and in wound healing [1]. The microenvironment of tumors often resembles that of chronic inflammation. Increased numbers of neutrophils have been observed in several tumors [2, 3]. Recent studies show that neutrophils dominate the immune cell composition in non-small cell lung cancer (NSCLC) [4]. Tumor microenvironments (TME) affect lifespan and the function of neutrophils [5]....</div>
+            </div>
+            
+            <div class="chunk-card" style="border-left-color: #f3e599">
+                <div class="chunk-card-header">
+                    <span class="chunk-id">pmc:PMC12625643|introduction|1</span>
+                    <div class="chunk-meta">
+                        <span>🔢 658 토큰</span>
+                        <span>📍 4,030 ~ 6,977</span>
+                    </div>
+                </div>
+                <div class="chunk-text">The granulocyte colony stimulating factor (G-CSF) is involved in regulating the differentiation process [24]. Bone marrow is also the site for clearance of aged circulating neutrophils [23]. Senescent neutrophils marked increased surface expression of CXCR4 and CCR5 and decreased expression of CXCR2 and CD62L. These phenotypic properties of senescent neutrophils ensure homing back to the bone marrow where aged neutrophils are destroyed by macrophages [23, 25]. The biological significance of aged...</div>
+            </div>
+            
+            <div class="chunk-card" style="border-left-color: #f3e599">
+                <div class="chunk-card-header">
+                    <span class="chunk-id">pmc:PMC12625643|introduction|2</span>
+                    <div class="chunk-meta">
+                        <span>🔢 667 토큰</span>
+                        <span>📍 6,977 ~ 9,467</span>
+                    </div>
+                </div>
+                <div class="chunk-text">MDSCs constitute a heterogeneous population of immature myeloid progenitor cells, which are broadly classified into two principal subsets: polymorphonuclear (PMN)-MDSCs and monocytic (M-MDSCs) groups [36]. The phenotype of PMN-MDSCs is described as CD11b+ CD14-CD15+ CD33+ CD66b+ HLA-DR-Lin-, but M-MDSCs is described as CD11b+CD14+CD15-CD33+CD66b+HLA-DR-/lowLin- [37, 38]. No specific marker exists to reliably distinguish immunosuppressive PMN-MDSCs from neutrophils, but PMN-MDSCs express several ...</div>
+            </div>
+            
+            <div class="chunk-card" style="border-left-color: #f3e599">
+                <div class="chunk-card-header">
+                    <span class="chunk-id">pmc:PMC12625643|introduction|3</span>
+                    <div class="chunk-meta">
+                        <span>🔢 691 토큰</span>
+                        <span>📍 9,467 ~ 12,679</span>
+                    </div>
+                </div>
+                <div class="chunk-text">The cytokine IL-35 has been demonstrated to promote N2 neutrophil polarization by upregulating the expression of G-CSF and IL-6, consequently enhancing neutrophil recruitment and infiltration into the tumor microenvironment [47]. Tumor-derived TGF-β is associated with the accumulation of N2-polarized neutrophils and facilitates tumor growth and progression. Indeed, TGF-β blockade resulted in the recruitment of neutrophils with enhanced cytotoxic activity, characterized by elevated expression of ...</div>
+            </div>
+            
+            <div class="chunk-card" style="border-left-color: #f3e599">
+                <div class="chunk-card-header">
+                    <span class="chunk-id">pmc:PMC12625643|introduction|4</span>
+                    <div class="chunk-meta">
+                        <span>🔢 672 토큰</span>
+                        <span>📍 12,679 ~ 15,490</span>
+                    </div>
+                </div>
+                <div class="chunk-text">In human NSCLC, neutrophils engage Annexin A2 (ANXA2) signals through the TLR2/MYD88 axis, which upregulates arginase 1 (ARG1) expression. This promotes immunosuppression by depleting amino acids and consequently impairing T-cell function and viability [53]. It is worth noting that ARG1 in human is stored in an inactive state within the granules of neutrophils and becomes activated upon release.IL-8 secreted by NSCLC tumor cells promotes the extracellular release of ARG1 from infiltrating neutro...</div>
+            </div>
+            
+            <div class="chunk-card" style="border-left-color: #f3e599">
+                <div class="chunk-card-header">
+                    <span class="chunk-id">pmc:PMC12625643|introduction|5</span>
+                    <div class="chunk-meta">
+                        <span>🔢 671 토큰</span>
+                        <span>📍 15,490 ~ 18,418</span>
+                    </div>
+                </div>
+                <div class="chunk-text">These NETs promoted LUAD progression by impairing CD8+ T cell cytotoxicity-specifically through the suppression of perforin, granzyme A, and granzyme B expression. This effect was mediated via YTHDF2-dependent degradation of SLC2A3 mRNA [59]. P2RX1-deficient neutrophils upregulated PD-L1 expression by inducing fatty acid metabolism, thereby suppressing T cell proliferation and granzyme B production while promoting T cell exhaustion-collectively contributing to immunosuppression in NSCLC [60]. Ne...</div>
+            </div>
+            
+            <div class="chunk-card" style="border-left-color: #f3e599">
+                <div class="chunk-card-header">
+                    <span class="chunk-id">pmc:PMC12625643|introduction|6</span>
+                    <div class="chunk-meta">
+                        <span>🔢 691 토큰</span>
+                        <span>📍 18,418 ~ 21,261</span>
+                    </div>
+                </div>
+                <div class="chunk-text">Neutrophils mediate B cell chemotaxis through the secretion of TNF-α, particularly following exposure to chemokines such as CXCL12 or CXCL13 [70]. Neutrophils secrete B-cell-activating factor via a G-CSF-dependent mechanism, thereby promoting the accelerated differentiation of plasma cells [71]. Neutrophils directly interacted with dendritic cells (DCs), enhancing TNF-α expression and promoting DCs activation [72]. Co-culture with human neutrophils promoted the upregulation of membrane CD86 and ...</div>
+            </div>
+            
+            <div class="chunk-card" style="border-left-color: #f3e599">
+                <div class="chunk-card-header">
+                    <span class="chunk-id">pmc:PMC12625643|introduction|7</span>
+                    <div class="chunk-meta">
+                        <span>🔢 667 토큰</span>
+                        <span>📍 21,261 ~ 24,361</span>
+                    </div>
+                </div>
+                <div class="chunk-text">Employing scRNA-seq, Salcher et al. constructed a detailed atlas that reveals the heterogeneous landscape and plasticity of TANs in NSCLC [83]. Their analysis revealed that TANs can be categorized into four distinct subsets based on their gene expression profiles. Among these, TAN-1 exhibits high expression of interleukin-1 receptor antagonist, a recognized marker of activated neutrophils that negatively regulates IL-8 secretion to restrain excessive neutrophilic inflammatory activity. The TAN-2...</div>
+            </div>
+            
+            <div class="chunk-card" style="border-left-color: #f3e599">
+                <div class="chunk-card-header">
+                    <span class="chunk-id">pmc:PMC12625643|introduction|8</span>
+                    <div class="chunk-meta">
+                        <span>🔢 699 토큰</span>
+                        <span>📍 24,361 ~ 27,391</span>
+                    </div>
+                </div>
+                <div class="chunk-text">Inactivating aberrations in STK11 have been identified as critical drivers of an immunosuppressive tumor microenvironment in NSCLC, characterized by diminished infiltration of CD3+, CD4+, and CD8+ tumor-infiltrating lymphocytes and an accumulation of TANs [91]. Transcriptomic and post-transcriptomic analyses revealed a marked reduction in a pronounced neutrophil degranulation signature [92]. Genetic loss of STK11 remodels the tumor cytokine milieu, inducing upregulated expression of proinflammat...</div>
+            </div>
+            
+            <div class="chunk-card" style="border-left-color: #f3e599">
+                <div class="chunk-card-header">
+                    <span class="chunk-id">pmc:PMC12625643|introduction|9</span>
+                    <div class="chunk-meta">
+                        <span>🔢 672 토큰</span>
+                        <span>📍 27,391 ~ 30,375</span>
+                    </div>
+                </div>
+                <div class="chunk-text">The APC-like hybrid TANs can take up, degrade, and process tumor antigens via high-affinity IgG receptors FcγRI and FcγRII [100, 101]. The early-stage lung tumor microenvironment may promote the differentiation of APC-like hybrid TANs and enhance anti-tumor effects by activating T-cell mediated antitumor responses. Interestingly, neutrophils infiltration in late-stage tumors (5-7 cm in diameter) only display the canonical phenotype of TANs [99]. Neutrophil-mediated anti-tumor mechanisms during t...</div>
+            </div>
+            
+            <div class="chunk-card" style="border-left-color: #f3e599">
+                <div class="chunk-card-header">
+                    <span class="chunk-id">pmc:PMC12625643|introduction|10</span>
+                    <div class="chunk-meta">
+                        <span>🔢 679 토큰</span>
+                        <span>📍 30,375 ~ 33,532</span>
+                    </div>
+                </div>
+                <div class="chunk-text">Snail is a vital epithelial-to-mesenchymal transition (EMT) transcription factor and facilitates cancer progression on several immune cell populations [113]. Interestingly, increased Snail expression in lung tumor cells enhances the recruitment of neutrophils into tumors. Snail-expressing tumor cells increase the secretion of CXCL2 which is the ligand of CXCR2, promoting the recruitment of neutrophils [112]. This positive feedback loop of neutrophil recruitment and Snail expression accelerate lu...</div>
+            </div>
+            
+            <div class="chunk-card" style="border-left-color: #f3e599">
+                <div class="chunk-card-header">
+                    <span class="chunk-id">pmc:PMC12625643|introduction|11</span>
+                    <div class="chunk-meta">
+                        <span>🔢 682 토큰</span>
+                        <span>📍 33,532 ~ 36,530</span>
+                    </div>
+                </div>
+                <div class="chunk-text">Human neutrophil elastase, a well-established mediator in chronic obstructive pulmonary disease, has recently been implicated in the progression of NSCLC. TANs contribute to tumor angiogenesis through the secretion of pro-angiogenic factors such as VEGF and IL-8, as well as proteases including matrix metalloproteinases (MMPs) and elastases [30, 129, 130]. In the extracellular space, NE generates elastin fragments-termed morphoelastokines-that potently promote cancer cell invasiveness and angioge...</div>
+            </div>
+            
+            <div class="chunk-card" style="border-left-color: #f3e599">
+                <div class="chunk-card-header">
+                    <span class="chunk-id">pmc:PMC12625643|introduction|12</span>
+                    <div class="chunk-meta">
+                        <span>🔢 679 토큰</span>
+                        <span>📍 36,530 ~ 39,642</span>
+                    </div>
+                </div>
+                <div class="chunk-text">Several epidemiological studies have shown that a polymorphism (-463G → A transition) in the promoter region of the MPO gene decreases the risk of developing lung cancer [138, 139]. A large amount of HOCl formation is linked to the induction of DNA damage and inhibits the activity of DNA damage repair and that may cause mutagenesis and carcinogenesis [140, 141]. Neutrophils infiltrated in tumors express increased level of MPO and have been demonstrated to inhibit the function of CD4+ and CD8+ T ...</div>
+            </div>
+            
+            <div class="chunk-card" style="border-left-color: #f3e599">
+                <div class="chunk-card-header">
+                    <span class="chunk-id">pmc:PMC12625643|introduction|13</span>
+                    <div class="chunk-meta">
+                        <span>🔢 618 토큰</span>
+                        <span>📍 39,642 ~ 42,694</span>
+                    </div>
+                </div>
+                <div class="chunk-text">Their results demonstrate that daily intraperitoneal injection of ONO-5046xNa suppresses NSCLC growth. NETs suppressed T-cell function and facilitated the establishment of an immunosuppressive microenvironment within the lung premetastatic niche. DNase I not only suppresses the formation and function of NETs, but its combination with αPD-L1 also restored T-cell function and abrogated tumor metastasis in lung [136]. CXCR2 inhibitors, including SX-682(NCT03161431), represent an emerging therapeuti...</div>
+            </div>
+            
+            <div class="chunk-card" style="border-left-color: #f3e599">
+                <div class="chunk-card-header">
+                    <span class="chunk-id">pmc:PMC12625643|introduction|14</span>
+                    <div class="chunk-meta">
+                        <span>🔢 699 토큰</span>
+                        <span>📍 42,694 ~ 45,804</span>
+                    </div>
+                </div>
+                <div class="chunk-text">Thus, NLR should only be considered as a supplementary reference in clinical decision-making and not be used as a standalone indicator.Defensins promote various host immune responses against microorganisms by having chemotactic activity for host immune cells including dendritic antigen-presenting cells and T lymphocytes, by inducing the production of cytokines such as interleukin-8 by epithelial cells, by degranulating mast cells, and by enhancing in vivo immunological reactions [160]. Berghmans...</div>
+            </div>
+            
+            <div class="chunk-card" style="border-left-color: #f3e599">
+                <div class="chunk-card-header">
+                    <span class="chunk-id">pmc:PMC12625643|introduction|15</span>
+                    <div class="chunk-meta">
+                        <span>🔢 696 토큰</span>
+                        <span>📍 45,804 ~ 49,178</span>
+                    </div>
+                </div>
+                <div class="chunk-text">IL-6 synergizes with G-CSF to modulate neutrophil development and function, resulting in the reprogramming of signaling pathway responsiveness-most notably enhancing STAT3 activation [169]. Enhanced STAT3 activation in TANs leads to significantly reduced secretion of myeloperoxidase, neutrophil elastase, and TRAIL, while concurrently inducing markedly elevated expression of MMP9 and Bv8 genes, which favors tumor angiogenesis and growth. Patel et al. reported that IL-6 upregulation was a key medi...</div>
+            </div>
+            
+            <div class="chunk-card" style="border-left-color: #f3e599">
+                <div class="chunk-card-header">
+                    <span class="chunk-id">pmc:PMC12625643|introduction|16</span>
+                    <div class="chunk-meta">
+                        <span>🔢 607 토큰</span>
+                        <span>📍 49,178 ~ 52,001</span>
+                    </div>
+                </div>
+                <div class="chunk-text">IL17A recruits and activates neutrophils in the tumor immune microenvironment by inducing the production of IL-6 in their research. They thought IL-17A and recruited neutrophils cause lung cancer inflammation and shape the lung cancer immune microenvironment where T cells function are suppressed, leading to the resistance to PD-1 immune checkpoint blockade. As previously described, tumor-derived TGF-β promotes the accumulation of N2-polarized neutrophils and contributes to tumor growth and malig...</div>
+            </div>
+            
+            <div class="chunk-card" style="border-left-color: #f3e599">
+                <div class="chunk-card-header">
+                    <span class="chunk-id">pmc:PMC12625643|introduction|17</span>
+                    <div class="chunk-meta">
+                        <span>🔢 671 토큰</span>
+                        <span>📍 52,001 ~ 54,892</span>
+                    </div>
+                </div>
+                <div class="chunk-text">The addition of an anti-Ly6G blocking antibody to anti-PD-1/CTLA-4 therapy effectively reversed treatment resistance and restored CD8⁺T cell activity in lung cancer models, by targeting Ly6G on neutrophils [186].Recent study using a murine patient-derived xenograft (PDX) model of early-stage NSCLC has investigated the tumor cells and immune non-lymphoid cells in responses to PD-1 inhibitor treatment [187]. In this study, the authors utilized NOD-SCID gamma mice which are characterized by lack of...</div>
+            </div>
+            
+            <div class="chunk-card" style="border-left-color: #f3e599">
+                <div class="chunk-card-header">
+                    <span class="chunk-id">pmc:PMC12625643|introduction|18</span>
+                    <div class="chunk-meta">
+                        <span>🔢 684 토큰</span>
+                        <span>📍 54,892 ~ 58,340</span>
+                    </div>
+                </div>
+                <div class="chunk-text">Their results indicated neutrophil depletion via anti-Ly6G or anti-Gr1 antibody normalized blood vessel and regulated immune reprograming through pericytes and endothelial cells, which reverted immune exclusion and PD1 treatment resistant [112, 194, 195]. We summarize the roles of neutrophil-mediated immunotherapy regulation in NSCLC in Fig. 3. Due to the controversial role of neutrophil, more researches are needed to elaborate the relationship between neutrophils and anti-PD-1 immunotherapy cle...</div>
+            </div>
+            
+            <div class="chunk-card" style="border-left-color: #f3e599">
+                <div class="chunk-card-header">
+                    <span class="chunk-id">pmc:PMC12625643|introduction|19</span>
+                    <div class="chunk-meta">
+                        <span>🔢 667 토큰</span>
+                        <span>📍 58,340 ~ 61,541</span>
+                    </div>
+                </div>
+                <div class="chunk-text">As previously mentioned, tumor-infiltrating neutrophils can be categorized into anti-tumor N1 and pro-tumor N2 subtypes. N1 neutrophils are characterized by high expression of TNF-α, CCL3, and ICAM-1, but low expression of Arginase-1 [44]. Therefore, detecting the expression of these molecules in tumor-associated neutrophils can reflect whether the immune microenvironment is immunosuppressed, which in turn may predict responses to immunotherapy. In the lung cancer microenvironment, IL-18 can ind...</div>
+            </div>
+            
+            <div class="chunk-card" style="border-left-color: #f3e599">
+                <div class="chunk-card-header">
+                    <span class="chunk-id">pmc:PMC12625643|introduction|20</span>
+                    <div class="chunk-meta">
+                        <span>🔢 396 토큰</span>
+                        <span>📍 61,541 ~ 63,626</span>
+                    </div>
+                </div>
+                <div class="chunk-text">Therefore, methodological rigor is essential-careful attention must be paid to sample processing time, storage conditions, and the selection of appropriate detection techniques such as immunohistochemistry and flow cytometry, depending on the research objectives.In the context of neutrophil-targeted therapeutic strategies for lung cancer, several inhibitors have been developed, including the CXCR2 inhibitor SX-682, neutrophil elastase inhibitors such as Sivelestat, GW311616A, and AZD9668, as wel...</div>
+            </div>
+            </div><div id="section-discussion" class="tab-content">
+            <div class="chunk-card" style="border-left-color: #fce499">
+                <div class="chunk-card-header">
+                    <span class="chunk-id">pmc:PMC12625643|discussion|0</span>
+                    <div class="chunk-meta">
+                        <span>🔢 147 토큰</span>
+                        <span>📍 63,653 ~ 64,407</span>
+                    </div>
+                </div>
+                <div class="chunk-text">The presence of neutrophils in the lung tumor microenvironment plays a crucial role in determining the outcome of the host anti-tumor response as well as tumors responding to PD-1 based immunotherapies. TANs are heterogeneous and exert diverse functions at different stages of lung cancer. A more precise classification of TANs to identify their concrete functions is necessary. When and how the antitumor status of the neutrophils will change are still unknown. A simple neutrophil count may not pre...</div>
+            </div>
+            </div>
+        </div>
+
+        <!-- Step 4: Offset 검증 -->
+        <div class="step">
+            <div class="step-header">
+                <div class="step-number">4</div>
+                <div class="step-title">Offset 검증 (근거 재현 테스트)</div>
+            </div>
+
+            <div class="stats-grid">
+                <div class="stat-card">
+                    <div class="stat-value" style="color: #16a34a">23/23</div>
+                    <div class="stat-label">검증 통과</div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-value">✅</div>
+                    <div class="stat-label">모든 offset 정확</div>
+                </div>
+            </div>
+
+            <p style="margin: 1rem 0; color: #64748b;">
+                각 청크의 <code>offset_start</code>와 <code>offset_end</code>로 원문에서 추출한 텍스트가
+                저장된 청크 텍스트와 일치하는지 검증합니다.
+            </p>
+
+            <div style="background: #f1f5f9; padding: 1rem; border-radius: 0.5rem; font-family: monospace; font-size: 0.875rem;">
+                <div style="color: #64748b; margin-bottom: 0.5rem;"># 검증 로직</div>
+                <div>extracted = fulltext[chunk.offset_start : chunk.offset_end]</div>
+                <div>assert extracted == chunk.text  <span style="color: #16a34a;"># ✅ 통과</span></div>
+            </div>
+
+            <h4 style="margin: 1.5rem 0 1rem;">검증 결과 샘플 (처음 10개)</h4>
+            <table>
+                <thead>
+                    <tr>
+                        <th>Chunk ID</th>
+                        <th>Offset</th>
+                        <th>결과</th>
+                        <th>저장된 텍스트</th>
+                        <th>추출된 텍스트</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    
+                    <tr>
+                        <td><code>pmc:PMC12625643|abstract|0</code></td>
+                        <td><code>107 ~ 1,055</code></td>
+                        <td><span class="verification-badge pass">✅ PASS</span></td>
+                        <td><div class="chunk-preview">Neutrophils, which represent about 50-70% of circu...</div></td>
+                        <td><div class="chunk-preview">Neutrophils, which represent about 50-70% of circu...</div></td>
+                    </tr>
+                    
+                    <tr>
+                        <td><code>pmc:PMC12625643|introduction|0</code></td>
+                        <td><code>1,072 ~ 4,030</code></td>
+                        <td><span class="verification-badge pass">✅ PASS</span></td>
+                        <td><div class="chunk-preview">Neutrophils are the predominant circulating leukoc...</div></td>
+                        <td><div class="chunk-preview">Neutrophils are the predominant circulating leukoc...</div></td>
+                    </tr>
+                    
+                    <tr>
+                        <td><code>pmc:PMC12625643|introduction|1</code></td>
+                        <td><code>4,030 ~ 6,977</code></td>
+                        <td><span class="verification-badge pass">✅ PASS</span></td>
+                        <td><div class="chunk-preview">The granulocyte colony stimulating factor (G-CSF) ...</div></td>
+                        <td><div class="chunk-preview">The granulocyte colony stimulating factor (G-CSF) ...</div></td>
+                    </tr>
+                    
+                    <tr>
+                        <td><code>pmc:PMC12625643|introduction|2</code></td>
+                        <td><code>6,977 ~ 9,467</code></td>
+                        <td><span class="verification-badge pass">✅ PASS</span></td>
+                        <td><div class="chunk-preview">MDSCs constitute a heterogeneous population of imm...</div></td>
+                        <td><div class="chunk-preview">MDSCs constitute a heterogeneous population of imm...</div></td>
+                    </tr>
+                    
+                    <tr>
+                        <td><code>pmc:PMC12625643|introduction|3</code></td>
+                        <td><code>9,467 ~ 12,679</code></td>
+                        <td><span class="verification-badge pass">✅ PASS</span></td>
+                        <td><div class="chunk-preview">The cytokine IL-35 has been demonstrated to promot...</div></td>
+                        <td><div class="chunk-preview">The cytokine IL-35 has been demonstrated to promot...</div></td>
+                    </tr>
+                    
+                    <tr>
+                        <td><code>pmc:PMC12625643|introduction|4</code></td>
+                        <td><code>12,679 ~ 15,490</code></td>
+                        <td><span class="verification-badge pass">✅ PASS</span></td>
+                        <td><div class="chunk-preview">In human NSCLC, neutrophils engage Annexin A2 (ANX...</div></td>
+                        <td><div class="chunk-preview">In human NSCLC, neutrophils engage Annexin A2 (ANX...</div></td>
+                    </tr>
+                    
+                    <tr>
+                        <td><code>pmc:PMC12625643|introduction|5</code></td>
+                        <td><code>15,490 ~ 18,418</code></td>
+                        <td><span class="verification-badge pass">✅ PASS</span></td>
+                        <td><div class="chunk-preview">These NETs promoted LUAD progression by impairing ...</div></td>
+                        <td><div class="chunk-preview">These NETs promoted LUAD progression by impairing ...</div></td>
+                    </tr>
+                    
+                    <tr>
+                        <td><code>pmc:PMC12625643|introduction|6</code></td>
+                        <td><code>18,418 ~ 21,261</code></td>
+                        <td><span class="verification-badge pass">✅ PASS</span></td>
+                        <td><div class="chunk-preview">Neutrophils mediate B cell chemotaxis through the ...</div></td>
+                        <td><div class="chunk-preview">Neutrophils mediate B cell chemotaxis through the ...</div></td>
+                    </tr>
+                    
+                    <tr>
+                        <td><code>pmc:PMC12625643|introduction|7</code></td>
+                        <td><code>21,261 ~ 24,361</code></td>
+                        <td><span class="verification-badge pass">✅ PASS</span></td>
+                        <td><div class="chunk-preview">Employing scRNA-seq, Salcher et al. constructed a ...</div></td>
+                        <td><div class="chunk-preview">Employing scRNA-seq, Salcher et al. constructed a ...</div></td>
+                    </tr>
+                    
+                    <tr>
+                        <td><code>pmc:PMC12625643|introduction|8</code></td>
+                        <td><code>24,361 ~ 27,391</code></td>
+                        <td><span class="verification-badge pass">✅ PASS</span></td>
+                        <td><div class="chunk-preview">Inactivating aberrations in STK11 have been identi...</div></td>
+                        <td><div class="chunk-preview">Inactivating aberrations in STK11 have been identi...</div></td>
+                    </tr>
+                    
+                </tbody>
+            </table>
+        </div>
+
+        <!-- Step 5: 최종 요약 -->
+        <div class="step">
+            <div class="step-header">
+                <div class="step-number">5</div>
+                <div class="step-title">최종 요약</div>
+            </div>
+
+            <div class="flow-diagram" style="background: linear-gradient(135deg, #667eea20 0%, #764ba220 100%);">
+                <div class="flow-box">
+                    <div style="font-size: 2rem;">📄</div>
+                    <div style="font-weight: 600;">64,409자</div>
+                    <div style="font-size: 0.75rem; color: #64748b;">원본 Fulltext</div>
+                </div>
+                <div class="flow-arrow">→</div>
+                <div class="flow-box">
+                    <div style="font-size: 2rem;">📑</div>
+                    <div style="font-weight: 600;">3개</div>
+                    <div style="font-size: 0.75rem; color: #64748b;">섹션</div>
+                </div>
+                <div class="flow-arrow">→</div>
+                <div class="flow-box">
+                    <div style="font-size: 2rem;">✂️</div>
+                    <div style="font-weight: 600;">23개</div>
+                    <div style="font-size: 0.75rem; color: #64748b;">청크</div>
+                </div>
+                <div class="flow-arrow">→</div>
+                <div class="flow-box" style="border: 2px solid #16a34a;">
+                    <div style="font-size: 2rem;">✅</div>
+                    <div style="font-weight: 600;">23/23</div>
+                    <div style="font-size: 0.75rem; color: #64748b;">Offset 검증</div>
+                </div>
+            </div>
+
+            <h4 style="margin: 1.5rem 0 1rem;">청킹 설정</h4>
+            <table>
+                <tbody>
+                    <tr><td><strong>청킹 전략</strong></td><td>Section + Recursive Character Text Splitter</td></tr>
+                    <tr><td><strong>목표 청크 크기</strong></td><td>700 토큰 (600-800 범위)</td></tr>
+                    <tr><td><strong>오버랩</strong></td><td>100 토큰 (~14%)</td></tr>
+                    <tr><td><strong>분할 우선순위</strong></td><td><code>["\n\n", "\n", ". ", " "]</code></td></tr>
+                    <tr><td><strong>Offset 기준</strong></td><td>char index (UTF-8 decoded str)</td></tr>
+                </tbody>
+            </table>
+
+            <h4 style="margin: 1.5rem 0 1rem;">다음 단계</h4>
+            <ul style="list-style: none; padding: 0;">
+                <li style="padding: 0.5rem 0; border-bottom: 1px solid #e2e8f0;">
+                    <span style="margin-right: 0.5rem;">1️⃣</span>
+                    임베딩 생성 (<code>[TITLE][SECTION][TEXT]</code> prefix 적용)
+                </li>
+                <li style="padding: 0.5rem 0; border-bottom: 1px solid #e2e8f0;">
+                    <span style="margin-right: 0.5rem;">2️⃣</span>
+                    Weaviate에 청크 + 벡터 저장
+                </li>
+                <li style="padding: 0.5rem 0; border-bottom: 1px solid #e2e8f0;">
+                    <span style="margin-right: 0.5rem;">3️⃣</span>
+                    검색 시 Parent 확장 (S3에서 ±500자)
+                </li>
+                <li style="padding: 0.5rem 0;">
+                    <span style="margin-right: 0.5rem;">4️⃣</span>
+                    LLM 답변 생성 + 근거 하이라이트
+                </li>
+            </ul>
+        </div>
+
+        <footer>
+            <p>OAR-29: 텍스트 Chunker 구현 | OAR-11 Evidence RAG 시스템</p>
+            <p>Generated by chunking demo script</p>
+        </footer>
+    </div>
+
+    <script>
+        function showSection(sectionName) {
+            // 모든 탭 비활성화
+            document.querySelectorAll('.tab').forEach(tab => tab.classList.remove('active'));
+            document.querySelectorAll('.tab-content').forEach(content => content.classList.remove('active'));
+
+            // 선택된 탭 활성화
+            event.target.classList.add('active');
+            document.getElementById('section-' + sectionName).classList.add('active');
+        }
+    </script>
+</body>
+</html>

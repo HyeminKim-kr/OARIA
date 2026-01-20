@@ -1,0 +1,67 @@
+[
+  {
+    "question": "What is the relationship between BRCA mutations and prostate cancer prognosis?",
+    "answer_a": "BRCA mutations, particularly BRCA2, are associated with a poorer prognosis in prostate cancer (PCa). Studies indicate that BRCA2 carriers experience higher rates of tumor staging upgrades and a greater risk of metastatic relapse compared to non-carriers. Specifically, non-carriers showed significantly better metastasis-free survival (MFS) and cause-specific survival (CSS) rates at 3, 5, and 10 years post-treatment. Additionally, BRCA mutations are linked to higher-grade disease and advanced tumor stages at diagnosis. In metastatic castration-resistant prostate cancer (mCRPC), BRCA2 mutation carriers also have worse CSS compared to non-carriers. Overall, BRCA mutations serve as independent prognostic factors indicating a higher risk of relapse and poorer survival outcomes in PCa patients.",
+    "answer_b": "BRCA mutations are associated with a poorer prognosis in prostate cancer (PCa). Specifically, BRCA2 carriers have a higher incidence of high- or intermediate-risk PCa (77% vs. 40% in non-carriers) and a lower proportion of low-risk disease (37% vs. 73% in non-carriers). Additionally, BRCA2 carriers experience higher rates of tumor staging upgrades during active surveillance and have significantly worse outcomes after radical treatments, with lower metastasis-free survival and cause-specific survival rates compared to non-carriers. Overall, BRCA mutations are considered an independent prognostic factor for worse outcomes in non-metastatic PCa patients.",
+    "answer_c": "BRCA mutations, particularly BRCA2 mutations, are associated with a more aggressive form of prostate cancer (PCa). In the IMPACT study, BRCA2 carriers had a higher incidence of PCa detected at biopsy (5.2% vs. 3.0% in non-carriers) and a greater proportion of high- or intermediate-risk cases (77% vs. 40% in non-carriers). Additionally, BRCA2 carriers showed a higher rate of grade reclassification during active surveillance, indicating a worse prognosis compared to non-carriers. These findings suggest that BRCA mutations may influence treatment strategies and outcomes in PCa.",
+    "winner": "C",
+    "ranking": [
+      "C",
+      "B",
+      "A"
+    ],
+    "reason": "답변 C는 BRCA2 변이가 전립선암의 공격적인 형태와 관련이 있음을 명확하게 설명하고, 연구 결과를 통해 구체적인 수치를 제공하여 정확성과 완전성을 높였습니다. 또한, 치료 전략과 결과에 미치는 영향을 언급하여 명확성을 더했습니다. 답변 B도 유용하지만, C가 더 포괄적이고 구체적입니다. 답변 A는 유사한 정보를 제공하지만, 상대적으로 덜 구체적이고 명확하지 않습니다."
+  },
+  {
+    "question": "How does PD-L1 expression affect immunotherapy response rates?",
+    "answer_a": "정보 없음",
+    "answer_b": "PD-L1 expression affects immunotherapy response rates by correlating with greater efficacy in patients. Specifically, in the context of pembrolizumab treatment, patients with a tumour proportion score (TPS) ≥ 50% demonstrated improved outcomes compared to those with lower expression levels.",
+    "answer_c": "PD-L1 expression affects immunotherapy response rates by correlating with greater efficacy in patients. In the context provided, it was noted that the benefit of pembrolizumab, an immune checkpoint inhibitor, was greater in patients with a tumour proportion score (TPS) ≥ 50%. Specifically, the 5-year overall survival (OS) rate was higher in this group compared to those with lower TPS.",
+    "winner": "C",
+    "ranking": [
+      "C",
+      "B",
+      "A"
+    ],
+    "reason": "답변 C는 PD-L1 발현이 면역요법 반응률에 미치는 영향을 정확하고 완전하게 설명하며, 구체적인 생존율 데이터를 제공하여 이해하기 쉽게 전달합니다. 답변 B도 유용하지만, 생존율에 대한 구체적인 정보가 부족합니다. 답변 A는 정보가 전혀 없어 평가할 수 없습니다."
+  },
+  {
+    "question": "What are the mechanisms of platinum-based drug resistance?",
+    "answer_a": "정보 없음",
+    "answer_b": "플래티넘 기반 약물 저항의 메커니즘은 다음과 같습니다:\n\n1. 약물 흡수 감소: 세포가 cisplatin이 DNA에 도달하고 해를 끼치는 것을 방지하기 위해 약물의 흡수를 줄입니다.\n2. 약물 배출 증가: 세포가 약물을 더 많이 배출하여 효과를 감소시킵니다.\n3. 약물 비활성화: 약물이 글루타티온이나 금속 단백질과의 공유 결합을 통해 비활성화됩니다.\n4. 세포 사멸 신호 변화: 세포가 세포 사멸 신호를 변경하여 약물의 효과에 저항합니다.\n5. 자가 포식: 세포가 자가 포식을 통해 약물의 영향을 극복합니다.\n6. DNA 손상 반응(DNA Damage Response, DDR) 경로의 활성화: 약물이 DNA와 상호작용하여 손상을 일으키더라도, 세포가 DNA 손상 복구 메커니즘을 강화하여 효과를 상쇄합니다.",
+    "answer_c": "플래티넘 기반 약물 저항성의 메커니즘은 주로 대체 세포 생존 경로의 선택 편향을 통한 것입니다. 이는 지속적인 또는 장기적인 시스플라틴 치료로 인해 발생하며, 이로 인해 치료 실패와 불량한 예후가 초래됩니다. 추가적인 세부 사항은 제공되지 않았습니다.",
+    "winner": "B",
+    "ranking": [
+      "B",
+      "C",
+      "A"
+    ],
+    "reason": "답변 B는 플래티넘 기반 약물 저항의 메커니즘을 구체적으로 나열하고 설명하여 정확성과 완전성을 모두 충족합니다. 답변 C는 일부 정보를 제공하지만, 구체적인 메커니즘에 대한 설명이 부족하여 완전성이 떨어집니다. 답변 A는 정보가 전혀 없어 평가할 수 없습니다."
+  },
+  {
+    "question": "What is the role of CD248 in tumor microenvironment?",
+    "answer_a": "CD248 plays a significant role in the tumor microenvironment (TME) by influencing immune cell infiltration and angiogenesis. It is primarily expressed by stromal cells, particularly cancer-associated fibroblasts (CAFs) and pericytes. CD248-expressing CAFs are associated with the infiltration of immune cells, such as macrophages and monocytes, while negatively impacting the infiltration of CD4+ T cells, CD8+ T cells, and regulatory T cells (Tregs). Additionally, CD248 enhances tumor angiogenesis by upregulating proangiogenic factors through the Wnt/β-catenin signaling pathway and is involved in interactions between stromal cells and endothelial cells. Overall, CD248's role in the TME is complex, involving various mechanisms that affect tumor progression and immune response.",
+    "answer_b": "CD248 plays a multifaceted role in the tumor microenvironment (TME). It is positively associated with the infiltration of immune cells such as macrophages and monocytes, while negatively impacting the infiltration of CD4+ T cells, CD8+ T cells, and Tregs. CD248-expressing cancer-associated fibroblasts (CAFs) drive the recruitment and polarization of macrophages and can suppress CD8+ T cell infiltration through various mechanisms, including the inhibition of chemokine secretion and physical blockage of T cell access to tumors. Additionally, CD248 is involved in tumor angiogenesis by enhancing the expression of proangiogenic factors and promoting interactions between stromal and endothelial cells. Overall, CD248's role in the TME is complex, influencing both immune cell dynamics and angiogenesis.",
+    "answer_c": "CD248 plays a significant role in the tumor microenvironment (TME) by being primarily expressed by stromal cells, particularly perivascular cancer-associated fibroblasts (CAFs) and pericytes. It is positively associated with the infiltration of CAFs, immune cells (such as macrophages and monocytes), endothelial cells, and hematopoietic stem cells. CD248-expressing CAFs influence immune cell dynamics by driving the recruitment and polarization of macrophages and suppressing CD8+ T cell infiltration. Additionally, CD248 enhances tumor angiogenesis through the upregulation of proangiogenic factors via the Wnt/β-catenin signaling pathway. Overall, CD248's role in the TME is complex, involving intricate interactions among various cell types and contributing to tumor progression and immune modulation.",
+    "winner": "C",
+    "ranking": [
+      "C",
+      "B",
+      "A"
+    ],
+    "reason": "답변 C는 CD248의 역할을 명확하고 포괄적으로 설명하며, 다양한 세포 유형 간의 상호작용과 면역 조절에 대한 정보를 포함하고 있습니다. 또한, CD248의 발현 위치와 기능을 구체적으로 언급하여 질문에 대한 정확성과 완전성을 높였습니다."
+  },
+  {
+    "question": "How effective is the combination of carboplatin and paclitaxel?",
+    "answer_a": "카보플라틴과 파클리탁셀의 조합은 난소암 및 비소세포 폐암(NSCLC) 치료에 효과적이며, FDA 승인을 받았습니다. 특히, 난소암 환자에서 이 조합은 초기 수술 후 치료에 사용되며, 임상 연구에서 효과가 입증되었습니다. 그러나 구체적인 효과에 대한 수치는 제공되지 않았습니다. 추가적으로, 카보플라틴과 파클리탁셀의 조합은 임상 시험에서 안정적인 약리학적 특성을 보여주었고, 안전성이 확인되었습니다.",
+    "answer_b": "정보 없음",
+    "answer_c": "카보플라틴과 파클리탁셀의 조합은 난소암 및 비소세포 폐암(NSCLC) 치료에 FDA 승인을 받았으며, 임상 연구에서 효과가 입증되었습니다. 특히, 카보플라틴/PLD 조합은 부분적으로 백금에 민감한 난소암 환자에서 중간 무진행 생존 기간(mPFS)이 11.3개월로, 카보플라틴/파클리탁셀의 9.4개월보다 유의미하게 길어졌습니다(P = 0.005). 따라서 카보플라틴과 파클리탁셀의 조합은 효과적인 치료 옵션으로 평가됩니다.",
+    "winner": "C",
+    "ranking": [
+      "C",
+      "A",
+      "B"
+    ],
+    "reason": "답변 C는 카보플라틴과 파클리탁셀의 조합에 대한 구체적인 효과와 임상 연구 결과를 제공하여 정확하고 완전하며 명확하게 질문에 답하고 있습니다. 답변 A도 유용하지만 구체적인 수치가 부족하여 C보다 낮은 순위를 받았습니다. 답변 B는 정보가 전혀 없어 가장 낮은 순위를 차지했습니다."
+  }
+]

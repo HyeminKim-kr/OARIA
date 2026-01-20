@@ -1,0 +1,226 @@
+{% extends "base.html" %}
+
+{% block content %}
+<div class="h-screen flex flex-col" x-data="chatApp()">
+    <!-- Header -->
+    <div class="p-6 border-b border-dark-border">
+        <div class="flex items-center gap-3">
+            <div class="w-8 h-8">
+                <svg viewBox="0 0 48 48" fill="none" xmlns="http://www.w3.org/2000/svg">
+                    <circle cx="24" cy="24" r="20" stroke="#0D9488" stroke-width="2" fill="none" opacity="0.9"/>
+                    <circle cx="24" cy="24" r="14" stroke="#14B8A6" stroke-width="1.5" fill="none" opacity="0.8" transform="rotate(60 24 24)"/>
+                    <circle cx="24" cy="24" r="8" stroke="#F97066" stroke-width="1.5" fill="none" opacity="0.9" transform="rotate(120 24 24)"/>
+                    <circle cx="24" cy="24" r="3" fill="#E2E8F0"/>
+                </svg>
+            </div>
+            <div>
+                <h1 class="text-xl font-outfit font-bold">AI Research Assistant</h1>
+                <p class="text-dark-muted text-sm font-dm-sans">Ask questions about oncology research</p>
+            </div>
+        </div>
+    </div>
+
+    <!-- Chat Messages -->
+    <div class="flex-1 overflow-y-auto p-6 space-y-6" id="chat-container">
+        <!-- Welcome Message -->
+        <div x-show="messages.length === 0" class="max-w-2xl mx-auto text-center py-12">
+            <div class="w-20 h-20 mx-auto mb-6">
+                <svg viewBox="0 0 48 48" fill="none" xmlns="http://www.w3.org/2000/svg">
+                    <circle cx="24" cy="24" r="20" stroke="#0D9488" stroke-width="2" fill="none" opacity="0.9"/>
+                    <circle cx="24" cy="24" r="14" stroke="#14B8A6" stroke-width="1.5" fill="none" opacity="0.8" transform="rotate(60 24 24)"/>
+                    <circle cx="24" cy="24" r="8" stroke="#F97066" stroke-width="1.5" fill="none" opacity="0.9" transform="rotate(120 24 24)"/>
+                    <circle cx="24" cy="24" r="3" fill="#E2E8F0"/>
+                </svg>
+            </div>
+            <h2 class="text-2xl font-outfit font-semibold mb-2">How can I help you today?</h2>
+            <p class="text-dark-muted mb-8 font-dm-sans">Ask me anything about oncology research. I'll search through 975+ papers to find answers.</p>
+
+            <!-- Example Questions -->
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-3 max-w-xl mx-auto">
+                <button @click="askQuestion('What are the latest advances in EGFR-targeted therapy for lung cancer?')" class="p-4 text-left bg-dark-card border border-dark-border rounded-2xl hover:border-oaria-teal transition group">
+                    <p class="text-sm font-outfit font-medium group-hover:text-oaria-teal">EGFR targeted therapy</p>
+                    <p class="text-xs text-dark-muted font-dm-sans">Latest advances in lung cancer</p>
+                </button>
+                <button @click="askQuestion('How effective is immunotherapy for melanoma patients?')" class="p-4 text-left bg-dark-card border border-dark-border rounded-2xl hover:border-oaria-teal transition group">
+                    <p class="text-sm font-outfit font-medium group-hover:text-oaria-teal">Immunotherapy efficacy</p>
+                    <p class="text-xs text-dark-muted font-dm-sans">Melanoma treatment outcomes</p>
+                </button>
+                <button @click="askQuestion('What biomarkers predict response to PD-1 inhibitors?')" class="p-4 text-left bg-dark-card border border-dark-border rounded-2xl hover:border-oaria-teal transition group">
+                    <p class="text-sm font-outfit font-medium group-hover:text-oaria-teal">PD-1 biomarkers</p>
+                    <p class="text-xs text-dark-muted font-dm-sans">Predictive markers for response</p>
+                </button>
+                <button @click="askQuestion('Compare CAR-T therapy outcomes across different cancer types')" class="p-4 text-left bg-dark-card border border-dark-border rounded-2xl hover:border-oaria-teal transition group">
+                    <p class="text-sm font-outfit font-medium group-hover:text-oaria-teal">CAR-T therapy</p>
+                    <p class="text-xs text-dark-muted font-dm-sans">Cross-cancer comparison</p>
+                </button>
+            </div>
+        </div>
+
+        <!-- Messages -->
+        <template x-for="(msg, idx) in messages" :key="idx">
+            <div :class="msg.role === 'user' ? 'flex justify-end' : 'flex justify-start'">
+                <div :class="msg.role === 'user'
+                    ? 'max-w-2xl gradient-bg rounded-2xl rounded-br-sm px-6 py-4'
+                    : 'max-w-3xl bg-dark-card border border-dark-border rounded-2xl rounded-bl-sm px-6 py-4'">
+
+                    <!-- User Message -->
+                    <template x-if="msg.role === 'user'">
+                        <p class="text-white font-dm-sans" x-text="msg.content"></p>
+                    </template>
+
+                    <!-- Assistant Message -->
+                    <template x-if="msg.role === 'assistant'">
+                        <div>
+                            <!-- Answer -->
+                            <div class="prose prose-invert prose-sm max-w-none mb-4 font-dm-sans" x-html="formatAnswer(msg.content)"></div>
+
+                            <!-- Sources -->
+                            <template x-if="msg.sources && msg.sources.length > 0">
+                                <div class="border-t border-dark-border pt-4 mt-4">
+                                    <p class="text-xs text-dark-muted mb-3 font-dm-sans tracking-wide">SOURCES</p>
+                                    <div class="space-y-2">
+                                        <template x-for="(src, sidx) in msg.sources" :key="sidx">
+                                            <div class="flex items-start gap-3 p-3 bg-dark-bg rounded-xl">
+                                                <span class="flex-shrink-0 w-6 h-6 rounded-full bg-oaria-teal text-white text-xs flex items-center justify-center font-medium font-dm-sans" x-text="src.id"></span>
+                                                <div class="flex-1 min-w-0">
+                                                    <p class="text-sm font-outfit font-medium truncate" x-text="src.title"></p>
+                                                    <p class="text-xs text-dark-muted font-dm-sans">
+                                                        <span x-text="src.journal || 'Unknown Journal'"></span>
+                                                        <span x-show="src.year"> | <span x-text="src.year"></span></span>
+                                                    </p>
+                                                </div>
+                                                <a x-show="src.doi" :href="'https://doi.org/' + src.doi" target="_blank" class="text-dark-muted hover:text-oaria-teal transition">
+                                                    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                                                        <path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"></path>
+                                                        <polyline points="15 3 21 3 21 9"></polyline>
+                                                        <line x1="10" y1="14" x2="21" y2="3"></line>
+                                                    </svg>
+                                                </a>
+                                            </div>
+                                        </template>
+                                    </div>
+                                </div>
+                            </template>
+
+                            <!-- Timing -->
+                            <p x-show="msg.time" class="text-xs text-dark-muted mt-3 font-dm-sans">
+                                Retrieved in <span class="text-oaria-light-teal" x-text="msg.time"></span>ms
+                            </p>
+                        </div>
+                    </template>
+                </div>
+            </div>
+        </template>
+
+        <!-- Loading Indicator -->
+        <div x-show="loading" class="flex justify-start">
+            <div class="bg-dark-card border border-dark-border rounded-2xl rounded-bl-sm px-6 py-4">
+                <div class="typing-indicator flex gap-1">
+                    <span class="w-2 h-2 bg-oaria-teal rounded-full"></span>
+                    <span class="w-2 h-2 bg-oaria-light-teal rounded-full"></span>
+                    <span class="w-2 h-2 bg-oaria-coral rounded-full"></span>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Input Area -->
+    <div class="p-6 border-t border-dark-border">
+        <div class="max-w-3xl mx-auto">
+            <div class="relative">
+                <textarea
+                    x-model="input"
+                    @keydown.enter.prevent="!$event.shiftKey && askQuestion()"
+                    placeholder="Ask a question about oncology research..."
+                    rows="1"
+                    class="w-full px-6 py-4 pr-14 bg-dark-card border border-dark-border rounded-full resize-none focus:outline-none search-glow transition font-dm-sans"
+                    :disabled="loading"
+                ></textarea>
+                <button
+                    @click="askQuestion()"
+                    :disabled="loading || !input.trim()"
+                    class="absolute right-2 top-1/2 transform -translate-y-1/2 p-3 rounded-full gradient-bg disabled:opacity-50 transition hover:opacity-90"
+                >
+                    <svg class="w-5 h-5 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                        <line x1="22" y1="2" x2="11" y2="13"></line>
+                        <polygon points="22 2 15 22 11 13 2 9 22 2"></polygon>
+                    </svg>
+                </button>
+            </div>
+            <p class="text-xs text-dark-muted text-center mt-3 font-dm-sans">
+                Press Enter to send. Answers are based on indexed oncology papers.
+            </p>
+        </div>
+    </div>
+</div>
+
+<script>
+function chatApp() {
+    return {
+        input: '',
+        messages: [],
+        loading: false,
+
+        async askQuestion(question = null) {
+            const q = question || this.input.trim();
+            if (!q) return;
+
+            // Add user message
+            this.messages.push({
+                role: 'user',
+                content: q
+            });
+
+            this.input = '';
+            this.loading = true;
+
+            // Scroll to bottom
+            this.$nextTick(() => {
+                const container = document.getElementById('chat-container');
+                container.scrollTop = container.scrollHeight;
+            });
+
+            try {
+                const response = await fetch('/api/ask', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ question: q, top_k: 5 })
+                });
+
+                const data = await response.json();
+
+                // Add assistant message
+                this.messages.push({
+                    role: 'assistant',
+                    content: data.answer,
+                    sources: data.sources,
+                    time: data.retrieval_time_ms
+                });
+
+            } catch (error) {
+                this.messages.push({
+                    role: 'assistant',
+                    content: 'Sorry, an error occurred while processing your question. Please try again.',
+                    sources: []
+                });
+            } finally {
+                this.loading = false;
+
+                // Scroll to bottom
+                this.$nextTick(() => {
+                    const container = document.getElementById('chat-container');
+                    container.scrollTop = container.scrollHeight;
+                });
+            }
+        },
+
+        formatAnswer(text) {
+            // Simple markdown-like formatting
+            return text
+                .replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>')
+                .replace(/\n/g, '<br>');
+        }
+    }
+}
+</script>
+{% endblock %}

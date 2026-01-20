@@ -1,0 +1,225 @@
+<!DOCTYPE html>
+<html lang="en" x-data="{ darkMode: true }" :class="{ 'dark': darkMode }">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{{ title }}</title>
+
+    <!-- Google Fonts: Outfit + DM Sans -->
+    <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@400;500;600;700&family=DM+Sans:wght@400;500;600&display=swap" rel="stylesheet">
+
+    <!-- Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script>
+        tailwind.config = {
+            darkMode: 'class',
+            theme: {
+                extend: {
+                    colors: {
+                        oaria: {
+                            teal: '#0D9488',
+                            'light-teal': '#14B8A6',
+                            coral: '#F97066',
+                            navy: '#1E293B',
+                            'dark-bg': '#0F172A',
+                        },
+                        dark: {
+                            bg: '#0F172A',
+                            card: '#1E293B',
+                            border: '#334155',
+                            text: '#E2E8F0',
+                            muted: '#94A3B8',
+                            accent: '#0D9488',
+                            hover: '#334155',
+                        }
+                    },
+                    fontFamily: {
+                        'outfit': ['Outfit', 'sans-serif'],
+                        'dm-sans': ['DM Sans', 'sans-serif'],
+                    }
+                }
+            }
+        }
+    </script>
+
+    <!-- Alpine.js -->
+    <script defer src="https://unpkg.com/alpinejs@3.x.x/dist/cdn.min.js"></script>
+
+    <!-- Custom styles -->
+    <style>
+        [x-cloak] { display: none !important; }
+        body { font-family: 'DM Sans', sans-serif; }
+        h1, h2, h3, h4, h5, h6 { font-family: 'Outfit', sans-serif; }
+
+        .gradient-text {
+            background: linear-gradient(135deg, #0D9488 0%, #14B8A6 100%);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
+        }
+
+        .gradient-bg {
+            background: linear-gradient(135deg, #0D9488 0%, #0F766E 100%);
+        }
+
+        .glass-card {
+            background: rgba(30, 41, 59, 0.8);
+            backdrop-filter: blur(10px);
+            border: 1px solid rgba(51, 65, 85, 0.5);
+        }
+
+        .search-glow:focus {
+            box-shadow: 0 0 0 2px rgba(13, 148, 136, 0.3);
+            border-color: #0D9488;
+        }
+
+        .paper-card {
+            transition: all 0.2s ease;
+        }
+
+        .paper-card:hover {
+            transform: translateY(-2px);
+            border-color: rgba(13, 148, 136, 0.5);
+            box-shadow: 0 4px 20px rgba(13, 148, 136, 0.1);
+        }
+
+        .tier-badge {
+            font-size: 0.65rem;
+            padding: 2px 8px;
+            border-radius: 9999px;
+            font-weight: 500;
+        }
+
+        .tier1 { background: rgba(13, 148, 136, 0.2); color: #14B8A6; }
+        .tier2 { background: rgba(13, 148, 136, 0.1); color: #0D9488; }
+        .tier3 { background: rgba(148, 163, 184, 0.2); color: #94A3B8; }
+        .tier4 { background: rgba(51, 65, 85, 0.5); color: #64748B; }
+
+        .source-badge {
+            font-size: 0.7rem;
+            padding: 2px 10px;
+            border-radius: 9999px;
+            background: rgba(51, 65, 85, 0.5);
+            color: #94A3B8;
+            font-weight: 500;
+        }
+
+        .typing-indicator span {
+            animation: typing 1.4s infinite ease-in-out;
+        }
+        .typing-indicator span:nth-child(2) { animation-delay: 0.2s; }
+        .typing-indicator span:nth-child(3) { animation-delay: 0.4s; }
+
+        @keyframes typing {
+            0%, 60%, 100% { transform: translateY(0); }
+            30% { transform: translateY(-4px); }
+        }
+
+        /* Scrollbar styling */
+        ::-webkit-scrollbar { width: 8px; }
+        ::-webkit-scrollbar-track { background: #0F172A; }
+        ::-webkit-scrollbar-thumb { background: #334155; border-radius: 4px; }
+        ::-webkit-scrollbar-thumb:hover { background: #475569; }
+
+        /* Triple Gate Icon Animation */
+        .triple-gate-icon {
+            animation: pulse-subtle 3s ease-in-out infinite;
+        }
+        @keyframes pulse-subtle {
+            0%, 100% { opacity: 1; }
+            50% { opacity: 0.9; }
+        }
+    </style>
+</head>
+<body class="bg-dark-bg text-dark-text min-h-screen">
+    <div class="flex">
+        <!-- Sidebar -->
+        <aside class="w-64 h-screen fixed left-0 top-0 bg-dark-card border-r border-dark-border flex flex-col">
+            <!-- Logo -->
+            <div class="p-6 border-b border-dark-border">
+                <a href="/" class="flex items-center gap-3">
+                    <!-- Triple Gate Icon SVG -->
+                    <div class="triple-gate-icon w-10 h-10 relative">
+                        <svg viewBox="0 0 48 48" fill="none" xmlns="http://www.w3.org/2000/svg">
+                            <!-- Outer Ring - OARIA Teal -->
+                            <circle cx="24" cy="24" r="20" stroke="#0D9488" stroke-width="2.5" fill="none" opacity="0.9"/>
+                            <!-- Middle Ring - Light Teal (rotated 60deg) -->
+                            <circle cx="24" cy="24" r="14" stroke="#14B8A6" stroke-width="2" fill="none" opacity="0.8" transform="rotate(60 24 24)"/>
+                            <!-- Inner Ring - Living Coral (rotated 120deg) -->
+                            <circle cx="24" cy="24" r="8" stroke="#F97066" stroke-width="1.5" fill="none" opacity="0.9" transform="rotate(120 24 24)"/>
+                            <!-- Center Core -->
+                            <circle cx="24" cy="24" r="3" fill="#E2E8F0"/>
+                        </svg>
+                    </div>
+                    <div>
+                        <span class="text-xl font-outfit font-bold gradient-text">OARIA</span>
+                        <p class="text-[10px] text-dark-muted tracking-widest font-dm-sans">RESEARCH INTELLIGENCE</p>
+                    </div>
+                </a>
+            </div>
+
+            <!-- Navigation -->
+            <nav class="flex-1 p-4">
+                <ul class="space-y-1">
+                    <li>
+                        <a href="/" class="flex items-center gap-3 px-4 py-3 rounded-xl hover:bg-dark-hover transition font-dm-sans {% if request.url.path == '/' %}bg-dark-hover text-oaria-teal{% endif %}">
+                            <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                                <circle cx="11" cy="11" r="8"></circle>
+                                <path d="m21 21-4.35-4.35"></path>
+                            </svg>
+                            Search
+                        </a>
+                    </li>
+                    <li>
+                        <a href="/explore" class="flex items-center gap-3 px-4 py-3 rounded-xl hover:bg-dark-hover transition font-dm-sans {% if request.url.path == '/explore' %}bg-dark-hover text-oaria-teal{% endif %}">
+                            <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                                <path d="M2 3h6a4 4 0 0 1 4 4v14a3 3 0 0 0-3-3H2z"></path>
+                                <path d="M22 3h-6a4 4 0 0 0-4 4v14a3 3 0 0 1 3-3h7z"></path>
+                            </svg>
+                            Explore
+                        </a>
+                    </li>
+                    <li>
+                        <a href="/assistant" class="flex items-center gap-3 px-4 py-3 rounded-xl hover:bg-dark-hover transition font-dm-sans {% if request.url.path == '/assistant' %}bg-dark-hover text-oaria-teal{% endif %}">
+                            <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                                <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"></path>
+                            </svg>
+                            AI Assistant
+                        </a>
+                    </li>
+                </ul>
+
+                <!-- Divider -->
+                <div class="border-t border-dark-border my-4"></div>
+
+                <!-- Stats -->
+                <div class="px-4 py-3 glass-card rounded-xl" x-data="{ stats: null }" x-init="
+                    fetch('/api/stats')
+                        .then(r => r.json())
+                        .then(d => stats = d)
+                ">
+                    <p class="text-xs text-dark-muted mb-2 font-dm-sans tracking-wide">DATABASE</p>
+                    <template x-if="stats">
+                        <div class="space-y-1 font-dm-sans">
+                            <p class="text-sm"><span class="text-dark-muted">Chunks:</span> <span class="text-oaria-light-teal font-medium" x-text="stats.total_chunks?.toLocaleString()"></span></p>
+                            <p class="text-sm"><span class="text-dark-muted">Status:</span> <span class="text-oaria-teal" x-text="stats.status"></span></p>
+                        </div>
+                    </template>
+                </div>
+            </nav>
+
+            <!-- Footer -->
+            <div class="p-4 border-t border-dark-border">
+                <p class="text-xs text-dark-muted text-center font-dm-sans">
+                    Powered by BGE-M3 + Qdrant
+                </p>
+            </div>
+        </aside>
+
+        <!-- Main Content -->
+        <main class="ml-64 flex-1 min-h-screen">
+            {% block content %}{% endblock %}
+        </main>
+    </div>
+</body>
+</html>
