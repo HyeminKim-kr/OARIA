@@ -167,6 +167,7 @@ class LLMService:
         question: str,
         context: str,
         references: list[Reference],
+        system_prompt: str | None = None,
     ) -> AsyncGenerator[StreamChunk, None]:
         """비동기 스트리밍 응답 생성
 
@@ -174,6 +175,7 @@ class LLMService:
             question: 사용자 질문
             context: RAG 검색 결과 컨텍스트
             references: 참조 목록
+            system_prompt: 커스텀 시스템 프롬프트 (None이면 기본 프롬프트 사용)
 
         Yields:
             스트리밍 청크
@@ -184,12 +186,13 @@ class LLMService:
             return
 
         client = self._get_client()
-        system_prompt = SYSTEM_PROMPT.format(context=context)
+        # 커스텀 프롬프트가 있으면 사용, 없으면 기본 프롬프트
+        final_prompt = system_prompt if system_prompt else SYSTEM_PROMPT.format(context=context)
 
         stream = await client.chat.completions.create(
             model=settings.openai_chat_model,
             messages=[
-                {"role": "system", "content": system_prompt},
+                {"role": "system", "content": final_prompt},
                 {"role": "user", "content": question},
             ],
             temperature=0.3,  # 과학/의료 도메인은 낮은 temperature로 일관된 답변
