@@ -33,7 +33,8 @@ class Gate2Result:
         passed: 검증 통과 여부
         reason: 실패 사유 (통과 시 None)
         message: 사용자에게 표시할 메시지 (실패 시)
-        suggestions: 후속 질문 제안 (실패 시 도움이 되는 질문들)
+        tips: 질문 방향 제안 (메시지 영역에 표시)
+        suggestions: 실제 클릭 가능한 질문들 (버튼으로 표시)
         max_similarity: 최대 유사도 점수
         relevant_count: 관련 문서 수 (similarity >= threshold)
         oncology_ratio: oncology 도메인 문서 비율
@@ -42,6 +43,7 @@ class Gate2Result:
     passed: bool
     reason: Gate2FailReason | None = None
     message: str | None = None
+    tips: list[str] | None = None
     suggestions: list[str] | None = None
     max_similarity: float = 0.0
     relevant_count: int = 0
@@ -49,17 +51,36 @@ class Gate2Result:
     details: dict | None = None
 
 
-# Pre-defined suggestions for each failure type
-GATE2_FAILURE_SUGGESTIONS = {
+# Pre-defined tips and clickable questions for each failure type
+GATE2_FAILURE_TIPS = {
     Gate2FailReason.LOW_SIMILARITY: [
-        "Try using more specific medical terms (e.g., 'EGFR mutation in lung adenocarcinoma' instead of 'lung cancer treatment')",
-        "Ask about a specific drug, biomarker, or treatment protocol",
-        "Include the cancer type and stage in your question",
+        "Try using more specific medical terms (e.g., 'EGFR mutation' instead of 'lung cancer')",
+        "Include the cancer type, stage, or specific biomarker in your question",
+        "Ask about a specific drug or treatment protocol",
     ],
     Gate2FailReason.INSUFFICIENT_DOCS: [
-        "Ask about well-studied topics like immunotherapy, targeted therapy, or chemotherapy",
-        "Try questions about common cancer types (breast, lung, colorectal, prostate)",
-        "Rephrase your question to focus on established treatments or biomarkers",
+        "Ask about well-studied topics like immunotherapy or targeted therapy",
+        "Try questions about common cancer types (breast, lung, colorectal)",
+        "Focus on established treatments or biomarkers",
+    ],
+    Gate2FailReason.DOMAIN_MISMATCH: [
+        "This system specializes in oncology and cancer research",
+        "Rephrase your question to focus on cancer-related topics",
+        "Ask about cancer treatments, biomarkers, or clinical trials",
+    ],
+}
+
+# Actual clickable questions for each failure type
+GATE2_FAILURE_QUESTIONS = {
+    Gate2FailReason.LOW_SIMILARITY: [
+        "What is the role of EGFR mutations in non-small cell lung cancer treatment?",
+        "How does immunotherapy work in melanoma treatment?",
+        "What are the mechanisms of resistance to targeted therapy in cancer?",
+    ],
+    Gate2FailReason.INSUFFICIENT_DOCS: [
+        "What are the current standard treatments for breast cancer?",
+        "How do checkpoint inhibitors work in cancer immunotherapy?",
+        "What biomarkers are used to guide lung cancer treatment decisions?",
     ],
     Gate2FailReason.DOMAIN_MISMATCH: [
         "What are the latest advances in cancer immunotherapy?",
@@ -126,7 +147,8 @@ class Gate2Service:
                 passed=False,
                 reason=Gate2FailReason.INSUFFICIENT_DOCS,
                 message="검색 결과가 없습니다. 다른 질문을 시도해 주세요.",
-                suggestions=GATE2_FAILURE_SUGGESTIONS[Gate2FailReason.INSUFFICIENT_DOCS],
+                tips=GATE2_FAILURE_TIPS[Gate2FailReason.INSUFFICIENT_DOCS],
+                suggestions=GATE2_FAILURE_QUESTIONS[Gate2FailReason.INSUFFICIENT_DOCS],
                 max_similarity=0.0,
                 relevant_count=0,
                 oncology_ratio=0.0,
@@ -155,7 +177,8 @@ class Gate2Service:
                 passed=False,
                 reason=Gate2FailReason.LOW_SIMILARITY,
                 message="관련 논문을 충분히 찾지 못했습니다. 질문을 더 구체적으로 해주세요.",
-                suggestions=GATE2_FAILURE_SUGGESTIONS[Gate2FailReason.LOW_SIMILARITY],
+                tips=GATE2_FAILURE_TIPS[Gate2FailReason.LOW_SIMILARITY],
+                suggestions=GATE2_FAILURE_QUESTIONS[Gate2FailReason.LOW_SIMILARITY],
                 max_similarity=max_similarity,
                 relevant_count=relevant_count,
                 oncology_ratio=oncology_ratio,
@@ -172,7 +195,8 @@ class Gate2Service:
                 passed=False,
                 reason=Gate2FailReason.INSUFFICIENT_DOCS,
                 message="충분한 근거 논문을 찾지 못했습니다.",
-                suggestions=GATE2_FAILURE_SUGGESTIONS[Gate2FailReason.INSUFFICIENT_DOCS],
+                tips=GATE2_FAILURE_TIPS[Gate2FailReason.INSUFFICIENT_DOCS],
+                suggestions=GATE2_FAILURE_QUESTIONS[Gate2FailReason.INSUFFICIENT_DOCS],
                 max_similarity=max_similarity,
                 relevant_count=relevant_count,
                 oncology_ratio=oncology_ratio,
@@ -189,7 +213,8 @@ class Gate2Service:
                 passed=False,
                 reason=Gate2FailReason.DOMAIN_MISMATCH,
                 message="검색 결과가 암 연구와 관련성이 낮습니다.",
-                suggestions=GATE2_FAILURE_SUGGESTIONS[Gate2FailReason.DOMAIN_MISMATCH],
+                tips=GATE2_FAILURE_TIPS[Gate2FailReason.DOMAIN_MISMATCH],
+                suggestions=GATE2_FAILURE_QUESTIONS[Gate2FailReason.DOMAIN_MISMATCH],
                 max_similarity=max_similarity,
                 relevant_count=relevant_count,
                 oncology_ratio=oncology_ratio,

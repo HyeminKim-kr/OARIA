@@ -173,9 +173,13 @@ class AgentService:
         all_citations = []
 
         # Collect references from task results for citations
+        # Only include references from tasks where Gate 2 passed (or wasn't checked)
         task_results = final_state.get("task_results", {})
         seen_refs = set()
         for result in task_results.values():
+            # Skip references if Gate 2 explicitly failed
+            if result.gate2_passed is False:
+                continue
             for ref in result.references:
                 ref_key = (ref.paper_id, ref.chunk_id)
                 if ref_key not in seen_refs:
