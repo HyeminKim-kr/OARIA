@@ -11,24 +11,61 @@ import {
   ZoomIn,
   ZoomOut,
   FileText,
-  MessageSquare,
-  Plus,
-  FileOutput,
   Loader2,
   AlertCircle,
   Calendar,
-  Send,
 } from 'lucide-react';
-import { useState } from 'react';
+import { useState, useRef, useEffect } from 'react';
 import { papersApi } from '@/lib/api';
 import { PaperFigure, FigureGallery } from '@/components/papers/PaperFigure';
 import { SimilarPapers } from '@/components/papers/SimilarPapers';
+import { PaperChatPanel } from '@/components/paper-chat';
+
+// 하이라이트 정보 타입
+interface HighlightInfo {
+  section: string;
+  offset_start: number;
+  offset_end: number;
+}
 
 export default function PaperDetailPage() {
   const params = useParams();
   const router = useRouter();
   const id = params.id as string;
   const [activeTab, setActiveTab] = useState<'assistant' | 'notes' | 'similar'>('assistant');
+  const [selectedText, setSelectedText] = useState<string>('');
+
+  // 하이라이트 상태
+  const [highlightInfo, setHighlightInfo] = useState<HighlightInfo | null>(null);
+  const highlightRefs = useRef<Map<string, HTMLElement>>(new Map());
+
+  // 하이라이트 요청 핸들러
+  const handleHighlightRequest = (info: HighlightInfo) => {
+    setHighlightInfo(info);
+  };
+
+  // 하이라이트 섹션으로 스크롤
+  useEffect(() => {
+    if (highlightInfo) {
+      const sectionElement = highlightRefs.current.get(highlightInfo.section.toLowerCase());
+      if (sectionElement) {
+        sectionElement.scrollIntoView({
+          behavior: 'smooth',
+          block: 'center',
+        });
+        // 3초 후 하이라이트 제거
+        const timer = setTimeout(() => setHighlightInfo(null), 5000);
+        return () => clearTimeout(timer);
+      }
+    }
+  }, [highlightInfo]);
+
+  // 섹션 ref 등록
+  const setSectionRef = (sectionName: string) => (el: HTMLElement | null) => {
+    if (el) {
+      highlightRefs.current.set(sectionName.toLowerCase(), el);
+    }
+  };
 
   // 논문 메타데이터 조회
   const {
@@ -81,6 +118,14 @@ export default function PaperDetailPage() {
 
   // 섹션 수 계산
   const sectionCount = display?.sections?.length || 0;
+
+  // 텍스트 선택 핸들러
+  const handleTextSelection = () => {
+    const selection = window.getSelection();
+    if (selection && selection.toString().trim()) {
+      setSelectedText(selection.toString().trim());
+    }
+  };
 
   return (
     <div className="flex h-full flex-col">
@@ -149,7 +194,10 @@ export default function PaperDetailPage() {
         </div>
 
         {/* Main Content */}
-        <main className="flex-1 overflow-y-auto bg-[#f5f5f5] dark:bg-[#1a1a1a]">
+        <main
+          className="flex-1 overflow-y-auto bg-[#f5f5f5] dark:bg-[#1a1a1a]"
+          onMouseUp={handleTextSelection}
+        >
           <div className="mx-auto max-w-4xl p-8">
             {/* Paper Card */}
             <article className="rounded-xl bg-[var(--background)] p-8 shadow-sm">
@@ -193,7 +241,14 @@ export default function PaperDetailPage() {
 
               {/* Abstract */}
               {paper.abstract && (
-                <section className="mb-8">
+                <section
+                  className={`mb-8 transition-all duration-500 ${
+                    highlightInfo?.section.toLowerCase() === 'abstract'
+                      ? 'bg-yellow-50 border-l-4 border-yellow-400 pl-4 -ml-4 rounded-r'
+                      : ''
+                  }`}
+                  ref={setSectionRef('abstract')}
+                >
                   <h2 className="mb-4 font-[family-name:var(--font-outfit)] text-sm font-semibold uppercase tracking-wider text-[var(--oaria-teal)]">
                     Abstract
                   </h2>
@@ -229,8 +284,18 @@ export default function PaperDetailPage() {
                 <div className="space-y-8">
                   {display.sections
                     .filter((section) => section.name !== 'abstract')  // Abstract 중복 방지
-                    .map((section, idx) => (
-                    <section key={idx}>
+                    .map((section, idx) => {
+                      const isHighlighted = highlightInfo?.section.toLowerCase() === section.name.toLowerCase();
+                      return (
+                    <section
+                      key={idx}
+                      ref={setSectionRef(section.name)}
+                      className={`transition-all duration-500 ${
+                        isHighlighted
+                          ? 'bg-yellow-50 border-l-4 border-yellow-400 pl-4 -ml-4 rounded-r'
+                          : ''
+                      }`}
+                    >
                       <h2 className="mb-4 font-[family-name:var(--font-outfit)] text-sm font-semibold uppercase tracking-wider text-[var(--oaria-teal)]">
                         {section.title}
                       </h2>
@@ -318,7 +383,8 @@ export default function PaperDetailPage() {
                         )}
                       </div>
                     </section>
-                  ))}
+                      );
+                    })}
 
                   {/* Fallback: 섹션에 연결되지 않은 전체 Figure 목록 (하위 호환) */}
                   {display.figures && display.figures.length > 0 && paper.pmcid && (
@@ -372,107 +438,14 @@ export default function PaperDetailPage() {
           </div>
 
           {/* Tab Content */}
-          <div className="flex-1 overflow-y-auto p-4">
+          <div className="flex-1 overflow-hidden p-4">
             {activeTab === 'assistant' && (
-              <>
-                {/* Quick Actions */}
-                <div className="mb-6 grid grid-cols-2 gap-3">
-                  <button className="flex flex-col items-start gap-2 rounded-xl border border-[var(--oaria-border)] p-4 text-left transition-colors hover:border-[var(--oaria-teal)]">
-                    <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-[var(--oaria-teal)]/10 text-[var(--oaria-teal)]">
-                      <MessageSquare size={20} />
-                    </div>
-                    <div>
-                      <p className="font-medium text-[var(--foreground)]">하이라이트 & 질문</p>
-                      <p className="text-xs text-[var(--oaria-tagline)]">텍스트를 선택하여 질문하기</p>
-                    </div>
-                  </button>
-
-                  <button className="flex flex-col items-start gap-2 rounded-xl border border-[var(--oaria-border)] p-4 text-left transition-colors hover:border-[var(--oaria-teal)]">
-                    <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-[var(--oaria-teal)]/10 text-[var(--oaria-teal)]">
-                      <Plus size={20} />
-                    </div>
-                    <div>
-                      <p className="font-medium text-[var(--foreground)]">맥락 추가</p>
-                      <p className="text-xs text-[var(--oaria-tagline)]">관련 논문 참조하기</p>
-                    </div>
-                  </button>
-
-                  <button className="flex flex-col items-start gap-2 rounded-xl border border-[var(--oaria-border)] p-4 text-left transition-colors hover:border-[var(--oaria-teal)]">
-                    <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-[var(--oaria-teal)]/10 text-[var(--oaria-teal)]">
-                      <FileText size={20} />
-                    </div>
-                    <div>
-                      <p className="font-medium text-[var(--foreground)]">요약 생성</p>
-                      <p className="text-xs text-[var(--oaria-tagline)]">핵심 내용 정리</p>
-                    </div>
-                  </button>
-
-                  <button className="flex flex-col items-start gap-2 rounded-xl border border-[var(--oaria-border)] p-4 text-left transition-colors hover:border-[var(--oaria-teal)]">
-                    <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-[var(--oaria-teal)]/10 text-[var(--oaria-teal)]">
-                      <FileOutput size={20} />
-                    </div>
-                    <div>
-                      <p className="font-medium text-[var(--foreground)]">인용 정보</p>
-                      <p className="text-xs text-[var(--oaria-tagline)]">참고문헌 내보내기</p>
-                    </div>
-                  </button>
-                </div>
-
-                {/* Paper Info */}
-                <div className="rounded-xl border border-[var(--oaria-border)] p-4">
-                  <h3 className="mb-4 flex items-center gap-2 font-medium text-[var(--foreground)]">
-                    <span className="flex h-5 w-5 items-center justify-center rounded-full border border-[var(--oaria-teal)] text-xs text-[var(--oaria-teal)]">i</span>
-                    논문 정보
-                  </h3>
-
-                  <dl className="space-y-3 text-sm">
-                    {paper.journal && (
-                      <div className="flex justify-between">
-                        <dt className="text-[var(--oaria-tagline)]">저널</dt>
-                        <dd className="font-medium text-[var(--foreground)]">{paper.journal}</dd>
-                      </div>
-                    )}
-                    {paper.year && (
-                      <div className="flex justify-between">
-                        <dt className="text-[var(--oaria-tagline)]">출판 연도</dt>
-                        <dd className="font-medium text-[var(--foreground)]">{paper.year}</dd>
-                      </div>
-                    )}
-                    {paper.doi && (
-                      <div className="flex justify-between">
-                        <dt className="text-[var(--oaria-tagline)]">DOI</dt>
-                        <dd>
-                          <a
-                            href={`https://doi.org/${paper.doi}`}
-                            target="_blank"
-                            rel="noopener noreferrer"
-                            className="text-[var(--oaria-teal)] hover:underline"
-                          >
-                            {paper.doi}
-                          </a>
-                        </dd>
-                      </div>
-                    )}
-                    {paper.pmcid && (
-                      <div className="flex justify-between">
-                        <dt className="text-[var(--oaria-tagline)]">PMC ID</dt>
-                        <dd className="font-medium text-[var(--foreground)]">{paper.pmcid}</dd>
-                      </div>
-                    )}
-                    {paper.is_open_access && (
-                      <div className="flex justify-between">
-                        <dt className="text-[var(--oaria-tagline)]">접근성</dt>
-                        <dd>
-                          <span className="inline-flex items-center gap-1 rounded-full bg-green-100 px-2 py-0.5 text-xs text-green-700 dark:bg-green-900/30 dark:text-green-400">
-                            <span className="h-1.5 w-1.5 rounded-full bg-green-500" />
-                            Open Access
-                          </span>
-                        </dd>
-                      </div>
-                    )}
-                  </dl>
-                </div>
-              </>
+              <PaperChatPanel
+                paper={paper}
+                selectedText={selectedText}
+                onClearSelectedText={() => setSelectedText('')}
+                onHighlightRequest={handleHighlightRequest}
+              />
             )}
 
             {activeTab === 'notes' && (
@@ -491,22 +464,6 @@ export default function PaperDetailPage() {
               <SimilarPapers paperId={id} />
             )}
           </div>
-
-          {/* Chat Input */}
-          {activeTab === 'assistant' && (
-            <div className="border-t border-[var(--oaria-border)] p-4">
-              <div className="flex items-center gap-2 rounded-xl bg-[var(--oaria-border)]/30 px-4 py-3">
-                <input
-                  type="text"
-                  placeholder="논문에 대해 질문하세요..."
-                  className="flex-1 bg-transparent text-sm text-[var(--foreground)] placeholder:text-[var(--oaria-tagline)] focus:outline-none"
-                />
-                <button className="flex h-8 w-8 items-center justify-center rounded-full bg-[var(--oaria-teal)] text-white hover:bg-[var(--oaria-teal)]/90">
-                  <Send size={16} />
-                </button>
-              </div>
-            </div>
-          )}
         </aside>
       </div>
     </div>

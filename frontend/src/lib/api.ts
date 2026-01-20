@@ -275,6 +275,78 @@ export const papersApi = {
       .then((res) => res.data),
 };
 
+// Paper Chat Types
+export type SummaryType = "full" | "abstract" | "methods" | "results" | "conclusion";
+export type CitationFormat = "apa" | "mla" | "chicago" | "harvard" | "vancouver" | "bibtex";
+
+export interface PaperAskRequest {
+  question: string;
+  conversation_id?: string;
+  include_related?: boolean;
+  highlight_context?: string;
+}
+
+export interface PaperConversationListItem {
+  id: string;
+  title: string | null;
+  message_count: number;
+  last_message_at: string | null;
+  last_message_preview: string | null;
+}
+
+export interface PaginatedPaperConversations {
+  items: PaperConversationListItem[];
+  total: number;
+  page: number;
+  size: number;
+}
+
+export interface SummarizeRequest {
+  type: SummaryType;
+  stream?: boolean;
+}
+
+export interface SummarizeResponse {
+  paper_id: string;
+  summary_type: string;
+  summary: string;
+  sections_used: string[];
+  tokens_used: number;
+  latency_ms: number;
+}
+
+export interface CitationRequest {
+  format: CitationFormat;
+}
+
+export interface CitationResponse {
+  paper_id: string;
+  format: string;
+  citation: string;
+}
+
+// Paper Chat API
+export const paperChatApi = {
+  // SSE 스트리밍은 fetchWithAuth를 직접 사용
+  askUrl: (paperId: string) => `${API_BASE_URL}/ai/papers/${paperId}/ask`,
+
+  getConversations: (paperId: string, page = 1, size = 20) =>
+    api.get<PaginatedPaperConversations>(`/ai/papers/${paperId}/conversations`, {
+      params: { page, size },
+    }),
+
+  getMessages: (paperId: string, conversationId: string, page = 1, size = 50) =>
+    api.get<PaginatedMessages>(`/ai/papers/${paperId}/conversations/${conversationId}/messages`, {
+      params: { page, size },
+    }),
+
+  summarize: (paperId: string, request: SummarizeRequest) =>
+    api.post<SummarizeResponse>(`/ai/papers/${paperId}/summarize`, request),
+
+  citation: (paperId: string, request: CitationRequest) =>
+    api.post<CitationResponse>(`/ai/papers/${paperId}/citation`, request),
+};
+
 /**
  * 토큰 갱신을 지원하는 fetch wrapper
  * SSE 스트리밍처럼 axios 대신 native fetch를 써야 할 때 사용
