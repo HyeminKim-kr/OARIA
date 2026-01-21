@@ -20,6 +20,14 @@
   --oaria-border: #E2E8F0;
   --oaria-border-strong: #CBD5E1;
   --oaria-text-secondary: #64748B;
+
+  /* Semantic - Logo */
+  --header-border: var(--oaria-border-strong);
+  --logo-ring: var(--oaria-light-ring);
+  --logo-teal: var(--oaria-teal);
+  --logo-light-teal: var(--oaria-light-teal);
+  --logo-coral: var(--oaria-coral);
+  --logo-center: var(--oaria-navy);
 }
 
 @theme inline {
@@ -29,11 +37,17 @@
   --font-body: var(--font-dm-sans);
 }
 
-@media (prefers-color-scheme: dark) {
-  :root {
-    --background: #0F172A;
-    --foreground: #FAFAFA;
-  }
+.dark {
+  --background: #0F172A;
+  --foreground: #FAFAFA;
+
+  /* Semantic - Logo Dark Mode Overrides */
+  --header-border: var(--oaria-dark-ring);
+  --logo-ring: var(--oaria-dark-ring);
+  --logo-teal: var(--oaria-light-teal);
+  --logo-light-teal: #2DD4BF;
+  /* Brighter teal for accent */
+  --logo-center: #F8FAFC;
 }
 
 body {

@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useAuth } from "@/contexts/AuthContext";
+import { useTheme } from "next-themes";
 import {
   MessageSquare,
   FileText,
@@ -12,6 +13,7 @@ import {
   FlaskConical,
   MessageCircle,
   Moon,
+  Sun,
   LogOut,
 } from "lucide-react";
 
@@ -31,6 +33,7 @@ const bottomNavItems = [
 export function Sidebar() {
   const pathname = usePathname();
   const { user, logout } = useAuth();
+  const { theme, setTheme } = useTheme();
 
   return (
     <aside className="fixed left-0 top-0 bottom-0 w-72 bg-[var(--background)] border-r-2 border-[var(--oaria-border-strong)] flex flex-col">
@@ -119,11 +122,10 @@ export function Sidebar() {
               <li key={item.href}>
                 <Link
                   href={item.href}
-                  className={`flex items-center gap-3 px-4 py-3 rounded-xl font-[family-name:var(--font-dm-sans)] text-base transition-colors ${
-                    isActive
-                      ? "bg-[var(--oaria-teal)]/10 text-[var(--oaria-teal)] font-medium"
-                      : "text-[var(--oaria-text-secondary)] hover:bg-[var(--oaria-border)]/50 hover:text-[var(--foreground)]"
-                  }`}
+                  className={`flex items-center gap-3 px-4 py-3 rounded-xl font-[family-name:var(--font-dm-sans)] text-base transition-colors ${isActive
+                    ? "bg-[var(--oaria-teal)]/10 text-[var(--oaria-teal)] font-medium"
+                    : "text-[var(--oaria-text-secondary)] hover:bg-[var(--oaria-border)]/50 hover:text-[var(--foreground)]"
+                    }`}
                 >
                   <Icon size={22} />
                   {item.label}
@@ -152,9 +154,12 @@ export function Sidebar() {
             );
           })}
           <li>
-            <button className="w-full flex items-center gap-3 px-4 py-3 rounded-xl font-[family-name:var(--font-dm-sans)] text-base text-[var(--oaria-text-secondary)] hover:bg-[var(--oaria-border)]/50 hover:text-[var(--foreground)] transition-colors">
-              <Moon size={22} />
-              Dark mode
+            <button
+              onClick={() => setTheme(theme === "dark" ? "light" : "dark")}
+              className="w-full flex items-center gap-3 px-4 py-3 rounded-xl font-[family-name:var(--font-dm-sans)] text-base text-[var(--oaria-text-secondary)] hover:bg-[var(--oaria-border)]/50 hover:text-[var(--foreground)] transition-colors"
+            >
+              {theme === "dark" ? <Sun size={22} /> : <Moon size={22} />}
+              {theme === "dark" ? "Light mode" : "Dark mode"}
             </button>
           </li>
         </ul>
