@@ -873,18 +873,23 @@ show_help() {
     echo -e "  ${GREEN}$0 service stop${NC}     Service Backend + Frontend 중지"
     echo -e "  ${GREEN}$0 service restart${NC}  Service Backend + Frontend 재시작"
     echo ""
-    echo -e "${BLUE}[개별 컨테이너 제어]${NC} Docker 컨테이너를 개별적으로 제어합니다."
+    echo -e "${BLUE}[Docker 컨테이너 개별 제어]${NC} Docker 컨테이너를 개별적으로 제어합니다."
     echo ""
-    echo -e "  ${GREEN}$0 container <name> start${NC}     컨테이너 시작"
-    echo -e "  ${GREEN}$0 container <name> stop${NC}      컨테이너 중지"
-    echo -e "  ${GREEN}$0 container <name> restart${NC}   컨테이너 재시작"
-    echo -e "  ${GREEN}$0 container <name> rebuild${NC}   이미지 리빌드 후 시작"
-    echo -e "  ${GREEN}$0 container <name> logs${NC}      컨테이너 로그 보기 (실시간)"
+    echo -e "  ${YELLOW}단축 명령어 (기본: restart):${NC}"
+    echo -e "  ${GREEN}$0 <name>${NC}                    컨테이너 재시작 (기본값)"
+    echo -e "  ${GREEN}$0 <name> start${NC}              컨테이너 시작"
+    echo -e "  ${GREEN}$0 <name> stop${NC}               컨테이너 중지"
+    echo -e "  ${GREEN}$0 <name> restart${NC}            컨테이너 재시작"
+    echo -e "  ${GREEN}$0 <name> rebuild${NC}            이미지 리빌드 후 시작"
+    echo -e "  ${GREEN}$0 <name> logs${NC}               컨테이너 로그 보기"
     echo ""
-    echo -e "  ${YELLOW}사용 가능한 컨테이너 이름:${NC}"
-    echo -e "    인프라: ${CYAN}postgres${NC}, ${CYAN}redis${NC}, ${CYAN}minio${NC}, ${CYAN}weaviate${NC}"
-    echo -e "    배치:   ${CYAN}celery-backfill${NC}, ${CYAN}celery-embed${NC}, ${CYAN}celery-beat${NC}, ${CYAN}flower${NC}"
-    echo -e "    앱:     ${CYAN}service-backend${NC}, ${CYAN}service-frontend${NC}, ${CYAN}admin-backend${NC}, ${CYAN}admin-frontend${NC}"
+    echo -e "  ${YELLOW}사용 가능한 컨테이너 <name>:${NC}"
+    echo -e "    ${BLUE}[인프라]${NC}  postgres, redis, minio, weaviate"
+    echo -e "    ${BLUE}[배치]${NC}    celery-backfill, celery-embed, celery-beat, flower"
+    echo -e "    ${BLUE}[앱]${NC}      service-backend, service-frontend, admin-backend, admin-frontend"
+    echo ""
+    echo -e "  ${YELLOW}또는 container 명령어 사용:${NC}"
+    echo -e "  ${GREEN}$0 container <name> [start|stop|restart|rebuild|logs]${NC}"
     echo ""
     echo -e "${BLUE}[유틸리티]${NC}"
     echo ""
@@ -906,11 +911,15 @@ show_help() {
     echo -e "  # 처음 개발 시작할 때 (로컬 모드)"
     echo -e "  ${CYAN}$0 local start${NC}"
     echo ""
-    echo -e "  # Celery 워커만 재시작"
-    echo -e "  ${CYAN}$0 container celery-backfill restart${NC}"
+    echo -e "  # Celery 워커만 재시작 (단축)"
+    echo -e "  ${CYAN}$0 celery-backfill${NC}"
+    echo -e "  ${CYAN}$0 celery-backfill restart${NC}"
     echo ""
-    echo -e "  # 백엔드 코드 변경 후 Docker 이미지 리빌드"
-    echo -e "  ${CYAN}$0 container service-backend rebuild${NC}"
+    echo -e "  # 백엔드 컨테이너 리빌드"
+    echo -e "  ${CYAN}$0 service-backend rebuild${NC}"
+    echo ""
+    echo -e "  # Redis 로그 보기"
+    echo -e "  ${CYAN}$0 redis logs${NC}"
     echo ""
     echo -e "  # 전체 Docker 개발환경 리빌드"
     echo -e "  ${CYAN}$0 docker-dev rebuild${NC}"
@@ -1030,13 +1039,31 @@ case "${1:-}" in
         fi
         container_control "$2" "$3"
         ;;
+    # 개별 컨테이너 단축 명령어 (인프라)
+    postgres|redis|minio|weaviate)
+        container_control "$1" "${2:-restart}"
+        ;;
+    # 개별 컨테이너 단축 명령어 (배치)
+    celery-backfill|celery-embed|celery-beat|flower)
+        container_control "$1" "${2:-restart}"
+        ;;
+    # 개별 컨테이너 단축 명령어 (앱 - Docker)
+    service-backend|service-frontend|admin-backend|admin-frontend)
+        container_control "$1" "${2:-restart}"
+        ;;
     migrate)
         run_migrations
         ;;
     install)
         install_dependencies
         ;;
-    help|--help|-h|*)
+    help|--help|-h)
         show_help
+        ;;
+    *)
+        echo -e "${RED}알 수 없는 명령어: $1${NC}"
+        echo ""
+        echo "도움말: $0 help"
+        exit 1
         ;;
 esac
