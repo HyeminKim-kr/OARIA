@@ -65,7 +65,10 @@ export function PaperCard({ paper }: PaperCardProps) {
             {affiliations.length > 0 && (
               <span className="flex items-center gap-1">
                 <span className="text-[var(--oaria-coral)]">•</span>
-                {affiliations.join(' · ')}
+                {(() => {
+                  const text = affiliations.join(' · ');
+                  return text.length > 80 ? `${text.slice(0, 80)}...` : text;
+                })()}
               </span>
             )}
           </div>

@@ -185,7 +185,7 @@ export default function MainPage() {
           </div>
 
           {/* Paper Cards */}
-          <div className="space-y-3">
+          <div className="space-y-5">
             {isLoading ? (
               // Loading skeleton
               <div className="space-y-3">
@@ -216,7 +216,11 @@ export default function MainPage() {
               </div>
             ) : papers && papers.length > 0 ? (
               // Paper list
-              papers.map((paper) => <PaperCard key={paper.id} paper={paper} />)
+              <div className="flex flex-col gap-5">
+                {papers.map((paper) => (
+                  <PaperCard key={paper.id} paper={paper} />
+                ))}
+              </div>
             ) : (
               // Empty state
               <div className="rounded-xl border-2 border-[var(--oaria-border-strong)] bg-[var(--background)] p-8 text-center">
