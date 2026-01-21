@@ -210,7 +210,7 @@ export default function StudyPlanHistoryPage() {
               <button
                 type="button"
                 onClick={() => fetchStudyPlans()}
-                className="mt-4 px-4 py-2 rounded-lg bg-[var(--oaria-teal)] text-white text-sm font-medium hover:bg-[var(--oaria-teal-dark)] transition-colors"
+                className="mt-4 px-4 py-2 rounded-lg bg-[var(--oaria-teal)] text-white text-sm font-medium hover:bg-[var(--oaria-teal)]/80 transition-colors"
               >
                 다시 시도
               </button>
@@ -231,7 +231,7 @@ export default function StudyPlanHistoryPage() {
               </p>
               <Link
                 href="/agents/study-plan"
-                className="inline-flex items-center gap-2 px-5 py-2.5 rounded-xl bg-[var(--oaria-teal)] text-white font-[family-name:var(--font-dm-sans)] font-medium hover:bg-[var(--oaria-teal-dark)] transition-colors"
+                className="inline-flex items-center gap-2 px-5 py-2.5 rounded-xl bg-[var(--oaria-teal)] text-white font-[family-name:var(--font-dm-sans)] font-medium hover:bg-[var(--oaria-teal)]/80 transition-colors"
               >
                 <Beaker size={18} />
                 실험 계획 시작하기

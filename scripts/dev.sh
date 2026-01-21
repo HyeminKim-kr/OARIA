@@ -38,12 +38,13 @@
 #
 # ============================================================
 
-set -e
+# set -e 제거: 에러 발생 시 중간에 멈추면 Docker 상태 불일치 발생 가능
 
 # 프로젝트 루트 디렉토리
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PROJECT_ROOT="$(dirname "$SCRIPT_DIR")"
 LOG_DIR="$PROJECT_ROOT/.dev-logs"
+LOCK_FILE="$PROJECT_ROOT/.dev-lock"
 
 # 색상 정의
 RED='\033[0;31m'
@@ -69,6 +70,112 @@ PORTS=(
 
 # PID 파일 위치
 PID_DIR="$PROJECT_ROOT/.pids"
+
+# ============================================================
+# 안전 장치 함수들
+# ============================================================
+
+# Docker 데몬 상태 확인
+check_docker_daemon() {
+    if ! docker info >/dev/null 2>&1; then
+        echo -e "${RED}오류: Docker 데몬이 실행 중이지 않습니다${NC}"
+        echo -e "  Docker Desktop을 시작하거나 'docker' 서비스를 확인하세요."
+        return 1
+    fi
+    return 0
+}
+
+# Lock 파일로 동시 실행 방지
+acquire_lock() {
+    local timeout=${1:-30}  # 기본 30초 대기
+    local count=0
+
+    while [ -f "$LOCK_FILE" ]; do
+        local lock_pid=$(cat "$LOCK_FILE" 2>/dev/null || echo "")
+
+        # Lock을 건 프로세스가 죽었으면 lock 파일 제거
+        if [ -n "$lock_pid" ] && ! kill -0 "$lock_pid" 2>/dev/null; then
+            echo -e "${YELLOW}⚠${NC} 이전 프로세스가 종료됨, lock 해제"
+            rm -f "$LOCK_FILE"
+            break
+        fi
+
+        if [ $count -ge $timeout ]; then
+            echo -e "${RED}오류: 다른 dev.sh 프로세스가 실행 중입니다 (PID: $lock_pid)${NC}"
+            echo -e "  강제 해제: rm $LOCK_FILE"
+            return 1
+        fi
+
+        if [ $count -eq 0 ]; then
+            echo -e "${YELLOW}▸${NC} 다른 프로세스 대기 중... (PID: $lock_pid)"
+        fi
+
+        sleep 1
+        count=$((count + 1))
+    done
+
+    echo $$ > "$LOCK_FILE"
+    trap release_lock EXIT INT TERM
+    return 0
+}
+
+# Lock 해제
+release_lock() {
+    rm -f "$LOCK_FILE"
+}
+
+# Docker 컨테이너가 완전히 중지될 때까지 대기
+wait_for_container_stop() {
+    local container_name=$1
+    local max_wait=${2:-30}
+    local count=0
+
+    while docker ps -q -f "name=$container_name" 2>/dev/null | grep -q .; do
+        if [ $count -ge $max_wait ]; then
+            echo -e "${YELLOW}⚠${NC} $container_name 중지 타임아웃"
+            return 1
+        fi
+        sleep 1
+        count=$((count + 1))
+    done
+    return 0
+}
+
+# Docker Compose가 완전히 정리될 때까지 대기
+wait_for_compose_down() {
+    local max_wait=${1:-30}
+    local count=0
+
+    while docker ps -q -f "name=oaria-" 2>/dev/null | grep -q .; do
+        if [ $count -ge $max_wait ]; then
+            echo -e "${YELLOW}⚠${NC} 일부 컨테이너가 아직 실행 중"
+            return 1
+        fi
+        sleep 1
+        count=$((count + 1))
+    done
+    return 0
+}
+
+# 현재 실행 모드 감지 (dev/prod/기본)
+detect_compose_mode() {
+    # docker-compose.dev.yml로 실행된 컨테이너가 있는지 확인
+    if docker ps --format '{{.Names}}' 2>/dev/null | grep -q "oaria-service-backend\|oaria-admin-backend"; then
+        # 앱 컨테이너가 있으면 dev 또는 prod 모드
+        local labels=$(docker inspect oaria-service-backend --format '{{.Config.Labels}}' 2>/dev/null || echo "")
+        if echo "$labels" | grep -q "dev"; then
+            echo "dev"
+        elif echo "$labels" | grep -q "prod"; then
+            echo "prod"
+        else
+            echo "dev"  # 기본값
+        fi
+    else
+        echo "infra"  # 인프라만 실행 중
+    fi
+}
+
+# ============================================================
 
 print_header() {
     echo -e "\n${CYAN}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}"
@@ -118,6 +225,11 @@ wait_for_port() {
 start_docker() {
     print_header "Docker Compose 시작 (인프라 + 배치)"
 
+    # Docker 데몬 확인
+    if ! check_docker_daemon; then
+        return 1
+    fi
+
     cd "$PROJECT_ROOT"
 
     echo -e "  ${YELLOW}▸${NC} Docker Compose 실행 중..."
@@ -141,6 +253,11 @@ start_docker() {
 # Docker 프로덕션 모드 시작
 start_docker_prod() {
     print_header "Docker Compose 시작 (프로덕션 모드)"
+
+    # Docker 데몬 확인
+    if ! check_docker_daemon; then
+        return 1
+    fi
 
     cd "$PROJECT_ROOT"
 
@@ -182,6 +299,13 @@ start_docker_prod() {
 # Docker 프로덕션 모드 중지
 stop_docker_prod() {
     print_header "Docker Compose 중지 (프로덕션 모드)"
+
+    # Docker 데몬 확인
+    if ! check_docker_daemon; then
+        echo -e "  ${YELLOW}⚠${NC} Docker 데몬이 없어 중지 스킵"
+        return 0
+    fi
+
     cd "$PROJECT_ROOT"
     docker compose -f docker-compose.yml -f docker-compose.prod.yml down
     echo -e "  ${GREEN}✓${NC} 프로덕션 서비스 중지됨"
@@ -205,6 +329,11 @@ rebuild_docker_prod() {
 # Docker 개발 모드 시작
 start_docker_dev() {
     print_header "Docker Compose 시작 (개발 모드 - Hot Reload)"
+
+    # Docker 데몬 확인
+    if ! check_docker_daemon; then
+        return 1
+    fi
 
     cd "$PROJECT_ROOT"
 
@@ -249,6 +378,13 @@ start_docker_dev() {
 # Docker 개발 모드 중지
 stop_docker_dev() {
     print_header "Docker Compose 중지 (개발 모드)"
+
+    # Docker 데몬 확인
+    if ! check_docker_daemon; then
+        echo -e "  ${YELLOW}⚠${NC} Docker 데몬이 없어 중지 스킵"
+        return 0
+    fi
+
     cd "$PROJECT_ROOT"
     docker compose -f docker-compose.yml -f docker-compose.dev.yml down
     echo -e "  ${GREEN}✓${NC} 개발 서비스 중지됨"
@@ -272,6 +408,13 @@ rebuild_docker_dev() {
 # Docker 서비스 중지
 stop_docker() {
     print_header "Docker Compose 중지"
+
+    # Docker 데몬 확인
+    if ! check_docker_daemon; then
+        echo -e "  ${YELLOW}⚠${NC} Docker 데몬이 없어 중지 스킵"
+        return 0
+    fi
+
     cd "$PROJECT_ROOT"
     docker compose down
     echo -e "  ${GREEN}✓${NC} Docker 서비스 중지됨"
@@ -281,7 +424,11 @@ stop_docker() {
 restart_docker() {
     print_header "Docker Compose 재시작 (인프라)"
     stop_docker
-    sleep 2
+
+    echo -e "  ${YELLOW}▸${NC} 컨테이너 완전 종료 대기 중..."
+    wait_for_compose_down 30
+    sleep 3  # 추가 안전 대기
+
     start_docker
 }
 
@@ -528,6 +675,11 @@ container_control() {
     local container_name=$1
     local action=$2
 
+    # Docker 데몬 확인
+    if ! check_docker_daemon; then
+        return 1
+    fi
+
     # oaria- 접두사가 없으면 추가
     if [[ ! "$container_name" =~ ^oaria- ]]; then
         container_name="oaria-$container_name"
@@ -611,24 +763,29 @@ show_status() {
 
     echo -e "\n${BLUE}[Docker 서비스]${NC}"
 
-    # Docker 컨테이너 상태
-    local containers=("oaria-postgres:15432" "oaria-redis:16379" "oaria-minio:19000" "oaria-weaviate:18080" "oaria-celery-backfill:-" "oaria-celery-embed:-" "oaria-celery-beat:-" "oaria-flower:15555")
+    # Docker 데몬 확인
+    if ! docker info >/dev/null 2>&1; then
+        echo -e "  ${RED}⚠ Docker 데몬이 실행 중이지 않습니다${NC}"
+    else
+        # Docker 컨테이너 상태
+        local containers=("oaria-postgres:15432" "oaria-redis:16379" "oaria-minio:19000" "oaria-weaviate:18080" "oaria-celery-backfill:-" "oaria-celery-embed:-" "oaria-celery-beat:-" "oaria-flower:15555")
 
-    for item in "${containers[@]}"; do
-        IFS=':' read -r name port <<< "$item"
-        local status=$(docker inspect -f '{{.State.Status}}' $name 2>/dev/null || echo "not found")
-        local health=$(docker inspect -f '{{.State.Health.Status}}' $name 2>/dev/null || echo "-")
+        for item in "${containers[@]}"; do
+            IFS=':' read -r name port <<< "$item"
+            local status=$(docker inspect -f '{{.State.Status}}' $name 2>/dev/null || echo "not found")
+            local health=$(docker inspect -f '{{.State.Health.Status}}' $name 2>/dev/null || echo "-")
 
-        if [ "$status" = "running" ]; then
-            if [ "$health" = "healthy" ] || [ "$health" = "-" ]; then
-                print_status "running" "$name" "$port" "${GREEN}($health)${NC}"
+            if [ "$status" = "running" ]; then
+                if [ "$health" = "healthy" ] || [ "$health" = "-" ]; then
+                    print_status "running" "$name" "$port" "${GREEN}($health)${NC}"
+                else
+                    print_status "running" "$name" "$port" "${YELLOW}($health)${NC}"
+                fi
             else
-                print_status "running" "$name" "$port" "${YELLOW}($health)${NC}"
+                print_status "stopped" "$name" "$port"
             fi
-        else
-            print_status "stopped" "$name" "$port"
-        fi
-    done
+        done
+    fi
 
     echo -e "\n${BLUE}[개발 서버]${NC}"
 
@@ -927,6 +1084,22 @@ show_help() {
 }
 
 # 메인 명령어 처리
+
+# Lock이 필요한 명령인지 확인 (읽기 전용 명령은 Lock 불필요)
+NEEDS_LOCK=true
+case "${1:-}" in
+    status|logs|monitor|help|--help|-h)
+        NEEDS_LOCK=false
+        ;;
+esac
+
+# Lock 획득 (동시 실행 방지)
+if [ "$NEEDS_LOCK" = true ]; then
+    if ! acquire_lock; then
+        exit 1
+    fi
+fi
+
 case "${1:-}" in
     start)
         start_all
@@ -936,7 +1109,9 @@ case "${1:-}" in
         ;;
     restart)
         stop_all
-        sleep 2
+        echo -e "  ${YELLOW}▸${NC} 컨테이너 완전 종료 대기 중..."
+        wait_for_compose_down 30
+        sleep 3
         start_all
         ;;
     status)
@@ -962,7 +1137,9 @@ case "${1:-}" in
             stop) stop_docker_prod ;;
             restart)
                 stop_docker_prod
-                sleep 2
+                echo -e "  ${YELLOW}▸${NC} 컨테이너 완전 종료 대기 중..."
+                wait_for_compose_down 30
+                sleep 3
                 start_docker_prod
                 ;;
             rebuild) rebuild_docker_prod ;;
@@ -975,7 +1152,9 @@ case "${1:-}" in
             stop) stop_docker_dev ;;
             restart)
                 stop_docker_dev
-                sleep 2
+                echo -e "  ${YELLOW}▸${NC} 컨테이너 완전 종료 대기 중..."
+                wait_for_compose_down 30
+                sleep 3
                 start_docker_dev
                 ;;
             rebuild) rebuild_docker_dev ;;
@@ -1016,7 +1195,9 @@ case "${1:-}" in
             stop) stop_all_local ;;
             restart)
                 stop_all_local
-                sleep 2
+                echo -e "  ${YELLOW}▸${NC} 컨테이너 완전 종료 대기 중..."
+                wait_for_compose_down 30
+                sleep 3
                 start_all_local
                 ;;
             *) echo "Usage: $0 local [start|stop|restart]" ;;
