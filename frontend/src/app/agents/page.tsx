@@ -25,12 +25,21 @@ interface AgentCard {
 
 const agents: AgentCard[] = [
   {
+    id: "study-plan",
+    name: "Study Plan Agent",
+    description: "가설 기반 후속 실험 설계를 자동화합니다. NSPE 분석, Evidence Pack 구축, 실험 설계를 지원합니다.",
+    icon: <Beaker size={24} />,
+    href: "/agents/study-plan",
+    color: "bg-green-500",
+  },
+  {
     id: "research-assistant",
     name: "Research Assistant",
     description: "논문 분석, 연구 동향 파악, 관련 연구 탐색을 도와드립니다.",
     icon: <BookOpen size={24} />,
     href: "/agents/research-assistant",
     color: "bg-blue-500",
+    comingSoon: true,
   },
   {
     id: "literature-review",
@@ -39,14 +48,6 @@ const agents: AgentCard[] = [
     icon: <FileText size={24} />,
     href: "/agents/literature-review",
     color: "bg-purple-500",
-  },
-  {
-    id: "experiment-planner",
-    name: "Experiment Planner",
-    description: "실험 설계, 프로토콜 작성, 방법론 제안을 도와드립니다.",
-    icon: <Beaker size={24} />,
-    href: "/agents/experiment-planner",
-    color: "bg-green-500",
     comingSoon: true,
   },
   {

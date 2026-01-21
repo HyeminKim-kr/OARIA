@@ -351,6 +351,207 @@ export const paperChatApi = {
  * 토큰 갱신을 지원하는 fetch wrapper
  * SSE 스트리밍처럼 axios 대신 native fetch를 써야 할 때 사용
  */
+// Study Plan Types
+export interface StudyPlanRequest {
+  hypothesis: string;
+  research_context?: string;
+  constraints?: string[];
+  preferred_experiment_types?: string[];
+}
+
+export interface StudyPlanSummaryResponse {
+  success: boolean;
+  plan_id?: string;
+  final_plan: string;
+  executive_summary: string;
+  experiment_count: number;
+  approval_required: boolean;
+  approval_status: string;
+  total_duration_ms: number;
+  error?: string;
+}
+
+// Study Plan SSE 이벤트 데이터 타입
+export interface StudyPlanHypothesisEvent {
+  original_text: string;
+  independent_variable: string;
+  dependent_variable: string;
+  keywords: string[];
+  confidence: number;
+}
+
+export interface StudyPlanTestQuestion {
+  category: string;
+  question: string;
+  priority: number;
+}
+
+export interface StudyPlanExperiment {
+  experiment_id: string;
+  experiment_type: string;
+  title: string;
+  test_category: string;
+  estimated_timeline: string;
+  estimated_cost_level: string;
+}
+
+export interface StudyPlanApprovalChoice {
+  choice_id: string;
+  label: string;
+  description: string;
+  estimated_cost: string;
+  estimated_timeline: string;
+}
+
+// Study Plan 저장 요청
+export interface StudyPlanSaveRequest {
+  hypothesis_input: string;
+  research_context?: string;
+  preferred_experiment_types?: string[];
+
+  // 파싱된 가설
+  hypothesis_structured?: Record<string, unknown>;
+  hypothesis_confidence?: number;
+
+  // 검증 질문
+  test_questions?: Record<string, unknown>[];
+
+  // 검색 결과
+  search_coverage_score?: number;
+  prior_studies_count?: number;
+
+  // Evidence Pack
+  evidence_packs?: Record<string, unknown>[];
+
+  // 실험 설계
+  experiment_designs?: Record<string, unknown>[];
+  experiment_count?: number;
+
+  // Critique
+  quality_score?: number;
+  revision_count?: number;
+
+  // 측정 항목
+  measurements?: Record<string, unknown>[];
+
+  // 실현가능성
+  feasibility_assessment?: Record<string, unknown>;
+
+  // 승인 게이트
+  approval_required?: boolean;
+  approval_status?: string;
+
+  // 최종 결과
+  final_plan?: string;
+  executive_summary?: string;
+  references?: Record<string, unknown>[];
+
+  // 메타
+  status?: string;
+  total_duration_ms?: number;
+  error_message?: string;
+}
+
+// Study Plan 목록 아이템
+export interface StudyPlanListItem {
+  id: string;
+  hypothesis_input: string;
+  experiment_count: number;
+  quality_score: number | null;
+  status: string;
+  created_at: string;
+}
+
+// 페이지네이션된 Study Plan 목록
+export interface PaginatedStudyPlans {
+  items: StudyPlanListItem[];
+  total: number;
+  page: number;
+  size: number;
+  pages: number;
+}
+
+// Study Plan 전체 상세 응답
+export interface StudyPlanFullResponse {
+  id: string;
+  user_id: string;
+
+  // 입력
+  hypothesis_input: string;
+  research_context: string | null;
+  preferred_experiment_types: string[];
+
+  // 파싱된 가설
+  hypothesis_structured: Record<string, unknown> | null;
+  hypothesis_confidence: number | null;
+
+  // 검증 질문
+  test_questions: Record<string, unknown>[];
+
+  // 검색 결과
+  search_coverage_score: number | null;
+  prior_studies_count: number;
+
+  // Evidence Pack
+  evidence_packs: Record<string, unknown>[];
+
+  // 실험 설계
+  experiment_designs: Record<string, unknown>[];
+  experiment_count: number;
+
+  // Critique
+  quality_score: number | null;
+  revision_count: number;
+
+  // 측정 항목
+  measurements: Record<string, unknown>[];
+
+  // 실현가능성
+  feasibility_assessment: Record<string, unknown> | null;
+
+  // 승인 게이트
+  approval_required: boolean;
+  approval_status: string;
+
+  // 최종 결과
+  final_plan: string | null;
+  executive_summary: string | null;
+  references: Record<string, unknown>[];
+
+  // 메타
+  status: string;
+  total_duration_ms: number | null;
+  error_message: string | null;
+  created_at: string;
+  updated_at: string;
+}
+
+// Study Plan API
+export const studyPlanApi = {
+  // SSE 스트리밍 URL
+  generateUrl: () => `${API_BASE_URL}/study-plan/generate`,
+
+  // 동기 실행 (테스트용)
+  generateSync: (request: StudyPlanRequest) =>
+    api.post<StudyPlanSummaryResponse>('/study-plan/generate-sync', request),
+
+  // 저장
+  save: (data: StudyPlanSaveRequest) =>
+    api.post<StudyPlanFullResponse>('/study-plan/save', data),
+
+  // 히스토리 목록
+  list: (page = 1, size = 10) =>
+    api.get<PaginatedStudyPlans>('/study-plan/history', { params: { page, size } }),
+
+  // 상세 조회
+  get: (id: string) =>
+    api.get<StudyPlanFullResponse>(`/study-plan/${id}`),
+
+  // 삭제
+  delete: (id: string) =>
+    api.delete(`/study-plan/${id}`),
+};
+
 export async function fetchWithAuth(
   url: string,
   options: RequestInit = {}
