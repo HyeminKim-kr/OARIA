@@ -105,8 +105,8 @@ services:
 
   celery-worker-backfill:
     build:
-      context: .
-      dockerfile: batch/Dockerfile
+      context: ./batch
+      dockerfile: Dockerfile
     container_name: oaria-celery-backfill
     command: celery -A src.celery_app worker -Q backfill --loglevel=info --concurrency=2 -E
     healthcheck:
@@ -141,8 +141,8 @@ services:
 
   celery-worker-embed:
     build:
-      context: .
-      dockerfile: batch/Dockerfile
+      context: ./batch
+      dockerfile: Dockerfile
     container_name: oaria-celery-embed
     command: celery -A src.celery_app worker -Q embed --loglevel=info --concurrency=1 -E
     healthcheck:
@@ -176,8 +176,8 @@ services:
 
   celery-beat:
     build:
-      context: .
-      dockerfile: batch/Dockerfile
+      context: ./batch
+      dockerfile: Dockerfile
     container_name: oaria-celery-beat
     command: celery -A src.celery_app beat --loglevel=info
     healthcheck:
@@ -197,8 +197,8 @@ services:
 
   flower:
     build:
-      context: .
-      dockerfile: batch/Dockerfile
+      context: ./batch
+      dockerfile: Dockerfile
     container_name: oaria-flower
     command: >
       celery -A src.celery_app flower
