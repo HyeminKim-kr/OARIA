@@ -1,7 +1,8 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, Suspense } from "react";
 import Link from "next/link";
+import { useSearchParams } from "next/navigation";
 import { useQuery } from "@tanstack/react-query";
 import {
   Search,
@@ -21,9 +22,13 @@ import {
 import { papersApi } from "@/lib/api";
 import { PaperCard } from "@/components/papers";
 
-export default function MainPage() {
+function MainContent() {
+  const searchParams = useSearchParams();
   const [searchQuery, setSearchQuery] = useState("");
   const [debouncedQuery, setDebouncedQuery] = useState("");
+  const [activeTab, setActiveTab] = useState<"papers" | "agents">(
+    searchParams.get("tab") === "agents" ? "agents" : "papers"
+  );
   const [activeFilter, setActiveFilter] = useState<"recent" | "recommended" | "bookmark">(
     "recent"
   );
@@ -69,25 +74,26 @@ export default function MainPage() {
             </Link>
             <button
               type="button"
-              className="flex items-center gap-2 px-4 py-3 font-[family-name:var(--font-dm-sans)] text-base font-medium border-b-2 border-[var(--oaria-teal)] text-[var(--oaria-teal)]"
+              onClick={() => setActiveTab("papers")}
+              className={`flex items-center gap-2 px-4 py-2 rounded-full text-sm font-medium transition-all ${activeTab === "papers"
+                  ? "bg-[var(--oaria-teal)] text-white shadow-sm"
+                  : "text-[var(--oaria-text-secondary)] hover:text-[var(--foreground)]"
+                }`}
             >
               <Search size={20} />
               Search Papers
             </button>
-            <Link
-              href="/agents"
-              className="flex items-center gap-2 px-4 py-3 font-[family-name:var(--font-dm-sans)] text-base font-medium border-b-2 border-transparent text-[var(--oaria-text-secondary)] hover:text-[var(--foreground)] transition-colors"
+            <button
+              type="button"
+              onClick={() => setActiveTab("agents")}
+              className={`flex items-center gap-2 px-4 py-2 rounded-full text-sm font-medium transition-all ${activeTab === "agents"
+                  ? "bg-[var(--oaria-teal)] text-white shadow-sm"
+                  : "text-[var(--oaria-text-secondary)] hover:text-[var(--foreground)]"
+                }`}
             >
-              <Bot size={20} />
-              Agents
-            </Link>
-            <Link
-              href="/dashboard"
-              className="flex items-center gap-2 px-4 py-3 font-[family-name:var(--font-dm-sans)] text-base font-medium border-b-2 border-transparent text-[var(--oaria-text-secondary)] hover:text-[var(--foreground)] transition-colors"
-            >
-              <BarChart3 size={20} />
-              Dashboard
-            </Link>
+              <Bot size={16} />
+              Agent
+            </button>
           </div>
         </div>
       </div>
@@ -97,9 +103,9 @@ export default function MainPage() {
         <div className="max-w-5xl mx-auto px-6 py-6">
           {/* Search Input */}
           <form onSubmit={handleSubmit} className="mb-8">
-              <div
-                className="relative bg-[var(--background)] border-2 border-[var(--oaria-border-strong)] rounded-2xl shadow-lg hover:border-[var(--oaria-teal)]/50 focus-within:border-[var(--oaria-teal)] focus-within:ring-2 focus-within:ring-[var(--oaria-teal)]/20 transition-all"
-              >
+            <div
+              className="relative bg-[var(--background)] border-2 border-[var(--oaria-border-strong)] rounded-2xl shadow-lg hover:border-[var(--oaria-teal)]/50 focus-within:border-[var(--oaria-teal)] focus-within:ring-2 focus-within:ring-[var(--oaria-teal)]/20 transition-all"
+            >
               <div className="flex items-center px-6 py-6">
                 <Search size={24} className="text-[var(--oaria-tagline)] mr-4" />
                 <input
@@ -137,8 +143,8 @@ export default function MainPage() {
                   <ArrowUp size={20} className="text-white" />
                 </button>
               </div>
-              </div>
-            </form>
+            </div>
+          </form>
 
           {/* Filters */}
           <div className="flex items-center justify-between mb-4">
@@ -149,33 +155,30 @@ export default function MainPage() {
               <div className="flex items-center bg-[var(--oaria-border)]/30 rounded-lg p-1">
                 <button
                   onClick={() => setActiveFilter("recent")}
-                  className={`flex items-center gap-1.5 px-3 py-1.5 rounded-md text-sm font-medium transition-colors ${
-                    activeFilter === "recent"
+                  className={`flex items-center gap-1.5 px-3 py-1.5 rounded-md text-sm font-medium transition-colors ${activeFilter === "recent"
                       ? "bg-[var(--background)] text-[var(--oaria-teal)] shadow-sm"
                       : "text-[var(--oaria-text-secondary)]"
-                  }`}
+                    }`}
                 >
                   <Clock size={14} />
                   최근
                 </button>
                 <button
                   onClick={() => setActiveFilter("recommended")}
-                  className={`flex items-center gap-1.5 px-3 py-1.5 rounded-md text-sm font-medium transition-colors ${
-                    activeFilter === "recommended"
+                  className={`flex items-center gap-1.5 px-3 py-1.5 rounded-md text-sm font-medium transition-colors ${activeFilter === "recommended"
                       ? "bg-[var(--background)] text-[var(--oaria-teal)] shadow-sm"
                       : "text-[var(--oaria-text-secondary)]"
-                  }`}
+                    }`}
                 >
                   <Sparkles size={14} />
                   추천
                 </button>
                 <button
                   onClick={() => setActiveFilter("bookmark")}
-                  className={`flex items-center gap-1.5 px-3 py-1.5 rounded-md text-sm font-medium transition-colors ${
-                    activeFilter === "bookmark"
+                  className={`flex items-center gap-1.5 px-3 py-1.5 rounded-md text-sm font-medium transition-colors ${activeFilter === "bookmark"
                       ? "bg-[var(--background)] text-[var(--oaria-teal)] shadow-sm"
                       : "text-[var(--oaria-text-secondary)]"
-                  }`}
+                    }`}
                 >
                   <Bookmark size={14} />
                   북마크
@@ -185,50 +188,60 @@ export default function MainPage() {
           </div>
 
           {/* Paper Cards */}
-          <div className="space-y-5">
-            {isLoading ? (
-              // Loading skeleton
-              <div className="space-y-3">
-                {[1, 2, 3].map((i) => (
-                  <div
-                    key={i}
-                    className="animate-pulse rounded-xl border-2 border-[var(--oaria-border-strong)] bg-[var(--background)] p-5"
-                  >
-                    <div className="flex gap-6">
-                      <div className="flex-1 space-y-3">
-                        <div className="h-6 w-3/4 rounded bg-[var(--oaria-border)]" />
-                        <div className="h-4 w-1/2 rounded bg-[var(--oaria-border)]" />
-                        <div className="space-y-2">
-                          <div className="h-4 w-full rounded bg-[var(--oaria-border)]" />
-                          <div className="h-4 w-2/3 rounded bg-[var(--oaria-border)]" />
+          <div className="space-y-3">
+            {activeTab === "papers" && (
+              <>
+                {isLoading ? (
+                  // Loading skeleton
+                  <div className="space-y-3">
+                    {[1, 2, 3].map((i) => (
+                      <div
+                        key={i}
+                        className="animate-pulse rounded-xl border-2 border-[var(--oaria-border-strong)] bg-[var(--background)] p-5"
+                      >
+                        <div className="flex gap-6">
+                          <div className="flex-1 space-y-3">
+                            <div className="h-6 w-3/4 rounded bg-[var(--oaria-border)]" />
+                            <div className="h-4 w-1/2 rounded bg-[var(--oaria-border)]" />
+                            <div className="space-y-2">
+                              <div className="h-4 w-full rounded bg-[var(--oaria-border)]" />
+                              <div className="h-4 w-2/3 rounded bg-[var(--oaria-border)]" />
+                            </div>
+                          </div>
+                          <div className="hidden h-40 w-32 rounded-lg bg-[var(--oaria-border)] md:block" />
                         </div>
                       </div>
-                      <div className="hidden h-40 w-32 rounded-lg bg-[var(--oaria-border)] md:block" />
-                    </div>
+                    ))}
                   </div>
-                ))}
-              </div>
-            ) : error ? (
-              // Error state
-              <div className="rounded-xl border-2 border-red-200 bg-red-50 p-8 text-center">
-                <p className="text-red-600">논문을 불러오는 중 오류가 발생했습니다.</p>
-                <p className="mt-2 text-sm text-red-400">잠시 후 다시 시도해 주세요.</p>
-              </div>
-            ) : papers && papers.length > 0 ? (
-              // Paper list
-              <div className="flex flex-col gap-5">
-                {papers.map((paper) => (
-                  <PaperCard key={paper.id} paper={paper} />
-                ))}
-              </div>
-            ) : (
-              // Empty state
-              <div className="rounded-xl border-2 border-[var(--oaria-border-strong)] bg-[var(--background)] p-8 text-center">
-                <FileText size={48} className="mx-auto mb-4 text-[var(--oaria-tagline)]" />
+                ) : error ? (
+                  // Error state
+                  <div className="rounded-xl border-2 border-red-200 bg-red-50 p-8 text-center">
+                    <p className="text-red-600">논문을 불러오는 중 오류가 발생했습니다.</p>
+                    <p className="mt-2 text-sm text-red-400">잠시 후 다시 시도해 주세요.</p>
+                  </div>
+                ) : papers && papers.length > 0 ? (
+                  // Paper list
+                  papers.map((paper) => <PaperCard key={paper.id} paper={paper} />)
+                ) : (
+                  // Empty state
+                  <div className="rounded-xl border-2 border-[var(--oaria-border-strong)] bg-[var(--background)] p-8 text-center">
+                    <FileText size={48} className="mx-auto mb-4 text-[var(--oaria-tagline)]" />
+                    <p className="text-[var(--oaria-text-secondary)]">
+                      {debouncedQuery
+                        ? `"${debouncedQuery}"에 대한 검색 결과가 없습니다.`
+                        : "수집된 논문이 없습니다."}
+                    </p>
+                  </div>
+                )}
+              </>
+            )}
+
+            {activeTab === "agents" && (
+              <div className="rounded-xl border-2 border-[var(--oaria-border-strong)] bg-[var(--background)] p-12 text-center">
+                <Bot size={48} className="mx-auto mb-4 text-[var(--oaria-tagline)]" />
+                <h3 className="text-lg font-medium text-[var(--foreground)] mb-2">Agent Coming Soon</h3>
                 <p className="text-[var(--oaria-text-secondary)]">
-                  {debouncedQuery
-                    ? `"${debouncedQuery}"에 대한 검색 결과가 없습니다.`
-                    : "수집된 논문이 없습니다."}
+                  에이전트 기능은 준비 중입니다.
                 </p>
               </div>
             )}
@@ -236,5 +249,13 @@ export default function MainPage() {
         </div>
       </div>
     </div>
+  );
+}
+
+export default function MainPage() {
+  return (
+    <Suspense>
+      <MainContent />
+    </Suspense>
   );
 }

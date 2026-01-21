@@ -3,6 +3,7 @@ import { Outfit, DM_Sans } from "next/font/google";
 import "./globals.css";
 import { AuthProvider } from "@/contexts/AuthContext";
 import { QueryProvider } from "@/components/providers/QueryProvider";
+import { ThemeProvider } from "@/components/providers/ThemeProvider";
 
 const outfit = Outfit({
   variable: "--font-outfit",
@@ -27,13 +28,20 @@ export default function RootLayout({
   children: React.ReactNode;
 }>) {
   return (
-    <html lang="ko">
+    <html lang="ko" suppressHydrationWarning>
       <body
         className={`${outfit.variable} ${dmSans.variable} antialiased`}
       >
-        <AuthProvider>
-          <QueryProvider>{children}</QueryProvider>
-        </AuthProvider>
+        <ThemeProvider
+          attribute="class"
+          defaultTheme="system"
+          enableSystem
+          disableTransitionOnChange
+        >
+          <AuthProvider>
+            <QueryProvider>{children}</QueryProvider>
+          </AuthProvider>
+        </ThemeProvider>
       </body>
     </html>
   );

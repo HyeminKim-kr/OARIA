@@ -394,25 +394,18 @@ export default function AskPage() {
                 Ask AI
               </button>
               <Link
-                href="/main"
-                className="flex items-center gap-2 px-4 py-3 font-[family-name:var(--font-dm-sans)] text-base font-medium border-b-2 border-transparent text-[var(--oaria-text-secondary)] hover:text-[var(--foreground)] transition-colors"
+                href="/main?tab=papers"
+                className="flex items-center gap-2 px-4 py-2 rounded-full text-sm font-medium text-[var(--oaria-text-secondary)] hover:text-[var(--foreground)] transition-all"
               >
                 <Search size={20} />
                 Search Papers
               </Link>
               <Link
-                href="/agents"
-                className="flex items-center gap-2 px-4 py-3 font-[family-name:var(--font-dm-sans)] text-base font-medium border-b-2 border-transparent text-[var(--oaria-text-secondary)] hover:text-[var(--foreground)] transition-colors"
+                href="/main?tab=agents"
+                className="flex items-center gap-2 px-4 py-2 rounded-full text-sm font-medium text-[var(--oaria-text-secondary)] hover:text-[var(--foreground)] transition-all"
               >
-                <Bot size={20} />
-                Agents
-              </Link>
-              <Link
-                href="/dashboard"
-                className="flex items-center gap-2 px-4 py-3 font-[family-name:var(--font-dm-sans)] text-base font-medium border-b-2 border-transparent text-[var(--oaria-text-secondary)] hover:text-[var(--foreground)] transition-colors"
-              >
-                <BarChart3 size={20} />
-                Dashboard
+                <Bot size={16} />
+                Agent
               </Link>
             </div>
           </div>
@@ -506,12 +499,12 @@ export default function AskPage() {
                                           gateClassification.category === "non_medical"
                                             ? "이 질문은 의학과 관련이 없는 것으로 보입니다. OARIA는 종양학(암 연구) 전문 AI입니다."
                                             : gateClassification.category === "cardiology"
-                                            ? "이 질문은 심장학 분야로 분류되었습니다. OARIA는 종양학(암 연구) 전문 AI로, 답변의 정확도가 낮을 수 있습니다."
-                                            : gateClassification.category === "neurology"
-                                            ? "이 질문은 신경학 분야로 분류되었습니다. OARIA는 종양학(암 연구) 전문 AI로, 답변의 정확도가 낮을 수 있습니다."
-                                            : gateClassification.category === "general_medicine"
-                                            ? "이 질문은 일반 의학 분야로 분류되었습니다. OARIA는 종양학(암 연구) 전문 AI로, 답변의 정확도가 낮을 수 있습니다."
-                                            : "OARIA는 종양학(암 연구) 전문 AI로, 이 질문에 대한 답변의 정확도가 낮을 수 있습니다."
+                                              ? "이 질문은 심장학 분야로 분류되었습니다. OARIA는 종양학(암 연구) 전문 AI로, 답변의 정확도가 낮을 수 있습니다."
+                                              : gateClassification.category === "neurology"
+                                                ? "이 질문은 신경학 분야로 분류되었습니다. OARIA는 종양학(암 연구) 전문 AI로, 답변의 정확도가 낮을 수 있습니다."
+                                                : gateClassification.category === "general_medicine"
+                                                  ? "이 질문은 일반 의학 분야로 분류되었습니다. OARIA는 종양학(암 연구) 전문 AI로, 답변의 정확도가 낮을 수 있습니다."
+                                                  : "OARIA는 종양학(암 연구) 전문 AI로, 이 질문에 대한 답변의 정확도가 낮을 수 있습니다."
                                         )}
                                       </p>
                                     </div>
@@ -608,15 +601,14 @@ export default function AskPage() {
                   <div className="ml-11 mb-4 p-4 rounded-lg bg-[var(--oaria-border)]/20 border border-[var(--oaria-border)]">
                     {/* Complexity Badge */}
                     {agentProgress.complexity && (
-                      <div className="flex items-center justify-center gap-2 mb-3">
-                        <span className={`px-3 py-1 rounded-full text-xs font-medium ${
-                          agentProgress.complexity.level === "simple"
-                            ? "bg-green-100 text-green-700"
-                            : agentProgress.complexity.level === "medium"
+                      <div className="flex items-center gap-2 mb-3">
+                        <span className={`px-2 py-1 rounded-full text-xs font-medium ${agentProgress.complexity.level === "simple"
+                          ? "bg-green-100 text-green-700"
+                          : agentProgress.complexity.level === "medium"
                             ? "bg-yellow-100 text-yellow-700"
                             : "bg-purple-100 text-purple-700"
-                        }`}>
-                          {agentProgress.complexity.level.toUpperCase()}
+                          }`}>
+                          {agentProgress.complexity.level.toUpperCase()} Query
                         </span>
                         <span className="text-xs text-[var(--oaria-text-secondary)]">
                           {agentProgress.complexity.reasoning}
@@ -654,9 +646,8 @@ export default function AskPage() {
 
                     {/* Gate 2: Retrieval Confidence (OAR-12) */}
                     {agentProgress.gate2 && (
-                      <div className={`mt-3 pt-3 border-t border-[var(--oaria-border)] flex items-center gap-2 ${
-                        agentProgress.gate2.passed ? "text-green-600" : "text-amber-600"
-                      }`}>
+                      <div className={`mt-3 pt-3 border-t border-[var(--oaria-border)] flex items-center gap-2 ${agentProgress.gate2.passed ? "text-green-600" : "text-amber-600"
+                        }`}>
                         {agentProgress.gate2.passed ? (
                           <>
                             <span className="w-5 h-5 rounded-full bg-green-500 flex items-center justify-center">

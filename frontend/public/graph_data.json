@@ -1,0 +1,786 @@
+{
+  "nodes": [
+    {
+      "id": "https://openalex.org/W2116341502",
+      "label": "The Graph Neural Network Model",
+      "year": 2008,
+      "citation_count": 8534,
+      "type": "PAPER",
+      "x": -601.5518929335226,
+      "y": -497.94133400947004
+    },
+    {
+      "id": "https://openalex.org/W2907492528",
+      "label": "A Comprehensive Survey on Graph Neural Networks",
+      "year": 2020,
+      "citation_count": 8036,
+      "type": "PAPER",
+      "x": -330.0803812234276,
+      "y": 650.7357392596896
+    },
+    {
+      "id": "https://openalex.org/W3152893301",
+      "label": "Graph neural networks: A review of methods and applications",
+      "year": 2020,
+      "citation_count": 4950,
+      "type": "PAPER",
+      "x": -101.72186868961126,
+      "y": -647.324755934432
+    },
+    {
+      "id": "https://openalex.org/W2914721378",
+      "label": "Graph Neural Networks for Social Recommendation",
+      "year": 2019,
+      "citation_count": 1796,
+      "type": "PAPER",
+      "x": 18.86173915623226,
+      "y": -70.92805664038337
+    },
+    {
+      "id": "https://openalex.org/W2965857891",
+      "label": "Heterogeneous Graph Neural Network",
+      "year": 2019,
+      "citation_count": 1395,
+      "type": "PAPER",
+      "x": 342.93197519695514,
+      "y": -899.5837794996078
+    },
+    {
+      "id": "https://openalex.org/W2905224888",
+      "label": "Graph Neural Networks: A Review of Methods and Applications",
+      "year": 2018,
+      "citation_count": 1450,
+      "type": "PAPER",
+      "x": -385.38863019038035,
+      "y": -279.42493165002816
+    },
+    {
+      "id": "https://openalex.org/W2899457523",
+      "label": "Session-Based Recommendation with Graph Neural Networks",
+      "year": 2019,
+      "citation_count": 1362,
+      "type": "PAPER",
+      "x": -996.9660976848173,
+      "y": -516.2926136600299
+    },
+    {
+      "id": "https://openalex.org/W3080253043",
+      "label": "Connecting the Dots: Multivariate Time Series Forecasting with Graph Neural Networks",
+      "year": 2020,
+      "citation_count": 1545,
+      "type": "PAPER",
+      "x": -117.78512280930568,
+      "y": 786.7024986119591
+    },
+    {
+      "id": "https://openalex.org/W3123909522",
+      "label": "Graph neural network for traffic forecasting: A survey",
+      "year": 2022,
+      "citation_count": 1064,
+      "type": "PAPER",
+      "x": -758.6808614400682,
+      "y": -191.53338652461468
+    },
+    {
+      "id": "https://openalex.org/W3097300053",
+      "label": "Graph Neural Networks in Recommender Systems: A Survey",
+      "year": 2022,
+      "citation_count": 996,
+      "type": "PAPER",
+      "x": 72.19384234489507,
+      "y": 481.66777452249744
+    },
+    {
+      "id": "https://openalex.org/W3169450514",
+      "label": "Graph Neural Network-Based Anomaly Detection in Multivariate Time Series",
+      "year": 2021,
+      "citation_count": 998,
+      "type": "PAPER",
+      "x": 138.23944064584248,
+      "y": 210.42100895284216
+    },
+    {
+      "id": "https://openalex.org/W3096561213",
+      "label": "GraphDTA: predicting drug\u2013target binding affinity with graph neural networks",
+      "year": 2020,
+      "citation_count": 968,
+      "type": "PAPER",
+      "x": 129.3671684747585,
+      "y": 929.0268451619095
+    },
+    {
+      "id": "https://openalex.org/W2948246283",
+      "label": "Skeleton-Based Action Recognition With Directed Graph Neural Networks",
+      "year": 2019,
+      "citation_count": 912,
+      "type": "PAPER",
+      "x": -633.0789697944299,
+      "y": -497.15463702887973
+    },
+    {
+      "id": "https://openalex.org/W3004507689",
+      "label": "MAGNN: Metapath Aggregated Graph Neural Network for Heterogeneous Graph Embedding",
+      "year": 2020,
+      "citation_count": 870,
+      "type": "PAPER",
+      "x": 639.1252187192833,
+      "y": 804.9750899285739
+    },
+    {
+      "id": "https://openalex.org/W3034681945",
+      "label": "Point-GNN: Graph Neural Network for 3D Object Detection in a Point Cloud",
+      "year": 2020,
+      "citation_count": 883,
+      "type": "PAPER",
+      "x": -517.6085861780641,
+      "y": 54.09543117418298
+    },
+    {
+      "id": "https://openalex.org/W4225405705",
+      "label": "E(3)-equivariant graph neural networks for data-efficient and accurate interatomic potentials",
+      "year": 2022,
+      "citation_count": 1380,
+      "type": "PAPER",
+      "x": -67.95363704779288,
+      "y": 337.23235634423645
+    },
+    {
+      "id": "https://openalex.org/W2900470550",
+      "label": "Pitfalls of Graph Neural Network Evaluation",
+      "year": 2018,
+      "citation_count": 629,
+      "type": "PAPER",
+      "x": 391.2385450212864,
+      "y": 687.6850286895158
+    },
+    {
+      "id": "https://openalex.org/W2972317931",
+      "label": "GNNExplainer: Generating Explanations for Graph Neural Networks",
+      "year": 2019,
+      "citation_count": 686,
+      "type": "PAPER",
+      "x": -462.3135462096883,
+      "y": -490.4142409107985
+    },
+    {
+      "id": "https://openalex.org/W4310273071",
+      "label": "Graph neural networks for materials science and chemistry",
+      "year": 2022,
+      "citation_count": 606,
+      "type": "PAPER",
+      "x": 874.9574458782479,
+      "y": 600.4894263281592
+    },
+    {
+      "id": "https://openalex.org/W2998496395",
+      "label": "Measuring and Relieving the Over-Smoothing Problem for Graph Neural Networks from the Topological View",
+      "year": 2020,
+      "citation_count": 925,
+      "type": "PAPER",
+      "x": -143.3812576847431,
+      "y": -163.80295915103682
+    }
+  ],
+  "edges": [
+    {
+      "source": "https://openalex.org/W2116341502",
+      "target": "https://openalex.org/W3004507689",
+      "type": "SIMILARITY",
+      "weight": 0.7691423765755108
+    },
+    {
+      "source": "https://openalex.org/W2116341502",
+      "target": "https://openalex.org/W3123909522",
+      "type": "SIMILARITY",
+      "weight": 0.7577928297901074
+    },
+    {
+      "source": "https://openalex.org/W2116341502",
+      "target": "https://openalex.org/W2965857891",
+      "type": "SIMILARITY",
+      "weight": 0.755434887970869
+    },
+    {
+      "source": "https://openalex.org/W2116341502",
+      "target": "https://openalex.org/W2900470550",
+      "type": "SIMILARITY",
+      "weight": 0.7540863416123997
+    },
+    {
+      "source": "https://openalex.org/W2116341502",
+      "target": "https://openalex.org/W3096561213",
+      "type": "SIMILARITY",
+      "weight": 0.7521340781612342
+    },
+    {
+      "source": "https://openalex.org/W2907492528",
+      "target": "https://openalex.org/W3080253043",
+      "type": "SIMILARITY",
+      "weight": 0.7637100648822095
+    },
+    {
+      "source": "https://openalex.org/W2907492528",
+      "target": "https://openalex.org/W2914721378",
+      "type": "SIMILARITY",
+      "weight": 0.7608141782960663
+    },
+    {
+      "source": "https://openalex.org/W2907492528",
+      "target": "https://openalex.org/W4225405705",
+      "type": "SIMILARITY",
+      "weight": 0.7585488319591639
+    },
+    {
+      "source": "https://openalex.org/W2907492528",
+      "target": "https://openalex.org/W2972317931",
+      "type": "SIMILARITY",
+      "weight": 0.7566702201733867
+    },
+    {
+      "source": "https://openalex.org/W2907492528",
+      "target": "https://openalex.org/W3097300053",
+      "type": "SIMILARITY",
+      "weight": 0.7561175450584994
+    },
+    {
+      "source": "https://openalex.org/W3152893301",
+      "target": "https://openalex.org/W2965857891",
+      "type": "SIMILARITY",
+      "weight": 0.76703557691299
+    },
+    {
+      "source": "https://openalex.org/W3152893301",
+      "target": "https://openalex.org/W3123909522",
+      "type": "SIMILARITY",
+      "weight": 0.7604395952420776
+    },
+    {
+      "source": "https://openalex.org/W3152893301",
+      "target": "https://openalex.org/W2905224888",
+      "type": "SIMILARITY",
+      "weight": 0.7578376446558744
+    },
+    {
+      "source": "https://openalex.org/W3152893301",
+      "target": "https://openalex.org/W2907492528",
+      "type": "SIMILARITY",
+      "weight": 0.7552605343070611
+    },
+    {
+      "source": "https://openalex.org/W3152893301",
+      "target": "https://openalex.org/W3096561213",
+      "type": "SIMILARITY",
+      "weight": 0.7523116459057019
+    },
+    {
+      "source": "https://openalex.org/W2914721378",
+      "target": "https://openalex.org/W2905224888",
+      "type": "SIMILARITY",
+      "weight": 0.7719366337165987
+    },
+    {
+      "source": "https://openalex.org/W2914721378",
+      "target": "https://openalex.org/W3080253043",
+      "type": "SIMILARITY",
+      "weight": 0.7710891536570544
+    },
+    {
+      "source": "https://openalex.org/W2914721378",
+      "target": "https://openalex.org/W2899457523",
+      "type": "SIMILARITY",
+      "weight": 0.7614883363173067
+    },
+    {
+      "source": "https://openalex.org/W2914721378",
+      "target": "https://openalex.org/W2907492528",
+      "type": "SIMILARITY",
+      "weight": 0.7608141782960663
+    },
+    {
+      "source": "https://openalex.org/W2914721378",
+      "target": "https://openalex.org/W3123909522",
+      "type": "SIMILARITY",
+      "weight": 0.7593020919448443
+    },
+    {
+      "source": "https://openalex.org/W2965857891",
+      "target": "https://openalex.org/W3004507689",
+      "type": "SIMILARITY",
+      "weight": 0.7682252473484171
+    },
+    {
+      "source": "https://openalex.org/W2965857891",
+      "target": "https://openalex.org/W3152893301",
+      "type": "SIMILARITY",
+      "weight": 0.76703557691299
+    },
+    {
+      "source": "https://openalex.org/W2965857891",
+      "target": "https://openalex.org/W3080253043",
+      "type": "SIMILARITY",
+      "weight": 0.7591608994027319
+    },
+    {
+      "source": "https://openalex.org/W2965857891",
+      "target": "https://openalex.org/W2948246283",
+      "type": "SIMILARITY",
+      "weight": 0.7576505756320371
+    },
+    {
+      "source": "https://openalex.org/W2965857891",
+      "target": "https://openalex.org/W3169450514",
+      "type": "SIMILARITY",
+      "weight": 0.7575488587975673
+    },
+    {
+      "source": "https://openalex.org/W2905224888",
+      "target": "https://openalex.org/W2914721378",
+      "type": "SIMILARITY",
+      "weight": 0.7719366337165987
+    },
+    {
+      "source": "https://openalex.org/W2905224888",
+      "target": "https://openalex.org/W3004507689",
+      "type": "SIMILARITY",
+      "weight": 0.7638208884389246
+    },
+    {
+      "source": "https://openalex.org/W2905224888",
+      "target": "https://openalex.org/W3080253043",
+      "type": "SIMILARITY",
+      "weight": 0.7614788816560131
+    },
+    {
+      "source": "https://openalex.org/W2905224888",
+      "target": "https://openalex.org/W3152893301",
+      "type": "SIMILARITY",
+      "weight": 0.7578376446558744
+    },
+    {
+      "source": "https://openalex.org/W2905224888",
+      "target": "https://openalex.org/W4225405705",
+      "type": "SIMILARITY",
+      "weight": 0.7561288272770063
+    },
+    {
+      "source": "https://openalex.org/W2899457523",
+      "target": "https://openalex.org/W2914721378",
+      "type": "SIMILARITY",
+      "weight": 0.7614883363173067
+    },
+    {
+      "source": "https://openalex.org/W2899457523",
+      "target": "https://openalex.org/W3096561213",
+      "type": "SIMILARITY",
+      "weight": 0.7606019555318811
+    },
+    {
+      "source": "https://openalex.org/W2899457523",
+      "target": "https://openalex.org/W4225405705",
+      "type": "SIMILARITY",
+      "weight": 0.7519082446806051
+    },
+    {
+      "source": "https://openalex.org/W2899457523",
+      "target": "https://openalex.org/W4310273071",
+      "type": "SIMILARITY",
+      "weight": 0.7515959374918477
+    },
+    {
+      "source": "https://openalex.org/W2899457523",
+      "target": "https://openalex.org/W3034681945",
+      "type": "SIMILARITY",
+      "weight": 0.7511922024873934
+    },
+    {
+      "source": "https://openalex.org/W3080253043",
+      "target": "https://openalex.org/W3123909522",
+      "type": "SIMILARITY",
+      "weight": 0.7720778064770348
+    },
+    {
+      "source": "https://openalex.org/W3080253043",
+      "target": "https://openalex.org/W2914721378",
+      "type": "SIMILARITY",
+      "weight": 0.7710891536570544
+    },
+    {
+      "source": "https://openalex.org/W3080253043",
+      "target": "https://openalex.org/W3034681945",
+      "type": "SIMILARITY",
+      "weight": 0.7680572566676809
+    },
+    {
+      "source": "https://openalex.org/W3080253043",
+      "target": "https://openalex.org/W2998496395",
+      "type": "SIMILARITY",
+      "weight": 0.7679211982856322
+    },
+    {
+      "source": "https://openalex.org/W3080253043",
+      "target": "https://openalex.org/W2907492528",
+      "type": "SIMILARITY",
+      "weight": 0.7637100648822095
+    },
+    {
+      "source": "https://openalex.org/W3123909522",
+      "target": "https://openalex.org/W3080253043",
+      "type": "SIMILARITY",
+      "weight": 0.7720778064770348
+    },
+    {
+      "source": "https://openalex.org/W3123909522",
+      "target": "https://openalex.org/W3152893301",
+      "type": "SIMILARITY",
+      "weight": 0.7604395952420776
+    },
+    {
+      "source": "https://openalex.org/W3123909522",
+      "target": "https://openalex.org/W2914721378",
+      "type": "SIMILARITY",
+      "weight": 0.7593020919448443
+    },
+    {
+      "source": "https://openalex.org/W3123909522",
+      "target": "https://openalex.org/W4310273071",
+      "type": "SIMILARITY",
+      "weight": 0.758093181078864
+    },
+    {
+      "source": "https://openalex.org/W3123909522",
+      "target": "https://openalex.org/W2116341502",
+      "type": "SIMILARITY",
+      "weight": 0.7577928297901074
+    },
+    {
+      "source": "https://openalex.org/W3097300053",
+      "target": "https://openalex.org/W4225405705",
+      "type": "SIMILARITY",
+      "weight": 0.7749768871666061
+    },
+    {
+      "source": "https://openalex.org/W3097300053",
+      "target": "https://openalex.org/W2998496395",
+      "type": "SIMILARITY",
+      "weight": 0.7631846943579621
+    },
+    {
+      "source": "https://openalex.org/W3097300053",
+      "target": "https://openalex.org/W3034681945",
+      "type": "SIMILARITY",
+      "weight": 0.758802801327025
+    },
+    {
+      "source": "https://openalex.org/W3097300053",
+      "target": "https://openalex.org/W3080253043",
+      "type": "SIMILARITY",
+      "weight": 0.757360389802992
+    },
+    {
+      "source": "https://openalex.org/W3097300053",
+      "target": "https://openalex.org/W2907492528",
+      "type": "SIMILARITY",
+      "weight": 0.7561175450584994
+    },
+    {
+      "source": "https://openalex.org/W3169450514",
+      "target": "https://openalex.org/W2998496395",
+      "type": "SIMILARITY",
+      "weight": 0.7612051638911905
+    },
+    {
+      "source": "https://openalex.org/W3169450514",
+      "target": "https://openalex.org/W3080253043",
+      "type": "SIMILARITY",
+      "weight": 0.7585820606002788
+    },
+    {
+      "source": "https://openalex.org/W3169450514",
+      "target": "https://openalex.org/W2965857891",
+      "type": "SIMILARITY",
+      "weight": 0.7575488587975673
+    },
+    {
+      "source": "https://openalex.org/W3169450514",
+      "target": "https://openalex.org/W3123909522",
+      "type": "SIMILARITY",
+      "weight": 0.752451291338702
+    },
+    {
+      "source": "https://openalex.org/W3169450514",
+      "target": "https://openalex.org/W3096561213",
+      "type": "SIMILARITY",
+      "weight": 0.7507769234050257
+    },
+    {
+      "source": "https://openalex.org/W3096561213",
+      "target": "https://openalex.org/W2948246283",
+      "type": "SIMILARITY",
+      "weight": 0.7703895944456227
+    },
+    {
+      "source": "https://openalex.org/W3096561213",
+      "target": "https://openalex.org/W4225405705",
+      "type": "SIMILARITY",
+      "weight": 0.7649725019258999
+    },
+    {
+      "source": "https://openalex.org/W3096561213",
+      "target": "https://openalex.org/W2899457523",
+      "type": "SIMILARITY",
+      "weight": 0.7606019555318811
+    },
+    {
+      "source": "https://openalex.org/W3096561213",
+      "target": "https://openalex.org/W2914721378",
+      "type": "SIMILARITY",
+      "weight": 0.7585648874684099
+    },
+    {
+      "source": "https://openalex.org/W3096561213",
+      "target": "https://openalex.org/W2965857891",
+      "type": "SIMILARITY",
+      "weight": 0.7565582151777133
+    },
+    {
+      "source": "https://openalex.org/W2948246283",
+      "target": "https://openalex.org/W3096561213",
+      "type": "SIMILARITY",
+      "weight": 0.7703895944456227
+    },
+    {
+      "source": "https://openalex.org/W2948246283",
+      "target": "https://openalex.org/W2965857891",
+      "type": "SIMILARITY",
+      "weight": 0.7576505756320371
+    },
+    {
+      "source": "https://openalex.org/W2948246283",
+      "target": "https://openalex.org/W2905224888",
+      "type": "SIMILARITY",
+      "weight": 0.7547756772643868
+    },
+    {
+      "source": "https://openalex.org/W2948246283",
+      "target": "https://openalex.org/W3080253043",
+      "type": "SIMILARITY",
+      "weight": 0.754729682657751
+    },
+    {
+      "source": "https://openalex.org/W2948246283",
+      "target": "https://openalex.org/W2972317931",
+      "type": "SIMILARITY",
+      "weight": 0.7536603620280085
+    },
+    {
+      "source": "https://openalex.org/W3004507689",
+      "target": "https://openalex.org/W2116341502",
+      "type": "SIMILARITY",
+      "weight": 0.7691423765755108
+    },
+    {
+      "source": "https://openalex.org/W3004507689",
+      "target": "https://openalex.org/W2965857891",
+      "type": "SIMILARITY",
+      "weight": 0.7682252473484171
+    },
+    {
+      "source": "https://openalex.org/W3004507689",
+      "target": "https://openalex.org/W2905224888",
+      "type": "SIMILARITY",
+      "weight": 0.7638208884389246
+    },
+    {
+      "source": "https://openalex.org/W3004507689",
+      "target": "https://openalex.org/W3123909522",
+      "type": "SIMILARITY",
+      "weight": 0.7573398572602219
+    },
+    {
+      "source": "https://openalex.org/W3004507689",
+      "target": "https://openalex.org/W3096561213",
+      "type": "SIMILARITY",
+      "weight": 0.7541844073387899
+    },
+    {
+      "source": "https://openalex.org/W3034681945",
+      "target": "https://openalex.org/W3080253043",
+      "type": "SIMILARITY",
+      "weight": 0.7680572566676809
+    },
+    {
+      "source": "https://openalex.org/W3034681945",
+      "target": "https://openalex.org/W3097300053",
+      "type": "SIMILARITY",
+      "weight": 0.758802801327025
+    },
+    {
+      "source": "https://openalex.org/W3034681945",
+      "target": "https://openalex.org/W2972317931",
+      "type": "SIMILARITY",
+      "weight": 0.7562662633421706
+    },
+    {
+      "source": "https://openalex.org/W3034681945",
+      "target": "https://openalex.org/W2998496395",
+      "type": "SIMILARITY",
+      "weight": 0.7547720759510714
+    },
+    {
+      "source": "https://openalex.org/W3034681945",
+      "target": "https://openalex.org/W3123909522",
+      "type": "SIMILARITY",
+      "weight": 0.7527531996879478
+    },
+    {
+      "source": "https://openalex.org/W4225405705",
+      "target": "https://openalex.org/W3097300053",
+      "type": "SIMILARITY",
+      "weight": 0.7749768871666061
+    },
+    {
+      "source": "https://openalex.org/W4225405705",
+      "target": "https://openalex.org/W3096561213",
+      "type": "SIMILARITY",
+      "weight": 0.7649725019258999
+    },
+    {
+      "source": "https://openalex.org/W4225405705",
+      "target": "https://openalex.org/W3080253043",
+      "type": "SIMILARITY",
+      "weight": 0.7612799538216874
+    },
+    {
+      "source": "https://openalex.org/W4225405705",
+      "target": "https://openalex.org/W2907492528",
+      "type": "SIMILARITY",
+      "weight": 0.7585488319591639
+    },
+    {
+      "source": "https://openalex.org/W4225405705",
+      "target": "https://openalex.org/W4310273071",
+      "type": "SIMILARITY",
+      "weight": 0.7566783598281597
+    },
+    {
+      "source": "https://openalex.org/W2900470550",
+      "target": "https://openalex.org/W3080253043",
+      "type": "SIMILARITY",
+      "weight": 0.7546028591965643
+    },
+    {
+      "source": "https://openalex.org/W2900470550",
+      "target": "https://openalex.org/W2116341502",
+      "type": "SIMILARITY",
+      "weight": 0.7540863416123997
+    },
+    {
+      "source": "https://openalex.org/W2900470550",
+      "target": "https://openalex.org/W3123909522",
+      "type": "SIMILARITY",
+      "weight": 0.7533388965057872
+    },
+    {
+      "source": "https://openalex.org/W2900470550",
+      "target": "https://openalex.org/W2965857891",
+      "type": "SIMILARITY",
+      "weight": 0.7506581911145445
+    },
+    {
+      "source": "https://openalex.org/W2900470550",
+      "target": "https://openalex.org/W3096561213",
+      "type": "SIMILARITY",
+      "weight": 0.7453121695873643
+    },
+    {
+      "source": "https://openalex.org/W2972317931",
+      "target": "https://openalex.org/W2965857891",
+      "type": "SIMILARITY",
+      "weight": 0.7571940736769063
+    },
+    {
+      "source": "https://openalex.org/W2972317931",
+      "target": "https://openalex.org/W2907492528",
+      "type": "SIMILARITY",
+      "weight": 0.7566702201733867
+    },
+    {
+      "source": "https://openalex.org/W2972317931",
+      "target": "https://openalex.org/W3034681945",
+      "type": "SIMILARITY",
+      "weight": 0.7562662633421706
+    },
+    {
+      "source": "https://openalex.org/W2972317931",
+      "target": "https://openalex.org/W2948246283",
+      "type": "SIMILARITY",
+      "weight": 0.7536603620280085
+    },
+    {
+      "source": "https://openalex.org/W2972317931",
+      "target": "https://openalex.org/W3097300053",
+      "type": "SIMILARITY",
+      "weight": 0.753333142954195
+    },
+    {
+      "source": "https://openalex.org/W4310273071",
+      "target": "https://openalex.org/W2998496395",
+      "type": "SIMILARITY",
+      "weight": 0.7662584153961591
+    },
+    {
+      "source": "https://openalex.org/W4310273071",
+      "target": "https://openalex.org/W3123909522",
+      "type": "SIMILARITY",
+      "weight": 0.758093181078864
+    },
+    {
+      "source": "https://openalex.org/W4310273071",
+      "target": "https://openalex.org/W4225405705",
+      "type": "SIMILARITY",
+      "weight": 0.7566783598281597
+    },
+    {
+      "source": "https://openalex.org/W4310273071",
+      "target": "https://openalex.org/W2899457523",
+      "type": "SIMILARITY",
+      "weight": 0.7515959374918477
+    },
+    {
+      "source": "https://openalex.org/W4310273071",
+      "target": "https://openalex.org/W2905224888",
+      "type": "SIMILARITY",
+      "weight": 0.7515232033249031
+    },
+    {
+      "source": "https://openalex.org/W2998496395",
+      "target": "https://openalex.org/W3080253043",
+      "type": "SIMILARITY",
+      "weight": 0.7679211982856322
+    },
+    {
+      "source": "https://openalex.org/W2998496395",
+      "target": "https://openalex.org/W4310273071",
+      "type": "SIMILARITY",
+      "weight": 0.7662584153961591
+    },
+    {
+      "source": "https://openalex.org/W2998496395",
+      "target": "https://openalex.org/W3097300053",
+      "type": "SIMILARITY",
+      "weight": 0.7631846943579621
+    },
+    {
+      "source": "https://openalex.org/W2998496395",
+      "target": "https://openalex.org/W3169450514",
+      "type": "SIMILARITY",
+      "weight": 0.7612051638911905
+    },
+    {
+      "source": "https://openalex.org/W2998496395",
+      "target": "https://openalex.org/W2914721378",
+      "type": "SIMILARITY",
+      "weight": 0.7581064625910928
+    }
+  ]
+}
