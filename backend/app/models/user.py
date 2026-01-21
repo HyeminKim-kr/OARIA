@@ -14,6 +14,7 @@ if TYPE_CHECKING:
     from .social_account import SocialAccount
     from .refresh_token import UserRefreshToken
     from .chat import Conversation, AnswerLog
+    from .study_plan import StudyPlan
 
 
 class User(Base):
@@ -75,6 +76,11 @@ class User(Base):
     answer_logs: Mapped[list["AnswerLog"]] = relationship(
         "AnswerLog",
         back_populates="user",
+    )
+    study_plans: Mapped[list["StudyPlan"]] = relationship(
+        "StudyPlan",
+        back_populates="user",
+        cascade="all, delete-orphan",
     )
 
     def __repr__(self) -> str:
