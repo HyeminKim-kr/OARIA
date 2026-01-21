@@ -39,8 +39,8 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 RUN groupadd --system --gid 1001 appgroup && \
     useradd --system --uid 1001 --gid appgroup appuser
 
-# 가상환경 복사
-COPY --from=builder /app/.venv /app/.venv
+# 가상환경 복사 (--link로 효율적인 레이어 처리)
+COPY --link --from=builder /app/.venv /app/.venv
 
 # 소스 코드 복사
 COPY --chown=appuser:appgroup ./app ./app

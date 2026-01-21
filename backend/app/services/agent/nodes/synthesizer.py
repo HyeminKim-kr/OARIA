@@ -39,9 +39,11 @@ async def synthesize_answer(state: AgentState) -> AgentState:
     # Check for Gate 2 failures (OAR-12)
     gate2_failure = _check_gate2_failures(task_results)
     if gate2_failure:
-        logger.warning(f"Gate 2 failed: {gate2_failure}")
+        message, tips, suggestions = gate2_failure
+        logger.warning(f"Gate 2 failed: {message}")
+        formatted_response = _format_gate2_failure_response(message, tips, suggestions)
         return {
-            "final_answer": gate2_failure,
+            "final_answer": formatted_response,
             "citations": [],
         }
 
@@ -94,9 +96,11 @@ async def synthesize_answer_stream(state: AgentState) -> AsyncGenerator[str, Non
     # Check for Gate 2 failures (OAR-12)
     gate2_failure = _check_gate2_failures(task_results)
     if gate2_failure:
-        logger.warning(f"Gate 2 failed (stream): {gate2_failure}")
-        yield gate2_failure
-        return  # AsyncGenerator는 return value 지원 안함
+        message, tips, suggestions = gate2_failure
+        logger.warning(f"Gate 2 failed (stream): {message}")
+        formatted_response = _format_gate2_failure_response(message, tips, suggestions)
+        yield formatted_response
+        return
 
     # Collect references
     all_references: list[Reference] = []
@@ -146,7 +150,7 @@ def _build_context_from_results(
     return "\n\n---\n\n".join(parts)
 
 
-def _check_gate2_failures(task_results: dict[str, TaskResult]) -> str | None:
+def _check_gate2_failures(task_results: dict[str, TaskResult]) -> tuple[str, list[str] | None, list[str] | None] | None:
     """
     Check if any RAG task failed Gate 2 validation.
 
@@ -154,13 +158,50 @@ def _check_gate2_failures(task_results: dict[str, TaskResult]) -> str | None:
         task_results: Results from all executed tasks
 
     Returns:
-        Error message if Gate 2 failed, None otherwise
+        Tuple of (error message, tips, suggestions) if Gate 2 failed, None otherwise
+        - tips: Direction advice shown in message area
+        - suggestions: Clickable question buttons
     """
     for task_id, result in task_results.items():
         # Check if this task has Gate 2 info and failed
         if result.gate2_passed is False:
             logger.info(f"Task {task_id} failed Gate 2: {result.gate2_reason}")
-            # Return the content which contains the failure message
-            return result.content
+            # Return the content, tips, and suggestions
+            return (result.content, result.gate2_tips, result.gate2_suggestions)
 
     return None
+
+
+def _format_gate2_failure_response(
+    message: str,
+    tips: list[str] | None,
+    suggestions: list[str] | None
+) -> str:
+    """
+    Format Gate 2 failure response with tips and clickable questions.
+
+    Args:
+        message: Error message to display
+        tips: Direction advice shown in message area
+        suggestions: Clickable question buttons (rendered as buttons by frontend)
+
+    Returns:
+        Formatted response string with tips in message and suggestions block for buttons
+    """
+    response = message
+
+    # Add tips to the message area
+    if tips:
+        response += "\n\n**💡 Tips for better results:**\n"
+        for tip in tips:
+            response += f"• {tip}\n"
+
+    # Add clickable questions as hidden suggestions block (frontend parses and shows as buttons only)
+    # Note: Frontend extracts these and removes the code block from display
+    if suggestions:
+        response += "\n```suggestions\n"
+        for suggestion in suggestions:
+            response += f"- {suggestion}\n"
+        response += "```"
+
+    return response

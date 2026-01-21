@@ -11,6 +11,7 @@ from sqlalchemy.orm import Mapped, mapped_column, relationship
 from .base import Base
 
 if TYPE_CHECKING:
+    from .paper import Paper
     from .user import User
 
 
@@ -27,6 +28,18 @@ class Conversation(Base):
     user_id: Mapped[uuid.UUID] = mapped_column(
         UUID(as_uuid=True),
         ForeignKey("users.id", ondelete="CASCADE"),
+        nullable=False,
+        index=True,
+    )
+    paper_id: Mapped[uuid.UUID | None] = mapped_column(
+        UUID(as_uuid=True),
+        ForeignKey("papers.id", ondelete="SET NULL"),
+        nullable=True,
+        index=True,
+    )
+    conversation_type: Mapped[str] = mapped_column(
+        String(20),
+        default="global",
         nullable=False,
         index=True,
     )
@@ -58,6 +71,7 @@ class Conversation(Base):
 
     # Relationships
     user: Mapped["User"] = relationship("User", back_populates="conversations")
+    paper: Mapped["Paper | None"] = relationship("Paper", back_populates="conversations")
     messages: Mapped[list["Message"]] = relationship(
         "Message",
         back_populates="conversation",

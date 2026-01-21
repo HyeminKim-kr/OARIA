@@ -1,6 +1,6 @@
 # Chat / RAG 테이블
 
-> **Last Updated**: 2026-01-06
+> **Last Updated**: 2026-01-19
 >
 > **Owner**: Alembic (Backend)
 
@@ -12,6 +12,8 @@
 
 ```
 users ──1:N──▶ conversations ──1:N──▶ messages
+                     │
+                     ├──N:1──▶ papers (논문별 채팅용, nullable)
                      │
                      └──1:N──▶ answer_logs (감사/재현용)
                                     │
@@ -30,6 +32,8 @@ admin_users ──1:N──▶ lab_feedbacks (Admin 테스트 피드백)
 |------|------|------|------|
 | `id` | UUID | PK | 대화 ID |
 | `user_id` | UUID | FK → users.id | 사용자 ID |
+| `paper_id` | UUID | FK → papers.id, nullable | 논문 ID (논문별 채팅용) |
+| `conversation_type` | VARCHAR(20) | DEFAULT 'global' | global (전체 검색), paper (논문별 채팅) |
 | `title` | VARCHAR(200) | nullable | 대화 제목 (자동 생성 또는 사용자 입력) |
 | `status` | VARCHAR(20) | DEFAULT 'active' | active, archived, deleted |
 | `message_count` | INTEGER | DEFAULT 0 | 메시지 수 (트리거 자동 갱신) |
@@ -37,8 +41,14 @@ admin_users ──1:N──▶ lab_feedbacks (Admin 테스트 피드백)
 | `updated_at` | TIMESTAMPTZ | DEFAULT NOW() | 수정일 |
 | `last_message_at` | TIMESTAMPTZ | nullable | 마지막 메시지 시간 (트리거 자동 갱신) |
 
+**conversation_type 값:**
+- `global`: 전체 논문 컬렉션 대상 검색 (기존 /ask 페이지)
+- `paper`: 특정 논문에 대한 채팅 (논문 상세 페이지)
+
 **인덱스:**
 - `idx_conversations_user_id` - 사용자별 대화 목록
+- `idx_conversations_paper_id` - 논문별 대화 목록
+- `idx_conversations_type` - 타입별 필터링
 - `idx_conversations_status` - 상태별 필터링
 - `idx_conversations_updated_at` - 정렬
 
@@ -272,15 +282,21 @@ CREATE TRIGGER trg_update_conversation_stats
 CREATE TABLE conversations (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     user_id UUID REFERENCES users(id) ON DELETE CASCADE,
+    paper_id UUID REFERENCES papers(id) ON DELETE SET NULL,
+    conversation_type VARCHAR(20) DEFAULT 'global' NOT NULL,
     title VARCHAR(200),
     status VARCHAR(20) DEFAULT 'active',
     message_count INTEGER DEFAULT 0,
     created_at TIMESTAMPTZ DEFAULT NOW(),
     updated_at TIMESTAMPTZ DEFAULT NOW(),
-    last_message_at TIMESTAMPTZ
+    last_message_at TIMESTAMPTZ,
+
+    CONSTRAINT chk_conversation_type CHECK (conversation_type IN ('global', 'paper'))
 );
 
 CREATE INDEX idx_conversations_user_id ON conversations(user_id);
+CREATE INDEX idx_conversations_paper_id ON conversations(paper_id);
+CREATE INDEX idx_conversations_type ON conversations(conversation_type);
 CREATE INDEX idx_conversations_status ON conversations(status);
 CREATE INDEX idx_conversations_updated_at ON conversations(updated_at);
 
