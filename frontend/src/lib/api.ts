@@ -562,10 +562,110 @@ export interface StudyPlanV3SaveRequest extends StudyPlanSaveRequest {
   search_tier_history?: number[];
 }
 
+// Study Plan SSE 이벤트 타입
+export interface StudyPlanSSEEvent {
+  node: string;
+  detail?: string;
+  // 가설 파싱
+  hypothesis?: {
+    original_text: string;
+    independent_variable: string;
+    dependent_variable: string;
+    mediating_variables?: string[];
+    moderating_variables?: string[];
+    population: string;
+    mechanism_pathway: string;
+    keywords: string[];
+    expanded_keywords?: string[];
+    gene_aliases?: string[];
+  };
+  confidence?: number;
+  // 검증 질문
+  test_questions?: Array<{
+    category: string;
+    question: string;
+    decision_rule: string;
+    rationale?: string;
+    priority: number;
+  }>;
+  count?: number;
+  // 검색
+  study_count?: number;
+  coverage?: number;
+  gaps?: string[];
+  current_tier?: number;
+  queries?: string[];
+  // 검색 확장
+  expanded_queries?: string[];
+  expand_count?: number;
+  // Evidence
+  snippet_count?: number;
+  pack_count?: number;
+  // 방법론
+  patterns?: Array<{ name: string; frequency: number }>;
+  biomarkers?: string[];
+  techniques?: string[];
+  // 실험 설계
+  experiments?: Array<{
+    id: string;
+    type: string;
+    title: string;
+    objective?: string;
+    test_category: string;
+    model_system?: string;
+    primary_endpoint?: string;
+    estimated_timeline?: string;
+    estimated_cost_level?: string;
+  }>;
+  // Critique
+  quality_score?: number;
+  passed?: boolean;
+  suggestions?: string[];
+  missing_controls?: string[];
+  confounders?: string[];
+  revision_count?: number;
+  dp2_decision?: string;
+  // 측정
+  measurement_count?: number;
+  priority?: string[];
+  measurements?: Array<{ name: string; category: string; method: string }>;
+  // 실현가능성
+  overall_score?: number;
+  technical_feasibility?: number;
+  resource_feasibility?: number;
+  timeline_feasibility?: number;
+  concerns?: string[];
+  // 승인
+  approval_required?: boolean;
+  item_count?: number;
+  items?: Array<{ type: string; reason: string }>;
+  // 합성
+  final_plan_length?: number;
+  summary_length?: number;
+  plan_a_length?: number;
+  plan_b_length?: number;
+  // 완료
+  success?: boolean;
+  experiment_count?: number;
+  total_duration_ms?: number;
+  final_plan?: string;
+  executive_summary?: string;
+  plan_a?: string;
+  plan_b?: string;
+  dp3_decision?: string;
+  highest_tier_used?: number;
+  // 에러
+  error?: string;
+  message?: string;
+}
+
 // Study Plan API
 export const studyPlanApi = {
   // SSE 스트리밍 URL (v2 - 기존)
   generateUrl: () => `${API_BASE_URL}/study-plan/generate`,
+
+  // SSE 스트리밍 URL (v3 - 중간 단계 데이터 포함)
+  generateV3StreamUrl: () => `${API_BASE_URL}/study-plan/generate-v3-stream`,
 
   // 동기 실행 (테스트용)
   generateSync: (request: StudyPlanRequest) =>
