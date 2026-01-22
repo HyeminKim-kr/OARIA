@@ -33,7 +33,7 @@ import {
   Sparkles,
   Shield,
 } from "lucide-react";
-import { fetchWithAuth, studyPlanApi } from "@/lib/api";
+import { studyPlanApi, StudyPlanV3Response } from "@/lib/api";
 
 // ─────────────────────────────────────────────────────────────
 // Types
@@ -284,60 +284,68 @@ export default function StudyPlanPage() {
     setState({ status: "generating", nodeDetails: {} });
     setSelectedNode(null);
 
+    // v3 API 사용 - 동기 호출 (3-tier 검색 + Decision Points)
     try {
-      const response = await fetchWithAuth(studyPlanApi.generateUrl(), {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({
-          hypothesis: hypothesis.trim(),
-          research_context: researchContext.trim() || undefined,
-          preferred_experiment_types: ["in_vitro", "in_vivo"],
-        }),
+      // 진행 상태 시뮬레이션 (백엔드 처리 중)
+      const progressInterval = setInterval(() => {
+        setNodes((prev) => {
+          const pendingIndex = prev.findIndex(n => n.status === "pending");
+          if (pendingIndex === -1) return prev;
+
+          return prev.map((n, i) => {
+            if (i < pendingIndex) return { ...n, status: "completed" as NodeStatus };
+            if (i === pendingIndex) return { ...n, status: "active" as NodeStatus };
+            return n;
+          });
+        });
+      }, 2000);
+
+      const response = await studyPlanApi.generateV3({
+        hypothesis: hypothesis.trim(),
+        research_context: researchContext.trim() || undefined,
+        preferred_experiment_types: ["in_vitro", "in_vivo"],
       });
 
-      if (!response.ok) {
-        throw new Error(`HTTP error! status: ${response.status}`);
-      }
+      clearInterval(progressInterval);
 
-      const reader = response.body?.getReader();
-      const decoder = new TextDecoder();
+      const result: StudyPlanV3Response = response.data;
 
-      if (!reader) {
-        throw new Error("No response body");
-      }
+      if (result.success) {
+        // 모든 노드 완료 처리
+        setNodes((prev) => prev.map((n) => ({ ...n, status: "completed" as NodeStatus })));
 
-      let buffer = "";
-      let currentEventType = "";
+        // 결과 데이터 저장
+        setState({
+          status: "completed",
+          nodeDetails: {
+            synthesize_plan: {
+              final_plan: result.final_plan,
+              executive_summary: result.executive_summary,
+            },
+          },
+        });
 
-      while (true) {
-        const { done, value } = await reader.read();
-        if (done) break;
-
-        buffer += decoder.decode(value, { stream: true });
-        const lines = buffer.split("\n");
-        buffer = lines.pop() || "";
-
-        for (const line of lines) {
-          if (line.startsWith("event: ")) {
-            currentEventType = line.slice(7).trim();
-            handleEventType(currentEventType);
-          }
-
-          if (line.startsWith("data: ")) {
-            const dataStr = line.slice(6);
-            try {
-              const data = JSON.parse(dataStr);
-              handleEventData(currentEventType, data);
-            } catch {
-              // JSON 파싱 실패 시 무시
-            }
-          }
+        // v3 추가 정보 콘솔 로그 (디버깅용)
+        if (result.dp3_decision) {
+          console.log("[v3] Decision Points:", {
+            dp1: result.dp1_decisions,
+            dp2: result.dp2_decision,
+            dp3: result.dp3_decision,
+          });
         }
+        if (result.plan_a || result.plan_b) {
+          console.log("[v3] Plan A/B available:", {
+            plan_a: result.plan_a ? "Yes" : "No",
+            plan_b: result.plan_b ? "Yes" : "No",
+          });
+        }
+        if (result.highest_tier_used) {
+          const tierNames = ["", "RAG", "Europe PMC", "Tavily Web"];
+          console.log("[v3] Highest tier used:", tierNames[result.highest_tier_used]);
+        }
+      } else {
+        throw new Error(result.error || "계획 생성 실패");
       }
-
-      setState((prev) => ({ ...prev, status: "completed" }));
     } catch (error) {
       console.error("Study Plan generation error:", error);
       setState((prev) => ({

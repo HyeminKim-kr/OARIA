@@ -137,6 +137,45 @@ class StudyPlan(Base):
         nullable=False,
     )
 
+    # === v3 전용 필드 ===
+    # Plan A/B
+    plan_a: Mapped[str | None] = mapped_column(Text, nullable=True)
+    plan_b: Mapped[str | None] = mapped_column(Text, nullable=True)
+    plan_config: Mapped[dict[str, Any] | None] = mapped_column(
+        JSONB,
+        nullable=True,
+    )
+
+    # Decision Points 결과
+    dp1_decisions: Mapped[list[dict[str, Any]]] = mapped_column(
+        JSONB,
+        default=[],
+        nullable=False,
+        server_default="[]",
+    )
+    dp2_decision: Mapped[str | None] = mapped_column(String(50), nullable=True)
+    dp3_decision: Mapped[str | None] = mapped_column(String(50), nullable=True)
+
+    # 3-tier 검색 정보
+    highest_tier_used: Mapped[int] = mapped_column(
+        Integer,
+        default=1,
+        nullable=False,
+        server_default="1",
+    )
+    evidence_snippets_v3: Mapped[list[dict[str, Any]]] = mapped_column(
+        JSONB,
+        default=[],
+        nullable=False,
+        server_default="[]",
+    )
+    search_tier_history: Mapped[list[int]] = mapped_column(
+        ARRAY(Integer),
+        default=[],
+        nullable=False,
+        server_default="{}",
+    )
+
     # === 메타데이터 ===
     status: Mapped[str] = mapped_column(
         String(20),

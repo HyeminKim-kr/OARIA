@@ -1,6 +1,11 @@
-"""Study Plan Agent 상태 정의 (v2.1)
+"""Study Plan Agent 상태 정의 (v3)
 
 가설 기반 실험 설계 에이전트의 상태, 열거형, 데이터클래스 정의.
+
+v3 변경사항:
+- 3-tier 검색 (RAG → EPMC → Web) 지원
+- Decision Point 결과 추적 (DP1, DP2, DP3)
+- Plan A/B 구조 지원
 """
 
 from dataclasses import dataclass, field
@@ -364,7 +369,13 @@ class MethodologyPattern:
 
 
 class StudyPlanState(TypedDict, total=False):
-    """Study Plan Agent 상태 v2.1"""
+    """Study Plan Agent 상태 v3
+
+    v2.1 호환성 유지하면서 v3 기능 추가
+    """
+
+    # === v3 실행 ID ===
+    run_id: str  # 실행 고유 ID (예산 추적용)
 
     # === 입력 ===
     user_input: str
@@ -388,6 +399,14 @@ class StudyPlanState(TypedDict, total=False):
     search_coverage_score: float  # 0-1 (0.6 미만이면 확장)
     search_gap_notes: list[str]  # 커버리지 부족 영역
     search_expand_count: int  # 확장 횟수
+
+    # === v3: Multi-Tier Search ===
+    search_tier_history: list[int]  # [1, 2] = RAG → EPMC
+    evidence_snippets_v3: list[dict]  # EvidenceSnippetV3.to_dict() 목록
+    current_tier: int  # 1=RAG, 2=EPMC, 3=WEB
+    run_epmc_count: int  # run당 EPMC 호출 횟수
+    run_web_count: int  # run당 Web 호출 횟수
+    dp1_decisions: list[dict]  # DP1RouterOutput.to_dict() 이력
 
     # === Node 4: expand_search ===
     expanded_queries: list[str]
@@ -413,6 +432,11 @@ class StudyPlanState(TypedDict, total=False):
     revision_count: int
     revision_history: list[RevisionRecord]
 
+    # === v3: DP2 Critique 결과 ===
+    dp2_decision: str  # "redesign", "search_for_controls", "ask_user", "accept_minor_issues"
+    dp2_loop_count: int  # DP2 루프 횟수 (최대 2)
+    previous_gaps_searched: list[str]  # 같은 gap 연속 검색 금지용
+
     # === Node 9: identify_measurements ===
     measurements: list[MeasurementItem]
     measurement_priority: list[str]
@@ -430,6 +454,13 @@ class StudyPlanState(TypedDict, total=False):
     executive_summary: str
     references: list[dict]
     evidence_trace: dict  # {문장/섹션 ID: [snippet_id, ...]}
+
+    # === v3: Plan A/B 구조 ===
+    dp3_decision: str  # "single_plan", "plan_a_b", "plan_b_only"
+    plan_a: str  # 이상적 실험 설계
+    plan_b: str  # 현실적 대안
+    plan_config: dict  # DP3 설정 (focus, constraint 등)
+    web_limit_exceeded: bool  # Web 검색 예산 초과 여부
 
     # === 메타데이터 ===
     conversation_id: str | None
@@ -458,11 +489,15 @@ def create_initial_state(
     preferred_experiment_types: list[ExperimentType] | None = None,
     conversation_id: str | None = None,
     user_id: str | None = None,
+    run_id: str | None = None,
 ) -> StudyPlanState:
-    """초기 상태 생성"""
+    """초기 상태 생성 (v3)"""
     from datetime import datetime
+    import uuid
 
     return StudyPlanState(
+        # v3 실행 ID
+        run_id=run_id or str(uuid.uuid4()),
         # 입력
         user_input=user_input,
         research_context=research_context,
@@ -504,6 +539,23 @@ def create_initial_state(
         executive_summary="",
         references=[],
         evidence_trace={},
+        # v3: Multi-Tier Search
+        search_tier_history=[],
+        evidence_snippets_v3=[],
+        current_tier=1,  # RAG
+        run_epmc_count=0,
+        run_web_count=0,
+        dp1_decisions=[],
+        # v3: DP2 Critique
+        dp2_decision="",
+        dp2_loop_count=0,
+        previous_gaps_searched=[],
+        # v3: Plan A/B
+        dp3_decision="",
+        plan_a="",
+        plan_b="",
+        plan_config={},
+        web_limit_exceeded=False,
         # 메타
         conversation_id=conversation_id,
         user_id=user_id,
@@ -511,7 +563,7 @@ def create_initial_state(
         total_duration_ms=0,
         error=None,
         # 운영
-        run_version="v2.1",
+        run_version="v3",
         model_versions={},
         token_usage={"prompt": 0, "completion": 0},
         cost_estimate=0.0,

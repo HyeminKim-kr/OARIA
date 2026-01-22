@@ -94,6 +94,32 @@ class Settings(BaseSettings):
         default="gpt-4o-mini", description="챗 모델"
     )
 
+    # Redis (Study Plan Agent v3 - Budget/Cache)
+    redis_url: str = Field(
+        default="redis://localhost:16379",
+        description="Redis 연결 URL (Budget Manager, Cache용)",
+    )
+
+    # Tavily (Web Search)
+    tavily_api_key: str = Field(
+        default="",
+        description="Tavily API 키 (Web 검색용)",
+    )
+
+    # Study Plan Agent v3 - Search Budget
+    search_web_monthly_limit: int = Field(
+        default=1000,
+        description="Tavily Web 검색 월간 제한 (무료 플랜 기준)",
+    )
+    search_web_per_run_limit: int = Field(
+        default=1,
+        description="단일 실행당 Web 검색 최대 횟수",
+    )
+    search_epmc_per_run_limit: int = Field(
+        default=2,
+        description="단일 실행당 Europe PMC 검색 최대 횟수",
+    )
+
     @computed_field
     @property
     def database_url_sync(self) -> str:
