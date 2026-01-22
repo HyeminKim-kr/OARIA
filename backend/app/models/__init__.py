@@ -18,6 +18,7 @@ from .batch import (
 from .chat import Conversation, Message, AnswerLog
 from .rag_settings import RAGSettings
 from .rag_strategy import RAGStrategy
+from .study_plan import StudyPlan
 
 __all__ = [
     # Base
@@ -48,4 +49,6 @@ __all__ = [
     # RAG
     "RAGSettings",
     "RAGStrategy",
+    # Study Plan
+    "StudyPlan",
 ]
