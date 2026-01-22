@@ -268,6 +268,17 @@ async def save_study_plan(
             final_plan=request.final_plan,
             executive_summary=request.executive_summary,
             references=request.references or [],
+            # v3 전용 필드
+            plan_a=request.plan_a,
+            plan_b=request.plan_b,
+            plan_config=request.plan_config,
+            dp1_decisions=request.dp1_decisions or [],
+            dp2_decision=request.dp2_decision,
+            dp3_decision=request.dp3_decision,
+            highest_tier_used=request.highest_tier_used,
+            evidence_snippets_v3=request.evidence_snippets_v3 or [],
+            search_tier_history=request.search_tier_history or [],
+            # 메타
             status=request.status,
             total_duration_ms=request.total_duration_ms,
             error_message=request.error_message,
