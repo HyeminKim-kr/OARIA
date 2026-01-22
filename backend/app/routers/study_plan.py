@@ -164,6 +164,70 @@ async def generate_study_plan_sync(
 
 
 # ─────────────────────────────────────────────────────────────
+# Generate Study Plan v3 (Sync)
+# ─────────────────────────────────────────────────────────────
+
+
+@router.post("/generate-v3", response_model=StudyPlanSummaryResponse)
+async def generate_study_plan_v3(
+    request: StudyPlanRequest,
+    current_user: CurrentUser,
+):
+    """Study Plan v3 생성 (3-tier 검색 + Decision Points)
+
+    v3 기능:
+    - **3-tier 검색**: RAG → Europe PMC → Tavily Web
+    - **Decision Points**: DP1(검색 승격), DP2(Critique 전략), DP3(Plan A/B)
+    - **Plan A/B**: 이상적 설계와 현실적 대안 동시 제공
+
+    **예시 요청:**
+    ```json
+    {
+        "hypothesis": "EGFR T790M mutation causes osimertinib resistance via MET amplification",
+        "research_context": "NSCLC targeted therapy",
+        "constraints": ["budget limited"],
+        "preferred_experiment_types": ["in_vitro", "in_vivo"]
+    }
+    ```
+
+    Returns:
+        StudyPlanSummaryResponse: 생성된 연구 계획 (Plan A/B 포함 가능)
+    """
+    logger.info(
+        f"Study Plan v3 request from user {current_user.id}: "
+        f"{request.hypothesis[:50]}..."
+    )
+
+    try:
+        result = await study_plan_service.execute_v3(
+            user_input=request.hypothesis,
+            research_context=request.research_context,
+            constraints=request.constraints,
+            preferred_experiment_types=request.preferred_experiment_types,
+            user_id=str(current_user.id),
+        )
+
+        return StudyPlanSummaryResponse(
+            success=result.success,
+            plan_id=None,
+            final_plan=result.final_plan,
+            executive_summary=result.executive_summary,
+            experiment_count=result.experiment_count,
+            approval_required=result.approval_required,
+            approval_status=result.approval_status,
+            total_duration_ms=result.total_duration_ms,
+            error=result.error,
+        )
+
+    except Exception as e:
+        logger.error(f"Error in Study Plan v3 generation: {e}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=str(e),
+        )
+
+
+# ─────────────────────────────────────────────────────────────
 # Save Study Plan
 # ─────────────────────────────────────────────────────────────
 
