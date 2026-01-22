@@ -1,0 +1,253 @@
+"""State management for v4 agent.
+
+Includes:
+- WorkingMemory: Current execution state
+- ExecutionHistory: Trace of actions taken
+- ExecutionStep: Single step record
+"""
+
+from dataclasses import dataclass, field
+from datetime import datetime
+from typing import Any
+import uuid
+
+
+@dataclass
+class ExecutionStep:
+    """Record of a single execution step."""
+
+    step_number: int
+    timestamp: datetime
+    thought: str
+    action: str
+    action_input: dict[str, Any]
+    observation: dict[str, Any]
+    success: bool
+    error: str | None = None
+    duration_ms: int = 0
+
+    def to_dict(self) -> dict[str, Any]:
+        """Convert to dictionary for serialization."""
+        return {
+            "step_number": self.step_number,
+            "timestamp": self.timestamp.isoformat(),
+            "thought": self.thought,
+            "action": self.action,
+            "action_input": self.action_input,
+            "observation": self.observation,
+            "success": self.success,
+            "error": self.error,
+            "duration_ms": self.duration_ms,
+        }
+
+
+class ExecutionHistory:
+    """History of all execution steps in current run."""
+
+    def __init__(self):
+        self.steps: list[ExecutionStep] = []
+        self.failed_actions: dict[str, int] = {}  # action -> failure count
+        self._action_sequence: list[str] = []  # for loop detection
+
+    def add_step(self, step: ExecutionStep) -> None:
+        """Add a new step to history."""
+        self.steps.append(step)
+        self._action_sequence.append(step.action)
+
+        if not step.success:
+            self.failed_actions[step.action] = (
+                self.failed_actions.get(step.action, 0) + 1
+            )
+
+    def get_recent(self, n: int = 5) -> list[ExecutionStep]:
+        """Get the n most recent steps."""
+        return self.steps[-n:]
+
+    def should_avoid(self, action: str) -> bool:
+        """Check if action has failed too many times (>= 2)."""
+        return self.failed_actions.get(action, 0) >= 2
+
+    def detect_loop(self, window: int = 4) -> bool:
+        """Detect if agent is stuck in a loop.
+
+        Checks if the same action sequence repeats.
+        """
+        if len(self._action_sequence) < window * 2:
+            return False
+
+        recent = self._action_sequence[-window:]
+        previous = self._action_sequence[-window * 2 : -window]
+        return recent == previous
+
+    def get_context_for_llm(self, n: int = 5) -> str:
+        """Format recent steps for LLM context."""
+        recent = self.get_recent(n)
+        if not recent:
+            return "No previous actions."
+
+        lines = []
+        for step in recent:
+            status = "SUCCESS" if step.success else "FAILED"
+            # Truncate thought for brevity
+            thought_preview = (
+                step.thought[:100] + "..." if len(step.thought) > 100 else step.thought
+            )
+            lines.append(f"[{status}] {step.action}: {thought_preview}")
+
+        return "\n".join(lines)
+
+    def get_successful_actions(self) -> list[str]:
+        """Get list of successfully executed actions."""
+        return [s.action for s in self.steps if s.success]
+
+    def to_trace(self) -> list[dict[str, Any]]:
+        """Convert entire history to serializable trace."""
+        return [step.to_dict() for step in self.steps]
+
+
+@dataclass
+class WorkingMemory:
+    """Working memory for current agent execution.
+
+    Contains all intermediate state needed during plan generation.
+    """
+
+    # Run identification
+    run_id: str = field(default_factory=lambda: str(uuid.uuid4()))
+    started_at: datetime = field(default_factory=datetime.utcnow)
+
+    # Goal and input
+    goal: str = ""
+    original_hypothesis: str = ""
+    research_context: str | None = None
+    constraints: list[str] = field(default_factory=list)
+    preferred_experiment_types: list[str] = field(default_factory=list)
+
+    # Parsed hypothesis
+    structured_hypothesis: dict[str, Any] | None = None
+    hypothesis_confidence: float = 0.0
+
+    # Test questions (NSPE decomposition)
+    test_questions: list[dict[str, Any]] = field(default_factory=list)
+    answered_questions: set[str] = field(default_factory=set)
+
+    # Search results
+    retrieved_papers: list[dict[str, Any]] = field(default_factory=list)
+    evidence_snippets: list[dict[str, Any]] = field(default_factory=list)
+    search_coverage: float = 0.0
+    search_tiers_used: list[int] = field(default_factory=list)
+
+    # Design results
+    experiments: list[dict[str, Any]] = field(default_factory=list)
+    controls: dict[str, list[dict[str, Any]]] = field(default_factory=dict)
+    measurements: list[dict[str, Any]] = field(default_factory=list)
+
+    # Validation results
+    validation_results: list[dict[str, Any]] = field(default_factory=list)
+    quality_score: float = 0.0
+    critique_history: list[dict[str, Any]] = field(default_factory=list)
+
+    # Final output
+    plan_a: str | None = None
+    plan_b: str | None = None
+    executive_summary: str | None = None
+
+    # Metadata
+    iteration_count: int = 0
+    total_cost: float = 0.0
+    user_questions: list[dict[str, Any]] = field(default_factory=list)
+
+    def increment_iteration(self) -> None:
+        """Increment iteration counter."""
+        self.iteration_count += 1
+
+    def add_cost(self, cost: float) -> None:
+        """Add to total cost."""
+        self.total_cost += cost
+
+    def get_summary(self) -> str:
+        """Get current state summary for LLM context."""
+        parts = [
+            "=== Current Progress ===",
+            f"Run ID: {self.run_id[:8]}...",
+            f"Iterations: {self.iteration_count}",
+            "",
+            "--- Hypothesis ---",
+            f"Original: {self.original_hypothesis[:100]}..."
+            if len(self.original_hypothesis) > 100
+            else f"Original: {self.original_hypothesis}",
+            f"Parsed: {'Yes' if self.structured_hypothesis else 'No'}",
+            f"Confidence: {self.hypothesis_confidence:.0%}"
+            if self.structured_hypothesis
+            else "",
+            "",
+            "--- Research ---",
+            f"Test Questions: {len(self.test_questions)} generated, {len(self.answered_questions)} addressed",
+            f"Papers Retrieved: {len(self.retrieved_papers)}",
+            f"Evidence Snippets: {len(self.evidence_snippets)}",
+            f"Search Coverage: {self.search_coverage:.0%}",
+            f"Search Tiers Used: {self.search_tiers_used if self.search_tiers_used else 'None'}",
+            "",
+            "--- Design ---",
+            f"Experiments Designed: {len(self.experiments)}",
+            f"Controls Defined: {sum(len(c) for c in self.controls.values())}",
+            f"Measurements: {len(self.measurements)}",
+            "",
+            "--- Validation ---",
+            f"Quality Score: {self.quality_score:.0%}" if self.quality_score else "Not evaluated",
+            f"Critique Rounds: {len(self.critique_history)}",
+            "",
+            "--- Output ---",
+            f"Plan A: {'Generated' if self.plan_a else 'Not yet'}",
+            f"Plan B: {'Generated' if self.plan_b else 'Not yet'}",
+        ]
+        return "\n".join(parts)
+
+    def get_hypothesis_variables(self) -> set[str]:
+        """Extract all variables from structured hypothesis."""
+        if not self.structured_hypothesis:
+            return set()
+
+        variables = set()
+        if iv := self.structured_hypothesis.get("iv"):
+            variables.add(iv)
+        if dv := self.structured_hypothesis.get("dv"):
+            variables.add(dv)
+        if mediators := self.structured_hypothesis.get("mediators"):
+            variables.update(mediators)
+        if moderators := self.structured_hypothesis.get("moderators"):
+            variables.update(moderators)
+
+        return variables
+
+    def to_dict(self) -> dict[str, Any]:
+        """Convert to dictionary for serialization."""
+        return {
+            "run_id": self.run_id,
+            "started_at": self.started_at.isoformat(),
+            "goal": self.goal,
+            "original_hypothesis": self.original_hypothesis,
+            "research_context": self.research_context,
+            "constraints": self.constraints,
+            "preferred_experiment_types": self.preferred_experiment_types,
+            "structured_hypothesis": self.structured_hypothesis,
+            "hypothesis_confidence": self.hypothesis_confidence,
+            "test_questions": self.test_questions,
+            "answered_questions": list(self.answered_questions),
+            "retrieved_papers": self.retrieved_papers,
+            "evidence_snippets": self.evidence_snippets,
+            "search_coverage": self.search_coverage,
+            "search_tiers_used": self.search_tiers_used,
+            "experiments": self.experiments,
+            "controls": self.controls,
+            "measurements": self.measurements,
+            "validation_results": self.validation_results,
+            "quality_score": self.quality_score,
+            "critique_history": self.critique_history,
+            "plan_a": self.plan_a,
+            "plan_b": self.plan_b,
+            "executive_summary": self.executive_summary,
+            "iteration_count": self.iteration_count,
+            "total_cost": self.total_cost,
+            "user_questions": self.user_questions,
+        }
