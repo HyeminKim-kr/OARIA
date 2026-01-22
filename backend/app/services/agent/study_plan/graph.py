@@ -1,10 +1,17 @@
 """Study Plan Agent 그래프 정의
 
 LangGraph 기반 그래프 구조 정의.
-3개의 조건부 루프 포함:
+
+v2.1 (기존):
 - Loop 0: 가설 명확화 (clarify → parse)
 - Loop 1: 검색 확장 (expand → search)
 - Loop 2: Critic 수정 (critique → design)
+
+v3 (신규):
+- 3-tier 검색 (RAG → EPMC → Web)
+- DP1: 검색 승격 결정
+- DP2: Critique 후 전략 (redesign/search/ask/accept)
+- DP3: Plan A/B 분기
 """
 
 import logging
@@ -105,6 +112,42 @@ def route_after_approval(state: StudyPlanState) -> str:
     else:
         logger.info(f"Routing: approval → END (status={status_value})")
         return "end"
+
+
+# ============================================================
+# v3 조건부 라우팅 함수
+# ============================================================
+
+
+def route_after_critique_v3(state: StudyPlanState) -> str:
+    """
+    v3 Loop 2: DP2 결정 기반 라우팅
+
+    - redesign → design (실험 재설계)
+    - search_for_controls → search_controls (추가 검색)
+    - ask_user → clarify (사용자 질문)
+    - accept_minor_issues → measurements (측정치 도출)
+    """
+    dp2_decision = state.get("dp2_decision", "accept_minor_issues")
+    dp2_loop_count = state.get("dp2_loop_count", 0)
+
+    # 루프 제한 (최대 2회)
+    if dp2_loop_count >= 2:
+        logger.info("Routing v3: critique → measurements (loop limit)")
+        return "measurements"
+
+    if dp2_decision == "redesign":
+        logger.info("Routing v3: critique → design (redesign)")
+        return "design"
+    elif dp2_decision == "search_for_controls":
+        logger.info("Routing v3: critique → search_controls")
+        return "search_controls"
+    elif dp2_decision == "ask_user":
+        logger.info("Routing v3: critique → clarify (ask_user)")
+        return "clarify"
+    else:
+        logger.info(f"Routing v3: critique → measurements ({dp2_decision})")
+        return "measurements"
 
 
 # ============================================================
@@ -340,4 +383,156 @@ def build_study_plan_graph_no_synthesis() -> StateGraph:
 def compile_study_plan_graph_no_synthesis() -> CompiledStateGraph:
     """스트리밍용 그래프 컴파일"""
     graph = build_study_plan_graph_no_synthesis()
+    return graph.compile()
+
+
+# ============================================================
+# v3 그래프 빌더
+# ============================================================
+
+
+def build_study_plan_graph_v3() -> StateGraph:
+    """
+    Study Plan Agent v3 그래프를 구성합니다.
+
+    v2.1 대비 변경사항:
+    - search_studies → search_studies_v3 (3-tier 검색)
+    - critique_refine → critique_refine_v3 (DP2 통합)
+    - synthesize_plan → synthesize_plan_v3 (Plan A/B)
+    - search_controls 노드 추가 (DP2 search_for_controls용)
+
+    Returns:
+        StateGraph: 컴파일 전 그래프
+    """
+    from .nodes import (
+        analyze_methodologies,
+        approval_gate,
+        build_evidence_pack,
+        clarify_hypothesis,
+        decompose_to_test_questions,
+        design_experiments,
+        expand_search,
+        identify_measurements,
+        parse_hypothesis,
+        validate_feasibility,
+        # v3 노드
+        search_studies_v3,
+        critique_refine_v3,
+        synthesize_plan_v3,
+        search_for_controls,
+    )
+
+    graph = StateGraph(StudyPlanState)
+
+    # ============================================================
+    # 노드 등록 (v3)
+    # ============================================================
+    graph.add_node("parse_hypothesis", parse_hypothesis)
+    graph.add_node("clarify_hypothesis", clarify_hypothesis)
+    graph.add_node("decompose_tests", decompose_to_test_questions)
+    graph.add_node("search_studies", search_studies_v3)  # v3
+    graph.add_node("expand_search", expand_search)
+    graph.add_node("build_evidence", build_evidence_pack)
+    graph.add_node("analyze_methodologies", analyze_methodologies)
+    graph.add_node("design_experiments", design_experiments)
+    graph.add_node("critique_refine", critique_refine_v3)  # v3
+    graph.add_node("search_controls", search_for_controls)  # v3 신규
+    graph.add_node("identify_measurements", identify_measurements)
+    graph.add_node("validate_feasibility", validate_feasibility)
+    graph.add_node("approval_gate", approval_gate)
+    graph.add_node("synthesize_plan", synthesize_plan_v3)  # v3
+
+    # ============================================================
+    # 엔트리 포인트
+    # ============================================================
+    graph.set_entry_point("parse_hypothesis")
+
+    # ============================================================
+    # Loop 0: 가설 명확화 루프 (v2.1과 동일)
+    # ============================================================
+    graph.add_conditional_edges(
+        "parse_hypothesis",
+        route_after_parse,
+        {
+            "clarify": "clarify_hypothesis",
+            "decompose": "decompose_tests",
+        },
+    )
+    graph.add_edge("clarify_hypothesis", "parse_hypothesis")
+
+    # ============================================================
+    # 검증 질문 분해 → 검색
+    # ============================================================
+    graph.add_edge("decompose_tests", "search_studies")
+
+    # ============================================================
+    # Loop 1: 검색 커버리지 루프 (v2.1과 동일, 내부 로직만 v3)
+    # ============================================================
+    graph.add_conditional_edges(
+        "search_studies",
+        route_after_search,
+        {
+            "expand": "expand_search",
+            "build_evidence": "build_evidence",
+        },
+    )
+    graph.add_edge("expand_search", "search_studies")
+
+    # ============================================================
+    # Evidence → 방법론 분석 → 실험 설계
+    # ============================================================
+    graph.add_edge("build_evidence", "analyze_methodologies")
+    graph.add_edge("analyze_methodologies", "design_experiments")
+
+    # ============================================================
+    # Loop 2: v3 Critic 수정 루프 (DP2 기반)
+    # ============================================================
+    graph.add_edge("design_experiments", "critique_refine")
+    graph.add_conditional_edges(
+        "critique_refine",
+        route_after_critique_v3,  # v3 라우터
+        {
+            "measurements": "identify_measurements",
+            "design": "design_experiments",
+            "search_controls": "search_controls",  # v3 신규
+            "clarify": "clarify_hypothesis",  # ask_user
+        },
+    )
+    # search_controls 후 다시 critique
+    graph.add_edge("search_controls", "critique_refine")
+
+    # ============================================================
+    # 측정치 → 실현가능성 → 승인 게이트
+    # ============================================================
+    graph.add_edge("identify_measurements", "validate_feasibility")
+    graph.add_edge("validate_feasibility", "approval_gate")
+
+    # ============================================================
+    # 승인 게이트 분기
+    # ============================================================
+    graph.add_conditional_edges(
+        "approval_gate",
+        route_after_approval,
+        {
+            "synthesize": "synthesize_plan",
+            "end": END,
+        },
+    )
+
+    # ============================================================
+    # 최종 합성 → 종료
+    # ============================================================
+    graph.add_edge("synthesize_plan", END)
+
+    return graph
+
+
+def compile_study_plan_graph_v3() -> CompiledStateGraph:
+    """
+    Study Plan Agent v3 그래프를 컴파일합니다.
+
+    Returns:
+        CompiledStateGraph: 실행 가능한 그래프
+    """
+    graph = build_study_plan_graph_v3()
     return graph.compile()

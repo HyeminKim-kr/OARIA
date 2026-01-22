@@ -526,17 +526,57 @@ export interface StudyPlanFullResponse {
   updated_at: string;
 }
 
+// Study Plan v3 응답 타입 (Plan A/B, Decision Points 포함)
+export interface StudyPlanV3Response extends StudyPlanSummaryResponse {
+  // Plan A/B
+  plan_a?: string;
+  plan_b?: string;
+  plan_config?: Record<string, unknown>;
+
+  // Decision Points 결과
+  dp1_decisions?: Record<string, unknown>[];
+  dp2_decision?: string;
+  dp3_decision?: string;
+
+  // 3-tier 검색 정보
+  highest_tier_used?: number;
+  evidence_snippets_v3?: Record<string, unknown>[];
+  search_tier_history?: number[];
+}
+
+// Study Plan v3 저장 요청 (v3 필드 포함)
+export interface StudyPlanV3SaveRequest extends StudyPlanSaveRequest {
+  // Plan A/B
+  plan_a?: string;
+  plan_b?: string;
+  plan_config?: Record<string, unknown>;
+
+  // Decision Points 결과
+  dp1_decisions?: Record<string, unknown>[];
+  dp2_decision?: string;
+  dp3_decision?: string;
+
+  // 3-tier 검색 정보
+  highest_tier_used?: number;
+  evidence_snippets_v3?: Record<string, unknown>[];
+  search_tier_history?: number[];
+}
+
 // Study Plan API
 export const studyPlanApi = {
-  // SSE 스트리밍 URL
+  // SSE 스트리밍 URL (v2 - 기존)
   generateUrl: () => `${API_BASE_URL}/study-plan/generate`,
 
   // 동기 실행 (테스트용)
   generateSync: (request: StudyPlanRequest) =>
     api.post<StudyPlanSummaryResponse>('/study-plan/generate-sync', request),
 
-  // 저장
-  save: (data: StudyPlanSaveRequest) =>
+  // v3 동기 실행 (3-tier 검색 + Decision Points)
+  generateV3: (request: StudyPlanRequest) =>
+    api.post<StudyPlanV3Response>('/study-plan/generate-v3', request),
+
+  // 저장 (v3 필드 포함)
+  save: (data: StudyPlanSaveRequest | StudyPlanV3SaveRequest) =>
     api.post<StudyPlanFullResponse>('/study-plan/save', data),
 
   // 히스토리 목록

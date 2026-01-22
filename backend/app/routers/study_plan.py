@@ -29,6 +29,7 @@ from app.services.agent.study_plan import (
     StudyPlanEventType,
     study_plan_service,
 )
+from app.services.agent.study_plan.v4.service import get_study_plan_agent_v4
 
 logger = logging.getLogger(__name__)
 
@@ -164,6 +165,70 @@ async def generate_study_plan_sync(
 
 
 # ─────────────────────────────────────────────────────────────
+# Generate Study Plan v3 (Sync)
+# ─────────────────────────────────────────────────────────────
+
+
+@router.post("/generate-v3", response_model=StudyPlanSummaryResponse)
+async def generate_study_plan_v3(
+    request: StudyPlanRequest,
+    current_user: CurrentUser,
+):
+    """Study Plan v3 생성 (3-tier 검색 + Decision Points)
+
+    v3 기능:
+    - **3-tier 검색**: RAG → Europe PMC → Tavily Web
+    - **Decision Points**: DP1(검색 승격), DP2(Critique 전략), DP3(Plan A/B)
+    - **Plan A/B**: 이상적 설계와 현실적 대안 동시 제공
+
+    **예시 요청:**
+    ```json
+    {
+        "hypothesis": "EGFR T790M mutation causes osimertinib resistance via MET amplification",
+        "research_context": "NSCLC targeted therapy",
+        "constraints": ["budget limited"],
+        "preferred_experiment_types": ["in_vitro", "in_vivo"]
+    }
+    ```
+
+    Returns:
+        StudyPlanSummaryResponse: 생성된 연구 계획 (Plan A/B 포함 가능)
+    """
+    logger.info(
+        f"Study Plan v3 request from user {current_user.id}: "
+        f"{request.hypothesis[:50]}..."
+    )
+
+    try:
+        result = await study_plan_service.execute_v3(
+            user_input=request.hypothesis,
+            research_context=request.research_context,
+            constraints=request.constraints,
+            preferred_experiment_types=request.preferred_experiment_types,
+            user_id=str(current_user.id),
+        )
+
+        return StudyPlanSummaryResponse(
+            success=result.success,
+            plan_id=None,
+            final_plan=result.final_plan,
+            executive_summary=result.executive_summary,
+            experiment_count=result.experiment_count,
+            approval_required=result.approval_required,
+            approval_status=result.approval_status,
+            total_duration_ms=result.total_duration_ms,
+            error=result.error,
+        )
+
+    except Exception as e:
+        logger.error(f"Error in Study Plan v3 generation: {e}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=str(e),
+        )
+
+
+# ─────────────────────────────────────────────────────────────
 # Save Study Plan
 # ─────────────────────────────────────────────────────────────
 
@@ -204,6 +269,17 @@ async def save_study_plan(
             final_plan=request.final_plan,
             executive_summary=request.executive_summary,
             references=request.references or [],
+            # v3 전용 필드
+            plan_a=request.plan_a,
+            plan_b=request.plan_b,
+            plan_config=request.plan_config,
+            dp1_decisions=request.dp1_decisions or [],
+            dp2_decision=request.dp2_decision,
+            dp3_decision=request.dp3_decision,
+            highest_tier_used=request.highest_tier_used,
+            evidence_snippets_v3=request.evidence_snippets_v3 or [],
+            search_tier_history=request.search_tier_history or [],
+            # 메타
             status=request.status,
             total_duration_ms=request.total_duration_ms,
             error_message=request.error_message,
@@ -358,3 +434,121 @@ async def delete_study_plan(
     await db.commit()
 
     logger.info(f"Study Plan {plan_id} deleted by user {current_user.id}")
+
+
+# ─────────────────────────────────────────────────────────────
+# Generate Study Plan v4 (ReAct Agent)
+# ─────────────────────────────────────────────────────────────
+
+
+@router.post("/generate-v4", response_model=StudyPlanSummaryResponse)
+async def generate_study_plan_v4(
+    request: StudyPlanRequest,
+    current_user: CurrentUser,
+):
+    """Study Plan v4 생성 (ReAct 에이전트)
+
+    v4 기능:
+    - **ReAct 패턴**: LLM이 동적으로 다음 행동 결정
+    - **동적 도구 선택**: 15+ 도구 중 필요한 것을 자율 선택
+    - **실패 복구**: 자동 대안 탐색 및 복구
+    - **장기 메모리**: 과거 실행에서 학습
+
+    **예시 요청:**
+    ```json
+    {
+        "hypothesis": "EGFR T790M mutation causes osimertinib resistance via MET amplification",
+        "research_context": "NSCLC targeted therapy",
+        "constraints": ["budget limited"],
+        "preferred_experiment_types": ["in_vitro", "in_vivo"]
+    }
+    ```
+
+    Returns:
+        StudyPlanSummaryResponse: 생성된 연구 계획
+    """
+    logger.info(
+        f"Study Plan v4 request from user {current_user.id}: "
+        f"{request.hypothesis[:50]}..."
+    )
+
+    try:
+        agent = get_study_plan_agent_v4()
+        result = await agent.execute(
+            hypothesis=request.hypothesis,
+            research_context=request.research_context,
+            constraints=request.constraints,
+            preferred_experiment_types=request.preferred_experiment_types,
+            user_id=str(current_user.id),
+        )
+
+        return StudyPlanSummaryResponse(
+            success=result.success,
+            plan_id=None,
+            final_plan=result.plan_a,
+            executive_summary=result.executive_summary,
+            experiment_count=result.experiment_count,
+            approval_required=False,
+            approval_status=None,
+            total_duration_ms=result.total_duration_ms,
+            error=result.error,
+        )
+
+    except Exception as e:
+        logger.error(f"Error in Study Plan v4 generation: {e}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=str(e),
+        )
+
+
+@router.post("/generate-v4-stream")
+async def generate_study_plan_v4_stream(
+    request: StudyPlanRequest,
+    current_user: CurrentUser,
+):
+    """Study Plan v4 생성 (SSE 스트리밍)
+
+    v4 에이전트의 실시간 진행 상황을 스트리밍합니다.
+
+    **SSE 이벤트 타입:**
+    - `started`: 에이전트 시작
+    - `thinking`: 다음 행동 결정 중
+    - `acting`: 도구 실행 중
+    - `observation`: 실행 결과
+    - `recovery`: 실패 복구 시도
+    - `goal_check`: 목표 달성 여부 확인
+    - `completed`: 완료
+    - `error`: 오류 발생
+    """
+    logger.info(
+        f"Study Plan v4 stream request from user {current_user.id}: "
+        f"{request.hypothesis[:50]}..."
+    )
+
+    async def generate_sse():
+        try:
+            agent = get_study_plan_agent_v4()
+            async for event_type, event_data in agent.execute_stream(
+                hypothesis=request.hypothesis,
+                research_context=request.research_context,
+                constraints=request.constraints,
+                preferred_experiment_types=request.preferred_experiment_types,
+                user_id=str(current_user.id),
+            ):
+                yield {
+                    "event": event_type,
+                    "data": json.dumps(event_data, ensure_ascii=False),
+                }
+
+        except Exception as e:
+            logger.error(f"Error in Study Plan v4 stream: {e}")
+            yield {
+                "event": "error",
+                "data": json.dumps(
+                    {"error": str(e), "message": "계획 생성 중 오류가 발생했습니다"},
+                    ensure_ascii=False,
+                ),
+            }
+
+    return EventSourceResponse(generate_sse())

@@ -11,8 +11,13 @@ from typing import Any, AsyncGenerator
 
 from langgraph.graph.state import CompiledStateGraph
 
-from .graph import compile_study_plan_graph, compile_study_plan_graph_no_synthesis
+from .graph import (
+    compile_study_plan_graph,
+    compile_study_plan_graph_no_synthesis,
+    build_study_plan_graph_v3,
+)
 from .nodes.synthesize_plan import synthesize_plan
+from .nodes.synthesize_plan_v3 import synthesize_plan_v3
 from .state import (
     ApprovalStatus,
     ExperimentType,
@@ -93,6 +98,11 @@ NODE_EVENT_MAP = {
     "validate_feasibility": StudyPlanEventType.FEASIBILITY_ASSESSED,
     "approval_gate": StudyPlanEventType.APPROVAL_REQUIRED,
     "synthesize_plan": StudyPlanEventType.RESULT,
+    # v3 노드
+    "search_v3": StudyPlanEventType.STUDIES_FOUND,
+    "search_controls": StudyPlanEventType.SEARCH_EXPANDING,
+    "critique_v3": StudyPlanEventType.CRITIQUE,
+    "synthesize_v3": StudyPlanEventType.RESULT,
 }
 
 
@@ -106,11 +116,13 @@ class StudyPlanService:
     Study Plan Agent 서비스 (싱글톤)
 
     그래프 컴파일 및 실행을 관리합니다.
+    v2.1과 v3 그래프를 모두 지원합니다.
     """
 
     _instance = None
     _graph: CompiledStateGraph | None = None
     _graph_no_synthesis: CompiledStateGraph | None = None
+    _graph_v3: CompiledStateGraph | None = None
 
     def __new__(cls):
         if cls._instance is None:
@@ -119,7 +131,7 @@ class StudyPlanService:
 
     @property
     def graph(self) -> CompiledStateGraph:
-        """Lazy initialization of the main graph"""
+        """Lazy initialization of the main graph (v2.1)"""
         if self._graph is None:
             logger.info("Compiling Study Plan graph (full)")
             self._graph = compile_study_plan_graph()
@@ -127,11 +139,19 @@ class StudyPlanService:
 
     @property
     def graph_no_synthesis(self) -> CompiledStateGraph:
-        """Lazy initialization of the streaming graph"""
+        """Lazy initialization of the streaming graph (v2.1)"""
         if self._graph_no_synthesis is None:
             logger.info("Compiling Study Plan graph (no synthesis)")
             self._graph_no_synthesis = compile_study_plan_graph_no_synthesis()
         return self._graph_no_synthesis
+
+    @property
+    def graph_v3(self) -> CompiledStateGraph:
+        """Lazy initialization of v3 graph with 3-tier search and Decision Points"""
+        if self._graph_v3 is None:
+            logger.info("Compiling Study Plan graph v3 (3-tier + DP)")
+            self._graph_v3 = build_study_plan_graph_v3().compile()
+        return self._graph_v3
 
     async def execute(
         self,
@@ -223,6 +243,125 @@ class StudyPlanService:
 
         except Exception as e:
             logger.error(f"Error executing Study Plan: {e}")
+            duration_ms = int((time.time() - start_time) * 1000)
+            return StudyPlanResult(
+                success=False,
+                final_plan="",
+                executive_summary="",
+                experiment_count=0,
+                approval_required=False,
+                approval_status="error",
+                references=[],
+                evidence_trace={},
+                total_duration_ms=duration_ms,
+                error=str(e),
+            )
+
+    async def execute_v3(
+        self,
+        user_input: str,
+        research_context: str | None = None,
+        constraints: list[str] | None = None,
+        preferred_experiment_types: list[str] | None = None,
+        conversation_id: str | None = None,
+        user_id: str | None = None,
+    ) -> StudyPlanResult:
+        """
+        v3 실행: 3-tier 검색 + Decision Points + Plan A/B
+
+        Args:
+            user_input: 가설/기전 설명
+            research_context: 연구 맥락
+            constraints: 제약조건
+            preferred_experiment_types: 선호 실험 유형
+            conversation_id: 대화 ID
+            user_id: 사용자 ID
+
+        Returns:
+            StudyPlanResult: 최종 결과 (Plan A/B 포함)
+        """
+        start_time = time.time()
+
+        # 실험 유형 변환
+        exp_types = []
+        if preferred_experiment_types:
+            for t in preferred_experiment_types:
+                try:
+                    exp_types.append(ExperimentType(t))
+                except ValueError:
+                    pass
+
+        # 초기 상태 생성
+        initial_state = create_initial_state(
+            user_input=user_input,
+            research_context=research_context,
+            constraints=constraints,
+            preferred_experiment_types=exp_types,
+            conversation_id=conversation_id,
+            user_id=user_id,
+        )
+
+        logger.info(f"Executing Study Plan Agent v3 for: {user_input[:50]}...")
+
+        try:
+            # v3 그래프 실행
+            final_state = await self.graph_v3.ainvoke(
+                initial_state,
+                config={"recursion_limit": 50},
+            )
+
+            duration_ms = int((time.time() - start_time) * 1000)
+
+            # 결과 추출
+            approval_gate_result = final_state.get("approval_gate_result")
+            approval_required = (
+                approval_gate_result.approval_required
+                if approval_gate_result
+                else False
+            )
+
+            approval_status = final_state.get("approval_status", ApprovalStatus.APPROVED)
+            if isinstance(approval_status, ApprovalStatus):
+                approval_status = approval_status.value
+
+            experiment_designs = final_state.get("experiment_designs", [])
+
+            # v3 추가 정보
+            dp3_decision = final_state.get("dp3_decision", "single_plan")
+            plan_a = final_state.get("plan_a", "")
+            plan_b = final_state.get("plan_b", "")
+
+            # evidence_trace에 v3 정보 추가
+            evidence_trace = final_state.get("evidence_trace", {})
+            evidence_trace["v3"] = {
+                "dp1_decisions": final_state.get("dp1_decisions", []),
+                "dp2_decision": final_state.get("dp2_decision", ""),
+                "dp3_decision": dp3_decision,
+                "highest_tier_used": final_state.get("highest_tier_used", 1),
+                "evidence_snippets_v3_count": len(final_state.get("evidence_snippets_v3", [])),
+            }
+
+            result = StudyPlanResult(
+                success=True,
+                final_plan=final_state.get("final_plan", ""),
+                executive_summary=final_state.get("executive_summary", ""),
+                experiment_count=len(experiment_designs),
+                approval_required=approval_required,
+                approval_status=approval_status,
+                references=final_state.get("references", []),
+                evidence_trace=evidence_trace,
+                total_duration_ms=duration_ms,
+            )
+
+            logger.info(
+                f"Study Plan v3 completed: {len(experiment_designs)} experiments, "
+                f"dp3={dp3_decision}, {duration_ms}ms"
+            )
+
+            return result
+
+        except Exception as e:
+            logger.error(f"Error executing Study Plan v3: {e}")
             duration_ms = int((time.time() - start_time) * 1000)
             return StudyPlanResult(
                 success=False,

@@ -170,6 +170,22 @@ class StudyPlanSaveRequest(BaseModel):
     executive_summary: str | None = Field(default=None)
     references: list[dict[str, Any]] = Field(default=[])
 
+    # === v3 전용 필드 ===
+    # Plan A/B
+    plan_a: str | None = Field(default=None, description="Plan A (강력 검증)")
+    plan_b: str | None = Field(default=None, description="Plan B (보수 검증)")
+    plan_config: dict[str, Any] | None = Field(default=None, description="Plan A/B 설정")
+
+    # Decision Points 결과
+    dp1_decisions: list[dict[str, Any]] = Field(default=[], description="DP1 검색 승격 결정들")
+    dp2_decision: str | None = Field(default=None, description="DP2 Critique 전략")
+    dp3_decision: str | None = Field(default=None, description="DP3 Plan 분기")
+
+    # 3-tier 검색 정보
+    highest_tier_used: int = Field(default=1, description="사용된 최고 검색 티어 (1=RAG, 2=EPMC, 3=Web)")
+    evidence_snippets_v3: list[dict[str, Any]] = Field(default=[], description="v3 Evidence snippets")
+    search_tier_history: list[int] = Field(default=[], description="검색 티어 히스토리")
+
     # 메타
     status: str = Field(default="completed")
     total_duration_ms: int | None = Field(default=None)
@@ -247,6 +263,22 @@ class StudyPlanFullResponse(BaseModel):
     final_plan: str | None
     executive_summary: str | None
     references: list[dict[str, Any]]
+
+    # === v3 전용 필드 ===
+    # Plan A/B
+    plan_a: str | None = None
+    plan_b: str | None = None
+    plan_config: dict[str, Any] | None = None
+
+    # Decision Points 결과
+    dp1_decisions: list[dict[str, Any]] = []
+    dp2_decision: str | None = None
+    dp3_decision: str | None = None
+
+    # 3-tier 검색 정보
+    highest_tier_used: int = 1
+    evidence_snippets_v3: list[dict[str, Any]] = []
+    search_tier_history: list[int] = []
 
     # 메타
     status: str
