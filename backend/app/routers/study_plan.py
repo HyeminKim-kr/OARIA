@@ -229,6 +229,84 @@ async def generate_study_plan_v3(
 
 
 # ─────────────────────────────────────────────────────────────
+# Generate Study Plan v3 (SSE Streaming)
+# ─────────────────────────────────────────────────────────────
+
+
+@router.post("/generate-v3-stream")
+async def generate_study_plan_v3_stream(
+    request: StudyPlanRequest,
+    current_user: CurrentUser,
+):
+    """Study Plan v3 생성 (SSE 스트리밍) - 중간 단계 데이터 포함
+
+    실시간으로 각 단계의 진행 상황과 상세 데이터를 스트리밍합니다.
+
+    **SSE 이벤트 타입:**
+    - `status`: 진행 상태
+    - `hypothesis`: 가설 파싱 완료 (독립/종속변수, 키워드 포함)
+    - `tests`: 검증 질문 분해 완료 (NSPE 카테고리별 질문)
+    - `studies`: 관련 연구 검색 완료 (커버리지, 검색 티어)
+    - `search_expanding`: 검색 확장 중 (추가 쿼리)
+    - `evidence`: Evidence Pack 구축 완료 (스니펫 수)
+    - `methodologies`: 방법론 분석 완료 (주요 기법)
+    - `experiments`: 실험 설계 완료 (상세 실험 정보)
+    - `critique`: Critic 검증 결과 (품질 점수, 수정 제안)
+    - `measurements`: 측정 항목 식별 완료
+    - `feasibility`: 실현가능성 평가 완료
+    - `result`: 최종 결과
+    - `done`: 완료 (Plan A/B 포함)
+    - `error`: 오류 발생
+
+    각 이벤트의 `data.detail` 필드에 사람이 읽을 수 있는 요약이 포함됩니다.
+
+    **예시 요청:**
+    ```json
+    {
+        "hypothesis": "EGFR T790M mutation causes osimertinib resistance via MET amplification",
+        "research_context": "NSCLC targeted therapy",
+        "preferred_experiment_types": ["in_vitro", "in_vivo"]
+    }
+    ```
+
+    Returns:
+        SSE 스트림 (각 단계별 상세 데이터 포함)
+    """
+    logger.info(
+        f"Study Plan v3 stream request from user {current_user.id}: "
+        f"{request.hypothesis[:50]}..."
+    )
+
+    async def generate_sse():
+        """SSE 스트림 생성"""
+        try:
+            async for event in study_plan_service.execute_stream_v3(
+                user_input=request.hypothesis,
+                research_context=request.research_context,
+                constraints=request.constraints,
+                preferred_experiment_types=request.preferred_experiment_types,
+                user_id=str(current_user.id),
+            ):
+                # StudyPlanEvent를 SSE 이벤트로 변환
+                yield {
+                    "event": event.event_type.value,
+                    "data": json.dumps(event.data, ensure_ascii=False),
+                }
+
+        except Exception as e:
+            logger.error(f"Error in Study Plan v3 streaming: {e}")
+            yield {
+                "event": "error",
+                "data": json.dumps(
+                    {"error": str(e), "message": "계획 생성 중 오류가 발생했습니다"},
+                    ensure_ascii=False,
+                ),
+            }
+
+    return EventSourceResponse(generate_sse())
+
+
+# ─────────────────────────────────────────────────────────────
 # Save Study Plan
 # ─────────────────────────────────────────────────────────────
 

@@ -33,7 +33,7 @@ import {
   Sparkles,
   Shield,
 } from "lucide-react";
-import { studyPlanApi, StudyPlanV3Response } from "@/lib/api";
+import { studyPlanApi, StudyPlanV3Response, StudyPlanV3SaveRequest, StudyPlanSSEEvent, fetchWithAuth } from "@/lib/api";
 
 // ─────────────────────────────────────────────────────────────
 // Types
@@ -159,6 +159,16 @@ interface FAQ {
   answer: string;
 }
 
+// 활동 로그 타입
+interface ActivityLog {
+  id: string;
+  timestamp: Date;
+  type: "thinking" | "action" | "result" | "error";
+  title: string;
+  description?: string;
+  nodeId?: string;
+}
+
 // ─────────────────────────────────────────────────────────────
 // Constants
 // ─────────────────────────────────────────────────────────────
@@ -241,6 +251,41 @@ export default function StudyPlanPage() {
   const [openFaqIndex, setOpenFaqIndex] = useState<number | null>(null);
   const resultRef = useRef<HTMLDivElement>(null);
 
+  // 활동 로그 state
+  const [activityLogs, setActivityLogs] = useState<ActivityLog[]>([]);
+  const [showActivitySidebar, setShowActivitySidebar] = useState(true);
+  const [elapsedTime, setElapsedTime] = useState(0);
+  const activityEndRef = useRef<HTMLDivElement>(null);
+
+  // 활동 로그 추가 헬퍼
+  const addActivityLog = (log: Omit<ActivityLog, "id" | "timestamp">) => {
+    setActivityLogs((prev) => [
+      ...prev,
+      {
+        ...log,
+        id: `log-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
+        timestamp: new Date(),
+      },
+    ]);
+  };
+
+  // 타이머 효과
+  useEffect(() => {
+    let interval: NodeJS.Timeout;
+    if (isLoading) {
+      setElapsedTime(0);
+      interval = setInterval(() => {
+        setElapsedTime((prev) => prev + 1);
+      }, 1000);
+    }
+    return () => clearInterval(interval);
+  }, [isLoading]);
+
+  // 활동 로그 자동 스크롤
+  useEffect(() => {
+    activityEndRef.current?.scrollIntoView({ behavior: "smooth" });
+  }, [activityLogs]);
+
   const toggleFaq = (index: number) => {
     setOpenFaqIndex(openFaqIndex === index ? null : index);
   };
@@ -283,71 +328,333 @@ export default function StudyPlanPage() {
     setNodes(createInitialNodes());
     setState({ status: "generating", nodeDetails: {} });
     setSelectedNode(null);
+    setActivityLogs([]); // 활동 로그 초기화
+    setShowActivitySidebar(true); // 사이드바 열기
 
-    // v3 API 사용 - 동기 호출 (3-tier 검색 + Decision Points)
+    // 초기 활동 로그
+    addActivityLog({
+      type: "thinking",
+      title: "가설 분석 시작",
+      description: hypothesis.trim().substring(0, 100) + (hypothesis.length > 100 ? "..." : ""),
+    });
+
+    // v3 SSE 스트리밍 API 사용 - 실제 중간 단계 데이터 수신
     try {
-      // 진행 상태 시뮬레이션 (백엔드 처리 중)
-      const progressInterval = setInterval(() => {
-        setNodes((prev) => {
-          const pendingIndex = prev.findIndex(n => n.status === "pending");
-          if (pendingIndex === -1) return prev;
-
-          return prev.map((n, i) => {
-            if (i < pendingIndex) return { ...n, status: "completed" as NodeStatus };
-            if (i === pendingIndex) return { ...n, status: "active" as NodeStatus };
-            return n;
-          });
-        });
-      }, 2000);
-
-      const response = await studyPlanApi.generateV3({
-        hypothesis: hypothesis.trim(),
-        research_context: researchContext.trim() || undefined,
-        preferred_experiment_types: ["in_vitro", "in_vivo"],
+      const response = await fetchWithAuth(studyPlanApi.generateV3StreamUrl(), {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          hypothesis: hypothesis.trim(),
+          research_context: researchContext.trim() || undefined,
+          preferred_experiment_types: ["in_vitro", "in_vivo"],
+        }),
       });
 
-      clearInterval(progressInterval);
+      if (!response.ok) {
+        throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+      }
 
-      const result: StudyPlanV3Response = response.data;
+      const reader = response.body?.getReader();
+      if (!reader) throw new Error("Response body is null");
 
-      if (result.success) {
+      const decoder = new TextDecoder();
+      let buffer = "";
+      let finalResult: StudyPlanV3Response | null = null;
+
+      // 노드 ID 매핑
+      const nodeEventMap: Record<string, string> = {
+        hypothesis: "parse_hypothesis",
+        clarification: "clarify_hypothesis",
+        tests: "decompose_tests",
+        studies: "search_studies",
+        search_expanding: "expand_search",
+        evidence: "build_evidence",
+        methodologies: "analyze_methodologies",
+        experiments: "design_experiments",
+        critique: "critique_refine",
+        revision: "critique_refine",
+        measurements: "identify_measurements",
+        feasibility: "validate_feasibility",
+        approval_required: "approval_gate",
+        result: "synthesize_plan",
+      };
+
+      while (true) {
+        const { done, value } = await reader.read();
+        if (done) break;
+
+        buffer += decoder.decode(value, { stream: true });
+        const lines = buffer.split("\n");
+        buffer = lines.pop() || "";
+
+        for (const line of lines) {
+          if (!line.trim()) continue;
+
+          // SSE 이벤트 파싱
+          if (line.startsWith("event:")) {
+            const eventType = line.substring(6).trim();
+            continue;
+          }
+
+          if (line.startsWith("data:")) {
+            const dataStr = line.substring(5).trim();
+            if (!dataStr) continue;
+
+            try {
+              const data: StudyPlanSSEEvent = JSON.parse(dataStr);
+              const nodeId = data.node;
+
+              console.log("[SSE v3] Event:", nodeId, data);
+
+              // 노드 상태 업데이트
+              if (nodeId) {
+                setNodes((prev) => {
+                  const nodeIndex = prev.findIndex((n) => n.id === nodeId);
+                  return prev.map((n, i) => {
+                    if (i < nodeIndex && n.status !== "completed") {
+                      return { ...n, status: "completed" as NodeStatus };
+                    }
+                    if (i === nodeIndex) {
+                      return { ...n, status: "active" as NodeStatus };
+                    }
+                    return n;
+                  });
+                });
+
+                // 노드별 상세 데이터 저장
+                updateNodeDetails(nodeId, data as unknown as Record<string, unknown>);
+
+                // 활동 로그에 실제 데이터 추가
+                if (data.detail) {
+                  const nodeLabel = nodes.find(n => n.id === nodeId)?.label || nodeId;
+                  addActivityLog({
+                    type: "action",
+                    title: nodeLabel,
+                    description: data.detail,
+                    nodeId,
+                  });
+                }
+
+                // 추가 상세 정보 로그
+                if (nodeId === "parse_hypothesis" && data.hypothesis) {
+                  addActivityLog({
+                    type: "thinking",
+                    title: "가설 구조 분석",
+                    description: `독립변수: ${data.hypothesis.independent_variable}\n종속변수: ${data.hypothesis.dependent_variable}`,
+                    nodeId,
+                  });
+                  if (data.hypothesis.keywords && data.hypothesis.keywords.length > 0) {
+                    addActivityLog({
+                      type: "thinking",
+                      title: "핵심 키워드 추출",
+                      description: data.hypothesis.keywords.slice(0, 5).join(", "),
+                      nodeId,
+                    });
+                  }
+                }
+
+                if (nodeId === "decompose_tests" && data.test_questions) {
+                  addActivityLog({
+                    type: "result",
+                    title: "검증 질문 생성 완료",
+                    description: `${data.test_questions.length}개 질문 (${data.test_questions.map(q => q.category.toUpperCase()).join(", ")})`,
+                    nodeId,
+                  });
+                }
+
+                if ((nodeId === "search_studies" || nodeId === "search_v3") && data.study_count !== undefined) {
+                  const tierNames = ["", "RAG", "Europe PMC", "Web"];
+                  const tier = data.current_tier || 1;
+                  addActivityLog({
+                    type: "result",
+                    title: `${tierNames[tier]} 검색 완료`,
+                    description: `${data.study_count}편 논문 발견 (커버리지: ${((data.coverage || 0) * 100).toFixed(0)}%)`,
+                    nodeId,
+                  });
+                  if (data.gaps && data.gaps.length > 0) {
+                    addActivityLog({
+                      type: "thinking",
+                      title: "커버리지 부족 영역",
+                      description: data.gaps.slice(0, 2).join(", "),
+                      nodeId,
+                    });
+                  }
+                }
+
+                if (nodeId === "build_evidence" && data.snippet_count !== undefined) {
+                  addActivityLog({
+                    type: "result",
+                    title: "Evidence Pack 구축",
+                    description: `${data.pack_count}개 논문에서 ${data.snippet_count}개 스니펫 추출`,
+                    nodeId,
+                  });
+                }
+
+                if (nodeId === "design_experiments" && data.experiments) {
+                  const expTypes = [...new Set(data.experiments.map(e => e.type))];
+                  addActivityLog({
+                    type: "result",
+                    title: "실험 설계 완료",
+                    description: `${data.experiments.length}개 실험 (${expTypes.join(", ")})`,
+                    nodeId,
+                  });
+                  // 각 실험 제목 표시
+                  data.experiments.slice(0, 3).forEach(exp => {
+                    addActivityLog({
+                      type: "thinking",
+                      title: `실험: ${exp.type.toUpperCase()}`,
+                      description: exp.title,
+                      nodeId,
+                    });
+                  });
+                }
+
+                if ((nodeId === "critique_refine" || nodeId === "critique_v3") && data.quality_score !== undefined) {
+                  addActivityLog({
+                    type: data.passed ? "result" : "thinking",
+                    title: data.passed ? "품질 검증 통과" : "설계 개선 필요",
+                    description: `품질 점수: ${(data.quality_score * 100).toFixed(0)}%`,
+                    nodeId,
+                  });
+                  if (data.suggestions && data.suggestions.length > 0) {
+                    addActivityLog({
+                      type: "thinking",
+                      title: "개선 제안",
+                      description: data.suggestions[0],
+                      nodeId,
+                    });
+                  }
+                }
+
+                if (nodeId === "validate_feasibility" && data.overall_score !== undefined) {
+                  addActivityLog({
+                    type: "result",
+                    title: "실현가능성 평가",
+                    description: `종합 점수: ${(data.overall_score * 100).toFixed(0)}%`,
+                    nodeId,
+                  });
+                }
+
+                // 노드 완료 처리
+                if (data.detail) {
+                  setTimeout(() => {
+                    updateNodeStatus(nodeId, "completed");
+                  }, 500);
+                }
+              }
+
+              // done 이벤트 처리
+              if (data.success !== undefined && data.final_plan) {
+                finalResult = {
+                  success: data.success,
+                  final_plan: data.final_plan,
+                  executive_summary: data.executive_summary || "",
+                  experiment_count: data.experiment_count || 0,
+                  approval_required: data.approval_required || false,
+                  approval_status: "approved",
+                  total_duration_ms: data.total_duration_ms || 0,
+                  plan_a: data.plan_a,
+                  plan_b: data.plan_b,
+                  dp3_decision: data.dp3_decision,
+                  highest_tier_used: data.highest_tier_used,
+                };
+              }
+
+              // 에러 처리
+              if (data.error) {
+                addActivityLog({
+                  type: "error",
+                  title: "오류 발생",
+                  description: data.message || data.error,
+                });
+                setState((prev) => ({
+                  ...prev,
+                  status: "error",
+                  error: data.message || data.error,
+                }));
+              }
+
+            } catch (parseError) {
+              console.warn("[SSE v3] Parse error:", parseError, dataStr);
+            }
+          }
+        }
+      }
+
+      // 최종 결과 처리
+      if (finalResult && finalResult.success) {
         // 모든 노드 완료 처리
         setNodes((prev) => prev.map((n) => ({ ...n, status: "completed" as NodeStatus })));
+
+        // 완료 활동 로그
+        addActivityLog({
+          type: "result",
+          title: "실험 계획서 생성 완료",
+          description: `${finalResult.experiment_count}개 실험 · 소요시간 ${(finalResult.total_duration_ms / 1000).toFixed(1)}초`,
+        });
+
+        // Plan A/B 로그
+        if (finalResult.plan_a && finalResult.plan_b) {
+          addActivityLog({
+            type: "result",
+            title: "Plan A/B 생성",
+            description: "이상적 설계(Plan A)와 현실적 대안(Plan B) 모두 준비됨",
+          });
+        }
 
         // 결과 데이터 저장
         setState({
           status: "completed",
           nodeDetails: {
             synthesize_plan: {
-              final_plan: result.final_plan,
-              executive_summary: result.executive_summary,
+              final_plan: finalResult.final_plan,
+              executive_summary: finalResult.executive_summary,
             },
           },
         });
 
-        // v3 추가 정보 콘솔 로그 (디버깅용)
-        if (result.dp3_decision) {
-          console.log("[v3] Decision Points:", {
-            dp1: result.dp1_decisions,
-            dp2: result.dp2_decision,
-            dp3: result.dp3_decision,
+        // 자동 저장 - DB에 저장
+        try {
+          const saveData: StudyPlanV3SaveRequest = {
+            hypothesis_input: hypothesis.trim(),
+            research_context: researchContext.trim() || undefined,
+            preferred_experiment_types: ["in_vitro", "in_vivo"],
+            final_plan: finalResult.final_plan,
+            executive_summary: finalResult.executive_summary,
+            experiment_count: finalResult.experiment_count,
+            approval_required: finalResult.approval_required,
+            approval_status: finalResult.approval_status,
+            total_duration_ms: finalResult.total_duration_ms,
+            status: "completed",
+            // v3 필드
+            plan_a: finalResult.plan_a,
+            plan_b: finalResult.plan_b,
+            dp3_decision: finalResult.dp3_decision,
+            highest_tier_used: finalResult.highest_tier_used,
+          };
+          await studyPlanApi.save(saveData);
+          console.log("[StudyPlan] 자동 저장 완료");
+          addActivityLog({
+            type: "result",
+            title: "히스토리에 저장됨",
+            description: "나중에 '내 기록 보기'에서 확인 가능",
           });
+        } catch (saveError) {
+          console.error("[StudyPlan] 자동 저장 실패:", saveError);
         }
-        if (result.plan_a || result.plan_b) {
-          console.log("[v3] Plan A/B available:", {
-            plan_a: result.plan_a ? "Yes" : "No",
-            plan_b: result.plan_b ? "Yes" : "No",
-          });
-        }
-        if (result.highest_tier_used) {
-          const tierNames = ["", "RAG", "Europe PMC", "Tavily Web"];
-          console.log("[v3] Highest tier used:", tierNames[result.highest_tier_used]);
-        }
-      } else {
-        throw new Error(result.error || "계획 생성 실패");
+      } else if (!finalResult) {
+        throw new Error("스트리밍이 완료되었으나 결과가 없습니다");
       }
+
     } catch (error) {
       console.error("Study Plan generation error:", error);
+      addActivityLog({
+        type: "error",
+        title: "오류 발생",
+        description: error instanceof Error ? error.message : "알 수 없는 오류가 발생했습니다",
+      });
       setState((prev) => ({
         ...prev,
         status: "error",
@@ -530,7 +837,8 @@ export default function StudyPlanPage() {
   }, [state.nodeDetails.synthesize_plan?.final_plan]);
 
   const renderNodeDetail = (nodeId: string) => {
-    const details = state.nodeDetails as Record<string, Record<string, unknown>>;
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const details = state.nodeDetails as Record<string, any>;
     const nodeData = details[nodeId];
     const node = nodes.find((n) => n.id === nodeId);
 
@@ -569,8 +877,18 @@ export default function StudyPlanPage() {
           <div className="px-6 py-4 overflow-y-auto max-h-[60vh]">
             {!nodeData ? (
               <div className="text-center py-8 text-[var(--oaria-text-secondary)]">
-                <Lightbulb size={32} className="mx-auto mb-2 opacity-50" />
-                <p>아직 이 단계가 실행되지 않았습니다</p>
+                {node.status === "completed" ? (
+                  <>
+                    <CheckCircle2 size={32} className="mx-auto mb-2 text-green-500" />
+                    <p>이 단계가 완료되었습니다</p>
+                    <p className="text-xs mt-1 opacity-70">상세 정보는 최종 계획서에서 확인하세요</p>
+                  </>
+                ) : (
+                  <>
+                    <Lightbulb size={32} className="mx-auto mb-2 opacity-50" />
+                    <p>아직 이 단계가 실행되지 않았습니다</p>
+                  </>
+                )}
               </div>
             ) : (
               <div className="space-y-4">
@@ -1011,36 +1329,40 @@ export default function StudyPlanPage() {
           // ─────────────────────────────────────────────────────────────
           // Generate View
           // ─────────────────────────────────────────────────────────────
-          <div className="max-w-5xl mx-auto px-6 py-8">
-            {/* Back & Header */}
-            <div className="flex items-center gap-4 mb-8">
-              <button
-                onClick={() => {
-                  if (!isLoading) {
-                    setViewMode("landing");
-                    setHypothesis("");
-                    setResearchContext("");
-                    setNodes(createInitialNodes());
-                    setState({ status: "idle", nodeDetails: {} });
-                  }
-                }}
-                className="p-2 rounded-lg hover:bg-[var(--oaria-border)] transition-colors"
-                disabled={isLoading}
-              >
-                <ArrowLeft size={20} />
-              </button>
-              <div className="w-12 h-12 rounded-xl bg-green-500 flex items-center justify-center text-white">
-                <Beaker size={24} />
-              </div>
-              <div>
-                <h1 className="font-[family-name:var(--font-outfit)] text-xl font-semibold">
-                  Study Plan Agent
-                </h1>
-                <p className="font-[family-name:var(--font-dm-sans)] text-sm text-[var(--oaria-text-secondary)]">
-                  가설 기반 후속 실험 설계 자동화
-                </p>
-              </div>
-            </div>
+          <div className="flex h-full">
+            {/* 왼쪽: 메인 콘텐츠 */}
+            <div className={`flex-1 overflow-y-auto transition-all ${showActivitySidebar && (isLoading || state.status !== "idle") ? "" : ""}`}>
+              <div className="max-w-3xl mx-auto px-6 py-8">
+                {/* Back & Header */}
+                <div className="flex items-center gap-4 mb-8">
+                  <button
+                    onClick={() => {
+                      if (!isLoading) {
+                        setViewMode("landing");
+                        setHypothesis("");
+                        setResearchContext("");
+                        setNodes(createInitialNodes());
+                        setState({ status: "idle", nodeDetails: {} });
+                        setActivityLogs([]);
+                      }
+                    }}
+                    className="p-2 rounded-lg hover:bg-[var(--oaria-border)] transition-colors"
+                    disabled={isLoading}
+                  >
+                    <ArrowLeft size={20} />
+                  </button>
+                  <div className="w-12 h-12 rounded-xl bg-green-500 flex items-center justify-center text-white">
+                    <Beaker size={24} />
+                  </div>
+                  <div>
+                    <h1 className="font-[family-name:var(--font-outfit)] text-xl font-semibold">
+                      Study Plan Agent
+                    </h1>
+                    <p className="font-[family-name:var(--font-dm-sans)] text-sm text-[var(--oaria-text-secondary)]">
+                      가설 기반 후속 실험 설계 자동화
+                    </p>
+                  </div>
+                </div>
 
             {/* Input Form */}
             <div className="bg-[var(--background)] border-2 border-[var(--oaria-border-strong)] rounded-2xl p-6 mb-8">
@@ -1197,6 +1519,77 @@ export default function StudyPlanPage() {
                       </div>
                     </div>
                   )}
+                </div>
+              </div>
+            )}
+              </div>
+            </div>
+
+            {/* 오른쪽: 활동 사이드바 */}
+            {showActivitySidebar && (isLoading || state.status !== "idle") && (
+              <div className="w-80 border-l border-[var(--oaria-border)] bg-[var(--background)] flex flex-col">
+                {/* 사이드바 헤더 */}
+                <div className="px-4 py-3 border-b border-[var(--oaria-border)] flex items-center justify-between">
+                  <div className="flex items-center gap-2">
+                    <span className="font-[family-name:var(--font-outfit)] font-semibold text-sm">활동</span>
+                    {isLoading && (
+                      <span className="text-xs text-[var(--oaria-text-secondary)]">· {elapsedTime}s</span>
+                    )}
+                  </div>
+                  <button
+                    onClick={() => setShowActivitySidebar(false)}
+                    className="p-1 hover:bg-[var(--oaria-border)] rounded transition-colors"
+                  >
+                    <X size={16} />
+                  </button>
+                </div>
+
+                {/* 활동 로그 목록 */}
+                <div className="flex-1 overflow-y-auto p-4 space-y-3">
+                  {activityLogs.map((log) => (
+                    <div key={log.id} className="flex gap-3">
+                      {/* 아이콘 */}
+                      <div className={`w-6 h-6 rounded-full flex items-center justify-center flex-shrink-0 ${
+                        log.type === "thinking" ? "bg-purple-100 text-purple-600" :
+                        log.type === "action" ? "bg-blue-100 text-blue-600" :
+                        log.type === "result" ? "bg-green-100 text-green-600" :
+                        "bg-red-100 text-red-600"
+                      }`}>
+                        {log.type === "thinking" && <Brain size={12} />}
+                        {log.type === "action" && <Loader2 size={12} className={isLoading && log === activityLogs[activityLogs.length - 1] ? "animate-spin" : ""} />}
+                        {log.type === "result" && <CheckCircle2 size={12} />}
+                        {log.type === "error" && <AlertTriangle size={12} />}
+                      </div>
+
+                      {/* 내용 */}
+                      <div className="flex-1 min-w-0">
+                        <p className="font-[family-name:var(--font-dm-sans)] text-sm font-medium leading-tight">
+                          {log.title}
+                        </p>
+                        {log.description && (
+                          <p className="font-[family-name:var(--font-dm-sans)] text-xs text-[var(--oaria-text-secondary)] mt-0.5 leading-relaxed">
+                            {log.description}
+                          </p>
+                        )}
+                      </div>
+                    </div>
+                  ))}
+
+                  {/* 로딩 중일 때 현재 진행 표시 */}
+                  {isLoading && (
+                    <div className="flex gap-3 animate-pulse">
+                      <div className="w-6 h-6 rounded-full bg-[var(--oaria-teal)]/20 flex items-center justify-center flex-shrink-0">
+                        <Loader2 size={12} className="text-[var(--oaria-teal)] animate-spin" />
+                      </div>
+                      <div className="flex-1">
+                        <p className="font-[family-name:var(--font-dm-sans)] text-sm text-[var(--oaria-teal)]">
+                          처리 중...
+                        </p>
+                      </div>
+                    </div>
+                  )}
+
+                  <div ref={activityEndRef} />
                 </div>
               </div>
             )}
