@@ -9,11 +9,11 @@ class SnippetResult:
 
     snippet_id: str
     paper_id: str
-    section: str  # "abstract", "methods", "results", "discussion"
+    section: str  # "abstract", "methods", "results", "discussion", "web"
     text: str
-    offset_start: int
-    offset_end: int
     relevance_score: float
+    offset_start: int = 0  # Optional for web/EPMC results
+    offset_end: int = 0  # Optional for web/EPMC results
     text_version: str = "v1"
 
 
@@ -26,6 +26,7 @@ class PaperResult:
     journal: str
     year: int
     snippets: list[SnippetResult] = field(default_factory=list)
+    source: str = "weaviate"  # "weaviate", "epmc", "tavily"
 
     # 논문별 평균 관련성 점수
     @property
