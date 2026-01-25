@@ -48,6 +48,10 @@ class ExecutionHistory:
         self.steps: list[ExecutionStep] = []
         self.failed_actions: dict[str, int] = {}  # action -> failure count
         self._action_sequence: list[str] = []  # for loop detection
+        self._consecutive_failures: int = 0  # 연속 실패 카운터
+        self._last_error: str | None = None  # 마지막 에러 메시지
+        self._same_error_count: int = 0  # 동일 에러 반복 카운터
+        self._critical_error: str | None = None  # Critical 에러 (복구 불가)
 
     def add_step(self, step: ExecutionStep) -> None:
         """Add a new step to history."""
@@ -58,6 +62,59 @@ class ExecutionHistory:
             self.failed_actions[step.action] = (
                 self.failed_actions.get(step.action, 0) + 1
             )
+            self._consecutive_failures += 1
+
+            # 동일 에러 추적
+            if step.error and step.error == self._last_error:
+                self._same_error_count += 1
+            else:
+                self._same_error_count = 1
+                self._last_error = step.error
+        else:
+            # 성공 시 연속 실패 카운터 리셋
+            self._consecutive_failures = 0
+            self._same_error_count = 0
+            self._last_error = None
+
+    def set_critical_error(self, error: str) -> None:
+        """Set a critical error that should stop execution."""
+        self._critical_error = error
+
+    def has_critical_error(self) -> bool:
+        """Check if a critical error has occurred."""
+        return self._critical_error is not None
+
+    def get_critical_error(self) -> str | None:
+        """Get the critical error message."""
+        return self._critical_error
+
+    def should_abort(self, max_consecutive: int = 5, max_same_error: int = 3) -> bool:
+        """Check if agent should abort due to repeated failures.
+
+        Args:
+            max_consecutive: Max consecutive failures before abort
+            max_same_error: Max times same error can repeat before abort
+
+        Returns:
+            True if agent should abort
+        """
+        if self._critical_error:
+            return True
+        if self._consecutive_failures >= max_consecutive:
+            return True
+        if self._same_error_count >= max_same_error:
+            return True
+        return False
+
+    def get_abort_reason(self) -> str | None:
+        """Get the reason why agent should abort."""
+        if self._critical_error:
+            return f"Critical error: {self._critical_error}"
+        if self._consecutive_failures >= 5:
+            return f"Too many consecutive failures ({self._consecutive_failures})"
+        if self._same_error_count >= 3:
+            return f"Same error repeated {self._same_error_count} times: {self._last_error}"
+        return None
 
     def get_recent(self, n: int = 5) -> list[ExecutionStep]:
         """Get the n most recent steps."""
@@ -177,12 +234,38 @@ class WorkingMemory:
             if len(self.original_hypothesis) > 100
             else f"Original: {self.original_hypothesis}",
             f"Parsed: {'Yes' if self.structured_hypothesis else 'No'}",
-            f"Confidence: {self.hypothesis_confidence:.0%}"
-            if self.structured_hypothesis
-            else "",
+        ]
+
+        # Include structured hypothesis details if available (for tool parameter passing)
+        if self.structured_hypothesis:
+            parts.append(f"Confidence: {self.hypothesis_confidence:.0%}")
+            parts.append("")
+            parts.append("Structured Hypothesis (use this for decompose_questions):")
+            parts.append(f"  IV: {self.structured_hypothesis.get('iv', 'N/A')}")
+            parts.append(f"  DV: {self.structured_hypothesis.get('dv', 'N/A')}")
+            parts.append(f"  Mechanism: {self.structured_hypothesis.get('mechanism', 'N/A')}")
+            if self.structured_hypothesis.get('mediators'):
+                parts.append(f"  Mediators: {self.structured_hypothesis.get('mediators')}")
+            if self.structured_hypothesis.get('moderators'):
+                parts.append(f"  Moderators: {self.structured_hypothesis.get('moderators')}")
+
+        parts.extend([
             "",
             "--- Research ---",
             f"Test Questions: {len(self.test_questions)} generated, {len(self.answered_questions)} addressed",
+        ])
+
+        # Include test questions for design_experiment calls
+        if self.test_questions:
+            parts.append("")
+            parts.append("Available Test Questions (use these for design_experiment):")
+            for i, q in enumerate(self.test_questions[:5]):  # Show first 5
+                q_text = q.get('question', str(q)) if isinstance(q, dict) else str(q)
+                q_cat = q.get('category', 'unknown') if isinstance(q, dict) else 'unknown'
+                parts.append(f"  Q{i+1} [{q_cat}]: {q_text[:80]}...")
+
+        parts.extend([
+            "",
             f"Papers Retrieved: {len(self.retrieved_papers)}",
             f"Evidence Snippets: {len(self.evidence_snippets)}",
             f"Search Coverage: {self.search_coverage:.0%}",
@@ -200,7 +283,18 @@ class WorkingMemory:
             "--- Output ---",
             f"Plan A: {'Generated' if self.plan_a else 'Not yet'}",
             f"Plan B: {'Generated' if self.plan_b else 'Not yet'}",
-        ]
+        ])
+
+        # Add urgency warning for high iteration counts
+        if self.iteration_count >= 20 and not self.plan_a:
+            parts.append("")
+            parts.append("⚠️ WARNING: Iteration 20+ reached without Plan A!")
+            parts.append("   → Call synthesize_plan NOW with available experiments")
+        elif self.iteration_count >= 25 and not self.plan_b and self.plan_a:
+            parts.append("")
+            parts.append("⚠️ WARNING: Iteration 25+ reached without Plan B!")
+            parts.append("   → Call generate_plan_b NOW")
+
         return "\n".join(parts)
 
     def get_hypothesis_variables(self) -> set[str]:
