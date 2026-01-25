@@ -94,6 +94,13 @@ class Settings(BaseSettings):
         default="gpt-4o-mini", description="챗 모델"
     )
 
+    # v4 호환성 (openai_chat_model의 alias)
+    @computed_field
+    @property
+    def openai_model(self) -> str:
+        """v4 에이전트용 모델 설정 (openai_chat_model alias)"""
+        return self.openai_chat_model
+
     # Redis (Study Plan Agent v3 - Budget/Cache)
     redis_url: str = Field(
         default="redis://localhost:16379",
