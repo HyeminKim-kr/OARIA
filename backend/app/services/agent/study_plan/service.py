@@ -444,12 +444,43 @@ class StudyPlanService:
                     if event:
                         yield event
 
+            # 승인 상태 확인 및 synthesize 처리
+            approval_status = final_state.get("approval_status", ApprovalStatus.APPROVED)
+            if isinstance(approval_status, ApprovalStatus):
+                status_value = approval_status.value
+            else:
+                status_value = approval_status
+
+            # final_plan이 비어있으면 synthesize 직접 호출 (승인 필요해도 계획서 생성)
+            if not final_state.get("final_plan"):
+                yield StudyPlanEvent(
+                    event_type=StudyPlanEventType.STATUS,
+                    data={"status": "synthesizing", "message": "최종 계획서를 작성합니다 (v3)"},
+                )
+
+                # synthesize_plan_v3 직접 호출
+                synthesis_result = await synthesize_plan_v3(final_state)
+                final_state = {**final_state, **synthesis_result}
+
+                # synthesize 완료 이벤트
+                event = self._create_node_event_v3("synthesize_plan", synthesis_result, final_state)
+                if event:
+                    yield event
+
             # 완료 이벤트
             duration_ms = int((time.time() - start_time) * 1000)
             experiment_designs = final_state.get("experiment_designs", [])
 
             # v3 추가 정보
             dp3_decision = final_state.get("dp3_decision", "single_plan")
+
+            # 승인 필요 여부
+            approval_gate_result = final_state.get("approval_gate_result")
+            approval_required = (
+                approval_gate_result.approval_required
+                if approval_gate_result
+                else False
+            )
 
             yield StudyPlanEvent(
                 event_type=StudyPlanEventType.DONE,
@@ -463,6 +494,8 @@ class StudyPlanService:
                     "plan_b": final_state.get("plan_b", ""),
                     "dp3_decision": dp3_decision,
                     "highest_tier_used": final_state.get("current_tier", 1),
+                    "approval_required": approval_required,
+                    "approval_status": status_value,
                 },
             )
 
