@@ -5,7 +5,12 @@ from typing import Any
 
 from langchain_openai import ChatOpenAI
 
-from app.services.agent.study_plan.v4.tools.base import BaseTool, ToolParameter
+from app.services.agent.study_plan.v4.tools.base import (
+    BaseTool,
+    ToolParameter,
+    ensure_dict,
+    safe_get,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -84,7 +89,10 @@ class DecomposeQuestionsTool(BaseTool):
             ),
         ]
 
-    async def run(self, structured_hypothesis: dict) -> dict[str, Any]:
+    async def run(
+        self,
+        structured_hypothesis: dict | str | None = None,
+    ) -> dict[str, Any]:
         """Generate test questions from structured hypothesis.
 
         Args:
@@ -93,17 +101,19 @@ class DecomposeQuestionsTool(BaseTool):
         Returns:
             Dict with list of testable questions
         """
+        # Handle missing parameter
+        if structured_hypothesis is None:
+            logger.warning("decompose_questions called without structured_hypothesis")
+            return {
+                "questions": [],
+                "error": "No structured_hypothesis provided. Use parse_hypothesis tool first to parse the hypothesis.",
+            }
+
+        # 타입 안전 변환
+        hyp = ensure_dict(structured_hypothesis)
         logger.info("Decomposing hypothesis into questions...")
 
         try:
-            from app.services.agent.study_plan.nodes.decompose_questions import (
-                decompose_to_questions,
-            )
-
-            result = await decompose_to_questions(structured_hypothesis)
-            return {"questions": result}
-
-        except ImportError:
             if self._llm is None:
                 from app.config import get_settings
 
@@ -113,38 +123,48 @@ class DecomposeQuestionsTool(BaseTool):
                     temperature=0.2,
                 )
 
-            prompt = DECOMPOSE_PROMPT.format(
-                hypothesis=str(structured_hypothesis)
-            )
+            prompt = DECOMPOSE_PROMPT.format(hypothesis=str(hyp))
             response = await self._llm.ainvoke(prompt)
 
             import json
             import re
 
-            json_match = re.search(r"\{[^{}]*\"questions\"[^{}]*\}", response.content, re.DOTALL)
+            json_match = re.search(r"\{[\s\S]*\}", response.content)
             if json_match:
-                return json.loads(json_match.group())
+                try:
+                    return json.loads(json_match.group())
+                except json.JSONDecodeError:
+                    pass
 
             # Fallback questions
+            iv = safe_get(hyp, "iv", "IV")
+            dv = safe_get(hyp, "dv", "DV")
+
             return {
                 "questions": [
                     {
                         "id": "Q1",
                         "category": "necessity",
-                        "question": f"Is {structured_hypothesis.get('iv', 'IV')} necessary for {structured_hypothesis.get('dv', 'DV')}?",
+                        "question": f"Is {iv} necessary for {dv}?",
                         "priority": "high",
                     },
                     {
                         "id": "Q2",
                         "category": "sufficiency",
-                        "question": f"Is {structured_hypothesis.get('iv', 'IV')} sufficient for {structured_hypothesis.get('dv', 'DV')}?",
+                        "question": f"Is {iv} sufficient for {dv}?",
                         "priority": "high",
                     },
                     {
                         "id": "Q3",
                         "category": "pathway",
-                        "question": f"What is the mechanism linking {structured_hypothesis.get('iv', 'IV')} to {structured_hypothesis.get('dv', 'DV')}?",
+                        "question": f"What is the mechanism linking {iv} to {dv}?",
                         "priority": "medium",
                     },
                 ]
+            }
+        except Exception as e:
+            logger.error(f"Error decomposing hypothesis: {e}")
+            return {
+                "questions": [],
+                "error": str(e),
             }

@@ -3,7 +3,13 @@
 import logging
 from typing import Any
 
-from app.services.agent.study_plan.v4.tools.base import BaseTool, ToolParameter
+from app.services.agent.study_plan.v4.tools.base import (
+    BaseTool,
+    ToolParameter,
+    ensure_dict,
+    ensure_list,
+    safe_get,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -52,8 +58,8 @@ class ValidateCoverageTool(BaseTool):
 
     async def run(
         self,
-        hypothesis: dict,
-        measurements: list[dict],
+        hypothesis: dict | str | None = None,
+        measurements: list | str | None = None,
     ) -> dict[str, Any]:
         """Validate measurement coverage.
 
@@ -64,43 +70,84 @@ class ValidateCoverageTool(BaseTool):
         Returns:
             Coverage validation results
         """
+        # Handle missing parameters
+        if hypothesis is None or measurements is None:
+            logger.warning("validate_coverage called with missing parameters")
+            return {
+                "coverage": 0.0,
+                "covered_variables": [],
+                "missing_variables": [],
+                "error": "Missing required parameters. Need both hypothesis and measurements.",
+                "suggestions": ["Parse hypothesis first, then suggest measurements"],
+            }
+
         logger.info("Validating measurement coverage...")
 
-        # Extract required variables
-        required_vars = set()
-        if iv := hypothesis.get("iv"):
-            required_vars.add(iv.lower())
-        if dv := hypothesis.get("dv"):
-            required_vars.add(dv.lower())
-        if mediators := hypothesis.get("mediators"):
-            required_vars.update(m.lower() for m in mediators)
-        if moderators := hypothesis.get("moderators"):
-            required_vars.update(m.lower() for m in moderators)
+        try:
+            # 타입 안전 변환
+            hyp = ensure_dict(hypothesis)
+            meas_list = ensure_list(measurements, [])
 
-        # Extract measured variables
-        measured_vars = set()
-        for m in measurements:
-            if target := m.get("target"):
-                measured_vars.add(target.lower())
-            if targets := m.get("targets"):
-                measured_vars.update(t.lower() for t in targets)
-            if readout := m.get("readout"):
-                measured_vars.add(readout.lower())
+            # Extract required variables
+            required_vars = set()
+            if iv := safe_get(hyp, "iv"):
+                if isinstance(iv, str):
+                    required_vars.add(iv.lower())
+            if dv := safe_get(hyp, "dv"):
+                if isinstance(dv, str):
+                    required_vars.add(dv.lower())
+            if mediators := safe_get(hyp, "mediators"):
+                if isinstance(mediators, list):
+                    for m in mediators:
+                        if isinstance(m, str):
+                            required_vars.add(m.lower())
+            if moderators := safe_get(hyp, "moderators"):
+                if isinstance(moderators, list):
+                    for m in moderators:
+                        if isinstance(m, str):
+                            required_vars.add(m.lower())
 
-        # Calculate coverage
-        covered = required_vars & measured_vars
-        missing = required_vars - measured_vars
+            # Extract measured variables
+            measured_vars = set()
+            for m in meas_list:
+                m_dict = ensure_dict(m) if not isinstance(m, dict) else m
+                if target := safe_get(m_dict, "target"):
+                    if isinstance(target, str):
+                        measured_vars.add(target.lower())
+                if targets := safe_get(m_dict, "targets"):
+                    if isinstance(targets, list):
+                        for t in targets:
+                            if isinstance(t, str):
+                                measured_vars.add(t.lower())
+                if readout := safe_get(m_dict, "readout"):
+                    if isinstance(readout, str):
+                        measured_vars.add(readout.lower())
 
-        coverage = len(covered) / len(required_vars) if required_vars else 1.0
+            # Calculate coverage
+            covered = required_vars & measured_vars
+            missing = required_vars - measured_vars
 
-        return {
-            "coverage": coverage,
-            "required_vars": list(required_vars),
-            "covered_vars": list(covered),
-            "missing_vars": list(missing),
-            "total_measurements": len(measurements),
-            "is_sufficient": coverage >= 0.8,
-            "suggestions": [
-                f"Add measurement for: {var}" for var in missing
-            ] if missing else [],
-        }
+            coverage = len(covered) / len(required_vars) if required_vars else 1.0
+
+            return {
+                "coverage": coverage,
+                "required_vars": list(required_vars),
+                "covered_vars": list(covered),
+                "missing_vars": list(missing),
+                "total_measurements": len(meas_list),
+                "is_sufficient": coverage >= 0.8,
+                "suggestions": [
+                    f"Add measurement for: {var}" for var in missing
+                ] if missing else [],
+            }
+        except Exception as e:
+            logger.error(f"Error validating coverage: {e}")
+            return {
+                "coverage": 0.0,
+                "required_vars": [],
+                "covered_vars": [],
+                "missing_vars": [],
+                "total_measurements": 0,
+                "is_sufficient": False,
+                "error": str(e),
+            }

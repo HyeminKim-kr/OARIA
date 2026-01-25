@@ -6,11 +6,20 @@ from typing import Any
 
 from langchain_openai import ChatOpenAI
 
-from app.services.agent.study_plan.v4.tools.base import BaseTool, ToolParameter
+from app.services.agent.study_plan.v4.tools.base import (
+    BaseTool,
+    ToolParameter,
+    ensure_dict,
+    ensure_list,
+    safe_get,
+)
 
 logger = logging.getLogger(__name__)
 
 DESIGN_EXPERIMENT_PROMPT = """Design an experiment to answer this research question.
+
+Hypothesis:
+{hypothesis}
 
 Question: {question}
 
@@ -99,6 +108,13 @@ class DesignExperimentTool(BaseTool):
                 required=True,
             ),
             ToolParameter(
+                name="hypothesis",
+                type="dict",
+                description="Structured hypothesis (IV, DV, mechanism)",
+                required=False,
+                default={},
+            ),
+            ToolParameter(
                 name="evidence",
                 type="list",
                 description="Relevant evidence snippets",
@@ -123,10 +139,11 @@ class DesignExperimentTool(BaseTool):
 
     async def run(
         self,
-        question: dict,
-        evidence: list | None = None,
-        constraints: list | None = None,
-        feedback: list | None = None,
+        question: dict | str | None = None,
+        hypothesis: dict | str | None = None,
+        evidence: list | str | None = None,
+        constraints: list | str | None = None,
+        feedback: list | str | None = None,
     ) -> dict[str, Any]:
         """Design an experiment.
 
@@ -139,21 +156,23 @@ class DesignExperimentTool(BaseTool):
         Returns:
             Experiment design dict
         """
-        logger.info(f"Designing experiment for: {question.get('question', str(question)[:100])}")
+        # Handle missing parameter
+        if question is None:
+            logger.warning("design_experiment called without question parameter")
+            return {
+                "experiment": {},
+                "error": "No question provided. Use decompose_questions to generate test questions first.",
+            }
+        # 타입 안전 변환
+        q = ensure_dict(question)
+        hyp = ensure_dict(hypothesis) if hypothesis else {}
+        ev = ensure_list(evidence, [])
+        cons = ensure_list(constraints, [])
+
+        question_text = safe_get(q, "question", str(q)[:100] if isinstance(q, dict) else str(q)[:100])
+        logger.info(f"Designing experiment for: {question_text}")
 
         try:
-            from app.services.agent.study_plan.nodes.design_experiments import (
-                design_single_experiment,
-            )
-
-            result = await design_single_experiment(
-                question=question,
-                evidence=evidence or [],
-                constraints=constraints or [],
-            )
-            return {"experiment": result}
-
-        except ImportError:
             if self._llm is None:
                 from app.config import get_settings
 
@@ -163,19 +182,34 @@ class DesignExperimentTool(BaseTool):
                     temperature=0.2,
                 )
 
-            # Format evidence
-            evidence_text = "\n".join([
-                f"- {e.get('claim', str(e))[:200]}"
-                for e in (evidence or [])[:5]
-            ]) or "No specific evidence available"
+            # Format evidence - 각 항목이 dict인지 확인
+            evidence_lines = []
+            for e in ev[:5]:
+                if isinstance(e, dict):
+                    evidence_lines.append(f"- {e.get('claim', str(e))[:200]}")
+                else:
+                    evidence_lines.append(f"- {str(e)[:200]}")
+            evidence_text = "\n".join(evidence_lines) or "No specific evidence available"
 
             # Format constraints
             constraints_text = "\n".join([
-                f"- {c}" for c in (constraints or [])
+                f"- {c}" if isinstance(c, str) else f"- {str(c)}"
+                for c in cons
             ]) or "No specific constraints"
 
+            # Format hypothesis
+            if hyp:
+                hypothesis_text = (
+                    f"IV: {safe_get(hyp, 'iv', 'N/A')}\n"
+                    f"DV: {safe_get(hyp, 'dv', 'N/A')}\n"
+                    f"Mechanism: {safe_get(hyp, 'mechanism', 'N/A')}"
+                )
+            else:
+                hypothesis_text = "Not specified"
+
             prompt = DESIGN_EXPERIMENT_PROMPT.format(
-                question=str(question),
+                hypothesis=hypothesis_text,
+                question=str(q),
                 evidence=evidence_text,
                 constraints=constraints_text,
             )
@@ -197,8 +231,17 @@ class DesignExperimentTool(BaseTool):
                 "experiment": {
                     "id": f"EXP-{uuid.uuid4().hex[:8]}",
                     "name": "Experiment",
-                    "objective": question.get("question", "Test hypothesis"),
+                    "objective": question_text,
                     "approach": "in_vitro",
                     "error": "Could not generate detailed design",
+                }
+            }
+        except Exception as e:
+            logger.error(f"Error designing experiment: {e}")
+            return {
+                "experiment": {
+                    "id": f"EXP-{uuid.uuid4().hex[:8]}",
+                    "name": "Experiment",
+                    "error": str(e),
                 }
             }

@@ -81,6 +81,7 @@ class AgentResult:
     """Final result of agent execution."""
 
     success: bool
+    final_plan: str | None = None  # v3 호환성 - plan_a와 동일
     plan_a: str | None = None
     plan_b: str | None = None
     executive_summary: str | None = None
@@ -89,6 +90,10 @@ class AgentResult:
     iteration_count: int = 0
     total_duration_ms: int = 0
     error: str | None = None
+
+    # Goal status (strict checks)
+    goals_achieved: bool = False
+    goals_missing: list[str] = field(default_factory=list)
 
     # Detailed results
     experiments: list[dict[str, Any]] = field(default_factory=list)

@@ -60,8 +60,22 @@ class Executor:
         # Execute tool
         start_time = time.time()
         try:
-            logger.info(f"Executing tool: {action.name} with input: {action.input}")
-            result = await tool.run(**action.input)
+            # 도구의 허용된 파라미터만 필터링
+            allowed_params = {p.name for p in tool._get_parameters()}
+            filtered_input = {
+                k: v for k, v in action.input.items()
+                if k in allowed_params
+            }
+
+            # 무시된 파라미터 로깅
+            ignored_params = set(action.input.keys()) - allowed_params
+            if ignored_params:
+                logger.warning(
+                    f"Tool {action.name}: ignoring unexpected parameters: {ignored_params}"
+                )
+
+            logger.info(f"Executing tool: {action.name} with input: {list(filtered_input.keys())}")
+            result = await tool.run(**filtered_input)
             duration_ms = int((time.time() - start_time) * 1000)
 
             logger.info(

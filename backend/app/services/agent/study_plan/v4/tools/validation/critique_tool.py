@@ -5,7 +5,12 @@ from typing import Any
 
 from langchain_openai import ChatOpenAI
 
-from app.services.agent.study_plan.v4.tools.base import BaseTool, ToolParameter
+from app.services.agent.study_plan.v4.tools.base import (
+    BaseTool,
+    ToolParameter,
+    ensure_dict,
+    safe_get,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -91,7 +96,7 @@ class CritiqueDesignTool(BaseTool):
             ),
         ]
 
-    async def run(self, design: dict) -> dict[str, Any]:
+    async def run(self, design: dict | str | None = None) -> dict[str, Any]:
         """Critique the design.
 
         Args:
@@ -100,17 +105,22 @@ class CritiqueDesignTool(BaseTool):
         Returns:
             Critique results with score and suggestions
         """
+        # Handle missing parameter
+        if design is None:
+            logger.warning("critique_design called without design parameter")
+            return {
+                "score": 0.0,
+                "strengths": [],
+                "weaknesses": ["No design provided to critique"],
+                "suggestions": ["Design experiments first using design_experiment tool"],
+                "validation_results": [],
+            }
+
+        # 타입 안전 변환
+        d = ensure_dict(design)
         logger.info("Critiquing design...")
 
         try:
-            from app.services.agent.study_plan.nodes.critique_refine import (
-                critique_design,
-            )
-
-            result = await critique_design(design)
-            return result
-
-        except ImportError:
             if self._llm is None:
                 from app.config import get_settings
 
@@ -120,7 +130,7 @@ class CritiqueDesignTool(BaseTool):
                     temperature=0.1,
                 )
 
-            prompt = CRITIQUE_PROMPT.format(design=str(design))
+            prompt = CRITIQUE_PROMPT.format(design=str(d))
             response = await self._llm.ainvoke(prompt)
 
             import json
@@ -134,9 +144,9 @@ class CritiqueDesignTool(BaseTool):
                     pass
 
             # Fallback evaluation
-            experiments = design.get("experiments", [])
-            controls = design.get("controls", {})
-            measurements = design.get("measurements", [])
+            experiments = safe_get(d, "experiments", [])
+            controls = safe_get(d, "controls", {})
+            measurements = safe_get(d, "measurements", [])
 
             base_score = 0.5
             if experiments:
@@ -158,4 +168,12 @@ class CritiqueDesignTool(BaseTool):
                 "issues": [],
                 "suggestions": [],
                 "summary": "Basic evaluation completed",
+            }
+        except Exception as e:
+            logger.error(f"Error critiquing design: {e}")
+            return {
+                "score": 0.0,
+                "issues": [{"type": "error", "severity": "high", "message": str(e)}],
+                "suggestions": [],
+                "summary": f"Error during critique: {e}",
             }
