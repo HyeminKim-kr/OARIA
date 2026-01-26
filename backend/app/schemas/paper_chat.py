@@ -7,7 +7,7 @@ from datetime import datetime
 from typing import Literal
 from uuid import UUID
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, ConfigDict, Field
 
 from app.schemas.chat import Reference
 
@@ -48,6 +48,8 @@ class PaperAskStatusEvent(BaseModel):
 class PaperConversationResponse(BaseModel):
     """논문별 대화 응답"""
 
+    model_config = ConfigDict(from_attributes=True)
+
     id: UUID
     paper_id: UUID
     title: str | None
@@ -57,21 +59,17 @@ class PaperConversationResponse(BaseModel):
     updated_at: datetime
     last_message_at: datetime | None
 
-    class Config:
-        from_attributes = True
-
 
 class PaperConversationListItem(BaseModel):
     """논문별 대화 목록 아이템"""
+
+    model_config = ConfigDict(from_attributes=True)
 
     id: UUID
     title: str | None
     message_count: int
     last_message_at: datetime | None
     last_message_preview: str | None = None
-
-    class Config:
-        from_attributes = True
 
 
 class PaginatedPaperConversations(BaseModel):

@@ -19,6 +19,14 @@ from .chat import Conversation, Message, AnswerLog
 from .rag_settings import RAGSettings
 from .rag_strategy import RAGStrategy
 from .study_plan import StudyPlan
+from .agent_job import AgentJob, AgentJobStatus, AgentType
+from .notification import (
+    Notification,
+    NotificationType,
+    NotificationCategory,
+    NotificationPriority,
+    NotificationActionType,
+)
 
 __all__ = [
     # Base
@@ -51,4 +59,13 @@ __all__ = [
     "RAGStrategy",
     # Study Plan
     "StudyPlan",
+    # Agent Jobs & Notifications
+    "AgentJob",
+    "AgentJobStatus",
+    "AgentType",
+    "Notification",
+    "NotificationType",
+    "NotificationCategory",
+    "NotificationPriority",
+    "NotificationActionType",
 ]

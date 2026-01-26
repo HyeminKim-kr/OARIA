@@ -91,7 +91,7 @@ class SuggestMeasurementsTool(BaseTool):
 
     async def run(
         self,
-        experiment: dict,
+        experiment: dict | str | None = None,
         hypothesis_vars: list | None = None,
     ) -> dict[str, Any]:
         """Suggest measurements.
@@ -103,20 +103,20 @@ class SuggestMeasurementsTool(BaseTool):
         Returns:
             Dict with measurements and coverage
         """
+        # Handle missing parameter
+        if experiment is None:
+            logger.warning("suggest_measurements called without experiment parameter")
+            return {
+                "measurements": [],
+                "coverage": 0.0,
+                "error": "No experiment provided. Design experiments first.",
+            }
+
         logger.info("Suggesting measurements...")
 
+        # 노드 함수를 사용하려면 복잡한 타입 변환이 필요하므로
+        # LLM 기반 구현 사용
         try:
-            from app.services.agent.study_plan.nodes.identify_measurements import (
-                identify_measurements,
-            )
-
-            result = await identify_measurements(
-                experiment=experiment,
-                hypothesis_vars=hypothesis_vars or [],
-            )
-            return result
-
-        except ImportError:
             if self._llm is None:
                 from app.config import get_settings
 
@@ -149,4 +149,15 @@ class SuggestMeasurementsTool(BaseTool):
                     "missing_vars": hypothesis_vars or [],
                     "coverage_score": 0.0,
                 },
+            }
+        except Exception as e:
+            logger.error(f"Error suggesting measurements: {e}")
+            return {
+                "measurements": [],
+                "coverage": {
+                    "hypothesis_vars_covered": [],
+                    "missing_vars": hypothesis_vars or [],
+                    "coverage_score": 0.0,
+                },
+                "error": str(e),
             }

@@ -2,7 +2,7 @@
 
 from typing import Annotated
 
-from fastapi import Depends, HTTPException, status
+from fastapi import Depends, HTTPException, Query, status
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -20,20 +20,31 @@ async def get_current_user(
     credentials: Annotated[
         HTTPAuthorizationCredentials | None, Depends(security)
     ] = None,
+    token: Annotated[str | None, Query()] = None,
 ) -> User:
     """현재 인증된 사용자 반환
+
+    Authorization 헤더 또는 Query 파라미터 ?token=...으로 인증합니다.
+    SSE 연결 시 EventSource API가 헤더를 설정할 수 없어서 Query 파라미터 지원이 필요합니다.
 
     Raises:
         HTTPException: 인증 실패 시
     """
-    if not credentials:
+    # Authorization 헤더 또는 Query 파라미터에서 토큰 추출
+    access_token: str | None = None
+    if credentials:
+        access_token = credentials.credentials
+    elif token:
+        access_token = token
+
+    if not access_token:
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="Not authenticated",
             headers={"WWW-Authenticate": "Bearer"},
         )
 
-    token_payload = verify_token(credentials.credentials, token_type="access")
+    token_payload = verify_token(access_token, token_type="access")
     if not token_payload:
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,

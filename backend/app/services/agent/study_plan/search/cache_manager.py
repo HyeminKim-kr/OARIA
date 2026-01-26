@@ -1,248 +1,128 @@
-"""Search Cache Manager - 검색 결과 캐싱
+"""Search Cache Manager
 
-Redis 기반 검색 결과 캐시:
-- 티어별 TTL 차등 적용
-- 가설 해시 기반 캐시 키
-
-TTL 정책:
-- RAG: 7일 (내부 데이터, 자주 변경)
-- EPMC: 30일 (외부 API, 느린 갱신)
-- Web: 7일 (웹 컨텐츠, 빠른 변화)
+검색 결과 캐싱.
+- 티어별 TTL
+- Redis 기반 캐싱
 """
 
+import hashlib
 import json
 import logging
-import hashlib
-from typing import Optional, Any
-
-import redis.asyncio as aioredis
+from typing import Any, Optional
 
 from app.config import settings
-from .types import SearchTier, EvidenceSnippetV3
 
 logger = logging.getLogger(__name__)
 
-# Redis 키 프리픽스
-CACHE_PREFIX = "study_plan:cache"
 
-# 티어별 TTL (초)
+# 캐시 TTL (초)
 CACHE_TTL = {
-    SearchTier.RAG: 7 * 24 * 60 * 60,  # 7일
-    SearchTier.EPMC: 30 * 24 * 60 * 60,  # 30일
-    SearchTier.WEB: 7 * 24 * 60 * 60,  # 7일
+    "rag": 7 * 24 * 3600,    # 7일
+    "epmc": 30 * 24 * 3600,  # 30일
+    "web": 7 * 24 * 3600,    # 7일
 }
 
 
 class SearchCacheManager:
-    """검색 결과 캐시 관리자
-
-    캐시 키 구조:
-    - {CACHE_PREFIX}:{tier}:{hypothesis_hash}:{query_hash}
     """
-
+    검색 결과 캐시 관리자
+    
+    Redis를 사용하여 검색 결과 캐싱.
+    Redis 없이도 동작 (캐시 미사용)
+    """
+    
     def __init__(self):
-        self._redis: Optional[aioredis.Redis] = None
-
-    async def _ensure_redis(self) -> aioredis.Redis:
-        """Redis 연결 지연 초기화"""
-        if self._redis is None:
-            self._redis = await aioredis.from_url(
-                settings.redis_url,
-                encoding="utf-8",
-                decode_responses=True,
-            )
-        return self._redis
-
-    def _hash_hypothesis(self, hypothesis: str) -> str:
-        """가설 해시 생성 (캐시 키용)"""
-        return hashlib.md5(hypothesis.strip().lower().encode()).hexdigest()[:16]
-
-    def _hash_query(self, query: str | dict) -> str:
-        """쿼리 해시 생성"""
-        if isinstance(query, dict):
-            query_str = json.dumps(query, sort_keys=True)
-        else:
-            query_str = query.strip().lower()
-        return hashlib.md5(query_str.encode()).hexdigest()[:16]
-
-    def _cache_key(
-        self,
-        tier: SearchTier,
-        hypothesis_hash: str,
-        query_hash: str,
-    ) -> str:
+        self._redis_client = None
+        self._redis_available = False
+        self._memory_cache: dict[str, Any] = {}  # fallback
+        
+    async def _get_redis(self):
+        """Redis 클라이언트 lazy 초기화"""
+        if self._redis_client is None:
+            try:
+                import redis.asyncio as redis
+                self._redis_client = redis.from_url(
+                    settings.redis_url,
+                    encoding="utf-8",
+                    decode_responses=True,
+                )
+                await self._redis_client.ping()
+                self._redis_available = True
+                logger.info("Redis connected for cache management")
+            except Exception as e:
+                logger.warning(f"Redis not available, cache disabled: {e}")
+                self._redis_available = False
+        return self._redis_client if self._redis_available else None
+    
+    def _make_cache_key(self, tier: str, query_plan: dict, hypothesis_hash: str) -> str:
         """캐시 키 생성"""
-        tier_name = tier.name.lower()
-        return f"{CACHE_PREFIX}:{tier_name}:{hypothesis_hash}:{query_hash}"
-
+        query_str = json.dumps(query_plan, sort_keys=True)
+        content = f"{tier}:{hypothesis_hash}:{query_str}"
+        return f"study_plan:cache:{hashlib.md5(content.encode()).hexdigest()}"
+    
     async def get(
         self,
-        tier: SearchTier,
-        query: str | dict,
-        hypothesis: str,
-    ) -> list[EvidenceSnippetV3] | None:
-        """캐시에서 검색 결과 조회
-
-        Args:
-            tier: 검색 티어
-            query: 검색 쿼리 (문자열 또는 QueryPlan dict)
-            hypothesis: 원본 가설 (해시용)
-
-        Returns:
-            캐시된 결과 또는 None
-        """
-        redis = await self._ensure_redis()
-
-        hypothesis_hash = self._hash_hypothesis(hypothesis)
-        query_hash = self._hash_query(query)
-        key = self._cache_key(tier, hypothesis_hash, query_hash)
-
-        try:
-            cached = await redis.get(key)
-            if cached is None:
-                return None
-
-            data = json.loads(cached)
-            snippets = [EvidenceSnippetV3.from_dict(s) for s in data["snippets"]]
-
-            logger.info(
-                "cache_hit tier=%s key=%s count=%d",
-                tier.name,
-                key[-32:],
-                len(snippets),
-            )
-            return snippets
-
-        except Exception as e:
-            logger.warning("cache_get_error key=%s error=%s", key[-32:], str(e))
-            return None
-
+        tier: str,
+        query_plan: dict,
+        hypothesis_hash: str,
+    ) -> Optional[dict]:
+        """캐시 조회"""
+        cache_key = self._make_cache_key(tier, query_plan, hypothesis_hash)
+        
+        redis = await self._get_redis()
+        if redis:
+            try:
+                cached = await redis.get(cache_key)
+                if cached:
+                    logger.info(f"[Cache] HIT for {tier}")
+                    return json.loads(cached)
+            except Exception as e:
+                logger.warning(f"Redis get failed: {e}")
+        
+        # Memory fallback
+        if cache_key in self._memory_cache:
+            logger.info(f"[Cache] Memory HIT for {tier}")
+            return self._memory_cache[cache_key]
+        
+        logger.debug(f"[Cache] MISS for {tier}")
+        return None
+    
     async def set(
         self,
-        tier: SearchTier,
-        query: str | dict,
-        hypothesis: str,
-        snippets: list[EvidenceSnippetV3],
+        tier: str,
+        query_plan: dict,
+        result: dict,
+        hypothesis_hash: str,
     ) -> None:
-        """검색 결과 캐시 저장
-
-        Args:
-            tier: 검색 티어
-            query: 검색 쿼리
-            hypothesis: 원본 가설
-            snippets: 저장할 스니펫 목록
-        """
-        redis = await self._ensure_redis()
-
-        hypothesis_hash = self._hash_hypothesis(hypothesis)
-        query_hash = self._hash_query(query)
-        key = self._cache_key(tier, hypothesis_hash, query_hash)
-        ttl = CACHE_TTL.get(tier, 7 * 24 * 60 * 60)
-
-        try:
-            data = {
-                "tier": tier.value,
-                "query_hash": query_hash,
-                "hypothesis_hash": hypothesis_hash,
-                "snippet_count": len(snippets),
-                "snippets": [s.to_dict() for s in snippets],
-            }
-
-            await redis.set(key, json.dumps(data), ex=ttl)
-
-            logger.info(
-                "cache_set tier=%s key=%s count=%d ttl=%d",
-                tier.name,
-                key[-32:],
-                len(snippets),
-                ttl,
-            )
-
-        except Exception as e:
-            logger.warning("cache_set_error key=%s error=%s", key[-32:], str(e))
-
-    async def invalidate(
-        self,
-        tier: SearchTier | None = None,
-        hypothesis: str | None = None,
-    ) -> int:
-        """캐시 무효화
-
-        Args:
-            tier: 특정 티어만 무효화 (None이면 전체)
-            hypothesis: 특정 가설 관련만 무효화 (None이면 전체)
-
-        Returns:
-            삭제된 키 수
-        """
-        redis = await self._ensure_redis()
-
-        # 패턴 생성
-        if tier and hypothesis:
-            hypothesis_hash = self._hash_hypothesis(hypothesis)
-            pattern = f"{CACHE_PREFIX}:{tier.name.lower()}:{hypothesis_hash}:*"
-        elif tier:
-            pattern = f"{CACHE_PREFIX}:{tier.name.lower()}:*"
-        elif hypothesis:
-            hypothesis_hash = self._hash_hypothesis(hypothesis)
-            pattern = f"{CACHE_PREFIX}:*:{hypothesis_hash}:*"
-        else:
-            pattern = f"{CACHE_PREFIX}:*"
-
-        try:
-            keys = []
-            async for key in redis.scan_iter(pattern):
-                keys.append(key)
-
-            if keys:
-                deleted = await redis.delete(*keys)
-                logger.info(
-                    "cache_invalidate pattern=%s deleted=%d",
-                    pattern,
-                    deleted,
-                )
-                return deleted
-            return 0
-
-        except Exception as e:
-            logger.warning("cache_invalidate_error pattern=%s error=%s", pattern, str(e))
-            return 0
-
-    async def get_stats(self) -> dict[str, Any]:
-        """캐시 통계 조회
-
-        Returns:
-            티어별 캐시 키 수
-        """
-        redis = await self._ensure_redis()
-
-        stats = {
-            "rag": 0,
-            "epmc": 0,
-            "web": 0,
-            "total": 0,
-        }
-
-        try:
-            for tier in SearchTier:
-                pattern = f"{CACHE_PREFIX}:{tier.name.lower()}:*"
-                count = 0
-                async for _ in redis.scan_iter(pattern):
-                    count += 1
-                stats[tier.name.lower()] = count
-                stats["total"] += count
-
-            return stats
-
-        except Exception as e:
-            logger.warning("cache_stats_error error=%s", str(e))
-            return stats
-
-    async def close(self):
-        """Redis 연결 종료"""
-        if self._redis:
-            await self._redis.close()
-            self._redis = None
+        """캐시 저장"""
+        cache_key = self._make_cache_key(tier, query_plan, hypothesis_hash)
+        ttl = CACHE_TTL.get(tier, CACHE_TTL["rag"])
+        
+        redis = await self._get_redis()
+        if redis:
+            try:
+                await redis.setex(cache_key, ttl, json.dumps(result))
+                logger.info(f"[Cache] SET for {tier}, TTL={ttl}s")
+                return
+            except Exception as e:
+                logger.warning(f"Redis set failed: {e}")
+        
+        # Memory fallback (no TTL)
+        self._memory_cache[cache_key] = result
+        logger.info(f"[Cache] Memory SET for {tier}")
+    
+    async def invalidate(self, hypothesis_hash: str) -> None:
+        """특정 가설의 모든 캐시 무효화"""
+        redis = await self._get_redis()
+        if redis:
+            try:
+                pattern = f"study_plan:cache:*{hypothesis_hash}*"
+                keys = await redis.keys(pattern)
+                if keys:
+                    await redis.delete(*keys)
+                    logger.info(f"[Cache] Invalidated {len(keys)} keys")
+            except Exception as e:
+                logger.warning(f"Redis invalidate failed: {e}")
 
 
 # 싱글톤 인스턴스

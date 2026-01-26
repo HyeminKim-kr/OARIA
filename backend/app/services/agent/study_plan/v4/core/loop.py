@@ -150,8 +150,8 @@ class AgentLoop:
                     logger.info("Agent decided to finish")
                     break
 
-                # Act: Execute tool
-                observation = await self.executor.execute(action)
+                # Act: Execute tool (pass state for auto-fill)
+                observation = await self.executor.execute(action, state)
 
                 # Record step
                 step = ExecutionStep(
@@ -169,9 +169,12 @@ class AgentLoop:
 
                 # Handle failure
                 if not observation.success:
-                    await self._handle_failure(
+                    should_abort = await self._handle_failure(
                         action, observation, state, history
                     )
+                    if should_abort:
+                        logger.warning(f"Aborting due to: {history.get_abort_reason()}")
+                        break
                     continue
 
                 # Update state based on observation
@@ -180,13 +183,85 @@ class AgentLoop:
                 # Track cost
                 state.add_cost(observation.cost)
 
+            # Fallback Synthesis: plan_a가 없고 experiments가 있으면 강제 synthesis
+            if not state.plan_a and state.experiments:
+                logger.warning(
+                    f"No plan_a generated after {state.iteration_count} iterations. "
+                    f"Attempting fallback synthesis with {len(state.experiments)} experiments..."
+                )
+                synthesize_tool = self.tools.get("synthesize_plan")
+                if synthesize_tool:
+                    try:
+                        synthesis_result = await synthesize_tool.run(
+                            experiments=state.experiments,
+                            evidence=state.evidence_snippets,
+                            metadata={
+                                "hypothesis": state.structured_hypothesis or {"raw": state.original_hypothesis},
+                                "constraints": state.constraints,
+                            },
+                        )
+                        if isinstance(synthesis_result, dict):
+                            state.plan_a = synthesis_result.get("plan")
+                            state.executive_summary = synthesis_result.get("summary")
+                            if state.plan_a:
+                                logger.info("Fallback synthesis successful - plan_a generated")
+                            else:
+                                logger.warning("Fallback synthesis returned empty plan")
+                    except Exception as e:
+                        logger.error(f"Fallback synthesis failed: {e}")
+
+            # Fallback Plan B: plan_a는 있지만 plan_b가 없으면 강제 생성
+            if state.plan_a and not state.plan_b:
+                logger.warning("No plan_b generated, attempting fallback Plan B generation...")
+                plan_b_tool = self.tools.get("generate_plan_b")
+                if plan_b_tool:
+                    try:
+                        plan_b_result = await plan_b_tool.run(
+                            plan_a={"plan": state.plan_a},
+                            constraints=state.constraints or ["Limited budget", "Time constraints"],
+                        )
+                        if isinstance(plan_b_result, dict):
+                            state.plan_b = plan_b_result.get("plan_b")
+                            if state.plan_b:
+                                logger.info("Fallback Plan B generation successful")
+                            else:
+                                logger.warning("Fallback Plan B generation returned empty plan")
+                    except Exception as e:
+                        logger.error(f"Fallback Plan B generation failed: {e}")
+
             # Final goal check
             final_status = self.goal_checker.check(state)
 
             total_duration = int((time.time() - start_time) * 1000)
 
+            # Log final state for debugging
+            logger.info(
+                f"Agent loop completed: "
+                f"plan_a={'Yes' if state.plan_a else 'No'}, "
+                f"plan_b={'Yes' if state.plan_b else 'No'}, "
+                f"experiments={len(state.experiments)}, "
+                f"iterations={state.iteration_count}"
+            )
+
+            # 에러 메시지 결정
+            error_message = None
+            if history.has_critical_error():
+                error_message = history.get_critical_error()
+            elif history.should_abort():
+                error_message = history.get_abort_reason()
+            elif not final_status.achieved:
+                error_message = f"Missing: {', '.join(final_status.missing)}"
+
+            # plan_a가 생성되었으면 성공으로 간주 (strict 목표 체크와 별개로)
+            has_valid_plan = bool(state.plan_a and len(state.plan_a) > 100)
+            is_success = (final_status.achieved or has_valid_plan) and not history.has_critical_error()
+
+            # Combine Plan A + Plan B for final_plan (v3 호환성)
+            combined_plan = self._combine_plans(state.plan_a, state.plan_b)
+
             return AgentResult(
-                success=final_status.achieved,
+                success=is_success,
+                final_plan=combined_plan,  # v3 호환성: Plan A + Plan B 합침
                 plan_a=state.plan_a,
                 plan_b=state.plan_b,
                 executive_summary=state.executive_summary,
@@ -199,7 +274,9 @@ class AgentLoop:
                 measurements=state.measurements,
                 validation_results=state.validation_results,
                 execution_trace=history.to_trace(),
-                error=None if final_status.achieved else f"Missing: {', '.join(final_status.missing)}",
+                error=error_message,
+                goals_achieved=final_status.achieved,
+                goals_missing=final_status.missing,
             )
 
         except Exception as e:
@@ -287,8 +364,8 @@ class AgentLoop:
                 if action.name == "FINISH":
                     break
 
-                # Execute
-                observation = await self.executor.execute(action)
+                # Execute (pass state for auto-fill)
+                observation = await self.executor.execute(action, state)
 
                 yield (AgentLoopEvent.OBSERVATION, {
                     "iteration": state.iteration_count,
@@ -319,19 +396,91 @@ class AgentLoop:
                         "error": observation.error,
                         "message": "Attempting recovery...",
                     })
-                    await self._handle_failure(action, observation, state, history)
+                    should_abort = await self._handle_failure(action, observation, state, history)
+                    if should_abort:
+                        abort_reason = history.get_abort_reason()
+                        logger.warning(f"Aborting stream due to: {abort_reason}")
+                        yield (AgentLoopEvent.ERROR, {
+                            "iteration": state.iteration_count,
+                            "error": abort_reason,
+                            "critical": history.has_critical_error(),
+                        })
+                        return
                     continue
 
                 # Update state
                 self._update_state(state, action, observation)
                 state.add_cost(observation.cost)
 
+            # Fallback Synthesis: plan_a가 없고 experiments가 있으면 강제 synthesis
+            if not state.plan_a and state.experiments:
+                logger.warning(
+                    f"No plan_a generated after {state.iteration_count} iterations. "
+                    f"Attempting fallback synthesis with {len(state.experiments)} experiments..."
+                )
+                synthesize_tool = self.tools.get("synthesize_plan")
+                if synthesize_tool:
+                    try:
+                        synthesis_result = await synthesize_tool.run(
+                            experiments=state.experiments,
+                            evidence=state.evidence_snippets,
+                            metadata={
+                                "hypothesis": state.structured_hypothesis or {"raw": state.original_hypothesis},
+                                "constraints": state.constraints,
+                            },
+                        )
+                        if isinstance(synthesis_result, dict):
+                            state.plan_a = synthesis_result.get("plan")
+                            state.executive_summary = synthesis_result.get("summary")
+                            if state.plan_a:
+                                logger.info("Fallback synthesis successful - plan_a generated")
+                            else:
+                                logger.warning("Fallback synthesis returned empty plan")
+                    except Exception as e:
+                        logger.error(f"Fallback synthesis failed: {e}")
+
+            # Fallback Plan B: plan_a는 있지만 plan_b가 없으면 강제 생성
+            if state.plan_a and not state.plan_b:
+                logger.warning("No plan_b generated, attempting fallback Plan B generation...")
+                plan_b_tool = self.tools.get("generate_plan_b")
+                if plan_b_tool:
+                    try:
+                        plan_b_result = await plan_b_tool.run(
+                            plan_a={"plan": state.plan_a},
+                            constraints=state.constraints or ["Limited budget", "Time constraints"],
+                        )
+                        if isinstance(plan_b_result, dict):
+                            state.plan_b = plan_b_result.get("plan_b")
+                            if state.plan_b:
+                                logger.info("Fallback Plan B generation successful")
+                            else:
+                                logger.warning("Fallback Plan B generation returned empty plan")
+                    except Exception as e:
+                        logger.error(f"Fallback Plan B generation failed: {e}")
+
             # Final result
             final_status = self.goal_checker.check(state)
             total_duration = int((time.time() - start_time) * 1000)
 
+            # Log final state for debugging
+            logger.info(
+                f"Agent loop (stream) completed: "
+                f"plan_a={'Yes' if state.plan_a else 'No'}, "
+                f"plan_b={'Yes' if state.plan_b else 'No'}, "
+                f"experiments={len(state.experiments)}, "
+                f"iterations={state.iteration_count}"
+            )
+
+            # plan_a가 생성되었으면 성공으로 간주 (strict 목표 체크와 별개로)
+            has_valid_plan = bool(state.plan_a and len(state.plan_a) > 100)
+            is_success = final_status.achieved or has_valid_plan
+
+            # Combine Plan A + Plan B for final_plan (v3 호환성)
+            combined_plan = self._combine_plans(state.plan_a, state.plan_b)
+
             yield (AgentLoopEvent.COMPLETED, {
-                "success": final_status.achieved,
+                "success": is_success,
+                "final_plan": combined_plan,  # v3 호환성: Plan A + Plan B 합침
                 "plan_a": state.plan_a,
                 "plan_b": state.plan_b,
                 "executive_summary": state.executive_summary,
@@ -339,6 +488,8 @@ class AgentLoop:
                 "quality_score": state.quality_score,
                 "iteration_count": state.iteration_count,
                 "total_duration_ms": total_duration,
+                "goals_achieved": final_status.achieved,
+                "goals_missing": final_status.missing if not final_status.achieved else [],
             })
 
         except Exception as e:
@@ -370,16 +521,32 @@ class AgentLoop:
         observation: Observation,
         state: WorkingMemory,
         history: ExecutionHistory,
-    ) -> None:
-        """Handle a failed action using the failure handler."""
+    ) -> bool:
+        """Handle a failed action using the failure handler.
+
+        Returns:
+            True if agent should abort, False to continue
+        """
+        error_message = observation.error or "Unknown error"
         failure_type = self.failure_handler.classify_failure(
-            observation.error or "Unknown error",
+            error_message,
             action.name,
         )
 
+        # Critical 에러는 즉시 중단
+        if self.failure_handler.is_critical(failure_type):
+            logger.error(f"Critical error detected: {failure_type} - {error_message}")
+            history.set_critical_error(error_message)
+            return True
+
+        # 연속 실패/동일 에러 체크
+        if history.should_abort():
+            logger.warning(f"Abort threshold reached: {history.get_abort_reason()}")
+            return True
+
         context = FailureContext(
             failure_type=failure_type,
-            error_message=observation.error or "Unknown error",
+            error_message=error_message,
             failed_action=action.name,
             failed_input=action.input,
             attempt_count=history.failed_actions.get(action.name, 0) + 1,
@@ -395,10 +562,12 @@ class AgentLoop:
         # Execute recovery actions (limited to 1 to prevent cascade)
         if recovery_plan.next_actions:
             recovery_action = recovery_plan.next_actions[0]
-            recovery_obs = await self.executor.execute(recovery_action)
+            recovery_obs = await self.executor.execute(recovery_action, state)
 
             if recovery_obs.success:
                 self._update_state(state, recovery_action, recovery_obs)
+
+        return False
 
     def _update_state(
         self,
@@ -478,3 +647,41 @@ class AgentLoop:
         elif action.name == "generate_plan_b":
             if isinstance(result, dict):
                 state.plan_b = result.get("plan_b")
+
+    def _combine_plans(
+        self,
+        plan_a: str | None,
+        plan_b: str | None,
+    ) -> str:
+        """Combine Plan A and Plan B into a single output.
+
+        Creates a v3-compatible format with both plans together.
+
+        Args:
+            plan_a: The ideal plan (Plan A)
+            plan_b: The practical alternative (Plan B)
+
+        Returns:
+            Combined plan string with clear separation
+        """
+        if not plan_a:
+            return ""
+
+        parts = [
+            "Executive Summary",
+            "[대안]",
+            "",
+            "Plan A: 이상적 설계",
+            plan_a,
+        ]
+
+        if plan_b:
+            parts.extend([
+                "",
+                "---",
+                "",
+                "Plan B: 현실적 대안",
+                plan_b,
+            ])
+
+        return "\n".join(parts)

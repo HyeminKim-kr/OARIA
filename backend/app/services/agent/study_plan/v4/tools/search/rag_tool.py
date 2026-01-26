@@ -1,4 +1,4 @@
-"""RAG search tool - Tier 1."""
+"""Unified search tool - 3-tier integrated search."""
 
 import logging
 from typing import Any
@@ -9,10 +9,12 @@ logger = logging.getLogger(__name__)
 
 
 class RAGSearchTool(BaseTool):
-    """Search internal RAG system for relevant papers.
+    """Unified 3-tier search for scientific papers and evidence.
 
-    Tier 1 search - fastest and cheapest.
-    Uses vector similarity to find relevant papers.
+    Searches across multiple sources:
+    - Tier 1: Weaviate (internal vector DB)
+    - Tier 2: Europe PMC (external paper database)
+    - Tier 3: Tavily (web search for protocols, reagents, etc.)
     """
 
     @property
@@ -22,9 +24,9 @@ class RAGSearchTool(BaseTool):
     @property
     def description(self) -> str:
         return (
-            "Search the internal RAG (Retrieval-Augmented Generation) system "
-            "for relevant scientific papers. This is the fastest and cheapest "
-            "search option. Use this first before trying external searches."
+            "Search for scientific papers and evidence using 3-tier integrated search. "
+            "Combines internal RAG (Weaviate), Europe PMC (paper database), and Tavily (web search). "
+            "Use this to find relevant literature, experimental protocols, and reagent information."
         )
 
     @property
@@ -70,7 +72,7 @@ class RAGSearchTool(BaseTool):
         Args:
             query: Search query
             top_k: Number of results
-            filters: Optional filters
+            filters: Optional filters (year_from, year_to, sections)
 
         Returns:
             Dict with papers, coverage score, and snippets
@@ -79,34 +81,62 @@ class RAGSearchTool(BaseTool):
 
         try:
             # Import here to avoid circular dependencies
-            from app.services.agent.study_plan.rag.search import RAGSearchService
+            from app.services.agent.study_plan.rag.search import StudySearchService
 
-            rag_service = RAGSearchService()
-            results = await rag_service.search(
-                query=query,
-                top_k=top_k,
-                filters=filters,
+            # Parse filters
+            year_from = None
+            year_to = None
+            sections = None
+            if filters:
+                year_from = filters.get("year_from")
+                year_to = filters.get("year_to")
+                sections = filters.get("sections")
+
+            # StudySearchService takes a list of queries
+            rag_service = StudySearchService(top_k_per_query=top_k)
+            result = await rag_service.search_studies(
+                queries=[query],  # Wrap single query in list
+                year_from=year_from,
+                year_to=year_to,
+                sections=sections,
             )
 
-            # Extract papers and compute coverage
-            papers = results.get("papers", [])
-            snippets = results.get("snippets", [])
+            # Convert PaperResult objects to dicts
+            papers = []
+            snippets = []
+            for paper in result.papers:
+                paper_dict = {
+                    "paper_id": paper.paper_id,
+                    "title": paper.title,
+                    "journal": paper.journal,
+                    "year": paper.year,
+                    "score": paper.max_relevance_score,
+                }
+                papers.append(paper_dict)
 
-            # Calculate coverage based on result quality
-            coverage = self._calculate_coverage(papers, snippets)
+                # Extract snippets from paper
+                for snippet in paper.snippets:
+                    snippet_dict = {
+                        "snippet_id": snippet.snippet_id,
+                        "paper_id": snippet.paper_id,
+                        "section": snippet.section,
+                        "text": snippet.text,
+                        "relevance_score": snippet.relevance_score,
+                    }
+                    snippets.append(snippet_dict)
 
             return {
                 "papers": papers[:top_k],
                 "snippets": snippets[:top_k * 2],
-                "coverage": coverage,
-                "total_found": len(papers),
+                "coverage": result.coverage_score,
+                "total_found": len(result.papers),
                 "tier": 1,
                 "source": "rag",
             }
 
-        except ImportError:
+        except ImportError as e:
             # Fallback if RAG service not available
-            logger.warning("RAG service not available, returning empty results")
+            logger.warning(f"RAG service import error: {e}")
             return {
                 "papers": [],
                 "snippets": [],
@@ -114,12 +144,20 @@ class RAGSearchTool(BaseTool):
                 "total_found": 0,
                 "tier": 1,
                 "source": "rag",
-                "error": "RAG service not available",
+                "error": f"RAG service not available: {e}",
             }
 
         except Exception as e:
             logger.error(f"RAG search error: {e}")
-            raise
+            return {
+                "papers": [],
+                "snippets": [],
+                "coverage": 0.0,
+                "total_found": 0,
+                "tier": 1,
+                "source": "rag",
+                "error": f"RAG search failed: {e}",
+            }
 
     def _calculate_coverage(
         self,

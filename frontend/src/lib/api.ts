@@ -667,6 +667,9 @@ export const studyPlanApi = {
   // SSE 스트리밍 URL (v3 - 중간 단계 데이터 포함)
   generateV3StreamUrl: () => `${API_BASE_URL}/study-plan/generate-v3-stream`,
 
+  // SSE 스트리밍 URL (v4 - ReAct 에이전트)
+  generateV4StreamUrl: () => `${API_BASE_URL}/study-plan/generate-v4-stream`,
+
   // 동기 실행 (테스트용)
   generateSync: (request: StudyPlanRequest) =>
     api.post<StudyPlanSummaryResponse>('/study-plan/generate-sync', request),
@@ -742,3 +745,157 @@ export async function fetchWithAuth(
 
   return response;
 }
+
+// ============================================================
+// Agent Jobs & Notifications Types
+// ============================================================
+
+export interface AgentJobListItem {
+  id: string;
+  agent_type: string;
+  job_name: string | null;
+  status: string;
+  progress_percent: number;
+  approval_required: boolean;
+  experiment_count: number;
+  created_at: string;
+}
+
+export interface AgentJobResponse {
+  id: string;
+  user_id: string;
+  agent_type: string;
+  job_name: string | null;
+  status: string;
+  current_step: string | null;
+  progress_percent: number;
+  progress_detail: string | null;
+  approval_required: boolean;
+  approval_gate_id: string | null;
+  approval_choices: Record<string, unknown> | null;
+  approved_at: string | null;
+  executive_summary: string | null;
+  experiment_count: number;
+  attempt_count: number;
+  max_attempts: number;
+  last_error_code: string | null;
+  last_error_message: string | null;
+  started_at: string | null;
+  completed_at: string | null;
+  total_duration_ms: number | null;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface AgentJobDetailResponse extends AgentJobResponse {
+  input_data: Record<string, unknown>;
+  config: Record<string, unknown> | null;
+  step_results: Record<string, unknown>[];
+  approval_decision: Record<string, unknown> | null;
+  result_data: Record<string, unknown> | null;
+}
+
+export interface PaginatedAgentJobs {
+  items: AgentJobListItem[];
+  total: number;
+  page: number;
+  size: number;
+  pages: number;
+}
+
+export interface NotificationItem {
+  id: string;
+  type: string;
+  category: string;
+  title: string;
+  message: string;
+  priority: string;
+  icon: string | null;
+  entity_type: string | null;
+  entity_id: string | null;
+  action_type: string | null;
+  action_url: string | null;
+  is_read: boolean;
+  created_at: string;
+}
+
+export interface PaginatedNotifications {
+  items: NotificationItem[];
+  total: number;
+  page: number;
+  size: number;
+  pages: number;
+  unread_count: number;
+}
+
+// Agent Jobs API
+export const agentJobsApi = {
+  // 작업 생성
+  create: (data: {
+    agent_type: string;
+    input_data: Record<string, unknown>;
+    config?: Record<string, unknown>;
+    job_name?: string;
+  }) => api.post<AgentJobResponse>('/agent-jobs/', data),
+
+  // 작업 목록
+  list: (params?: {
+    page?: number;
+    size?: number;
+    status_filter?: string;
+    agent_type?: string;
+  }) => api.get<PaginatedAgentJobs>('/agent-jobs/', { params }),
+
+  // 작업 상세
+  get: (id: string) => api.get<AgentJobDetailResponse>(`/agent-jobs/${id}`),
+
+  // 작업 스트림 URL
+  streamUrl: (id: string) => `${API_BASE_URL}/agent-jobs/${id}/stream`,
+
+  // 승인
+  approve: (id: string, decision: Record<string, unknown>) =>
+    api.post<AgentJobResponse>(`/agent-jobs/${id}/approve`, { decision }),
+
+  // 취소
+  cancel: (id: string) => api.post<AgentJobResponse>(`/agent-jobs/${id}/cancel`),
+
+  // 재시도
+  retry: (id: string, reset_config?: Record<string, unknown>) =>
+    api.post<AgentJobResponse>(`/agent-jobs/${id}/retry`, { reset_config }),
+
+  // 삭제
+  delete: (id: string) => api.delete(`/agent-jobs/${id}`),
+};
+
+// Notifications API
+export const notificationsApi = {
+  // 알림 목록
+  list: (params?: {
+    page?: number;
+    size?: number;
+    category?: string;
+    include_dismissed?: boolean;
+  }) => api.get<PaginatedNotifications>('/notifications/', { params }),
+
+  // 읽지 않은 수
+  unreadCount: () => api.get<{ count: number }>('/notifications/unread-count'),
+
+  // 알림 상세
+  get: (id: string) => api.get<NotificationItem>(`/notifications/${id}`),
+
+  // 읽음 처리
+  markAsRead: (id: string) => api.post(`/notifications/${id}/read`),
+
+  // 전체 읽음
+  markAllAsRead: () => api.post('/notifications/read-all'),
+
+  // 숨기기
+  dismiss: (id: string) => api.post(`/notifications/${id}/dismiss`),
+
+  // 여러 알림 숨기기
+  dismissMany: (notification_ids: string[]) =>
+    api.post('/notifications/dismiss-many', { notification_ids }),
+
+  // SSE 스트림 URL
+  streamUrl: () => `${API_BASE_URL}/notifications/stream`,
+};

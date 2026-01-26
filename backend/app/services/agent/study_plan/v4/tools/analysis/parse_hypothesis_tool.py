@@ -92,7 +92,23 @@ class ParseHypothesisTool(BaseTool):
                 parse_hypothesis,
             )
 
-            result = await parse_hypothesis(hypothesis)
+            # 노드 함수는 state dict를 기대하므로 변환
+            state_dict = {"user_input": hypothesis}
+            result = await parse_hypothesis(state_dict)
+
+            # 결과를 v4 에이전트가 기대하는 형식으로 변환
+            hyp = result.get("hypothesis")
+            if hyp:
+                return {
+                    "iv": getattr(hyp, "independent_variable", "unknown"),
+                    "dv": getattr(hyp, "dependent_variable", "unknown"),
+                    "mediators": getattr(hyp, "mediating_variables", []),
+                    "moderators": getattr(hyp, "moderating_variables", []),
+                    "mechanism": getattr(hyp, "mechanism_pathway", ""),
+                    "keywords": getattr(hyp, "keywords", []),
+                    "expanded_keywords": getattr(hyp, "expanded_keywords", []),
+                    "confidence": result.get("hypothesis_confidence", 0.5),
+                }
             return result
 
         except ImportError:

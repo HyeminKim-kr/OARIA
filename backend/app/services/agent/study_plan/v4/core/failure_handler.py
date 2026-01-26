@@ -37,6 +37,51 @@ class FailureType:
     TIMEOUT = "timeout"
     UNKNOWN = "unknown"
 
+    # Critical errors (복구 불가)
+    API_KEY_MISSING = "api_key_missing"
+    AUTHENTICATION_FAILED = "authentication_failed"
+    RATE_LIMIT_EXCEEDED = "rate_limit_exceeded"
+    SERVICE_UNAVAILABLE = "service_unavailable"
+
+    # Critical 에러 목록
+    CRITICAL_TYPES = {
+        API_KEY_MISSING,
+        AUTHENTICATION_FAILED,
+        SERVICE_UNAVAILABLE,
+    }
+
+
+# Critical 에러 패턴 (에러 메시지에서 감지)
+CRITICAL_ERROR_PATTERNS = [
+    # API 키 관련
+    ("api key", FailureType.API_KEY_MISSING),
+    ("api_key", FailureType.API_KEY_MISSING),
+    ("apikey", FailureType.API_KEY_MISSING),
+    ("missing key", FailureType.API_KEY_MISSING),
+    ("invalid key", FailureType.API_KEY_MISSING),
+    ("no api key", FailureType.API_KEY_MISSING),
+    ("tavily_api_key", FailureType.API_KEY_MISSING),
+    ("openai_api_key", FailureType.API_KEY_MISSING),
+
+    # 인증 관련
+    ("unauthorized", FailureType.AUTHENTICATION_FAILED),
+    ("authentication failed", FailureType.AUTHENTICATION_FAILED),
+    ("401", FailureType.AUTHENTICATION_FAILED),
+    ("403 forbidden", FailureType.AUTHENTICATION_FAILED),
+    ("access denied", FailureType.AUTHENTICATION_FAILED),
+
+    # Rate limit
+    ("rate limit", FailureType.RATE_LIMIT_EXCEEDED),
+    ("too many requests", FailureType.RATE_LIMIT_EXCEEDED),
+    ("429", FailureType.RATE_LIMIT_EXCEEDED),
+    ("quota exceeded", FailureType.RATE_LIMIT_EXCEEDED),
+
+    # 서비스 불가
+    ("service unavailable", FailureType.SERVICE_UNAVAILABLE),
+    ("503", FailureType.SERVICE_UNAVAILABLE),
+    ("502 bad gateway", FailureType.SERVICE_UNAVAILABLE),
+]
+
 
 @dataclass
 class FailureContext:
@@ -123,7 +168,12 @@ class FailureHandler:
         """
         error_lower = error.lower()
 
-        # Check for specific patterns
+        # 1. Critical 에러 먼저 체크 (복구 불가)
+        for pattern, failure_type in CRITICAL_ERROR_PATTERNS:
+            if pattern in error_lower:
+                return failure_type
+
+        # 2. 일반 에러 체크
         if "no results" in error_lower or "not found" in error_lower:
             return FailureType.SEARCH_NO_RESULTS
 
@@ -146,6 +196,17 @@ class FailureHandler:
             return FailureType.TOOL_ERROR
 
         return FailureType.UNKNOWN
+
+    def is_critical(self, failure_type: str) -> bool:
+        """Check if the failure type is critical (unrecoverable).
+
+        Args:
+            failure_type: The classified failure type
+
+        Returns:
+            True if the failure is critical
+        """
+        return failure_type in FailureType.CRITICAL_TYPES
 
     async def handle(
         self,

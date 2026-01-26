@@ -2,6 +2,8 @@
 
 import Link from "next/link";
 import { useEffect, useState } from "react";
+import ReactMarkdown from "react-markdown";
+import remarkGfm from "remark-gfm";
 import {
   Search,
   Bot,
@@ -17,16 +19,19 @@ import {
   AlertCircle,
   FileText,
   Eye,
+  Clock,
+  RotateCcw,
 } from "lucide-react";
 import {
-  studyPlanApi,
-  StudyPlanListItem,
-  PaginatedStudyPlans,
-  StudyPlanFullResponse,
+  agentJobsApi,
+  AgentJobListItem,
+  AgentJobDetailResponse,
+  PaginatedAgentJobs,
 } from "@/lib/api";
+import { JobStatusBadge, JobProgress, RetryButton } from "@/components/jobs";
 
 export default function StudyPlanHistoryPage() {
-  const [studyPlans, setStudyPlans] = useState<StudyPlanListItem[]>([]);
+  const [jobs, setJobs] = useState<AgentJobListItem[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [pagination, setPagination] = useState({
@@ -37,7 +42,7 @@ export default function StudyPlanHistoryPage() {
   });
 
   // 상세 모달
-  const [selectedPlan, setSelectedPlan] = useState<StudyPlanFullResponse | null>(null);
+  const [selectedJob, setSelectedJob] = useState<AgentJobDetailResponse | null>(null);
   const [detailLoading, setDetailLoading] = useState(false);
 
   // 삭제 확인
@@ -45,14 +50,18 @@ export default function StudyPlanHistoryPage() {
   const [deleting, setDeleting] = useState(false);
 
   // 목록 불러오기
-  const fetchStudyPlans = async (page: number = 1) => {
+  const fetchJobs = async (page: number = 1) => {
     setLoading(true);
     setError(null);
 
     try {
-      const response = await studyPlanApi.list(page, pagination.size);
-      const data: PaginatedStudyPlans = response.data;
-      setStudyPlans(data.items);
+      const response = await agentJobsApi.list({
+        page,
+        size: pagination.size,
+        agent_type: "study_plan_v3",  // Study Plan 타입만 필터
+      });
+      const data: PaginatedAgentJobs = response.data;
+      setJobs(data.items);
       setPagination({
         page: data.page,
         size: data.size,
@@ -60,8 +69,8 @@ export default function StudyPlanHistoryPage() {
         pages: data.pages,
       });
     } catch (err) {
-      console.error("Failed to fetch study plans:", err);
-      setError("Study Plan 목록을 불러오는데 실패했습니다.");
+      console.error("Failed to fetch agent jobs:", err);
+      setError("작업 목록을 불러오는데 실패했습니다.");
     } finally {
       setLoading(false);
     }
@@ -71,10 +80,10 @@ export default function StudyPlanHistoryPage() {
   const fetchDetail = async (id: string) => {
     setDetailLoading(true);
     try {
-      const response = await studyPlanApi.get(id);
-      setSelectedPlan(response.data);
+      const response = await agentJobsApi.get(id);
+      setSelectedJob(response.data);
     } catch (err) {
-      console.error("Failed to fetch study plan detail:", err);
+      console.error("Failed to fetch job detail:", err);
       alert("상세 정보를 불러오는데 실패했습니다.");
     } finally {
       setDetailLoading(false);
@@ -85,20 +94,31 @@ export default function StudyPlanHistoryPage() {
   const handleDelete = async (id: string) => {
     setDeleting(true);
     try {
-      await studyPlanApi.delete(id);
+      await agentJobsApi.delete(id);
       setDeleteConfirm(null);
       // 목록 새로고침
-      fetchStudyPlans(pagination.page);
+      fetchJobs(pagination.page);
     } catch (err) {
-      console.error("Failed to delete study plan:", err);
+      console.error("Failed to delete job:", err);
       alert("삭제에 실패했습니다.");
     } finally {
       setDeleting(false);
     }
   };
 
+  // 재시도
+  const handleRetry = async (id: string) => {
+    try {
+      await agentJobsApi.retry(id);
+      fetchJobs(pagination.page);
+    } catch (err) {
+      console.error("Failed to retry job:", err);
+      alert("재시도에 실패했습니다.");
+    }
+  };
+
   useEffect(() => {
-    fetchStudyPlans();
+    fetchJobs();
   }, []);
 
   // 날짜 포맷
@@ -113,28 +133,22 @@ export default function StudyPlanHistoryPage() {
     });
   };
 
-  // 상태 뱃지
-  const getStatusBadge = (status: string) => {
-    switch (status) {
-      case "completed":
-        return (
-          <span className="px-2 py-0.5 rounded-full bg-green-500/10 text-green-600 text-xs font-medium">
-            완료
-          </span>
-        );
-      case "error":
-        return (
-          <span className="px-2 py-0.5 rounded-full bg-red-500/10 text-red-600 text-xs font-medium">
-            오류
-          </span>
-        );
-      default:
-        return (
-          <span className="px-2 py-0.5 rounded-full bg-gray-500/10 text-gray-600 text-xs font-medium">
-            {status}
-          </span>
-        );
+  // 소요 시간 포맷
+  const formatDuration = (ms: number | null) => {
+    if (!ms) return "-";
+    const seconds = ms / 1000;
+    if (seconds < 60) return `${seconds.toFixed(1)}초`;
+    const minutes = Math.floor(seconds / 60);
+    const remainingSeconds = seconds % 60;
+    return `${minutes}분 ${remainingSeconds.toFixed(0)}초`;
+  };
+
+  // input_data에서 가설 추출
+  const getHypothesis = (job: AgentJobListItem | AgentJobDetailResponse) => {
+    if ("input_data" in job && job.input_data) {
+      return (job.input_data as Record<string, unknown>).hypothesis as string || job.job_name || "제목 없음";
     }
+    return job.job_name || "제목 없음";
   };
 
   return (
@@ -209,7 +223,7 @@ export default function StudyPlanHistoryPage() {
               <p className="text-[var(--oaria-text-secondary)]">{error}</p>
               <button
                 type="button"
-                onClick={() => fetchStudyPlans()}
+                onClick={() => fetchJobs()}
                 className="mt-4 px-4 py-2 rounded-lg bg-[var(--oaria-teal)] text-white text-sm font-medium hover:bg-[var(--oaria-teal)]/80 transition-colors"
               >
                 다시 시도
@@ -218,7 +232,7 @@ export default function StudyPlanHistoryPage() {
           )}
 
           {/* Empty State */}
-          {!loading && !error && studyPlans.length === 0 && (
+          {!loading && !error && jobs.length === 0 && (
             <div className="flex flex-col items-center justify-center py-16 text-center">
               <div className="w-16 h-16 rounded-full bg-[var(--oaria-teal)]/10 flex items-center justify-center mb-4">
                 <FileText size={28} className="text-[var(--oaria-teal)]" />
@@ -240,43 +254,54 @@ export default function StudyPlanHistoryPage() {
           )}
 
           {/* List */}
-          {!loading && !error && studyPlans.length > 0 && (
+          {!loading && !error && jobs.length > 0 && (
             <>
               <div className="space-y-3">
-                {studyPlans.map((plan) => (
+                {jobs.map((job) => (
                   <div
-                    key={plan.id}
+                    key={job.id}
                     className="p-4 rounded-xl border-2 border-[var(--oaria-border)] bg-[var(--background)] hover:border-[var(--oaria-teal)]/30 transition-colors"
                   >
                     <div className="flex items-start justify-between gap-4">
                       {/* Content */}
                       <div className="flex-1 min-w-0">
-                        <div className="flex items-center gap-2 mb-2">
-                          {getStatusBadge(plan.status)}
+                        <div className="flex items-center gap-2 mb-2 flex-wrap">
+                          <JobStatusBadge status={job.status} size="sm" />
                           <span className="text-xs text-[var(--oaria-text-secondary)] flex items-center gap-1">
                             <Calendar size={12} />
-                            {formatDate(plan.created_at)}
+                            {formatDate(job.created_at)}
                           </span>
                         </div>
                         <p className="font-[family-name:var(--font-dm-sans)] text-sm font-medium line-clamp-2 mb-2">
-                          {plan.hypothesis_input}
+                          {job.job_name || "제목 없음"}
                         </p>
+
+                        {/* Progress for running jobs */}
+                        {job.status === "running" && (
+                          <div className="mb-2">
+                            <JobProgress percent={job.progress_percent} size="sm" />
+                          </div>
+                        )}
+
                         <div className="flex items-center gap-4 text-xs text-[var(--oaria-text-secondary)]">
                           <span className="flex items-center gap-1">
                             <Beaker size={12} />
-                            실험 {plan.experiment_count}개
+                            실험 {job.experiment_count}개
                           </span>
-                          {plan.quality_score && (
-                            <span>품질 점수: {(plan.quality_score * 100).toFixed(0)}%</span>
+                          {job.approval_required && (
+                            <span className="text-yellow-600">승인 필요</span>
                           )}
                         </div>
                       </div>
 
                       {/* Actions */}
                       <div className="flex items-center gap-2 flex-shrink-0">
+                        {job.status === "failed" && (
+                          <RetryButton onRetry={() => handleRetry(job.id)} size="sm" />
+                        )}
                         <button
                           type="button"
-                          onClick={() => fetchDetail(plan.id)}
+                          onClick={() => fetchDetail(job.id)}
                           className="p-2 rounded-lg border border-[var(--oaria-border)] hover:border-[var(--oaria-teal)] hover:text-[var(--oaria-teal)] transition-colors"
                           title="상세 보기"
                         >
@@ -284,7 +309,7 @@ export default function StudyPlanHistoryPage() {
                         </button>
                         <button
                           type="button"
-                          onClick={() => setDeleteConfirm(plan.id)}
+                          onClick={() => setDeleteConfirm(job.id)}
                           className="p-2 rounded-lg border border-[var(--oaria-border)] hover:border-red-500 hover:text-red-500 transition-colors"
                           title="삭제"
                         >
@@ -301,7 +326,7 @@ export default function StudyPlanHistoryPage() {
                 <div className="flex items-center justify-center gap-2 mt-8">
                   <button
                     type="button"
-                    onClick={() => fetchStudyPlans(pagination.page - 1)}
+                    onClick={() => fetchJobs(pagination.page - 1)}
                     disabled={pagination.page <= 1}
                     className="p-2 rounded-lg border border-[var(--oaria-border)] disabled:opacity-50 disabled:cursor-not-allowed hover:border-[var(--oaria-teal)] transition-colors"
                   >
@@ -312,7 +337,7 @@ export default function StudyPlanHistoryPage() {
                   </span>
                   <button
                     type="button"
-                    onClick={() => fetchStudyPlans(pagination.page + 1)}
+                    onClick={() => fetchJobs(pagination.page + 1)}
                     disabled={pagination.page >= pagination.pages}
                     className="p-2 rounded-lg border border-[var(--oaria-border)] disabled:opacity-50 disabled:cursor-not-allowed hover:border-[var(--oaria-teal)] transition-colors"
                   >
@@ -326,17 +351,20 @@ export default function StudyPlanHistoryPage() {
       </div>
 
       {/* Detail Modal */}
-      {(selectedPlan || detailLoading) && (
+      {(selectedJob || detailLoading) && (
         <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
           <div className="bg-[var(--background)] rounded-2xl max-w-3xl w-full max-h-[85vh] overflow-hidden flex flex-col">
             {/* Modal Header */}
             <div className="p-4 border-b border-[var(--oaria-border)] flex items-center justify-between">
-              <h2 className="font-[family-name:var(--font-outfit)] text-lg font-semibold">
-                Study Plan 상세
-              </h2>
+              <div className="flex items-center gap-3">
+                <h2 className="font-[family-name:var(--font-outfit)] text-lg font-semibold">
+                  Study Plan 상세
+                </h2>
+                {selectedJob && <JobStatusBadge status={selectedJob.status} />}
+              </div>
               <button
                 type="button"
-                onClick={() => setSelectedPlan(null)}
+                onClick={() => setSelectedJob(null)}
                 className="p-2 rounded-lg hover:bg-[var(--oaria-border)] transition-colors"
               >
                 &times;
@@ -349,7 +377,7 @@ export default function StudyPlanHistoryPage() {
                 <div className="flex items-center justify-center py-16">
                   <Loader2 size={32} className="animate-spin text-[var(--oaria-teal)]" />
                 </div>
-              ) : selectedPlan ? (
+              ) : selectedJob ? (
                 <div className="space-y-6">
                   {/* Hypothesis */}
                   <div>
@@ -357,19 +385,48 @@ export default function StudyPlanHistoryPage() {
                       입력 가설
                     </h3>
                     <p className="font-[family-name:var(--font-dm-sans)] text-sm bg-[var(--oaria-teal)]/5 p-3 rounded-lg">
-                      {selectedPlan.hypothesis_input}
+                      {getHypothesis(selectedJob)}
                     </p>
                   </div>
 
                   {/* Executive Summary */}
-                  {selectedPlan.executive_summary && (
+                  {selectedJob.executive_summary && (
                     <div>
                       <h3 className="font-[family-name:var(--font-outfit)] text-sm font-semibold text-[var(--oaria-text-secondary)] mb-2">
                         요약
                       </h3>
                       <p className="font-[family-name:var(--font-dm-sans)] text-sm text-[var(--oaria-text-secondary)] whitespace-pre-wrap">
-                        {selectedPlan.executive_summary}
+                        {selectedJob.executive_summary}
                       </p>
+                    </div>
+                  )}
+
+                  {/* Progress for running jobs */}
+                  {selectedJob.status === "running" ? (
+                    <div>
+                      <h3 className="font-[family-name:var(--font-outfit)] text-sm font-semibold text-[var(--oaria-text-secondary)] mb-2">
+                        진행 상황
+                      </h3>
+                      <JobProgress
+                        percent={selectedJob.progress_percent}
+                        detail={selectedJob.progress_detail ?? selectedJob.current_step ?? undefined}
+                      />
+                    </div>
+                  ) : null}
+
+                  {/* Error for failed jobs */}
+                  {selectedJob.status === "failed" && selectedJob.last_error_message && (
+                    <div className="p-4 rounded-lg bg-red-50 border border-red-200">
+                      <div className="flex items-center gap-2 text-red-600 mb-2">
+                        <AlertCircle size={16} />
+                        <span className="font-medium">오류 발생</span>
+                      </div>
+                      <p className="text-sm text-red-700">{selectedJob.last_error_message}</p>
+                      {selectedJob.attempt_count > 0 && (
+                        <p className="text-xs text-red-600 mt-2">
+                          시도 횟수: {selectedJob.attempt_count} / {selectedJob.max_attempts}
+                        </p>
+                      )}
                     </div>
                   )}
 
@@ -377,44 +434,86 @@ export default function StudyPlanHistoryPage() {
                   <div className="grid grid-cols-3 gap-4">
                     <div className="p-3 rounded-lg bg-[var(--oaria-border)]/30 text-center">
                       <p className="text-2xl font-bold text-[var(--oaria-teal)]">
-                        {selectedPlan.experiment_count}
+                        {selectedJob.experiment_count}
                       </p>
                       <p className="text-xs text-[var(--oaria-text-secondary)]">실험 수</p>
                     </div>
                     <div className="p-3 rounded-lg bg-[var(--oaria-border)]/30 text-center">
                       <p className="text-2xl font-bold text-[var(--oaria-teal)]">
-                        {selectedPlan.quality_score
-                          ? `${(selectedPlan.quality_score * 100).toFixed(0)}%`
-                          : "-"}
+                        {selectedJob.progress_percent}%
                       </p>
-                      <p className="text-xs text-[var(--oaria-text-secondary)]">품질 점수</p>
+                      <p className="text-xs text-[var(--oaria-text-secondary)]">진행률</p>
                     </div>
                     <div className="p-3 rounded-lg bg-[var(--oaria-border)]/30 text-center">
                       <p className="text-2xl font-bold text-[var(--oaria-teal)]">
-                        {selectedPlan.prior_studies_count}
+                        {formatDuration(selectedJob.total_duration_ms)}
                       </p>
-                      <p className="text-xs text-[var(--oaria-text-secondary)]">참고 연구</p>
+                      <p className="text-xs text-[var(--oaria-text-secondary)]">소요 시간</p>
                     </div>
                   </div>
 
                   {/* Final Plan */}
-                  {selectedPlan.final_plan && (
-                    <div>
-                      <h3 className="font-[family-name:var(--font-outfit)] text-sm font-semibold text-[var(--oaria-text-secondary)] mb-2">
-                        최종 실험 계획
-                      </h3>
-                      <div className="font-[family-name:var(--font-dm-sans)] text-sm text-[var(--oaria-text-secondary)] whitespace-pre-wrap bg-[var(--oaria-border)]/20 p-4 rounded-lg max-h-[300px] overflow-y-auto">
-                        {selectedPlan.final_plan}
+                  {(() => {
+                    const resultData = selectedJob.result_data as Record<string, string> | null;
+                    if (!resultData?.final_plan) return null;
+                    return (
+                      <div>
+                        <h3 className="font-[family-name:var(--font-outfit)] text-sm font-semibold text-[var(--oaria-text-secondary)] mb-2">
+                          최종 실험 계획
+                        </h3>
+                        <div className="font-[family-name:var(--font-dm-sans)] text-sm bg-[var(--oaria-border)]/20 p-4 rounded-lg max-h-[300px] overflow-y-auto prose prose-sm max-w-none">
+                          <ReactMarkdown remarkPlugins={[remarkGfm]}>
+                            {resultData.final_plan}
+                          </ReactMarkdown>
+                        </div>
                       </div>
-                    </div>
-                  )}
+                    );
+                  })()}
+
+                  {/* Plan A/B */}
+                  {(() => {
+                    const resultData = selectedJob.result_data as Record<string, string> | null;
+                    if (!resultData?.plan_a) return null;
+                    return (
+                      <div className="space-y-4">
+                        <div>
+                          <h3 className="font-[family-name:var(--font-outfit)] text-sm font-semibold text-[var(--oaria-text-secondary)] mb-2">
+                            Plan A (이상적 설계)
+                          </h3>
+                          <div className="font-[family-name:var(--font-dm-sans)] text-sm bg-green-50 p-4 rounded-lg max-h-[200px] overflow-y-auto prose prose-sm max-w-none">
+                            <ReactMarkdown remarkPlugins={[remarkGfm]}>
+                              {resultData.plan_a}
+                            </ReactMarkdown>
+                          </div>
+                        </div>
+                        {resultData.plan_b && (
+                          <div>
+                            <h3 className="font-[family-name:var(--font-outfit)] text-sm font-semibold text-[var(--oaria-text-secondary)] mb-2">
+                              Plan B (현실적 대안)
+                            </h3>
+                            <div className="font-[family-name:var(--font-dm-sans)] text-sm bg-blue-50 p-4 rounded-lg max-h-[200px] overflow-y-auto prose prose-sm max-w-none">
+                              <ReactMarkdown remarkPlugins={[remarkGfm]}>
+                                {resultData.plan_b}
+                              </ReactMarkdown>
+                            </div>
+                          </div>
+                        )}
+                      </div>
+                    );
+                  })()}
 
                   {/* Metadata */}
                   <div className="text-xs text-[var(--oaria-text-secondary)] pt-4 border-t border-[var(--oaria-border)]">
-                    <p>생성일: {formatDate(selectedPlan.created_at)}</p>
-                    {selectedPlan.total_duration_ms && (
-                      <p>소요 시간: {(selectedPlan.total_duration_ms / 1000).toFixed(1)}초</p>
-                    )}
+                    <div className="grid grid-cols-2 gap-2">
+                      <p>생성일: {formatDate(selectedJob.created_at)}</p>
+                      {selectedJob.started_at && (
+                        <p>시작: {formatDate(selectedJob.started_at)}</p>
+                      )}
+                      {selectedJob.completed_at && (
+                        <p>완료: {formatDate(selectedJob.completed_at)}</p>
+                      )}
+                      <p>에이전트: {selectedJob.agent_type}</p>
+                    </div>
                   </div>
                 </div>
               ) : null}

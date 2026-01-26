@@ -2,6 +2,8 @@
 
 import { useState, useRef, useEffect } from "react";
 import Link from "next/link";
+import ReactMarkdown from "react-markdown";
+import remarkGfm from "remark-gfm";
 import {
   Search,
   Bot,
@@ -33,7 +35,10 @@ import {
   Sparkles,
   Shield,
 } from "lucide-react";
-import { studyPlanApi, StudyPlanV3Response, StudyPlanV3SaveRequest, StudyPlanSSEEvent, fetchWithAuth } from "@/lib/api";
+import { studyPlanApi, StudyPlanV3Response, StudyPlanV3SaveRequest, StudyPlanSSEEvent, fetchWithAuth, agentJobsApi } from "@/lib/api";
+import { useJobStream, JobStreamEvent } from "@/hooks";
+import { ApprovalModal } from "@/components/jobs";
+import { useNotifications } from "@/contexts/NotificationContext";
 
 // ─────────────────────────────────────────────────────────────
 // Types
@@ -243,6 +248,7 @@ export default function StudyPlanPage() {
   const [hypothesis, setHypothesis] = useState("");
   const [researchContext, setResearchContext] = useState("");
   const [isLoading, setIsLoading] = useState(false);
+  const [agentVersion, setAgentVersion] = useState<"v3" | "v4">("v3");
   const [nodes, setNodes] = useState<NodeProgress[]>(createInitialNodes());
   const [state, setState] = useState<StudyPlanState>({ status: "idle", nodeDetails: {} });
   const [showAdvanced, setShowAdvanced] = useState(false);
@@ -256,6 +262,112 @@ export default function StudyPlanPage() {
   const [showActivitySidebar, setShowActivitySidebar] = useState(true);
   const [elapsedTime, setElapsedTime] = useState(0);
   const activityEndRef = useRef<HTMLDivElement>(null);
+
+  // 백그라운드 작업 모드 state
+  const [useBackgroundMode, setUseBackgroundMode] = useState(false);
+  const [showApprovalModal, setShowApprovalModal] = useState(false);
+  const { addToast } = useNotifications();
+
+  // useJobStream hook for background job mode
+  const {
+    jobId,
+    status: jobStatus,
+    progress: jobProgress,
+    currentStep: jobCurrentStep,
+    error: jobError,
+    result: jobResult,
+    approvalData,
+    startJob,
+    approve,
+    cancel,
+    reset: resetJob,
+  } = useJobStream({
+    onEvent: (event) => {
+      // Update activity logs based on job events
+      if (event.node && event.detail) {
+        const nodeLabel = nodes.find(n => n.id === event.node)?.label || event.node;
+        addActivityLog({
+          type: "action",
+          title: nodeLabel,
+          description: event.detail,
+          nodeId: event.node,
+        });
+      }
+
+      // Update node status
+      if (event.node) {
+        setNodes((prev) => {
+          const nodeIndex = prev.findIndex((n) => n.id === event.node);
+          return prev.map((n, i) => {
+            if (i < nodeIndex && n.status !== "completed") {
+              return { ...n, status: "completed" as NodeStatus };
+            }
+            if (i === nodeIndex) {
+              return { ...n, status: "active" as NodeStatus };
+            }
+            return n;
+          });
+        });
+      }
+    },
+    onApprovalRequired: (event) => {
+      addActivityLog({
+        type: "thinking",
+        title: "승인 필요",
+        description: "고비용 실험 또는 윤리 심의가 필요한 항목이 있습니다.",
+      });
+      setShowApprovalModal(true);
+    },
+    onCompleted: (event) => {
+      setNodes((prev) => prev.map((n) => ({ ...n, status: "completed" as NodeStatus })));
+      addActivityLog({
+        type: "result",
+        title: "실험 계획서 생성 완료",
+        description: `${event.experiment_count || 0}개 실험 · 소요시간 ${((event.total_duration_ms || 0) / 1000).toFixed(1)}초`,
+      });
+
+      // Update state with result
+      setState({
+        status: "completed",
+        nodeDetails: {
+          synthesize_plan: {
+            final_plan: event.final_plan || event.plan_a || "",
+            executive_summary: event.executive_summary || "",
+          },
+        },
+      });
+
+      setIsLoading(false);
+
+      // Show toast notification
+      addToast({
+        type: "success",
+        title: "실험 계획서 완료",
+        message: "Study Plan이 성공적으로 생성되었습니다.",
+        duration: 5000,
+      });
+    },
+    onError: (error) => {
+      addActivityLog({
+        type: "error",
+        title: "오류 발생",
+        description: error,
+      });
+      setState((prev) => ({
+        ...prev,
+        status: "error",
+        error,
+      }));
+      setIsLoading(false);
+
+      addToast({
+        type: "error",
+        title: "생성 실패",
+        message: error,
+        duration: 5000,
+      });
+    },
+  });
 
   // 활동 로그 추가 헬퍼
   const addActivityLog = (log: Omit<ActivityLog, "id" | "timestamp">) => {
@@ -320,9 +432,58 @@ export default function StudyPlanPage() {
     }));
   };
 
+  // 백그라운드 모드 제출 핸들러
+  const handleSubmitBackground = async () => {
+    setIsLoading(true);
+    setNodes(createInitialNodes());
+    setState({ status: "generating", nodeDetails: {} });
+    setSelectedNode(null);
+    setActivityLogs([]);
+    setShowActivitySidebar(true);
+
+    addActivityLog({
+      type: "thinking",
+      title: `가설 분석 시작 (${agentVersion.toUpperCase()} 백그라운드)`,
+      description: hypothesis.trim().substring(0, 100) + (hypothesis.length > 100 ? "..." : ""),
+    });
+
+    try {
+      const agentType = agentVersion === "v4" ? "study_plan_v4" : "study_plan_v3";
+      await startJob(agentType, {
+        hypothesis: hypothesis.trim(),
+        research_context: researchContext.trim() || undefined,
+        preferred_experiment_types: ["in_vitro", "in_vivo"],
+      });
+    } catch (error) {
+      console.error("Failed to start background job:", error);
+      setIsLoading(false);
+    }
+  };
+
+  // 승인 처리 핸들러
+  const handleApprove = async (decision: Record<string, unknown>) => {
+    try {
+      await approve(decision);
+      setShowApprovalModal(false);
+      addActivityLog({
+        type: "result",
+        title: "승인 완료",
+        description: "작업이 계속 진행됩니다.",
+      });
+    } catch (error) {
+      console.error("Approval failed:", error);
+    }
+  };
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!hypothesis.trim() || isLoading) return;
+
+    // 백그라운드 모드 사용 시
+    if (useBackgroundMode) {
+      handleSubmitBackground();
+      return;
+    }
 
     setIsLoading(true);
     setNodes(createInitialNodes());
@@ -334,13 +495,18 @@ export default function StudyPlanPage() {
     // 초기 활동 로그
     addActivityLog({
       type: "thinking",
-      title: "가설 분석 시작",
+      title: `가설 분석 시작 (${agentVersion.toUpperCase()})`,
       description: hypothesis.trim().substring(0, 100) + (hypothesis.length > 100 ? "..." : ""),
     });
 
-    // v3 SSE 스트리밍 API 사용 - 실제 중간 단계 데이터 수신
+    // 버전에 따른 API URL 선택
+    const streamUrl = agentVersion === "v4"
+      ? studyPlanApi.generateV4StreamUrl()
+      : studyPlanApi.generateV3StreamUrl();
+
+    // SSE 스트리밍 API 사용 - 실제 중간 단계 데이터 수신
     try {
-      const response = await fetchWithAuth(studyPlanApi.generateV3StreamUrl(), {
+      const response = await fetchWithAuth(streamUrl, {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
@@ -362,23 +528,17 @@ export default function StudyPlanPage() {
       const decoder = new TextDecoder();
       let buffer = "";
       let finalResult: StudyPlanV3Response | null = null;
+      let currentEventType = "";
 
-      // 노드 ID 매핑
-      const nodeEventMap: Record<string, string> = {
-        hypothesis: "parse_hypothesis",
-        clarification: "clarify_hypothesis",
-        tests: "decompose_tests",
-        studies: "search_studies",
-        search_expanding: "expand_search",
-        evidence: "build_evidence",
-        methodologies: "analyze_methodologies",
-        experiments: "design_experiments",
-        critique: "critique_refine",
-        revision: "critique_refine",
-        measurements: "identify_measurements",
-        feasibility: "validate_feasibility",
-        approval_required: "approval_gate",
-        result: "synthesize_plan",
+      // v4 전용 노드 매핑 (ReAct 이벤트)
+      const v4EventNodeMap: Record<string, string> = {
+        started: "parse_hypothesis",
+        thinking: "parse_hypothesis",
+        acting: "design_experiments",
+        observation: "build_evidence",
+        recovery: "critique_refine",
+        goal_check: "validate_feasibility",
+        completed: "synthesize_plan",
       };
 
       while (true) {
@@ -392,9 +552,9 @@ export default function StudyPlanPage() {
         for (const line of lines) {
           if (!line.trim()) continue;
 
-          // SSE 이벤트 파싱
+          // SSE 이벤트 파싱 - event type 저장
           if (line.startsWith("event:")) {
-            const eventType = line.substring(6).trim();
+            currentEventType = line.substring(6).trim();
             continue;
           }
 
@@ -406,7 +566,124 @@ export default function StudyPlanPage() {
               const data: StudyPlanSSEEvent = JSON.parse(dataStr);
               const nodeId = data.node;
 
-              console.log("[SSE v3] Event:", nodeId, data);
+              console.log("[SSE v3] Event:", currentEventType, nodeId, data);
+
+              // v4 completed 이벤트 처리 (ReAct 에이전트)
+              if (agentVersion === "v4" && currentEventType === "completed") {
+                finalResult = {
+                  success: data.success || false,
+                  final_plan: data.final_plan || data.plan_a || "",  // Plan A + Plan B combined
+                  executive_summary: data.executive_summary || "",
+                  experiment_count: data.experiment_count || 0,
+                  approval_required: false,
+                  approval_status: "approved",
+                  total_duration_ms: data.total_duration_ms || 0,
+                  plan_a: data.plan_a,
+                  plan_b: data.plan_b,
+                };
+                currentEventType = "";
+                continue;
+              }
+
+              // v4 이벤트 처리 (ReAct 에이전트)
+              if (agentVersion === "v4") {
+                const v4Titles: Record<string, string> = {
+                  started: "v4 에이전트 시작",
+                  thinking: "다음 행동 결정 중",
+                  acting: "도구 실행 중",
+                  observation: "실행 결과 관찰",
+                  recovery: "실패 복구 시도",
+                  goal_check: "목표 달성 확인",
+                };
+
+                if (v4Titles[currentEventType]) {
+                  // v4 이벤트 데이터 (다른 구조)
+                  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+                  const v4Data = data as any;
+
+                  // 노드 상태 업데이트 (v4 매핑)
+                  const nodeId = v4EventNodeMap[currentEventType];
+                  if (nodeId) {
+                    setNodes((prev) => {
+                      const nodeIndex = prev.findIndex((n) => n.id === nodeId);
+                      return prev.map((n, i) => {
+                        if (i < nodeIndex && n.status !== "completed") {
+                          return { ...n, status: "completed" as NodeStatus };
+                        }
+                        if (i === nodeIndex) {
+                          return { ...n, status: "active" as NodeStatus };
+                        }
+                        return n;
+                      });
+                    });
+                  }
+
+                  // 활동 로그
+                  let description = "";
+                  if (currentEventType === "started") {
+                    description = `가설: ${v4Data.hypothesis}`;
+                  } else if (currentEventType === "thinking") {
+                    description = `반복 ${v4Data.iteration}: ${v4Data.message}`;
+                  } else if (currentEventType === "acting") {
+                    description = `반복 ${v4Data.iteration}: ${v4Data.action} 실행 (신뢰도: ${((v4Data.confidence || 0) * 100).toFixed(0)}%)`;
+                  } else if (currentEventType === "observation") {
+                    description = `${v4Data.action}: ${v4Data.success ? "성공" : "실패"} (${v4Data.duration_ms}ms)`;
+                  } else if (currentEventType === "recovery") {
+                    description = `오류: ${v4Data.error}`;
+                  } else if (currentEventType === "goal_check") {
+                    description = v4Data.achieved
+                      ? "목표 달성!"
+                      : `미완료 항목: ${v4Data.missing?.slice(0, 3).join(", ")}`;
+                  }
+
+                  addActivityLog({
+                    type: currentEventType === "recovery" ? "error" :
+                          currentEventType === "observation" ? "result" :
+                          "action",
+                    title: v4Titles[currentEventType],
+                    description,
+                    nodeId,
+                  });
+
+                  currentEventType = "";
+                  continue;
+                }
+              }
+
+              // v3 done 이벤트 처리 - 최종 결과
+              if (currentEventType === "done" && data.success && data.final_plan) {
+                finalResult = {
+                  success: data.success,
+                  final_plan: data.final_plan,
+                  executive_summary: data.executive_summary || "",
+                  experiment_count: data.experiment_count || 0,
+                  approval_required: data.approval_required || false,
+                  approval_status: "approved",
+                  total_duration_ms: data.total_duration_ms || 0,
+                  plan_a: data.plan_a,
+                  plan_b: data.plan_b,
+                  dp3_decision: data.dp3_decision,
+                  highest_tier_used: data.highest_tier_used,
+                };
+                currentEventType = "";
+                continue;
+              }
+
+              // error 이벤트 처리
+              if (currentEventType === "error") {
+                addActivityLog({
+                  type: "error",
+                  title: "오류 발생",
+                  description: data.message || data.error || "알 수 없는 오류",
+                });
+                setState((prev) => ({
+                  ...prev,
+                  status: "error",
+                  error: data.message || data.error || "알 수 없는 오류",
+                }));
+                currentEventType = "";
+                continue;
+              }
 
               // 노드 상태 업데이트
               if (nodeId) {
@@ -545,37 +822,6 @@ export default function StudyPlanPage() {
                 }
               }
 
-              // done 이벤트 처리
-              if (data.success !== undefined && data.final_plan) {
-                finalResult = {
-                  success: data.success,
-                  final_plan: data.final_plan,
-                  executive_summary: data.executive_summary || "",
-                  experiment_count: data.experiment_count || 0,
-                  approval_required: data.approval_required || false,
-                  approval_status: "approved",
-                  total_duration_ms: data.total_duration_ms || 0,
-                  plan_a: data.plan_a,
-                  plan_b: data.plan_b,
-                  dp3_decision: data.dp3_decision,
-                  highest_tier_used: data.highest_tier_used,
-                };
-              }
-
-              // 에러 처리
-              if (data.error) {
-                addActivityLog({
-                  type: "error",
-                  title: "오류 발생",
-                  description: data.message || data.error,
-                });
-                setState((prev) => ({
-                  ...prev,
-                  status: "error",
-                  error: data.message || data.error,
-                }));
-              }
-
             } catch (parseError) {
               console.warn("[SSE v3] Parse error:", parseError, dataStr);
             }
@@ -583,16 +829,17 @@ export default function StudyPlanPage() {
         }
       }
 
-      // 최종 결과 처리
-      if (finalResult && finalResult.success) {
+      // 최종 결과 처리 - success가 false여도 plan이 있으면 결과 표시
+      const hasPlan = finalResult && (finalResult.final_plan || finalResult.plan_a);
+      if (hasPlan) {
         // 모든 노드 완료 처리
         setNodes((prev) => prev.map((n) => ({ ...n, status: "completed" as NodeStatus })));
 
         // 완료 활동 로그
         addActivityLog({
           type: "result",
-          title: "실험 계획서 생성 완료",
-          description: `${finalResult.experiment_count}개 실험 · 소요시간 ${(finalResult.total_duration_ms / 1000).toFixed(1)}초`,
+          title: `실험 계획서 생성 완료 (${agentVersion.toUpperCase()})`,
+          description: `${finalResult.experiment_count || 0}개 실험 · 소요시간 ${((finalResult.total_duration_ms || 0) / 1000).toFixed(1)}초`,
         });
 
         // Plan A/B 로그
@@ -602,15 +849,22 @@ export default function StudyPlanPage() {
             title: "Plan A/B 생성",
             description: "이상적 설계(Plan A)와 현실적 대안(Plan B) 모두 준비됨",
           });
+        } else if (finalResult.plan_a && !finalResult.plan_b) {
+          addActivityLog({
+            type: "thinking",
+            title: "Plan A 생성됨",
+            description: "Plan B는 생성되지 않았습니다",
+          });
         }
 
         // 결과 데이터 저장
+        const planContent = finalResult.final_plan || finalResult.plan_a || "";
         setState({
           status: "completed",
           nodeDetails: {
             synthesize_plan: {
-              final_plan: finalResult.final_plan,
-              executive_summary: finalResult.executive_summary,
+              final_plan: planContent,
+              executive_summary: finalResult.executive_summary || "",
             },
           },
         });
@@ -621,12 +875,12 @@ export default function StudyPlanPage() {
             hypothesis_input: hypothesis.trim(),
             research_context: researchContext.trim() || undefined,
             preferred_experiment_types: ["in_vitro", "in_vivo"],
-            final_plan: finalResult.final_plan,
-            executive_summary: finalResult.executive_summary,
-            experiment_count: finalResult.experiment_count,
-            approval_required: finalResult.approval_required,
-            approval_status: finalResult.approval_status,
-            total_duration_ms: finalResult.total_duration_ms,
+            final_plan: planContent,
+            executive_summary: finalResult.executive_summary || "",
+            experiment_count: finalResult.experiment_count || 0,
+            approval_required: finalResult.approval_required || false,
+            approval_status: finalResult.approval_status || "approved",
+            total_duration_ms: finalResult.total_duration_ms || 0,
             status: "completed",
             // v3 필드
             plan_a: finalResult.plan_a,
@@ -646,6 +900,18 @@ export default function StudyPlanPage() {
         }
       } else if (!finalResult) {
         throw new Error("스트리밍이 완료되었으나 결과가 없습니다");
+      } else {
+        // finalResult는 있지만 plan이 없는 경우
+        const experimentCount = finalResult.experiment_count || 0;
+        if (experimentCount > 0) {
+          throw new Error(
+            `${experimentCount}개의 실험이 설계되었으나 최종 계획서 생성에 실패했습니다. 다시 시도해주세요.`
+          );
+        } else {
+          throw new Error(
+            "실험 계획서 생성에 실패했습니다. 가설을 수정하거나 다시 시도해주세요."
+          );
+        }
       }
 
     } catch (error) {
@@ -662,171 +928,6 @@ export default function StudyPlanPage() {
       }));
     } finally {
       setIsLoading(false);
-    }
-  };
-
-  const handleEventType = (eventType: string) => {
-    const nodeMap: Record<string, string> = {
-      hypothesis: "parse_hypothesis",
-      clarification: "clarify_hypothesis",
-      tests: "decompose_tests",
-      studies: "search_studies",
-      search_expanding: "expand_search",
-      evidence: "build_evidence",
-      methodologies: "analyze_methodologies",
-      experiments: "design_experiments",
-      critique: "critique_refine",
-      revision: "critique_refine",
-      measurements: "identify_measurements",
-      feasibility: "validate_feasibility",
-      approval_required: "approval_gate",
-      result: "synthesize_plan",
-    };
-
-    const nodeId = nodeMap[eventType];
-    if (nodeId) {
-      setNodes((prev) => {
-        const nodeIndex = prev.findIndex((n) => n.id === nodeId);
-        return prev.map((n, i) => {
-          if (i < nodeIndex && n.status !== "completed") {
-            return { ...n, status: "completed" };
-          }
-          if (i === nodeIndex) {
-            return { ...n, status: "active" };
-          }
-          return n;
-        });
-      });
-    }
-  };
-
-  const handleEventData = (eventType: string, data: Record<string, unknown>) => {
-    console.log("[SSE] Event:", eventType, "Data:", data);
-
-    if (eventType === "result" && data.final_plan) {
-      console.log("[SSE] Final plan received:", (data.final_plan as string).substring(0, 100));
-      updateNodeDetails("synthesize_plan", {
-        final_plan: data.final_plan,
-        executive_summary: data.executive_summary,
-      });
-      updateNodeStatus("synthesize_plan", "completed");
-      return;
-    }
-
-    const nodeId = data.node as string;
-
-    if (nodeId) {
-      switch (nodeId) {
-        case "parse_hypothesis":
-          updateNodeDetails(nodeId, {
-            hypothesis: data.hypothesis,
-            confidence: data.confidence,
-          });
-          updateNodeStatus(nodeId, "completed");
-          break;
-
-        case "clarify_hypothesis":
-          updateNodeDetails(nodeId, {
-            questions: data.questions,
-          });
-          break;
-
-        case "decompose_tests":
-          updateNodeDetails(nodeId, {
-            test_questions: data.test_questions,
-          });
-          updateNodeStatus(nodeId, "completed");
-          break;
-
-        case "search_studies":
-          updateNodeDetails(nodeId, {
-            study_count: data.study_count,
-            coverage: data.coverage,
-            gaps: data.gaps,
-          });
-          updateNodeStatus(nodeId, "completed");
-          break;
-
-        case "expand_search":
-          updateNodeDetails(nodeId, {
-            expanded_queries: data.expanded_queries,
-            expand_count: data.expand_count,
-          });
-          break;
-
-        case "build_evidence":
-          updateNodeDetails(nodeId, {
-            snippet_count: data.snippet_count,
-            pack_count: data.pack_count,
-          });
-          updateNodeStatus(nodeId, "completed");
-          break;
-
-        case "analyze_methodologies":
-          updateNodeDetails("analyze_methodologies", {
-            pattern_count: data.pattern_count,
-          });
-          updateNodeStatus("analyze_methodologies", "completed");
-          break;
-
-        case "design_experiments":
-          updateNodeDetails(nodeId, {
-            experiments: data.experiments,
-          });
-          updateNodeStatus(nodeId, "completed");
-          break;
-
-        case "critique_refine":
-          updateNodeDetails(nodeId, {
-            quality_score: data.quality_score,
-            passed: data.passed,
-            suggestions: data.suggestions,
-            revision_count: data.revision_count,
-          });
-          if (data.passed) {
-            updateNodeStatus(nodeId, "completed");
-          }
-          break;
-
-        case "identify_measurements":
-          updateNodeDetails(nodeId, {
-            measurement_count: data.measurement_count,
-            priority: data.priority,
-          });
-          updateNodeStatus(nodeId, "completed");
-          break;
-
-        case "validate_feasibility":
-          updateNodeDetails(nodeId, {
-            overall_score: data.overall_score,
-            concerns: data.concerns,
-          });
-          updateNodeStatus(nodeId, "completed");
-          break;
-
-        case "approval_gate":
-          updateNodeDetails(nodeId, {
-            approval_required: data.approval_required,
-            item_count: data.item_count,
-          });
-          updateNodeStatus(nodeId, "completed");
-          break;
-      }
-    }
-
-    if (eventType === "done") {
-      console.log("[SSE] Done event received:", data);
-      setNodes((prev) => prev.map((n) => ({ ...n, status: "completed" })));
-      setState((prev) => ({ ...prev, status: "completed" }));
-      return;
-    }
-
-    if (data.error && eventType === "error") {
-      setState((prev) => ({
-        ...prev,
-        status: "error",
-        error: data.error as string,
-      }));
     }
   };
 
@@ -1133,8 +1234,10 @@ export default function StudyPlanPage() {
                         <p className="text-sm">{nodeData.executive_summary as string}</p>
                       </div>
                     )}
-                    <div className="text-sm whitespace-pre-wrap leading-relaxed max-h-[300px] overflow-y-auto">
-                      {nodeData.final_plan as string}
+                    <div className="text-sm leading-relaxed max-h-[300px] overflow-y-auto prose prose-sm max-w-none prose-headings:font-semibold prose-headings:text-[var(--foreground)] prose-p:text-[var(--foreground)] prose-strong:text-[var(--foreground)] prose-li:text-[var(--foreground)] prose-table:text-sm prose-th:bg-[var(--oaria-border)]/50 prose-th:px-2 prose-th:py-1 prose-td:px-2 prose-td:py-1 prose-td:border prose-td:border-[var(--oaria-border)] prose-th:border prose-th:border-[var(--oaria-border)]">
+                      <ReactMarkdown remarkPlugins={[remarkGfm]}>
+                        {nodeData.final_plan as string}
+                      </ReactMarkdown>
                     </div>
                   </div>
                 )}
@@ -1367,6 +1470,45 @@ export default function StudyPlanPage() {
             {/* Input Form */}
             <div className="bg-[var(--background)] border-2 border-[var(--oaria-border-strong)] rounded-2xl p-6 mb-8">
               <form onSubmit={handleSubmit}>
+                {/* 에이전트 버전 선택 */}
+                <div className="mb-6">
+                  <label className="block font-[family-name:var(--font-outfit)] text-sm font-medium mb-2">
+                    에이전트 버전
+                  </label>
+                  <div className="flex gap-3">
+                    <button
+                      type="button"
+                      onClick={() => setAgentVersion("v3")}
+                      disabled={isLoading}
+                      className={`flex-1 px-4 py-3 rounded-xl border-2 transition-all ${
+                        agentVersion === "v3"
+                          ? "border-[var(--oaria-teal)] bg-[var(--oaria-teal)]/10 text-[var(--oaria-teal)]"
+                          : "border-[var(--oaria-border)] hover:border-[var(--oaria-teal)]/50"
+                      } disabled:opacity-50`}
+                    >
+                      <div className="font-semibold mb-1">v3 Workflow</div>
+                      <div className="text-xs text-[var(--oaria-text-secondary)]">
+                        고정 파이프라인 + Decision Points
+                      </div>
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setAgentVersion("v4")}
+                      disabled={isLoading}
+                      className={`flex-1 px-4 py-3 rounded-xl border-2 transition-all ${
+                        agentVersion === "v4"
+                          ? "border-[var(--oaria-teal)] bg-[var(--oaria-teal)]/10 text-[var(--oaria-teal)]"
+                          : "border-[var(--oaria-border)] hover:border-[var(--oaria-teal)]/50"
+                      } disabled:opacity-50`}
+                    >
+                      <div className="font-semibold mb-1">v4 ReAct</div>
+                      <div className="text-xs text-[var(--oaria-text-secondary)]">
+                        LLM 자율 판단 에이전트
+                      </div>
+                    </button>
+                  </div>
+                </div>
+
                 {/* 가설 입력 */}
                 <div className="mb-4">
                   <label className="block font-[family-name:var(--font-outfit)] text-sm font-medium mb-2">
@@ -1394,18 +1536,48 @@ export default function StudyPlanPage() {
 
                 {/* 고급 옵션 */}
                 {showAdvanced && (
-                  <div className="mb-4 p-4 rounded-xl bg-[var(--oaria-border)]/20">
-                    <label className="block font-[family-name:var(--font-outfit)] text-sm font-medium mb-2">
-                      연구 맥락 (선택)
-                    </label>
-                    <input
-                      type="text"
-                      value={researchContext}
-                      onChange={(e) => setResearchContext(e.target.value)}
-                      placeholder="예: NSCLC targeted therapy resistance research"
-                      disabled={isLoading}
-                      className="w-full px-4 py-2 rounded-lg border border-[var(--oaria-border)] bg-[var(--background)] font-[family-name:var(--font-dm-sans)] text-sm focus:border-[var(--oaria-teal)] outline-none transition-all placeholder:text-[var(--oaria-tagline)] disabled:opacity-50"
-                    />
+                  <div className="mb-4 p-4 rounded-xl bg-[var(--oaria-border)]/20 space-y-4">
+                    <div>
+                      <label className="block font-[family-name:var(--font-outfit)] text-sm font-medium mb-2">
+                        연구 맥락 (선택)
+                      </label>
+                      <input
+                        type="text"
+                        value={researchContext}
+                        onChange={(e) => setResearchContext(e.target.value)}
+                        placeholder="예: NSCLC targeted therapy resistance research"
+                        disabled={isLoading}
+                        className="w-full px-4 py-2 rounded-lg border border-[var(--oaria-border)] bg-[var(--background)] font-[family-name:var(--font-dm-sans)] text-sm focus:border-[var(--oaria-teal)] outline-none transition-all placeholder:text-[var(--oaria-tagline)] disabled:opacity-50"
+                      />
+                    </div>
+
+                    {/* 백그라운드 모드 토글 */}
+                    <div className="flex items-center justify-between">
+                      <div>
+                        <label className="font-[family-name:var(--font-outfit)] text-sm font-medium">
+                          백그라운드 모드
+                        </label>
+                        <p className="text-xs text-[var(--oaria-text-secondary)]">
+                          페이지를 나가도 작업이 계속됩니다
+                        </p>
+                      </div>
+                      <button
+                        type="button"
+                        onClick={() => setUseBackgroundMode(!useBackgroundMode)}
+                        disabled={isLoading}
+                        className={`relative w-12 h-6 rounded-full transition-colors ${
+                          useBackgroundMode
+                            ? "bg-[var(--oaria-teal)]"
+                            : "bg-[var(--oaria-border)]"
+                        } disabled:opacity-50`}
+                      >
+                        <span
+                          className={`absolute top-1 w-4 h-4 rounded-full bg-white shadow transition-transform ${
+                            useBackgroundMode ? "translate-x-7" : "translate-x-1"
+                          }`}
+                        />
+                      </button>
+                    </div>
                   </div>
                 )}
 
@@ -1514,8 +1686,10 @@ export default function StudyPlanPage() {
                           </p>
                         </div>
                       )}
-                      <div className="font-[family-name:var(--font-dm-sans)] text-sm whitespace-pre-wrap leading-relaxed">
-                        {state.nodeDetails.synthesize_plan.final_plan}
+                      <div className="font-[family-name:var(--font-dm-sans)] text-sm leading-relaxed prose prose-sm max-w-none prose-headings:font-semibold prose-headings:text-[var(--foreground)] prose-p:text-[var(--foreground)] prose-strong:text-[var(--foreground)] prose-li:text-[var(--foreground)] prose-table:text-sm prose-th:bg-[var(--oaria-border)]/50 prose-th:px-3 prose-th:py-2 prose-td:px-3 prose-td:py-2 prose-td:border prose-td:border-[var(--oaria-border)] prose-th:border prose-th:border-[var(--oaria-border)]">
+                        <ReactMarkdown remarkPlugins={[remarkGfm]}>
+                          {state.nodeDetails.synthesize_plan.final_plan}
+                        </ReactMarkdown>
                       </div>
                     </div>
                   )}
@@ -1599,6 +1773,23 @@ export default function StudyPlanPage() {
 
       {/* Node Detail Modal */}
       {selectedNode && renderNodeDetail(selectedNode)}
+
+      {/* Approval Modal */}
+      <ApprovalModal
+        isOpen={showApprovalModal}
+        onClose={() => setShowApprovalModal(false)}
+        onApprove={handleApprove}
+        jobName={hypothesis.trim().substring(0, 100)}
+        gateId={approvalData?.approval_gate_id as string | undefined}
+        choices={approvalData?.approval_choices as Array<{
+          choice_id: string;
+          label: string;
+          description: string;
+          estimated_cost?: string;
+          estimated_timeline?: string;
+        }> | undefined}
+        isLoading={jobStatus === "running"}
+      />
     </div>
   );
 }

@@ -1,12 +1,21 @@
 """Study Plan Agent 라우터
 
 가설 기반 실험 설계 에이전트 엔드포인트.
+
+⚠️ DEPRECATED: 이 라우터의 대부분 엔드포인트는 /agent-jobs/ API로 대체되었습니다.
+- 새 작업 생성: POST /agent-jobs/
+- 작업 스트리밍: GET /agent-jobs/{id}/stream
+- 작업 목록: GET /agent-jobs/
+- 작업 상세: GET /agent-jobs/{id}
+
+기존 엔드포인트는 하위 호환성을 위해 유지되지만 향후 버전에서 제거될 예정입니다.
 """
 
 import json
 import logging
 import math
 import uuid
+import warnings
 from typing import Annotated
 
 from fastapi import APIRouter, Depends, HTTPException, status
@@ -41,12 +50,14 @@ router = APIRouter(prefix="/study-plan", tags=["study-plan"])
 # ─────────────────────────────────────────────────────────────
 
 
-@router.post("/generate")
+@router.post("/generate", deprecated=True)
 async def generate_study_plan(
     request: StudyPlanRequest,
     current_user: CurrentUser,
 ):
     """Study Plan 생성 (SSE 스트리밍)
+
+    ⚠️ **DEPRECATED**: POST /agent-jobs/ + GET /agent-jobs/{id}/stream 사용을 권장합니다.
 
     가설을 입력받아 실험 설계 계획서를 생성합니다.
 
@@ -81,6 +92,7 @@ async def generate_study_plan(
     Returns:
         SSE 스트림
     """
+    logger.warning("DEPRECATED: /study-plan/generate is deprecated. Use /agent-jobs/ instead.")
     logger.info(
         f"Study Plan request from user {current_user.id}: "
         f"{request.hypothesis[:50]}..."
@@ -120,16 +132,19 @@ async def generate_study_plan(
 # ─────────────────────────────────────────────────────────────
 
 
-@router.post("/generate-sync", response_model=StudyPlanSummaryResponse)
+@router.post("/generate-sync", response_model=StudyPlanSummaryResponse, deprecated=True)
 async def generate_study_plan_sync(
     request: StudyPlanRequest,
     current_user: CurrentUser,
 ):
     """Study Plan 생성 (동기 - 테스트용)
 
+    ⚠️ **DEPRECATED**: 테스트용으로만 사용하세요.
+
     SSE 대신 전체 결과를 한 번에 반환합니다.
     개발/테스트 용도로 사용하세요.
     """
+    logger.warning("DEPRECATED: /study-plan/generate-sync is deprecated.")
     logger.info(
         f"Study Plan sync request from user {current_user.id}: "
         f"{request.hypothesis[:50]}..."
@@ -169,12 +184,14 @@ async def generate_study_plan_sync(
 # ─────────────────────────────────────────────────────────────
 
 
-@router.post("/generate-v3", response_model=StudyPlanSummaryResponse)
+@router.post("/generate-v3", response_model=StudyPlanSummaryResponse, deprecated=True)
 async def generate_study_plan_v3(
     request: StudyPlanRequest,
     current_user: CurrentUser,
 ):
     """Study Plan v3 생성 (3-tier 검색 + Decision Points)
+
+    ⚠️ **DEPRECATED**: POST /agent-jobs/ (agent_type: "study_plan_v3") 사용을 권장합니다.
 
     v3 기능:
     - **3-tier 검색**: RAG → Europe PMC → Tavily Web
@@ -194,6 +211,7 @@ async def generate_study_plan_v3(
     Returns:
         StudyPlanSummaryResponse: 생성된 연구 계획 (Plan A/B 포함 가능)
     """
+    logger.warning("DEPRECATED: /study-plan/generate-v3 is deprecated. Use /agent-jobs/ instead.")
     logger.info(
         f"Study Plan v3 request from user {current_user.id}: "
         f"{request.hypothesis[:50]}..."
@@ -233,12 +251,14 @@ async def generate_study_plan_v3(
 # ─────────────────────────────────────────────────────────────
 
 
-@router.post("/generate-v3-stream")
+@router.post("/generate-v3-stream", deprecated=True)
 async def generate_study_plan_v3_stream(
     request: StudyPlanRequest,
     current_user: CurrentUser,
 ):
     """Study Plan v3 생성 (SSE 스트리밍) - 중간 단계 데이터 포함
+
+    ⚠️ **DEPRECATED**: POST /agent-jobs/ + GET /agent-jobs/{id}/stream 사용을 권장합니다.
 
     실시간으로 각 단계의 진행 상황과 상세 데이터를 스트리밍합니다.
 
@@ -272,6 +292,7 @@ async def generate_study_plan_v3_stream(
     Returns:
         SSE 스트림 (각 단계별 상세 데이터 포함)
     """
+    logger.warning("DEPRECATED: /study-plan/generate-v3-stream is deprecated. Use /agent-jobs/ instead.")
     logger.info(
         f"Study Plan v3 stream request from user {current_user.id}: "
         f"{request.hypothesis[:50]}..."
@@ -311,7 +332,7 @@ async def generate_study_plan_v3_stream(
 # ─────────────────────────────────────────────────────────────
 
 
-@router.post("/save", response_model=StudyPlanFullResponse)
+@router.post("/save", response_model=StudyPlanFullResponse, deprecated=True)
 async def save_study_plan(
     request: StudyPlanSaveRequest,
     current_user: CurrentUser,
@@ -319,9 +340,12 @@ async def save_study_plan(
 ):
     """Study Plan 저장
 
+    ⚠️ **DEPRECATED**: /agent-jobs/ 시스템에서 자동 저장됩니다.
+
     생성된 Study Plan을 데이터베이스에 저장합니다.
     프론트엔드에서 생성 완료 후 호출하세요.
     """
+    logger.warning("DEPRECATED: /study-plan/save is deprecated. Results are auto-saved in agent_jobs.")
     logger.info(f"Saving Study Plan for user {current_user.id}")
 
     try:
@@ -384,7 +408,7 @@ async def save_study_plan(
 # ─────────────────────────────────────────────────────────────
 
 
-@router.get("/history", response_model=PaginatedStudyPlans)
+@router.get("/history", response_model=PaginatedStudyPlans, deprecated=True)
 async def list_study_plans(
     current_user: CurrentUser,
     db: AsyncSession = Depends(get_db),
@@ -393,12 +417,15 @@ async def list_study_plans(
 ):
     """Study Plan 히스토리 목록 조회
 
+    ⚠️ **DEPRECATED**: GET /agent-jobs/ 사용을 권장합니다.
+
     현재 사용자의 Study Plan 목록을 페이지네이션하여 반환합니다.
 
     Args:
         page: 페이지 번호 (1부터 시작)
         size: 페이지당 항목 수 (기본 10, 최대 50)
     """
+    logger.warning("DEPRECATED: /study-plan/history is deprecated. Use /agent-jobs/ instead.")
     # 페이지네이션 제한
     if size > 50:
         size = 50
@@ -563,7 +590,7 @@ async def generate_study_plan_v4(
         return StudyPlanSummaryResponse(
             success=result.success,
             plan_id=None,
-            final_plan=result.plan_a,
+            final_plan=result.final_plan,  # Plan A + Plan B combined
             executive_summary=result.executive_summary,
             experiment_count=result.experiment_count,
             approval_required=False,

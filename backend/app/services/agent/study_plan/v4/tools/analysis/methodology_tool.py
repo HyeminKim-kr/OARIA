@@ -5,7 +5,13 @@ from typing import Any
 
 from langchain_openai import ChatOpenAI
 
-from app.services.agent.study_plan.v4.tools.base import BaseTool, ToolParameter
+from app.services.agent.study_plan.v4.tools.base import (
+    BaseTool,
+    ToolParameter,
+    ensure_dict,
+    ensure_list,
+    safe_get,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -120,9 +126,13 @@ class AnalyzeMethodologyTool(BaseTool):
 
             # Summarize papers for prompt
             paper_summaries = []
-            for p in papers[:10]:  # Limit to avoid token overflow
-                title = p.get("title", "Unknown")
-                abstract = p.get("abstract", "")[:500]
+            papers_list = ensure_list(papers, [])
+            for p in papers_list[:10]:  # Limit to avoid token overflow
+                p_dict = ensure_dict(p) if not isinstance(p, dict) else p
+                title = safe_get(p_dict, "title", "Unknown")
+                abstract = safe_get(p_dict, "abstract", "")
+                if isinstance(abstract, str):
+                    abstract = abstract[:500]
                 paper_summaries.append(f"Title: {title}\nAbstract: {abstract}")
 
             prompt = METHODOLOGY_PROMPT.format(

@@ -2,7 +2,9 @@ import type { Metadata } from "next";
 import { Outfit, DM_Sans } from "next/font/google";
 import "./globals.css";
 import { AuthProvider } from "@/contexts/AuthContext";
+import { NotificationProvider } from "@/contexts/NotificationContext";
 import { QueryProvider } from "@/components/providers/QueryProvider";
+import { ToastContainer } from "@/components/notifications";
 
 const outfit = Outfit({
   variable: "--font-outfit",
@@ -32,7 +34,10 @@ export default function RootLayout({
         className={`${outfit.variable} ${dmSans.variable} antialiased`}
       >
         <AuthProvider>
-          <QueryProvider>{children}</QueryProvider>
+          <NotificationProvider>
+            <QueryProvider>{children}</QueryProvider>
+            <ToastContainer />
+          </NotificationProvider>
         </AuthProvider>
       </body>
     </html>

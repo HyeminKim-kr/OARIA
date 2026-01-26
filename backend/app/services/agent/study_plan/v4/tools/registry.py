@@ -96,6 +96,54 @@ class ToolRegistry:
 
         return "\n\n---\n\n".join(sections)
 
+    def get_openai_functions(self) -> list[dict]:
+        """Generate OpenAI Function Calling definitions for all tools.
+
+        This provides structured JSON Schema format that OpenAI uses
+        to validate and parse tool calls automatically.
+
+        Returns:
+            List of OpenAI function definitions
+        """
+        functions = []
+
+        for tool in self._tools.values():
+            definition = tool.get_definition()
+            functions.append(definition.to_openai_function())
+
+        # Add FINISH as a special function
+        functions.append({
+            "type": "function",
+            "function": {
+                "name": "FINISH",
+                "description": "Complete the agent execution when all goals are achieved. Use when both Plan A and Plan B have been generated.",
+                "parameters": {
+                    "type": "object",
+                    "properties": {
+                        "final_result": {
+                            "type": "string",
+                            "description": "Summary of what was accomplished",
+                        },
+                        "incomplete_reason": {
+                            "type": "string",
+                            "description": "Reason if finishing with incomplete results (optional)",
+                        },
+                    },
+                    "required": ["final_result"],
+                },
+            },
+        })
+
+        return functions
+
+    def get_tool_names_for_prompt(self) -> str:
+        """Get a simple list of tool names for prompt context.
+
+        Returns:
+            Comma-separated list of tool names
+        """
+        return ", ".join(sorted(self._tools.keys()) + ["FINISH"])
+
     def get_tool_summary(self) -> dict[str, Any]:
         """Get summary of all tools.
 

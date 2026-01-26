@@ -5,7 +5,12 @@ from typing import Any
 
 from langchain_openai import ChatOpenAI
 
-from app.services.agent.study_plan.v4.tools.base import BaseTool, ToolParameter
+from app.services.agent.study_plan.v4.tools.base import (
+    BaseTool,
+    ToolParameter,
+    ensure_dict,
+    safe_get,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -95,7 +100,7 @@ class DesignControlsTool(BaseTool):
             ),
         ]
 
-    async def run(self, experiment: dict) -> dict[str, Any]:
+    async def run(self, experiment: dict | str | None = None) -> dict[str, Any]:
         """Design controls for experiment.
 
         Args:
@@ -104,17 +109,20 @@ class DesignControlsTool(BaseTool):
         Returns:
             Dict with controls list
         """
-        logger.info(f"Designing controls for: {experiment.get('name', 'experiment')}")
+        # Handle missing parameter
+        if experiment is None:
+            logger.warning("design_controls called without experiment parameter")
+            return {
+                "controls": [],
+                "error": "No experiment provided. Call design_experiment first.",
+            }
+
+        # 타입 안전 변환
+        exp = ensure_dict(experiment)
+        exp_name = safe_get(exp, "name", "experiment")
+        logger.info(f"Designing controls for: {exp_name}")
 
         try:
-            from app.services.agent.study_plan.nodes.design_experiments import (
-                design_controls,
-            )
-
-            result = await design_controls(experiment)
-            return {"controls": result}
-
-        except ImportError:
             if self._llm is None:
                 from app.config import get_settings
 
@@ -125,7 +133,7 @@ class DesignControlsTool(BaseTool):
                 )
 
             prompt = DESIGN_CONTROLS_PROMPT.format(
-                experiment=str(experiment)
+                experiment=str(exp)
             )
             response = await self._llm.ainvoke(prompt)
 
@@ -163,4 +171,16 @@ class DesignControlsTool(BaseTool):
                     "has_technical": False,
                     "completeness_score": 0.7,
                 },
+            }
+        except Exception as e:
+            logger.error(f"Error designing controls: {e}")
+            return {
+                "controls": [],
+                "validation": {
+                    "has_vehicle": False,
+                    "has_positive": False,
+                    "has_technical": False,
+                    "completeness_score": 0.0,
+                },
+                "error": str(e),
             }

@@ -2,7 +2,8 @@
 
 import Link from "next/link";
 import { useAuth } from "@/contexts/AuthContext";
-import { Moon, Bell, User, LogOut } from "lucide-react";
+import { Moon, User, LogOut } from "lucide-react";
+import { NotificationBell } from "@/components/notifications";
 
 export function Header() {
   const { user, logout } = useAuth();
@@ -93,12 +94,7 @@ export function Header() {
         </button>
 
         {/* Notifications */}
-        <button
-          className="p-2.5 rounded-lg hover:bg-[var(--oaria-border)]/50 transition-colors text-[var(--oaria-text-secondary)] hover:text-[var(--foreground)]"
-          title="Notifications"
-        >
-          <Bell size={20} />
-        </button>
+        <NotificationBell />
 
         {/* Profile */}
         {user && (

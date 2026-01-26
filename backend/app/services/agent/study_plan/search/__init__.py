@@ -1,37 +1,49 @@
-"""Study Plan Agent v3 - Multi-Tier Search Module
+"""Search 모듈
 
-3-tier 검색 스택:
-- Tier 1: RAG (Weaviate) - 내부 벡터 DB
-- Tier 2: Europe PMC - 오픈 액세스 논문 DB
-- Tier 3: Tavily Web - 웹 검색 (예산 제한)
+3-tier 검색 (RAG → EPMC → Web) 관련 타입 및 서비스.
 """
 
 from .types import (
     SearchTier,
     SearchObjective,
     EvidenceSnippetV3,
-    QueryPlan,
     DP1RouterInput,
     DP1RouterOutput,
+    DP2RouterInput,
+    DP2RouterOutput,
+    DP3RouterInput,
+    DP3RouterOutput,
 )
-from .budget_manager import SearchBudgetManager
-from .cache_manager import SearchCacheManager
-from .europe_pmc_service import EuropePmcService
-from .tavily_service import TavilyService
-from .multi_tier_search import MultiTierSearchService
+from .budget_manager import budget_manager, SearchBudgetManager, RunBudget
+from .cache_manager import cache_manager, SearchCacheManager
+from .europe_pmc_service import europe_pmc_service, EuropePmcService
+from .tavily_service import tavily_service, TavilyService
+from .multi_tier_search import multi_tier_search, MultiTierSearchService, SearchResult
 
 __all__ = [
     # Types
     "SearchTier",
     "SearchObjective",
     "EvidenceSnippetV3",
-    "QueryPlan",
     "DP1RouterInput",
     "DP1RouterOutput",
-    # Services
+    "DP2RouterInput",
+    "DP2RouterOutput",
+    "DP3RouterInput",
+    "DP3RouterOutput",
+    # Budget
+    "budget_manager",
     "SearchBudgetManager",
+    "RunBudget",
+    # Cache
+    "cache_manager",
     "SearchCacheManager",
+    # Services
+    "europe_pmc_service",
     "EuropePmcService",
+    "tavily_service",
     "TavilyService",
+    "multi_tier_search",
     "MultiTierSearchService",
+    "SearchResult",
 ]

@@ -7,7 +7,7 @@ from datetime import datetime
 from typing import Any
 from uuid import UUID
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, ConfigDict, Field
 
 
 class StudyPlanRequest(BaseModel):
@@ -195,15 +195,14 @@ class StudyPlanSaveRequest(BaseModel):
 class StudyPlanListItem(BaseModel):
     """Study Plan 목록 아이템"""
 
+    model_config = ConfigDict(from_attributes=True)
+
     id: UUID
     hypothesis_input: str
     experiment_count: int
     quality_score: float | None
     status: str
     created_at: datetime
-
-    class Config:
-        from_attributes = True
 
 
 class PaginatedStudyPlans(BaseModel):
@@ -287,5 +286,4 @@ class StudyPlanFullResponse(BaseModel):
     created_at: datetime
     updated_at: datetime
 
-    class Config:
-        from_attributes = True
+    model_config = ConfigDict(from_attributes=True)
