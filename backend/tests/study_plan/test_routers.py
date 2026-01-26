@@ -6,12 +6,12 @@ Run with: pytest tests/study_plan/test_routers.py -v
 import pytest
 from unittest.mock import AsyncMock, MagicMock, patch
 
-from app.services.agent.study_plan.routers import (
+from app.services.agent.study_plan.v3.routers import (
     DP1SearchRouter,
     DP2CritiqueRouter,
     DP3SynthesisRouter,
 )
-from app.services.agent.study_plan.search.types import (
+from app.services.agent.study_plan.shared.search.types import (
     SearchTier,
     SearchObjective,
     DP1RouterInput,

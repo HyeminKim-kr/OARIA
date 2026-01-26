@@ -6,7 +6,7 @@ Run with: pytest tests/study_plan/test_graph_v3.py -v
 import pytest
 from unittest.mock import patch, MagicMock
 
-from app.services.agent.study_plan.state import StudyPlanState, ApprovalStatus
+from app.services.agent.study_plan.v3.state import StudyPlanState, ApprovalStatus
 
 
 # ─────────────────────────────────────────────────────────────
@@ -19,7 +19,7 @@ class TestRouteAfterCritiqueV3:
 
     def test_route_redesign(self):
         """redesign 결정시 design으로 라우팅"""
-        from app.services.agent.study_plan.graph import route_after_critique_v3
+        from app.services.agent.study_plan.v3.graph import route_after_critique_v3
 
         state = {"dp2_decision": "redesign"}
         result = route_after_critique_v3(state)
@@ -28,7 +28,7 @@ class TestRouteAfterCritiqueV3:
 
     def test_route_search_for_controls(self):
         """search_for_controls 결정시 search_controls로 라우팅"""
-        from app.services.agent.study_plan.graph import route_after_critique_v3
+        from app.services.agent.study_plan.v3.graph import route_after_critique_v3
 
         state = {"dp2_decision": "search_for_controls"}
         result = route_after_critique_v3(state)
@@ -37,7 +37,7 @@ class TestRouteAfterCritiqueV3:
 
     def test_route_ask_user(self):
         """ask_user 결정시 clarify로 라우팅"""
-        from app.services.agent.study_plan.graph import route_after_critique_v3
+        from app.services.agent.study_plan.v3.graph import route_after_critique_v3
 
         state = {"dp2_decision": "ask_user"}
         result = route_after_critique_v3(state)
@@ -46,7 +46,7 @@ class TestRouteAfterCritiqueV3:
 
     def test_route_accept_minor_issues(self):
         """accept_minor_issues 결정시 measurements로 라우팅"""
-        from app.services.agent.study_plan.graph import route_after_critique_v3
+        from app.services.agent.study_plan.v3.graph import route_after_critique_v3
 
         state = {"dp2_decision": "accept_minor_issues"}
         result = route_after_critique_v3(state)
@@ -55,7 +55,7 @@ class TestRouteAfterCritiqueV3:
 
     def test_route_default(self):
         """결정 없을 때 기본값 measurements"""
-        from app.services.agent.study_plan.graph import route_after_critique_v3
+        from app.services.agent.study_plan.v3.graph import route_after_critique_v3
 
         state = {}
         result = route_after_critique_v3(state)
@@ -73,7 +73,7 @@ class TestBuildStudyPlanGraphV3:
 
     def test_graph_builds_without_error(self):
         """v3 그래프가 에러 없이 빌드되는지 확인"""
-        from app.services.agent.study_plan.graph import build_study_plan_graph_v3
+        from app.services.agent.study_plan.v3.graph import build_study_plan_graph_v3
 
         graph = build_study_plan_graph_v3()
 
@@ -81,7 +81,7 @@ class TestBuildStudyPlanGraphV3:
 
     def test_graph_has_expected_nodes(self):
         """v3 그래프에 예상 노드들이 있는지 확인"""
-        from app.services.agent.study_plan.graph import build_study_plan_graph_v3
+        from app.services.agent.study_plan.v3.graph import build_study_plan_graph_v3
 
         graph = build_study_plan_graph_v3()
 
@@ -91,7 +91,7 @@ class TestBuildStudyPlanGraphV3:
 
     def test_graph_compiles(self):
         """v3 그래프가 컴파일되는지 확인"""
-        from app.services.agent.study_plan.graph import build_study_plan_graph_v3
+        from app.services.agent.study_plan.v3.graph import build_study_plan_graph_v3
 
         graph = build_study_plan_graph_v3()
         compiled = graph.compile()
@@ -109,7 +109,7 @@ class TestStudyPlanStateV3Fields:
 
     def test_state_has_v3_fields(self):
         """state.py에 v3 필드가 정의되어 있는지 확인"""
-        from app.services.agent.study_plan.state import StudyPlanState
+        from app.services.agent.study_plan.v3.state import StudyPlanState
 
         # TypedDict 키 확인
         annotations = StudyPlanState.__annotations__
@@ -131,7 +131,7 @@ class TestStudyPlanStateV3Fields:
 
     def test_create_initial_state_v3_defaults(self):
         """create_initial_state가 v3 기본값을 포함하는지"""
-        from app.services.agent.study_plan.state import create_initial_state
+        from app.services.agent.study_plan.v3.state import create_initial_state
 
         state = create_initial_state(
             user_input="Test hypothesis",
@@ -158,25 +158,25 @@ class TestV3NodesImport:
 
     def test_search_studies_v3_imports(self):
         """search_studies_v3 import 테스트"""
-        from app.services.agent.study_plan.nodes import search_studies_v3
+        from app.services.agent.study_plan.v3.nodes import search_studies_v3
 
         assert callable(search_studies_v3)
 
     def test_critique_refine_v3_imports(self):
         """critique_refine_v3 import 테스트"""
-        from app.services.agent.study_plan.nodes import critique_refine_v3
+        from app.services.agent.study_plan.v3.nodes import critique_refine_v3
 
         assert callable(critique_refine_v3)
 
     def test_synthesize_plan_v3_imports(self):
         """synthesize_plan_v3 import 테스트"""
-        from app.services.agent.study_plan.nodes import synthesize_plan_v3
+        from app.services.agent.study_plan.v3.nodes import synthesize_plan_v3
 
         assert callable(synthesize_plan_v3)
 
     def test_search_for_controls_imports(self):
         """search_for_controls import 테스트"""
-        from app.services.agent.study_plan.nodes import search_for_controls
+        from app.services.agent.study_plan.v3.nodes import search_for_controls
 
         assert callable(search_for_controls)
 
@@ -193,8 +193,8 @@ class TestStudyPlanV3Integration:
     @pytest.mark.asyncio
     async def test_full_v3_execution(self):
         """v3 전체 실행 테스트"""
-        from app.services.agent.study_plan.graph import build_study_plan_graph_v3
-        from app.services.agent.study_plan.state import create_initial_state
+        from app.services.agent.study_plan.v3.graph import build_study_plan_graph_v3
+        from app.services.agent.study_plan.v3.state import create_initial_state
 
         graph = build_study_plan_graph_v3()
         compiled = graph.compile()

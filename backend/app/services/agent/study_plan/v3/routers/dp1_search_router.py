@@ -10,7 +10,7 @@
 
 import logging
 
-from ..search.types import (
+from ...shared.search.types import (
     SearchTier,
     SearchObjective,
     DP1RouterInput,

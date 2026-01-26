@@ -88,7 +88,7 @@ class ParseHypothesisTool(BaseTool):
 
         try:
             # Try to use existing node implementation
-            from app.services.agent.study_plan.nodes.parse_hypothesis import (
+            from app.services.agent.study_plan.v3.nodes.parse_hypothesis import (
                 parse_hypothesis,
             )
 

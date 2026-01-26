@@ -17,7 +17,7 @@ from app.config import settings
 
 from ..prompts import GENERATE_SEARCH_QUERIES_SYSTEM, GENERATE_SEARCH_QUERIES_USER
 from ..state import StudyPlanState
-from ..search import (
+from ...shared.search import (
     SearchTier,
     SearchObjective,
     DP1RouterInput,

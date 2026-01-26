@@ -186,7 +186,7 @@ class StudySearchService:
     ) -> list[PaperResult]:
         """Tier 2: Europe PMC 검색"""
         try:
-            from app.services.agent.study_plan.search.europe_pmc_service import (
+            from ..search.europe_pmc_service import (
                 europe_pmc_service,
             )
 
@@ -233,7 +233,7 @@ class StudySearchService:
     ) -> list[PaperResult]:
         """Tier 3: Tavily 웹 검색"""
         try:
-            from app.services.agent.study_plan.search.tavily_service import (
+            from ..search.tavily_service import (
                 tavily_service,
             )
 

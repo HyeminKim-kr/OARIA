@@ -89,7 +89,7 @@ class EPMCSearchTool(BaseTool):
 
         try:
             # Import Europe PMC service
-            from app.services.agent.study_plan.search.europe_pmc_service import (
+            from app.services.agent.study_plan.shared.search.europe_pmc_service import (
                 EuropePmcService,
             )
 

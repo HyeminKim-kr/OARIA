@@ -8,7 +8,7 @@ Note: These tests mock Redis to run without external dependencies.
 import pytest
 from unittest.mock import AsyncMock, patch, MagicMock
 
-from app.services.agent.study_plan.search.types import SearchTier
+from app.services.agent.study_plan.shared.search.types import SearchTier
 
 
 # ─────────────────────────────────────────────────────────────
@@ -33,10 +33,10 @@ class TestBudgetManager:
     async def test_init_run(self, mock_redis):
         """run 초기화 테스트"""
         with patch(
-            "app.services.agent.study_plan.search.budget_manager.budget_manager._redis",
+            "app.services.agent.study_plan.shared.search.budget_manager.budget_manager._redis",
             mock_redis,
         ):
-            from app.services.agent.study_plan.search.budget_manager import budget_manager
+            from app.services.agent.study_plan.shared.search.budget_manager import budget_manager
 
             await budget_manager.init_run("run_test_001")
 
@@ -49,10 +49,10 @@ class TestBudgetManager:
         mock_redis.get = AsyncMock(return_value="0")
 
         with patch(
-            "app.services.agent.study_plan.search.budget_manager.budget_manager._redis",
+            "app.services.agent.study_plan.shared.search.budget_manager.budget_manager._redis",
             mock_redis,
         ):
-            from app.services.agent.study_plan.search.budget_manager import budget_manager
+            from app.services.agent.study_plan.shared.search.budget_manager import budget_manager
 
             result = await budget_manager.can_use_tier("run_001", SearchTier.RAG)
 
@@ -66,10 +66,10 @@ class TestBudgetManager:
         mock_redis.get = AsyncMock(return_value="0")
 
         with patch(
-            "app.services.agent.study_plan.search.budget_manager.budget_manager._redis",
+            "app.services.agent.study_plan.shared.search.budget_manager.budget_manager._redis",
             mock_redis,
         ):
-            from app.services.agent.study_plan.search.budget_manager import budget_manager
+            from app.services.agent.study_plan.shared.search.budget_manager import budget_manager
 
             result = await budget_manager.can_use_tier("run_001", SearchTier.EPMC)
 
@@ -82,10 +82,10 @@ class TestBudgetManager:
         mock_redis.get = AsyncMock(return_value="2")
 
         with patch(
-            "app.services.agent.study_plan.search.budget_manager.budget_manager._redis",
+            "app.services.agent.study_plan.shared.search.budget_manager.budget_manager._redis",
             mock_redis,
         ):
-            from app.services.agent.study_plan.search.budget_manager import budget_manager
+            from app.services.agent.study_plan.shared.search.budget_manager import budget_manager
 
             result = await budget_manager.can_use_tier("run_001", SearchTier.EPMC)
 
@@ -98,10 +98,10 @@ class TestBudgetManager:
         mock_redis.get = AsyncMock(return_value="1000")
 
         with patch(
-            "app.services.agent.study_plan.search.budget_manager.budget_manager._redis",
+            "app.services.agent.study_plan.shared.search.budget_manager.budget_manager._redis",
             mock_redis,
         ):
-            from app.services.agent.study_plan.search.budget_manager import budget_manager
+            from app.services.agent.study_plan.shared.search.budget_manager import budget_manager
 
             result = await budget_manager.can_use_tier("run_001", SearchTier.WEB)
 
@@ -113,10 +113,10 @@ class TestBudgetManager:
         mock_redis.incr = AsyncMock(return_value=1)
 
         with patch(
-            "app.services.agent.study_plan.search.budget_manager.budget_manager._redis",
+            "app.services.agent.study_plan.shared.search.budget_manager.budget_manager._redis",
             mock_redis,
         ):
-            from app.services.agent.study_plan.search.budget_manager import budget_manager
+            from app.services.agent.study_plan.shared.search.budget_manager import budget_manager
 
             count = await budget_manager.increment_run("run_001", SearchTier.EPMC)
 
@@ -129,10 +129,10 @@ class TestBudgetManager:
         mock_redis.get = AsyncMock(return_value="1")
 
         with patch(
-            "app.services.agent.study_plan.search.budget_manager.budget_manager._redis",
+            "app.services.agent.study_plan.shared.search.budget_manager.budget_manager._redis",
             mock_redis,
         ):
-            from app.services.agent.study_plan.search.budget_manager import budget_manager
+            from app.services.agent.study_plan.shared.search.budget_manager import budget_manager
 
             remaining = await budget_manager.get_remaining("run_001", SearchTier.EPMC)
 
@@ -145,10 +145,10 @@ class TestBudgetManager:
         mock_redis.get = AsyncMock(return_value="500")
 
         with patch(
-            "app.services.agent.study_plan.search.budget_manager.budget_manager._redis",
+            "app.services.agent.study_plan.shared.search.budget_manager.budget_manager._redis",
             mock_redis,
         ):
-            from app.services.agent.study_plan.search.budget_manager import budget_manager
+            from app.services.agent.study_plan.shared.search.budget_manager import budget_manager
 
             remaining = await budget_manager.get_web_monthly_remaining()
 
@@ -161,10 +161,10 @@ class TestBudgetManager:
         mock_redis.get = AsyncMock(return_value="0")
 
         with patch(
-            "app.services.agent.study_plan.search.budget_manager.budget_manager._redis",
+            "app.services.agent.study_plan.shared.search.budget_manager.budget_manager._redis",
             mock_redis,
         ):
-            from app.services.agent.study_plan.search.budget_manager import budget_manager
+            from app.services.agent.study_plan.shared.search.budget_manager import budget_manager
 
             status = await budget_manager.get_budget_status("run_001")
 
@@ -187,7 +187,7 @@ class TestBudgetManagerIntegration:
     @pytest.mark.asyncio
     async def test_full_run_lifecycle(self):
         """전체 run 라이프사이클 테스트"""
-        from app.services.agent.study_plan.search.budget_manager import budget_manager
+        from app.services.agent.study_plan.shared.search.budget_manager import budget_manager
 
         run_id = "test_run_integration"
 

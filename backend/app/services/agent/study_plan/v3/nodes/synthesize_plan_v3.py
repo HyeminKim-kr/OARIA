@@ -15,7 +15,7 @@ from openai import AsyncOpenAI
 from app.config import settings
 
 from ..state import ApprovalStatus, StudyPlanState
-from ..search.types import DP3RouterInput
+from ...shared.search.types import DP3RouterInput
 from ..routers import DP3SynthesisRouter
 
 logger = logging.getLogger(__name__)

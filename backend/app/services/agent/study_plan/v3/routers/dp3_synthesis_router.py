@@ -11,7 +11,7 @@ Plan A/B 분기 결정 라우터.
 import logging
 from dataclasses import dataclass, field
 
-from ..search.types import DP3RouterInput, DP3RouterOutput
+from ...shared.search.types import DP3RouterInput, DP3RouterOutput
 
 logger = logging.getLogger(__name__)
 

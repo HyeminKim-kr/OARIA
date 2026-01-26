@@ -13,7 +13,7 @@ Critique 후 전략 결정 라우터.
 import logging
 from typing import Optional
 
-from ..search.types import DP2RouterInput, DP2RouterOutput
+from ...shared.search.types import DP2RouterInput, DP2RouterOutput
 
 logger = logging.getLogger(__name__)
 
