@@ -20,8 +20,8 @@ from ..state import (
     RevisionRecord,
     StudyPlanState,
 )
-from ..search import SearchTier, budget_manager
-from ..search.types import DP2RouterInput
+from ...shared.search import SearchTier, budget_manager
+from ...shared.search.types import DP2RouterInput
 from ..routers import DP2CritiqueRouter
 
 logger = logging.getLogger(__name__)

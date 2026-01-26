@@ -79,7 +79,7 @@ class WebSearchTool(BaseTool):
         logger.info(f"Web search: {query[:100]}... (depth={search_depth})")
 
         try:
-            from app.services.agent.study_plan.search.tavily_service import (
+            from app.services.agent.study_plan.shared.search.tavily_service import (
                 TavilyService,
             )
 

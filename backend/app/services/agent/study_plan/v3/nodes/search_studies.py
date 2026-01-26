@@ -10,7 +10,7 @@ from openai import AsyncOpenAI
 from app.config import settings
 
 from ..prompts import GENERATE_SEARCH_QUERIES_SYSTEM, GENERATE_SEARCH_QUERIES_USER
-from ..rag import study_search_service
+from ...shared.rag import study_search_service
 from ..state import StudyPlanState
 
 logger = logging.getLogger(__name__)

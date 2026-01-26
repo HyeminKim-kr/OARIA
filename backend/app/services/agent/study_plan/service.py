@@ -11,14 +11,14 @@ from typing import Any, AsyncGenerator
 
 from langgraph.graph.state import CompiledStateGraph
 
-from .graph import (
+from .v3.graph import (
     compile_study_plan_graph,
     compile_study_plan_graph_no_synthesis,
     build_study_plan_graph_v3,
 )
-from .nodes.synthesize_plan import synthesize_plan
-from .nodes.synthesize_plan_v3 import synthesize_plan_v3
-from .state import (
+from .v3.nodes.synthesize_plan import synthesize_plan
+from .v3.nodes.synthesize_plan_v3 import synthesize_plan_v3
+from .v3.state import (
     ApprovalStatus,
     ExperimentType,
     StudyPlanState,

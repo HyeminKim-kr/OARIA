@@ -81,7 +81,7 @@ class RAGSearchTool(BaseTool):
 
         try:
             # Import here to avoid circular dependencies
-            from app.services.agent.study_plan.rag.search import StudySearchService
+            from app.services.agent.study_plan.shared.rag.search import StudySearchService
 
             # Parse filters
             year_from = None

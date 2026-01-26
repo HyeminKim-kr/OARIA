@@ -7,7 +7,7 @@ DP2 Router가 search_for_controls를 결정했을 때 실행.
 import logging
 
 from ..state import StudyPlanState
-from ..search import (
+from ...shared.search import (
     SearchTier,
     SearchObjective,
     multi_tier_search,

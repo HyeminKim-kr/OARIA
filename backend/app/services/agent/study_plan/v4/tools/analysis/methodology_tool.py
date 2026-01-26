@@ -107,7 +107,7 @@ class AnalyzeMethodologyTool(BaseTool):
             }
 
         try:
-            from app.services.agent.study_plan.nodes.analyze_methodology import (
+            from app.services.agent.study_plan.v3.nodes.analyze_methodology import (
                 analyze_methodology,
             )
 

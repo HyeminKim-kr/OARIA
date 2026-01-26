@@ -23,10 +23,10 @@ from ..services.agent.study_plan.service import (
     StudyPlanEventType,
     study_plan_service,
 )
-from ..services.agent.study_plan.nodes.synthesize_plan_v3 import synthesize_plan_v3
+from ..services.agent.study_plan.v3.nodes.synthesize_plan_v3 import synthesize_plan_v3
 from ..services.agent.study_plan.v4.service import get_study_plan_agent_v4
 from ..services.agent.study_plan.v4.core.loop import AgentLoopEvent
-from ..services.agent.study_plan.state import (
+from ..services.agent.study_plan.v3.state import (
     ApprovalStatus,
     create_initial_state,
     ExperimentType,

@@ -5,7 +5,7 @@ Run with: pytest tests/study_plan/test_search_types.py -v
 
 import pytest
 
-from app.services.agent.study_plan.search.types import (
+from app.services.agent.study_plan.shared.search.types import (
     SearchTier,
     SearchObjective,
     ClaimType,

@@ -20,7 +20,7 @@ from .service import (
     get_study_plan_service,
     study_plan_service,
 )
-from .state import (
+from .v3.state import (
     ApprovalChoice,
     ApprovalGateResult,
     ApprovalItem,
