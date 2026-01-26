@@ -150,8 +150,8 @@ class AgentLoop:
                     logger.info("Agent decided to finish")
                     break
 
-                # Act: Execute tool
-                observation = await self.executor.execute(action)
+                # Act: Execute tool (pass state for auto-fill)
+                observation = await self.executor.execute(action, state)
 
                 # Record step
                 step = ExecutionStep(
@@ -256,9 +256,12 @@ class AgentLoop:
             has_valid_plan = bool(state.plan_a and len(state.plan_a) > 100)
             is_success = (final_status.achieved or has_valid_plan) and not history.has_critical_error()
 
+            # Combine Plan A + Plan B for final_plan (v3 호환성)
+            combined_plan = self._combine_plans(state.plan_a, state.plan_b)
+
             return AgentResult(
                 success=is_success,
-                final_plan=state.plan_a or "",  # v3 호환성
+                final_plan=combined_plan,  # v3 호환성: Plan A + Plan B 합침
                 plan_a=state.plan_a,
                 plan_b=state.plan_b,
                 executive_summary=state.executive_summary,
@@ -361,8 +364,8 @@ class AgentLoop:
                 if action.name == "FINISH":
                     break
 
-                # Execute
-                observation = await self.executor.execute(action)
+                # Execute (pass state for auto-fill)
+                observation = await self.executor.execute(action, state)
 
                 yield (AgentLoopEvent.OBSERVATION, {
                     "iteration": state.iteration_count,
@@ -472,12 +475,12 @@ class AgentLoop:
             has_valid_plan = bool(state.plan_a and len(state.plan_a) > 100)
             is_success = final_status.achieved or has_valid_plan
 
-            # final_plan을 v3와 호환되도록 plan_a로 설정
-            final_plan = state.plan_a or ""
+            # Combine Plan A + Plan B for final_plan (v3 호환성)
+            combined_plan = self._combine_plans(state.plan_a, state.plan_b)
 
             yield (AgentLoopEvent.COMPLETED, {
                 "success": is_success,
-                "final_plan": final_plan,  # v3 호환성
+                "final_plan": combined_plan,  # v3 호환성: Plan A + Plan B 합침
                 "plan_a": state.plan_a,
                 "plan_b": state.plan_b,
                 "executive_summary": state.executive_summary,
@@ -559,7 +562,7 @@ class AgentLoop:
         # Execute recovery actions (limited to 1 to prevent cascade)
         if recovery_plan.next_actions:
             recovery_action = recovery_plan.next_actions[0]
-            recovery_obs = await self.executor.execute(recovery_action)
+            recovery_obs = await self.executor.execute(recovery_action, state)
 
             if recovery_obs.success:
                 self._update_state(state, recovery_action, recovery_obs)
@@ -644,3 +647,41 @@ class AgentLoop:
         elif action.name == "generate_plan_b":
             if isinstance(result, dict):
                 state.plan_b = result.get("plan_b")
+
+    def _combine_plans(
+        self,
+        plan_a: str | None,
+        plan_b: str | None,
+    ) -> str:
+        """Combine Plan A and Plan B into a single output.
+
+        Creates a v3-compatible format with both plans together.
+
+        Args:
+            plan_a: The ideal plan (Plan A)
+            plan_b: The practical alternative (Plan B)
+
+        Returns:
+            Combined plan string with clear separation
+        """
+        if not plan_a:
+            return ""
+
+        parts = [
+            "Executive Summary",
+            "[대안]",
+            "",
+            "Plan A: 이상적 설계",
+            plan_a,
+        ]
+
+        if plan_b:
+            parts.extend([
+                "",
+                "---",
+                "",
+                "Plan B: 현실적 대안",
+                plan_b,
+            ])
+
+        return "\n".join(parts)

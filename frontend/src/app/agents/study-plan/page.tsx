@@ -572,7 +572,7 @@ export default function StudyPlanPage() {
               if (agentVersion === "v4" && currentEventType === "completed") {
                 finalResult = {
                   success: data.success || false,
-                  final_plan: data.plan_a || "",
+                  final_plan: data.final_plan || data.plan_a || "",  // Plan A + Plan B combined
                   executive_summary: data.executive_summary || "",
                   experiment_count: data.experiment_count || 0,
                   approval_required: false,

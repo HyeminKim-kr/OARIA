@@ -33,7 +33,7 @@ class StudySearchService:
         use_reranker: bool = True,
         min_relevance_score: float = 0.3,
         enable_weaviate: bool = True,
-        enable_epmc: bool = True,
+        enable_epmc: bool = False,  # Disabled: Tavily covers PubMed, abstract-only is insufficient
         enable_tavily: bool = True,
     ):
         self.top_k_per_query = top_k_per_query
@@ -182,7 +182,7 @@ class StudySearchService:
         self,
         queries: list[str],
         year_from: int | None = None,
-        year_to: int | None = None,
+        year_to: int | None = None,  # Note: EPMC doesn't support year_to, kept for interface consistency
     ) -> list[PaperResult]:
         """Tier 2: Europe PMC 검색"""
         try:
@@ -193,11 +193,11 @@ class StudySearchService:
             results = []
             for query in queries:
                 try:
+                    # Note: europe_pmc_service.search() only supports year_from, not year_to
                     epmc_result = await europe_pmc_service.search(
                         query=query,
                         max_results=self.top_k_per_query,
                         year_from=year_from,
-                        year_to=year_to,
                     )
 
                     for paper in epmc_result.papers:

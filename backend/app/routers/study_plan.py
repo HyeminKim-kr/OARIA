@@ -590,7 +590,7 @@ async def generate_study_plan_v4(
         return StudyPlanSummaryResponse(
             success=result.success,
             plan_id=None,
-            final_plan=result.plan_a,
+            final_plan=result.final_plan,  # Plan A + Plan B combined
             executive_summary=result.executive_summary,
             experiment_count=result.experiment_count,
             approval_required=False,
