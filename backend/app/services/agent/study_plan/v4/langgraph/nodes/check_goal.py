@@ -42,7 +42,17 @@ def create_check_goal_node(goal_checker: "GoalChecker"):
         Returns:
             Updated state with goal status
         """
+        import sys
+        print("\n" + "="*70, file=sys.stderr, flush=True)
+        print("[CHECK_GOAL NODE CALLED]", file=sys.stderr, flush=True)
+        print("="*70 + "\n", file=sys.stderr, flush=True)
+
         iteration = state.get("iteration_count", 0)
+        current_action = state.get("current_action", "")
+        is_terminal = state.get("is_terminal", False)
+        print(f"[CHECK_GOAL] iteration={iteration}, current_action={current_action}", file=sys.stderr, flush=True)
+        print(f"[CHECK_GOAL] is_terminal={is_terminal}", file=sys.stderr, flush=True)
+
         logger.info(f"=== Check Goal Node (iteration {iteration}) ===")
 
         # Convert state to WorkingMemory for GoalChecker
@@ -104,6 +114,14 @@ def create_check_goal_node(goal_checker: "GoalChecker"):
         next_priority = None
         if not goal_achieved:
             next_priority = goal_checker.get_next_priority(working_memory)
+
+        import sys
+        print(f"[CHECK_GOAL] goal_achieved={goal_achieved}, force_complete={force_complete}", file=sys.stderr, flush=True)
+        print(f"[CHECK_GOAL] status.achieved={status.achieved}", file=sys.stderr, flush=True)
+        print(f"[CHECK_GOAL] missing={status.missing}", file=sys.stderr, flush=True)
+        print(f"[CHECK_GOAL] RETURNING goal_achieved={goal_achieved}", file=sys.stderr, flush=True)
+        print(f"[CHECK_GOAL] pending_events count: {len(pending_events)}", file=sys.stderr, flush=True)
+        print("="*70 + "\n", file=sys.stderr, flush=True)
 
         return {
             "goal_achieved": goal_achieved,

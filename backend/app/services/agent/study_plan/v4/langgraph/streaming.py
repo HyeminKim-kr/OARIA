@@ -10,50 +10,32 @@ from datetime import datetime, timezone
 from typing import AsyncIterator, Any
 
 from app.services.agent.study_plan.v4.langgraph.state import StudyPlanState
+from app.services.agent.study_plan.v4.constants import AgentEventType
 
 logger = logging.getLogger(__name__)
 
 
-# ============================================================================
-# SSE Event Types (matches frontend expectations)
-# ============================================================================
-
-class SSEEventType:
-    """SSE event types for frontend compatibility."""
-
-    # Lifecycle events
-    INITIALIZATION = "initialization"
-    COMPLETION = "completion"
-    ERROR = "error"
-
-    # Thinking events
-    REASONING = "reasoning"
-    ACTING = "acting"
-    OBSERVATION = "observation"
-    GOAL_CHECK = "goal_check"
-
-    # Recovery events
-    RECOVERY = "recovery"
-    USER_INPUT_REQUEST = "user_input_request"
-
-    # Result events
-    RESULT = "result"
+# Alias for backwards compatibility
+SSEEventType = AgentEventType
 
 
 # ============================================================================
 # Event Formatters
 # ============================================================================
 
-def format_sse_event(event_type: str, data: dict) -> str:
+def format_sse_event(event_type: str | AgentEventType, data: dict) -> str:
     """Format event as SSE string.
 
     Args:
-        event_type: Event type name
+        event_type: Event type name (string or enum)
         data: Event data dictionary
 
     Returns:
         SSE-formatted string
     """
+    # Convert enum to string value if needed
+    if hasattr(event_type, 'value'):
+        event_type = event_type.value
     json_data = json.dumps(data, ensure_ascii=False, default=str)
     return f"event: {event_type}\ndata: {json_data}\n\n"
 
@@ -69,11 +51,15 @@ def create_initialization_event(state: StudyPlanState) -> dict:
 
 
 def create_completion_event(state: StudyPlanState) -> dict:
-    """Create completion event data."""
+    """Create completion event data.
+
+    NOTE: Must include plan_a, plan_b, executive_summary for agent_job_executor.py
+    """
     return {
         "timestamp": datetime.now(timezone.utc).isoformat(),
         "status": state.get("final_status", "completed"),
         "goal_achieved": state.get("goal_achieved", False),
+        "success": state.get("goal_achieved", False),  # For agent_job_executor
         "iteration_count": state.get("iteration_count", 0),
         "total_duration_ms": state.get("total_duration_ms", 0),
         "experiment_count": len(state.get("experiments") or []),
@@ -82,6 +68,11 @@ def create_completion_event(state: StudyPlanState) -> dict:
         "quality_score": state.get("quality_score", 0.0),
         "cumulative_tokens": state.get("cumulative_tokens"),
         "estimated_cost": state.get("estimated_cost", 0.0),
+        # Include actual data for agent_job_executor.py
+        "plan_a": state.get("plan_a", ""),
+        "plan_b": state.get("plan_b", ""),
+        "executive_summary": state.get("executive_summary", ""),
+        "experiments": state.get("experiments") or [],
     }
 
 
@@ -144,8 +135,12 @@ async def stream_with_events(
         # Run the graph and stream events
         final_state = None
 
+        import sys
+        print("[STREAMING] Starting astream loop", file=sys.stderr, flush=True)
+
         async for event in compiled_graph.astream(initial_state, config=config):
             for node_name, output in event.items():
+                print(f"[STREAMING] Node '{node_name}' produced output", file=sys.stderr, flush=True)
                 logger.debug(f"Node '{node_name}' produced output")
 
                 # Skip if output is None (some nodes may not produce output)
@@ -172,19 +167,29 @@ async def stream_with_events(
                 final_state = {**initial_state, **output}
 
         # Emit final completion and result events
+        print("[STREAMING] astream loop completed!", file=sys.stderr, flush=True)
+        print(f"[STREAMING] final_state exists: {final_state is not None}", file=sys.stderr, flush=True)
+
         if final_state:
+            print(f"[STREAMING] final_state keys: {list(final_state.keys())[:10]}...", file=sys.stderr, flush=True)
+            print(f"[STREAMING] Emitting COMPLETED event", file=sys.stderr, flush=True)
             yield format_sse_event(
-                SSEEventType.COMPLETION,
+                SSEEventType.COMPLETED,
                 create_completion_event(final_state),
             )
+            print(f"[STREAMING] Emitting RESULT event", file=sys.stderr, flush=True)
             yield format_sse_event(
                 SSEEventType.RESULT,
                 create_result_event(final_state),
             )
+            print(f"[STREAMING] COMPLETION and RESULT events emitted!", file=sys.stderr, flush=True)
 
         logger.info(f"Stream completed. Events emitted: {len(emitted_events)}")
+        print(f"[STREAMING] Stream completed. Total events: {len(emitted_events)}", file=sys.stderr, flush=True)
 
     except Exception as e:
+        import sys
+        print(f"[STREAMING] EXCEPTION: {type(e).__name__}: {e}", file=sys.stderr, flush=True)
         logger.error(f"Stream error: {e}", exc_info=True)
         yield format_sse_event(
             SSEEventType.ERROR,
@@ -277,7 +282,7 @@ class LegacyEventAdapter:
             "action": SSEEventType.ACTING,
             "tool_call": SSEEventType.ACTING,
             "tool_result": SSEEventType.OBSERVATION,
-            "done": SSEEventType.COMPLETION,
+            "done": SSEEventType.COMPLETED,
         }
 
         v4_type = type_mapping.get(event_type, event_type)

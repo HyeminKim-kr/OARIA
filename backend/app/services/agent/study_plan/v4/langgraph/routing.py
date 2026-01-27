@@ -63,21 +63,37 @@ def route_after_goal_check(state: StudyPlanState) -> Literal["reason", "finalize
     Returns:
         Next node name: "reason" (continue loop) or "finalize" (done)
     """
+    import sys
+    print(f"\n[ROUTING] route_after_goal_check called", file=sys.stderr, flush=True)
+    print(f"[ROUTING] goal_achieved={state.get('goal_achieved')}", file=sys.stderr, flush=True)
+    print(f"[ROUTING] is_terminal={state.get('is_terminal')}", file=sys.stderr, flush=True)
+    print(f"[ROUTING] current_action={state.get('current_action')}", file=sys.stderr, flush=True)
+    print(f"[ROUTING] iteration={state.get('iteration_count', 0)}", file=sys.stderr, flush=True)
+
     # Goal achieved -> finalize
     if state.get("goal_achieved"):
+        print(f"[ROUTING] → FINALIZE (goal_achieved)", file=sys.stderr, flush=True)
+        return FINALIZE
+
+    # is_terminal flag set (FINISH was executed) -> finalize
+    if state.get("is_terminal"):
+        print(f"[ROUTING] → FINALIZE (is_terminal)", file=sys.stderr, flush=True)
         return FINALIZE
 
     # FINISH action explicitly called -> finalize
     if state.get("current_action") == "FINISH":
+        print(f"[ROUTING] → FINALIZE (FINISH action)", file=sys.stderr, flush=True)
         return FINALIZE
 
     # Max iterations reached -> finalize
     iteration = state.get("iteration_count", 0)
     max_iter = state.get("max_iterations", 30)
     if iteration >= max_iter:
+        print(f"[ROUTING] → FINALIZE (max_iterations)", file=sys.stderr, flush=True)
         return FINALIZE
 
     # Continue reasoning
+    print(f"[ROUTING] → REASON (continue)", file=sys.stderr, flush=True)
     return REASON
 
 
@@ -282,20 +298,11 @@ def get_recovery_options(error: str, action: str) -> list[dict]:
 
 
 # ============================================================================
-# Event Types (for compatibility with existing streaming)
+# Event Types (centralized in constants module)
 # ============================================================================
 
-class AgentLoopEvent:
-    """Event types emitted during agent execution.
+# Import from centralized constants - this is the single source of truth
+from app.services.agent.study_plan.v4.constants import AgentEventType
 
-    Mirrors the events from core/loop.py for frontend compatibility.
-    """
-
-    STARTED = "started"
-    THINKING = "thinking"
-    ACTING = "acting"
-    OBSERVATION = "observation"
-    RECOVERY = "recovery"
-    GOAL_CHECK = "goal_check"
-    COMPLETED = "completed"
-    ERROR = "error"
+# Alias for backwards compatibility
+AgentLoopEvent = AgentEventType

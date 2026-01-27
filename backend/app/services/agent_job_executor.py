@@ -18,7 +18,7 @@ from ..core.sse_manager import sse_manager
 from ..database import async_session_maker
 from ..models.agent_job import AgentJob, AgentJobStatus
 from ..services.agent.study_plan.v4.service import get_study_plan_agent_v4
-from ..services.agent.study_plan.v4.langgraph.routing import AgentLoopEvent
+from ..services.agent.study_plan.v4.constants import AgentEventType as AgentLoopEvent
 from .agent_job_service import AgentJobService
 from .notification_service import NotificationService
 
@@ -115,6 +115,7 @@ class AgentJobExecutor:
         try:
             # v4 ReAct 스트리밍 실행 (only v4 supported)
             agent_v4 = get_study_plan_agent_v4()
+            import sys
             async for event_type, event_data in agent_v4.execute_stream(
                 hypothesis=hypothesis,
                 research_context=research_context,
@@ -122,6 +123,7 @@ class AgentJobExecutor:
                 preferred_experiment_types=preferred_experiment_types,
                 user_id=str(user_id),
             ):
+                print(f"[EXECUTOR] Received event: {event_type}", file=sys.stderr, flush=True)
                 await self._process_v4_event(job, event_type, event_data)
 
         except Exception as e:
@@ -289,6 +291,8 @@ class AgentJobExecutor:
 
         elif event_type == AgentLoopEvent.COMPLETED:
             # 완료 처리
+            import sys
+            print(f"[EXECUTOR] Processing COMPLETED event!", file=sys.stderr, flush=True)
             result_data = {
                 "plan_a": event_data.get("plan_a", ""),
                 "plan_b": event_data.get("plan_b", ""),
