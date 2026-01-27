@@ -15,9 +15,88 @@ import {
   Tag,
   Loader2,
   X,
+  Database,
+  FlaskConical,
 } from "lucide-react";
 import { dashboardApi, Paper } from "@/lib/api";
 import { PASTEL } from "./constants";
+
+// ─────────────────────────────────────────────────────
+// Mock data generator
+// ─────────────────────────────────────────────────────
+
+const MOCK_KEYWORDS = [
+  "CRISPR", "Machine Learning", "Deep Learning", "Genomics", "Proteomics",
+  "Drug Discovery", "Single Cell", "Immunotherapy", "Biomarkers", "RNA-seq",
+  "Metabolomics", "Cancer", "Neuroscience", "Epigenetics", "Microbiome",
+  "Nanomedicine", "Gene Therapy", "Stem Cells", "Clinical Trials", "mRNA",
+  "Bioinformatics", "Precision Medicine", "Antibody", "Apoptosis", "Autophagy",
+  "Cell Signaling", "Transcriptomics", "Metastasis", "Angiogenesis", "COVID-19",
+];
+
+const MOCK_JOURNALS = [
+  "Nature", "Science", "Cell", "PNAS", "Nature Medicine",
+  "The Lancet", "NEJM", "BMJ", "Nature Biotechnology", "Cancer Research",
+  "Genome Biology", "Molecular Cell", "Nature Genetics", "Blood", "JAMA",
+  "Cell Reports", "eLife", "PLoS ONE", "Nucleic Acids Research", "Bioinformatics",
+];
+
+const MOCK_AUTHORS = [
+  "Zhang Y.", "Wang L.", "Chen X.", "Li J.", "Liu H.",
+  "Kim S.", "Park J.", "Tanaka K.", "Smith J.", "Johnson M.",
+  "Brown A.", "Lee D.", "Yang W.", "Wu Q.", "Patel R.",
+  "Garcia M.", "Müller T.", "Singh P.", "Anderson B.", "Taylor C.",
+];
+
+function generateMockPapers(count: number): Paper[] {
+  const papers: Paper[] = [];
+  const baseDate = new Date("2020-01-01");
+  for (let i = 0; i < count; i++) {
+    const year = 2020 + Math.floor(Math.random() * 6); // 2020-2025
+    const kwCount = 2 + Math.floor(Math.random() * 4);
+    const kwSet = new Set<string>();
+    while (kwSet.size < kwCount) kwSet.add(MOCK_KEYWORDS[Math.floor(Math.random() * MOCK_KEYWORDS.length)]);
+    const authCount = 1 + Math.floor(Math.random() * 6);
+    const authors = Array.from({ length: authCount }, (_, j) => ({
+      author_name: MOCK_AUTHORS[Math.floor(Math.random() * MOCK_AUTHORS.length)],
+      author_order: j + 1,
+      is_corresponding: j === 0,
+    }));
+    const daysOffset = Math.floor(Math.random() * 2000);
+    const created = new Date(baseDate.getTime() + daysOffset * 86400000);
+    papers.push({
+      id: `mock-${i}`,
+      paper_id: `mock:${i}`,
+      title: `Mock Paper ${i + 1}: ${[...kwSet].slice(0, 2).join(" and ")} Research`,
+      journal: MOCK_JOURNALS[Math.floor(Math.random() * MOCK_JOURNALS.length)],
+      year,
+      keywords: [...kwSet],
+      is_open_access: Math.random() > 0.3,
+      created_at: created.toISOString(),
+      authors,
+    });
+  }
+  return papers;
+}
+
+const MOCK_STATS = {
+  total: 12403,
+  recent_count: 187,
+  by_year: [
+    { year: 2020, count: 1420 },
+    { year: 2021, count: 1980 },
+    { year: 2022, count: 2340 },
+    { year: 2023, count: 2870 },
+    { year: 2024, count: 3150 },
+    { year: 2025, count: 643 },
+  ],
+};
+
+let _cachedMockPapers: Paper[] | null = null;
+function getMockPapers() {
+  if (!_cachedMockPapers) _cachedMockPapers = generateMockPapers(800);
+  return _cachedMockPapers;
+}
 
 // D3 chart components
 import StreamGraph from "./components/StreamGraph";
@@ -156,16 +235,25 @@ function processHeatmapData(papers: Paper[]) {
 }
 
 function processDonutData(papers: Paper[]) {
-  let oa = 0;
-  let closed = 0;
+  // Group papers by recent quarter
+  const now = new Date();
+  const quarters: Record<string, number> = {};
   papers.forEach((p) => {
-    if (p.is_open_access) oa++;
-    else closed++;
+    if (!p.created_at) return;
+    const d = new Date(p.created_at);
+    const monthsDiff = (now.getFullYear() - d.getFullYear()) * 12 + (now.getMonth() - d.getMonth());
+    let label: string;
+    if (monthsDiff < 1) label = "This Month";
+    else if (monthsDiff < 3) label = "Last 3 Months";
+    else if (monthsDiff < 6) label = "3-6 Months";
+    else if (monthsDiff < 12) label = "6-12 Months";
+    else label = "1 Year+";
+    quarters[label] = (quarters[label] || 0) + 1;
   });
-  return [
-    { label: "Open Access", value: oa },
-    { label: "Closed", value: closed },
-  ].filter((d) => d.value > 0);
+  const order = ["This Month", "Last 3 Months", "3-6 Months", "6-12 Months", "1 Year+"];
+  return order
+    .filter((label) => quarters[label])
+    .map((label) => ({ label, value: quarters[label] }));
 }
 
 function processTopJournals(papers: Paper[]) {
@@ -350,19 +438,22 @@ function KeywordModal({
 export default function DashboardPage() {
   const router = useRouter();
   const [selectedKeyword, setSelectedKeyword] = useState<string | null>(null);
+  const [useMockData, setUseMockData] = useState(false);
 
   // Data queries
   const statsQuery = useQuery({
     queryKey: ["dashboard", "stats"],
     queryFn: dashboardApi.getPaperStats,
+    enabled: !useMockData,
   });
 
   const papersQuery = useQuery({
     queryKey: ["dashboard", "analysisPapers"],
-    queryFn: () => dashboardApi.getAnalysisPapers(200),
+    queryFn: () => dashboardApi.getAnalysisPapers(500),
+    enabled: !useMockData,
   });
 
-  const papers = papersQuery.data || [];
+  const papers = useMockData ? getMockPapers() : (papersQuery.data || []);
 
   // Processed data
   const streamData = useMemo(() => processStreamData(papers), [papers]);
@@ -374,17 +465,18 @@ export default function DashboardPage() {
   const topAuthors = useMemo(() => processTopAuthors(papers), [papers]);
   const treemapData = useMemo(() => processTreemapData(papers), [papers]);
   const timelineData = useMemo(() => processTimelineData(papers), [papers]);
+  const statsData = useMockData ? MOCK_STATS : statsQuery.data;
   const radialData = useMemo(
     () =>
-      statsQuery.data?.by_year
-        ? [...statsQuery.data.by_year].reverse()
+      statsData?.by_year
+        ? [...statsData.by_year].reverse()
         : [],
-    [statsQuery.data]
+    [statsData]
   );
 
   // Derived stats
-  const totalPapers = statsQuery.data?.total || 0;
-  const recentCount = statsQuery.data?.recent_count || 0;
+  const totalPapers = statsData?.total || 0;
+  const recentCount = statsData?.recent_count || 0;
   const uniqueKeywords = useMemo(() => {
     const set = new Set<string>();
     papers.forEach((p) => p.keywords?.forEach((k) => set.add(k.trim())));
@@ -409,7 +501,7 @@ export default function DashboardPage() {
     [router]
   );
 
-  const isLoading = statsQuery.isLoading || papersQuery.isLoading;
+  const isLoading = !useMockData && (statsQuery.isLoading || papersQuery.isLoading);
 
   return (
     <div className="h-full flex flex-col overflow-hidden">
@@ -452,14 +544,27 @@ export default function DashboardPage() {
       {/* Content */}
       <div className="flex-1 overflow-y-auto">
         <div className="max-w-[1400px] mx-auto px-6 py-8">
-          {/* Title */}
-          <div className="mb-8">
-            <h1 className="font-[family-name:var(--font-outfit)] text-3xl font-semibold mb-1">
-              Research Intelligence
-            </h1>
-            <p className="font-[family-name:var(--font-dm-sans)] text-base text-[var(--oaria-text-secondary)]">
-              연구 지형을 내려다보는 관점
-            </p>
+          {/* Title + Data Source Toggle */}
+          <div className="mb-8 flex items-start justify-between">
+            <div>
+              <h1 className="font-[family-name:var(--font-outfit)] text-3xl font-semibold mb-1">
+                Research Intelligence
+              </h1>
+              <p className="font-[family-name:var(--font-dm-sans)] text-base text-[var(--oaria-text-secondary)]">
+                연구 지형을 내려다보는 관점
+              </p>
+            </div>
+            <button
+              onClick={() => setUseMockData((v) => !v)}
+              className={`flex items-center gap-2 px-4 py-2 rounded-xl border text-sm font-medium transition-all ${
+                useMockData
+                  ? "border-[var(--oaria-teal)] bg-[var(--oaria-teal)]/10 text-[var(--oaria-teal)]"
+                  : "border-[var(--oaria-border)] text-[var(--oaria-text-secondary)] hover:border-[var(--oaria-teal)] hover:text-[var(--oaria-teal)]"
+              }`}
+            >
+              {useMockData ? <FlaskConical size={16} /> : <Database size={16} />}
+              {useMockData ? "Mock Data" : "Live Data"}
+            </button>
           </div>
 
           {/* Loading overlay */}
@@ -597,11 +702,11 @@ export default function DashboardPage() {
                   </ChartSection>
 
                   <ChartSection
-                    title="Open Access"
-                    subtitle="접근 유형 분포"
+                    title="Collection Recency"
+                    subtitle="수집 시기별 논문 분포"
                   >
                     <div className="h-40">
-                      <DonutChart data={donutData} centerLabel="Access" />
+                      <DonutChart data={donutData} centerLabel="Recency" />
                     </div>
                   </ChartSection>
                 </div>
