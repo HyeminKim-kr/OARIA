@@ -6,6 +6,7 @@ import { PASTEL } from "../constants";
 interface RadialItem {
   year: number;
   count: number;
+  label?: string; // optional override label (e.g. "Q1 2025")
 }
 
 interface Props {
@@ -53,22 +54,13 @@ export default function RadialYearChart({ data }: Props) {
 
     const angleScale = d3
       .scaleBand()
-      .domain(sorted.map((d) => String(d.year)))
+      .domain(sorted.map((d) => d.label || String(d.year)))
       .range([0, 2 * Math.PI])
       .padding(0.12);
 
     const rScale = d3.scaleLinear().domain([0, maxCount]).range([radius * 0.25, radius]);
 
     const color = d3.scaleOrdinal<string>().range(PASTEL);
-
-    const arc = d3
-      .arc<RadialItem>()
-      .innerRadius(radius * 0.25)
-      .outerRadius((d) => rScale(d.count))
-      .startAngle((d) => angleScale(String(d.year)) || 0)
-      .endAngle((d) => (angleScale(String(d.year)) || 0) + angleScale.bandwidth())
-      .padAngle(0.02)
-      .cornerRadius(4);
 
     svg
       .selectAll("path")
@@ -86,8 +78,9 @@ export default function RadialYearChart({ data }: Props) {
       .on("mousemove", function (event) {
         const d = d3.select(this).datum() as RadialItem;
         const [mx, my] = d3.pointer(event, el);
+        const lbl = d.label || `${d.year}년`;
         tip
-          .html(`<strong>${d.year}년</strong><br/>${d.count.toLocaleString()}건`)
+          .html(`<strong>${lbl}</strong><br/>${d.count.toLocaleString()}건`)
           .style("left", `${mx + 16}px`)
           .style("top", `${my - 10}px`);
       })
@@ -96,40 +89,43 @@ export default function RadialYearChart({ data }: Props) {
         tip.style("visibility", "hidden");
       })
       // Entrance animation
-      .attr("d", (d) =>
-        d3
+      .attr("d", (d) => {
+        const key = d.label || String(d.year);
+        return d3
           .arc<RadialItem>()
           .innerRadius(radius * 0.25)
           .outerRadius(radius * 0.25)
-          .startAngle(angleScale(String(d.year)) || 0)
-          .endAngle((angleScale(String(d.year)) || 0) + angleScale.bandwidth())
+          .startAngle(angleScale(key) || 0)
+          .endAngle((angleScale(key) || 0) + angleScale.bandwidth())
           .padAngle(0.02)
-          .cornerRadius(4)(d)
-      )
+          .cornerRadius(4)(d);
+      })
       .transition()
       .duration(1000)
       .delay((_d, i) => i * 80)
       .attrTween("d", function (d) {
+        const key = d.label || String(d.year);
         const interp = d3.interpolate(radius * 0.25, rScale(d.count));
         return (t) =>
           d3
             .arc<RadialItem>()
             .innerRadius(radius * 0.25)
             .outerRadius(interp(t))
-            .startAngle(angleScale(String(d.year)) || 0)
-            .endAngle((angleScale(String(d.year)) || 0) + angleScale.bandwidth())
+            .startAngle(angleScale(key) || 0)
+            .endAngle((angleScale(key) || 0) + angleScale.bandwidth())
             .padAngle(0.02)
             .cornerRadius(4)(d) || "";
       });
 
-    // Year labels
+    // Labels
     svg
       .selectAll(".year-label")
       .data(sorted)
       .join("text")
       .attr("class", "year-label")
       .attr("transform", (d) => {
-        const angle = (angleScale(String(d.year)) || 0) + angleScale.bandwidth() / 2;
+        const key = d.label || String(d.year);
+        const angle = (angleScale(key) || 0) + angleScale.bandwidth() / 2;
         const r = radius + 14;
         const x = r * Math.sin(angle);
         const y = -r * Math.cos(angle);
@@ -137,7 +133,10 @@ export default function RadialYearChart({ data }: Props) {
       })
       .attr("text-anchor", "middle")
       .attr("dy", "0.35em")
-      .text((d) => String(d.year).slice(2))
+      .text((d) => {
+        if (d.label) return d.label;
+        return String(d.year).length > 4 ? String(d.year).slice(2) : String(d.year).slice(2);
+      })
       .style("font-size", "10px")
       .style("fill", "var(--oaria-text-secondary)")
       .style("font-weight", "500");
@@ -145,16 +144,9 @@ export default function RadialYearChart({ data }: Props) {
     // Center label
     svg
       .append("text")
-      .text("Year")
-      .attr("text-anchor", "middle")
-      .attr("dy", "-0.2em")
-      .style("font-size", "11px")
-      .style("fill", "var(--oaria-text-secondary)");
-    svg
-      .append("text")
       .text("Distribution")
       .attr("text-anchor", "middle")
-      .attr("dy", "1em")
+      .attr("dy", "0.35em")
       .style("font-size", "11px")
       .style("fill", "var(--oaria-text-secondary)");
   }, [data]);

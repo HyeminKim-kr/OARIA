@@ -36,6 +36,28 @@ export default function NetworkGraph({ nodes, links, onNodeClick }: Props) {
       .attr("width", width)
       .attr("height", height);
 
+    // Zoom container
+    const g = svg.append("g");
+
+    const zoom = d3
+      .zoom<SVGSVGElement, unknown>()
+      .scaleExtent([0.3, 5])
+      .on("zoom", (event) => {
+        g.attr("transform", event.transform);
+      });
+
+    svg.call(zoom);
+
+    // Zoom controls hint
+    svg
+      .append("text")
+      .attr("x", 8)
+      .attr("y", height - 8)
+      .text("scroll to zoom · drag to pan")
+      .style("font-size", "9px")
+      .style("fill", "var(--oaria-text-secondary)")
+      .style("opacity", 0.6);
+
     const tip = d3
       .select(el)
       .append("div")
@@ -75,7 +97,7 @@ export default function NetworkGraph({ nodes, links, onNodeClick }: Props) {
         d3.forceCollide<NetworkNode>().radius((d) => rScale(d.count) + 4)
       );
 
-    const linkEl = svg
+    const linkEl = g
       .append("g")
       .selectAll("line")
       .data(links)
@@ -84,14 +106,13 @@ export default function NetworkGraph({ nodes, links, onNodeClick }: Props) {
       .attr("stroke-opacity", (d) => linkOpacity(d.weight))
       .attr("stroke-width", (d) => linkWidth(d.weight));
 
-    const nodeGroup = svg
+    const nodeGroup = g
       .append("g")
       .selectAll("g")
       .data(nodes)
       .join("g")
       .style("cursor", "pointer")
       .on("mouseover", function (_event, d) {
-        // Highlight connected
         const connected = new Set<string>();
         connected.add(d.id);
         links.forEach((l) => {
