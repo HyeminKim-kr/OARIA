@@ -280,7 +280,7 @@ function CritiqueDetails({ critique }: { critique: NonNullable<ObservationDetail
             {critique.strengths.map((s, i) => (
               <li key={i} className="text-sm flex items-start gap-1">
                 <CheckCircle2 size={12} className="text-green-500 mt-0.5 shrink-0" />
-                <span>{s}</span>
+                <span>{typeof s === "string" ? s : (s as { description?: string }).description || JSON.stringify(s)}</span>
               </li>
             ))}
           </ul>
@@ -290,12 +290,16 @@ function CritiqueDetails({ critique }: { critique: NonNullable<ObservationDetail
         <div>
           <div className="text-xs text-red-600 font-medium mb-1">개선 필요</div>
           <ul className="space-y-0.5">
-            {critique.issues.map((issue, i) => (
-              <li key={i} className="text-sm flex items-start gap-1">
-                <AlertCircle size={12} className="text-red-500 mt-0.5 shrink-0" />
-                <span>{issue}</span>
-              </li>
-            ))}
+            {critique.issues.map((issue, i) => {
+              // issue can be string or object with {type, severity, description, affected_experiment}
+              const text = typeof issue === "string" ? issue : (issue as { description?: string }).description || JSON.stringify(issue);
+              return (
+                <li key={i} className="text-sm flex items-start gap-1">
+                  <AlertCircle size={12} className="text-red-500 mt-0.5 shrink-0" />
+                  <span>{text}</span>
+                </li>
+              );
+            })}
           </ul>
         </div>
       )}

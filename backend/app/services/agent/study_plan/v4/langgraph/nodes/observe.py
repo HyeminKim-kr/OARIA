@@ -347,7 +347,8 @@ def _extract_plan_a(result: Any, state: StudyPlanState) -> dict:
 def _extract_plan_b(result: Any, state: StudyPlanState) -> dict:
     """Extract generated Plan B."""
     if isinstance(result, dict):
-        plan_text = result.get("plan", result.get("text", ""))
+        # Tool returns "plan_b" key, but also check "plan" and "text" for compatibility
+        plan_text = result.get("plan_b", result.get("plan", result.get("text", "")))
         if plan_text:
             return {"plan_b": plan_text}
 

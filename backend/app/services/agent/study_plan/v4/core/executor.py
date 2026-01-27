@@ -176,11 +176,12 @@ class Executor:
                 }
                 logger.info(f"Auto-filled design for critique_design: {len(state.experiments)} experiments")
 
-        # decompose_questions: auto-fill hypothesis
+        # decompose_questions: auto-fill structured_hypothesis
         elif action_name == "decompose_questions":
-            if not enriched.get("hypothesis") and state.structured_hypothesis:
-                enriched["hypothesis"] = state.structured_hypothesis
-                logger.info("Auto-filled hypothesis for decompose_questions")
+            # Tool expects "structured_hypothesis", NOT "hypothesis"
+            if not enriched.get("structured_hypothesis") and state.structured_hypothesis:
+                enriched["structured_hypothesis"] = state.structured_hypothesis
+                logger.info("Auto-filled structured_hypothesis for decompose_questions")
 
         return enriched
 

@@ -71,11 +71,15 @@ class ToolRegistry:
         """Get all tool categories."""
         return list(self._categories.keys())
 
-    def get_descriptions_for_llm(self) -> str:
+    def get_descriptions_for_llm(self, allowed_tools: list[str] | None = None) -> str:
         """Generate tool descriptions for LLM context.
 
+        Args:
+            allowed_tools: Optional list of tool names to include.
+                          If None, includes all tools.
+
         Returns:
-            Formatted string with all tool descriptions
+            Formatted string with tool descriptions
         """
         sections = []
 
@@ -86,21 +90,30 @@ class ToolRegistry:
 
             tool_descriptions = []
             for name in tool_names:
+                # Filter by allowed tools if specified
+                if allowed_tools is not None and name not in allowed_tools:
+                    continue
                 tool = self._tools[name]
                 definition = tool.get_definition()
                 tool_descriptions.append(definition.to_llm_description())
 
-            sections.append(
-                f"## {category_title} Tools\n\n" + "\n\n".join(tool_descriptions)
-            )
+            # Only add category section if there are tools
+            if tool_descriptions:
+                sections.append(
+                    f"## {category_title} Tools\n\n" + "\n\n".join(tool_descriptions)
+                )
 
         return "\n\n---\n\n".join(sections)
 
-    def get_openai_functions(self) -> list[dict]:
-        """Generate OpenAI Function Calling definitions for all tools.
+    def get_openai_functions(self, allowed_tools: list[str] | None = None) -> list[dict]:
+        """Generate OpenAI Function Calling definitions for tools.
 
         This provides structured JSON Schema format that OpenAI uses
         to validate and parse tool calls automatically.
+
+        Args:
+            allowed_tools: Optional list of tool names to include.
+                          If None, includes all tools.
 
         Returns:
             List of OpenAI function definitions
@@ -108,10 +121,13 @@ class ToolRegistry:
         functions = []
 
         for tool in self._tools.values():
+            # Filter by allowed tools if specified
+            if allowed_tools is not None and tool.name not in allowed_tools:
+                continue
             definition = tool.get_definition()
             functions.append(definition.to_openai_function())
 
-        # Add FINISH as a special function
+        # Add FINISH as a special function (always allowed)
         functions.append({
             "type": "function",
             "function": {

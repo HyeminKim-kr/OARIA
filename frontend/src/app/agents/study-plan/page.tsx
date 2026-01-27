@@ -10,6 +10,8 @@ import {
   BarChart3,
   ArrowLeft,
   AlertTriangle,
+  X,
+  History,
 } from "lucide-react";
 import { useJobStream } from "@/hooks";
 // ApprovalModal 제거됨 - 승인 게이트가 더 이상 작업을 멈추지 않음
@@ -84,6 +86,7 @@ export default function StudyPlanPage() {
   const {
     jobId,
     startJob,
+    cancel: cancelJob,
     reset: resetJob,
     // v4/LangGraph specific state
     currentTokenUsage,
@@ -302,6 +305,15 @@ export default function StudyPlanPage() {
       }
     } catch (error) {
       console.error("[StudyPlanPage] Failed to restore thinking history:", error);
+      // 404 등 복원 실패 시 sessionStorage 완전 클리어 및 상태 리셋
+      sessionStorage.removeItem(STORAGE_JOB_KEY);
+      sessionStorage.removeItem(STORAGE_KEY);
+      // 상태 초기화
+      setThinkingSteps([]);
+      setCurrentIteration(0);
+      setResultData({});
+      setState({ status: "idle", nodeDetails: {} });
+      setViewMode("landing");
     }
   }, []);
 
@@ -350,14 +362,18 @@ export default function StudyPlanPage() {
     e.preventDefault();
     if (!hypothesis.trim() || isLoading) return;
 
+    // 이전 작업과 완전히 분리: sessionStorage 클리어
+    sessionStorage.removeItem(STORAGE_JOB_KEY);
+
     setIsLoading(true);
     setNodes(createInitialNodes());
     setState({ status: "generating", nodeDetails: {} });
     setSelectedNode(null);
-    // v4 사고 과정 초기화
+    // v4 사고 과정 및 결과 초기화
     setThinkingSteps([]);
     setCurrentThinkingStep(null);
     setCurrentIteration(0);
+    setResultData({});
 
     try {
       const agentType =
@@ -451,37 +467,95 @@ export default function StudyPlanPage() {
             <div className="flex-1 overflow-y-auto">
               <div className="max-w-5xl mx-auto px-6 py-8">
                 {/* Back & Header */}
-                <div className="flex items-center gap-4 mb-8">
-                  <button
-                    onClick={() => {
-                      if (!isLoading) {
-                        updateViewMode("landing");
-                        setHypothesis("");
-                        setResearchContext("");
-                        setNodes(createInitialNodes());
-                        setState({ status: "idle", nodeDetails: {} });
-                        setThinkingSteps([]);
-                        setCurrentThinkingStep(null);
-                        setCurrentIteration(0);
-                        setResultData({});
-                        resetJob();
-                      }
-                    }}
-                    className="p-2 rounded-lg hover:bg-[var(--oaria-border)] transition-colors"
-                    disabled={isLoading}
-                  >
-                    <ArrowLeft size={20} />
-                  </button>
-                  <div className="w-12 h-12 rounded-xl bg-green-500 flex items-center justify-center text-white">
-                    <Beaker size={24} />
+                <div className="flex items-center justify-between mb-8">
+                  <div className="flex items-center gap-4">
+                    <button
+                      onClick={async () => {
+                        if (isLoading && jobId) {
+                          // 실행 중일 때: 확인 후 취소하고 돌아가기
+                          if (confirm("실행 중인 작업을 중단하시겠습니까?")) {
+                            try {
+                              await cancelJob();
+                            } catch (e) {
+                              console.error("Failed to cancel job:", e);
+                            }
+                            setIsLoading(false);
+                            updateViewMode("landing");
+                            setHypothesis("");
+                            setResearchContext("");
+                            setNodes(createInitialNodes());
+                            setState({ status: "idle", nodeDetails: {} });
+                            setThinkingSteps([]);
+                            setCurrentThinkingStep(null);
+                            setCurrentIteration(0);
+                            setResultData({});
+                            resetJob();
+                          }
+                        } else {
+                          // jobId 없거나 로딩 중 아닐 때: 그냥 돌아가기
+                          if (isLoading) setIsLoading(false);
+                          updateViewMode("landing");
+                          setHypothesis("");
+                          setResearchContext("");
+                          setNodes(createInitialNodes());
+                          setState({ status: "idle", nodeDetails: {} });
+                          setThinkingSteps([]);
+                          setCurrentThinkingStep(null);
+                          setCurrentIteration(0);
+                          setResultData({});
+                          resetJob();
+                        }
+                      }}
+                      className="p-2 rounded-lg hover:bg-[var(--oaria-border)] transition-colors"
+                    >
+                      <ArrowLeft size={20} />
+                    </button>
+                    <div className="w-12 h-12 rounded-xl bg-green-500 flex items-center justify-center text-white">
+                      <Beaker size={24} />
+                    </div>
+                    <div>
+                      <h1 className="font-[family-name:var(--font-outfit)] text-xl font-semibold">
+                        Study Plan Agent
+                      </h1>
+                      <p className="font-[family-name:var(--font-dm-sans)] text-sm text-[var(--oaria-text-secondary)]">
+                        가설 기반 후속 실험 설계 자동화
+                      </p>
+                    </div>
                   </div>
-                  <div>
-                    <h1 className="font-[family-name:var(--font-outfit)] text-xl font-semibold">
-                      Study Plan Agent
-                    </h1>
-                    <p className="font-[family-name:var(--font-dm-sans)] text-sm text-[var(--oaria-text-secondary)]">
-                      가설 기반 후속 실험 설계 자동화
-                    </p>
+
+                  {/* 오른쪽: 중단 버튼 & 히스토리 링크 */}
+                  <div className="flex items-center gap-3">
+                    {isLoading && jobId && (
+                      <button
+                        onClick={async () => {
+                          if (confirm("실행 중인 작업을 중단하시겠습니까?")) {
+                            try {
+                              await cancelJob();
+                              addToast({
+                                type: "info",
+                                title: "작업 중단됨",
+                                message: "작업이 중단되었습니다.",
+                              });
+                            } catch (e) {
+                              console.error("Failed to cancel job:", e);
+                            }
+                            setIsLoading(false);
+                            setState({ status: "idle", nodeDetails: {} });
+                          }
+                        }}
+                        className="flex items-center gap-2 px-4 py-2 text-sm font-medium text-red-600 bg-red-50 hover:bg-red-100 rounded-lg transition-colors"
+                      >
+                        <X size={16} />
+                        중단
+                      </button>
+                    )}
+                    <Link
+                      href="/agents/study-plan/history"
+                      className="flex items-center gap-2 px-4 py-2 text-sm font-medium text-green-600 bg-green-50 hover:bg-green-100 rounded-lg transition-colors"
+                    >
+                      <History size={16} />
+                      기록
+                    </Link>
                   </div>
                 </div>
 
