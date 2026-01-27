@@ -4,12 +4,83 @@ Includes:
 - WorkingMemory: Current execution state
 - ExecutionHistory: Trace of actions taken
 - ExecutionStep: Single step record
+- CumulativeTokens: Token usage tracking
 """
 
 from dataclasses import dataclass, field
 from datetime import datetime
 from typing import Any
 import uuid
+
+
+# ============================================================================
+# Token Tracking
+# ============================================================================
+
+@dataclass
+class CumulativeTokens:
+    """Cumulative token usage tracking for LLM calls."""
+
+    prompt_tokens: int = 0
+    completion_tokens: int = 0
+    total_tokens: int = 0
+
+    def add(self, usage: dict[str, int] | None) -> None:
+        """Add token usage from a single LLM call.
+
+        Args:
+            usage: Dict with prompt_tokens, completion_tokens, total_tokens
+        """
+        if usage is None:
+            return
+        self.prompt_tokens += usage.get("prompt_tokens", 0)
+        self.completion_tokens += usage.get("completion_tokens", 0)
+        self.total_tokens += usage.get("total_tokens", 0)
+
+    def to_dict(self) -> dict[str, int]:
+        """Convert to dictionary for serialization."""
+        return {
+            "prompt_tokens": self.prompt_tokens,
+            "completion_tokens": self.completion_tokens,
+            "total_tokens": self.total_tokens,
+        }
+
+    @classmethod
+    def from_dict(cls, data: dict[str, int]) -> "CumulativeTokens":
+        """Create from dictionary."""
+        return cls(
+            prompt_tokens=data.get("prompt_tokens", 0),
+            completion_tokens=data.get("completion_tokens", 0),
+            total_tokens=data.get("total_tokens", 0),
+        )
+
+    def estimate_cost(self, model: str = "gpt-4") -> float:
+        """Estimate cost based on model pricing.
+
+        Args:
+            model: Model name for pricing lookup
+
+        Returns:
+            Estimated cost in USD
+        """
+        # Pricing per 1K tokens (approximate)
+        pricing = {
+            "gpt-4": {"prompt": 0.03, "completion": 0.06},
+            "gpt-4-turbo": {"prompt": 0.01, "completion": 0.03},
+            "gpt-4o": {"prompt": 0.005, "completion": 0.015},
+            "gpt-3.5-turbo": {"prompt": 0.0005, "completion": 0.0015},
+        }
+
+        rates = pricing.get(model, pricing["gpt-4"])
+        prompt_cost = (self.prompt_tokens / 1000) * rates["prompt"]
+        completion_cost = (self.completion_tokens / 1000) * rates["completion"]
+
+        return prompt_cost + completion_cost
+
+
+# ============================================================================
+# Execution Step
+# ============================================================================
 
 
 @dataclass
@@ -214,6 +285,9 @@ class WorkingMemory:
     total_cost: float = 0.0
     user_questions: list[dict[str, Any]] = field(default_factory=list)
 
+    # Token tracking
+    cumulative_tokens: CumulativeTokens = field(default_factory=CumulativeTokens)
+
     def increment_iteration(self) -> None:
         """Increment iteration counter."""
         self.iteration_count += 1
@@ -344,4 +418,5 @@ class WorkingMemory:
             "iteration_count": self.iteration_count,
             "total_cost": self.total_cost,
             "user_questions": self.user_questions,
+            "cumulative_tokens": self.cumulative_tokens.to_dict(),
         }

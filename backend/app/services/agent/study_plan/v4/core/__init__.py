@@ -1,6 +1,5 @@
 """Core components for v4 agent."""
 
-from app.services.agent.study_plan.v4.core.loop import AgentLoop
 from app.services.agent.study_plan.v4.core.state import (
     WorkingMemory,
     ExecutionHistory,
@@ -12,7 +11,6 @@ from app.services.agent.study_plan.v4.core.goal_checker import GoalChecker
 from app.services.agent.study_plan.v4.core.failure_handler import FailureHandler
 
 __all__ = [
-    "AgentLoop",
     "WorkingMemory",
     "ExecutionHistory",
     "ExecutionStep",

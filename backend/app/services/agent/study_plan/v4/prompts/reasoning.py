@@ -231,12 +231,69 @@ FUNCTION_CALLING_USER_PROMPT = """## Goal
 {failed_actions}
 Consecutive failures: {consecutive_failures}
 
+## Instructions
 Based on the current state, decide which tool to call next.
-Think carefully about:
-1. What information do I have now?
-2. What information do I still need?
-3. Which tool would help most right now?
-4. Have I generated both Plan A and Plan B?
+
+**CRITICAL: You MUST output a <thinking> block BEFORE calling any tool.**
+This is MANDATORY - do not skip it. The thinking block helps users understand your reasoning.
+
+Your response format MUST be:
+1. First, output your thinking in a <thinking> block
+2. Then, call the appropriate tool
+
+**<thinking> Block Format (REQUIRED):**
+```
+<thinking>
+## [현재 단계를 설명하는 제목]
+
+• [현재 상태 분석 - 지금까지 무엇을 했고 무엇이 있는지]
+• [다음 해야 할 일 - 왜 이 도구를 선택했는지]
+• [예상 결과 - 이 도구 실행 후 무엇을 얻을 수 있는지]
+</thinking>
+```
+
+**Example 1 - 가설 파싱:**
+```
+<thinking>
+## 가설 분석 및 구조화
+
+• 사용자가 "MAPK reactivation이 BRAF inhibitor resistance에 미치는 영향"이라는 가설을 입력했어요.
+• 이 가설을 검증 가능한 실험으로 만들기 위해 먼저 독립변수(IV), 종속변수(DV), 메커니즘을 명확히 분리해야 해요.
+• parse_hypothesis 도구로 가설을 구조화하면, 이후 검증 질문 생성과 실험 설계의 기반이 될 거예요.
+</thinking>
+```
+
+**Example 2 - 검색 결과 분석:**
+```
+<thinking>
+## 검색 결과 분석 및 다음 단계 결정
+
+• 현재까지 RAG 검색으로 15편의 논문을 찾았어요. BRAF/MEK 저해제 내성 관련 연구들이에요.
+• 핵심 발견: MAPK pathway reactivation이 주요 저항 메커니즘으로 확인됨 (Smith et al., 2023)
+• 충분한 evidence가 확보되었으므로, 이제 첫 번째 in vitro 실험을 설계할 준비가 되었어요.
+• 결론: design_experiment 도구로 cell viability assay를 설계할게요.
+</thinking>
+```
+
+**Example 3 - 실험 설계 완료 후:**
+```
+<thinking>
+## 현재 진행 상황 점검 및 다음 단계
+
+• 완료된 작업: 가설 파싱 ✓, 검증 질문 3개 생성 ✓, 실험 2개 설계 ✓
+• 현재 품질 점수: 65% - 대조군 설계가 아직 부족해요.
+• 다음 단계: 설계된 실험들에 대해 적절한 대조군(vehicle, positive, negative)을 추가해야 해요.
+• design_controls 도구로 첫 번째 실험의 대조군을 설계할게요.
+</thinking>
+```
+
+**IMPORTANT Rules:**
+- <thinking> 블록을 반드시 한국어로 작성하세요
+- 최소 3개의 bullet point (•)를 포함하세요
+- 구체적인 데이터(숫자, 논문명 등)를 언급하세요
+- You MUST generate BOTH Plan A AND Plan B before finishing
+- If Plan A exists but Plan B doesn't, call generate_plan_b
+- Do NOT finish with only Plan A
 """
 
 GOAL_COMPLETION_PROMPT = """Evaluate whether the research plan generation goal has been achieved.

@@ -17,7 +17,7 @@ from typing import TYPE_CHECKING
 from langchain_openai import ChatOpenAI
 from langchain_core.messages import SystemMessage, HumanMessage
 
-from app.services.agent.study_plan.v4.core.types import Action
+from app.services.agent.study_plan.v4.core.types import Action, TokenUsageDict
 from app.services.agent.study_plan.v4.core.state import (
     WorkingMemory,
     ExecutionHistory,
@@ -53,6 +53,59 @@ class Reasoner:
         self.tools = tools
         self.temperature = temperature
         self.use_function_calling = use_function_calling
+        self._last_token_usage: TokenUsageDict | None = None
+
+    @staticmethod
+    def _extract_token_usage(response) -> TokenUsageDict | None:
+        """Extract token usage from LLM response.
+
+        Args:
+            response: LangChain LLM response object
+
+        Returns:
+            TokenUsageDict with token counts, or None if not available
+        """
+        try:
+            # Try response_metadata (newer LangChain)
+            if hasattr(response, 'response_metadata'):
+                metadata = response.response_metadata
+                if 'token_usage' in metadata:
+                    usage = metadata['token_usage']
+                    return TokenUsageDict(
+                        prompt_tokens=usage.get('prompt_tokens', 0),
+                        completion_tokens=usage.get('completion_tokens', 0),
+                        total_tokens=usage.get('total_tokens', 0),
+                    )
+                # OpenAI format
+                if 'usage' in metadata:
+                    usage = metadata['usage']
+                    return TokenUsageDict(
+                        prompt_tokens=usage.get('prompt_tokens', 0),
+                        completion_tokens=usage.get('completion_tokens', 0),
+                        total_tokens=usage.get('total_tokens', 0),
+                    )
+
+            # Try usage_metadata (LangChain ChatOpenAI)
+            if hasattr(response, 'usage_metadata') and response.usage_metadata:
+                usage = response.usage_metadata
+                return TokenUsageDict(
+                    prompt_tokens=getattr(usage, 'input_tokens', 0),
+                    completion_tokens=getattr(usage, 'output_tokens', 0),
+                    total_tokens=getattr(usage, 'total_tokens', 0),
+                )
+
+            return None
+        except Exception as e:
+            logger.debug(f"Failed to extract token usage: {e}")
+            return None
+
+    def get_last_token_usage(self) -> TokenUsageDict | None:
+        """Get token usage from the last reason() call.
+
+        Returns:
+            TokenUsageDict or None if not available
+        """
+        return self._last_token_usage
 
     async def reason(
         self,
@@ -81,6 +134,28 @@ class Reasoner:
                 return await self._reason_with_prompt(state, history, goal)
         else:
             return await self._reason_with_prompt(state, history, goal)
+
+    async def reason_with_tokens(
+        self,
+        state: WorkingMemory,
+        history: ExecutionHistory,
+        goal: str,
+    ) -> tuple[str, Action, TokenUsageDict | None]:
+        """Decide the next action and return token usage.
+
+        Same as reason() but also returns token usage information.
+        This is used by LangGraph nodes for token tracking.
+
+        Args:
+            state: Current working memory
+            history: Execution history
+            goal: The goal to achieve
+
+        Returns:
+            Tuple of (thought, action, token_usage)
+        """
+        thought, action = await self.reason(state, history, goal)
+        return thought, action, self._last_token_usage
 
     async def _reason_with_function_calling(
         self,
@@ -122,6 +197,11 @@ class Reasoner:
             tools=functions,
             tool_choice="auto",  # Let model decide which tool to call
         )
+
+        # Extract and store token usage
+        self._last_token_usage = self._extract_token_usage(response)
+        if self._last_token_usage:
+            logger.debug(f"Token usage: {self._last_token_usage}")
 
         # Debug logging (using print for visibility)
         print(f"[FC DEBUG] LLM response type: {type(response)}")
@@ -168,6 +248,21 @@ class Reasoner:
             print(f"[FC DEBUG] Tool arguments keys: {list(action_args.keys()) if action_args else 'none'}")
             print(f"[FC DEBUG] Full tool arguments: {action_args}")
 
+            # Validate FINISH is not premature (same check as prompt-based)
+            if action_name == "FINISH":
+                blocked, reason, suggested_action = self._validate_finish_allowed(state)
+                if blocked:
+                    logger.warning(f"[FC] Premature FINISH blocked: {reason}")
+                    print(f"[FC DEBUG] Premature FINISH blocked: {reason}. Redirecting to {suggested_action}")
+                    action = Action(
+                        name=suggested_action,
+                        input={},
+                        confidence=0.7,
+                        alternative=None,
+                    )
+                    thought = f"Cannot finish yet: {reason}. Proceeding with {suggested_action}."
+                    return thought, action
+
             # Check if we should avoid this action
             if history.should_avoid(action_name):
                 logger.warning(f"Action {action_name} has failed multiple times, seeking alternative")
@@ -213,10 +308,27 @@ class Reasoner:
         response = await self.llm.ainvoke(prompt)
         content = response.content
 
+        # Extract and store token usage
+        self._last_token_usage = self._extract_token_usage(response)
+        if self._last_token_usage:
+            logger.debug(f"Token usage: {self._last_token_usage}")
+
         logger.debug(f"Reasoner response: {content[:500]}...")
 
         # Parse response
         parsed = self._parse_response(content)
+
+        # Validate FINISH is not premature
+        if parsed["action"] == "FINISH":
+            blocked, reason, suggested_action = self._validate_finish_allowed(state)
+            if blocked:
+                logger.warning(f"Premature FINISH blocked: {reason}")
+                parsed = {
+                    "thought": f"Cannot finish yet: {reason}. Proceeding with {suggested_action}.",
+                    "action": suggested_action,
+                    "action_input": {},
+                    "confidence": 0.7,
+                }
 
         # Check if we should avoid this action (failed too many times)
         if history.should_avoid(parsed["action"]):
@@ -238,6 +350,37 @@ class Reasoner:
         )
 
         return parsed["thought"], action
+
+    def _validate_finish_allowed(
+        self,
+        state: WorkingMemory,
+    ) -> tuple[bool, str, str]:
+        """Check if FINISH is allowed based on current state.
+
+        Returns:
+            Tuple of (is_blocked, reason, suggested_action)
+            - is_blocked: True if FINISH should be blocked
+            - reason: Why FINISH is blocked
+            - suggested_action: What action to take instead
+        """
+        # Priority order of checks
+        if not state.structured_hypothesis:
+            return True, "Hypothesis not parsed yet", "parse_hypothesis"
+
+        if len(state.test_questions) < 1:
+            return True, "No test questions generated", "decompose_questions"
+
+        if len(state.experiments) < 1:
+            return True, "No experiments designed yet", "design_experiment"
+
+        if not state.plan_a:
+            return True, "Plan A not generated", "synthesize_plan"
+
+        if not state.plan_b:
+            return True, "Plan B not generated", "generate_plan_b"
+
+        # All minimum requirements met - FINISH is allowed
+        return False, "", ""
 
     def _build_context(
         self,
@@ -452,6 +595,19 @@ class Reasoner:
         )
 
         response = await self.llm.ainvoke(prompt)
+
+        # Extract and accumulate token usage (for alternative calls)
+        alt_token_usage = self._extract_token_usage(response)
+        if alt_token_usage and self._last_token_usage:
+            # Accumulate tokens from alternative call
+            self._last_token_usage = TokenUsageDict(
+                prompt_tokens=self._last_token_usage.get("prompt_tokens", 0) + alt_token_usage.get("prompt_tokens", 0),
+                completion_tokens=self._last_token_usage.get("completion_tokens", 0) + alt_token_usage.get("completion_tokens", 0),
+                total_tokens=self._last_token_usage.get("total_tokens", 0) + alt_token_usage.get("total_tokens", 0),
+            )
+        elif alt_token_usage:
+            self._last_token_usage = alt_token_usage
+
         parsed = self._parse_response(response.content)
 
         # Ensure we don't return the same action

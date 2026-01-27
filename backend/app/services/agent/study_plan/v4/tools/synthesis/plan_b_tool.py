@@ -181,6 +181,24 @@ Output in Korean. Follow this exact template structure:
 - 섹션 11에서 Plan A 대비 비용/시간 절감을 구체적으로 명시
 - Go/No-Go 기준을 명확히 설정 (수치적 기준)
 - Rescue control, Positive control 등은 "Plan A로 확장 시" 항목으로
+
+**측정치 단위 (필수)** - v3 개선사항:
+- Primary Endpoint의 Unit 컬럼에 구체적 단위 명시
+  - 예: μM, ng/mL, %, fold change
+- IC50 → μM 또는 nM
+- 세포 생존율 → % 생존율
+
+**비용 비교표 구체화** - v3 개선사항:
+- Plan A vs Plan B 비교표에 실제 예상 금액 명시
+  - 비용: 원 단위 (예: 500만원 vs 200만원) 또는 USD
+  - 기간: 주/개월 단위 구체화
+  - 인력: 명 단위로 명시
+- 절감률을 % 단위로 정확히 계산
+
+**Go/No-Go 기준 구체화**:
+- 수치적 판정 기준 명시
+  - 예: "IC50 > 10μM이면 내성 확인, Plan A로 확장"
+  - 예: "생존율 50% 미만이면 효과 확인"
 """
 
 
