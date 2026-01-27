@@ -246,6 +246,28 @@ Output in Korean. Follow this exact template structure:
 - Decision Rule은 수치적/객관적 기준으로 작성하세요
 - 실현가능성 평가를 현실적으로 작성하세요
 - 예상 결과 시나리오에 "모호한 경우"도 포함하세요
+
+**측정치 단위 (필수)** - v3 개선사항:
+- Primary/Secondary Endpoint의 Unit 컬럼에 구체적 단위 명시
+  - 예: μM, ng/mL, pg/mL, %, fold change, CFU/mL, cells/μL
+- IC50 → μM 또는 nM
+- 단백질 농도 → ng/mL 또는 pg/mL
+- 세포 생존율 → % 생존율
+- 유전자 발현 → fold change 또는 FPKM
+
+**근거(Evidence) 섹션 구체화** - v3 개선사항:
+- 논문 인용 시 구체적 형식 사용: "저자 et al. (저널명, 연도)"
+  - 예: "Shaw AT et al. (N Engl J Med, 2014)"
+  - 예: "Gainor JF et al. (Cancer Discov, 2016)"
+- Key Finding은 수치를 포함하여 구체적으로 작성
+  - 예: "ALK G1202R mutation confers 10-fold resistance to lorlatinib (IC50: 15.2 nM vs 1.5 nM)"
+
+**대조군 상세 설명** - v3 개선사항:
+- 각 대조군의 Purpose를 구체적으로 작성
+  - Vehicle: "DMSO 0.1%로 약물 용매 자체의 세포독성 배제"
+  - Positive control: "알려진 저항성 세포주로 assay 민감도 검증"
+  - Non-targeting: "CRISPR off-target 효과 통제"
+  - Rescue: "야생형 유전자 재도입으로 인과관계 확인"
 """
 
 

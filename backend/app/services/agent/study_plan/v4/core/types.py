@@ -3,7 +3,20 @@
 from dataclasses import dataclass, field
 from datetime import datetime
 from enum import Enum
-from typing import Any
+from typing import Any, TypedDict
+
+
+# ============================================================================
+# Token Usage Type
+# ============================================================================
+
+class TokenUsageDict(TypedDict, total=False):
+    """Token usage information from LLM calls."""
+
+    prompt_tokens: int
+    completion_tokens: int
+    total_tokens: int
+    model: str
 
 
 class ActionType(str, Enum):
