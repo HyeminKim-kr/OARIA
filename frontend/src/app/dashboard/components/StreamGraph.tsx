@@ -6,9 +6,10 @@ import { PASTEL } from "../constants";
 interface Props {
   data: Record<string, number>[];
   keys: string[];
+  monthly?: boolean;
 }
 
-export default function StreamGraph({ data, keys }: Props) {
+export default function StreamGraph({ data, keys, monthly }: Props) {
   const ref = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -112,9 +113,13 @@ export default function StreamGraph({ data, keys }: Props) {
         const xVal = x.invert(d3.pointer(event, svg.node())[0]);
         const idx = Math.min(bisect(data, xVal), data.length - 1);
         const val = data[idx]?.[d.key] || 0;
+        const yearVal = data[idx]?.year || 0;
+        const timeLabel = monthly
+          ? `${Math.floor(yearVal / 100)}.${String(yearVal % 100).padStart(2, "0")}`
+          : `${yearVal}년`;
         tip
           .html(
-            `<strong style="color:${color(d.key)}">${d.key}</strong><br/>${data[idx]?.year || ""}년: <strong>${val}</strong>건`
+            `<strong style="color:${color(d.key)}">${d.key}</strong><br/>${timeLabel}: <strong>${val}</strong>건`
           )
           .style("left", `${mx + 16}px`)
           .style("top", `${my - 10}px`);
@@ -132,7 +137,15 @@ export default function StreamGraph({ data, keys }: Props) {
         d3
           .axisBottom(x)
           .ticks(Math.min(data.length, 10))
-          .tickFormat((d) => String(d))
+          .tickFormat((d) => {
+            const v = Number(d);
+            if (monthly) {
+              const yr = Math.floor(v / 100);
+              const mo = v % 100;
+              return `${yr}.${String(mo).padStart(2, "0")}`;
+            }
+            return String(v);
+          })
       )
       .call((g) => g.select(".domain").attr("stroke", "var(--oaria-border)"))
       .call((g) =>
