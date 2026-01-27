@@ -18,7 +18,6 @@ from .batch import (
 from .chat import Conversation, Message, AnswerLog
 from .rag_settings import RAGSettings
 from .rag_strategy import RAGStrategy
-from .study_plan import StudyPlan
 from .agent_job import AgentJob, AgentJobStatus, AgentType
 from .notification import (
     Notification,
@@ -57,8 +56,6 @@ __all__ = [
     # RAG
     "RAGSettings",
     "RAGStrategy",
-    # Study Plan
-    "StudyPlan",
     # Agent Jobs & Notifications
     "AgentJob",
     "AgentJobStatus",

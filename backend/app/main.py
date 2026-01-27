@@ -17,7 +17,6 @@ from .routers import (
     ai_router,
     lab_router,
     paper_chat_router,
-    study_plan_router,
     agent_jobs_router,
     notifications_router,
 )
@@ -80,9 +79,8 @@ app.include_router(auth_router)
 app.include_router(papers_router)
 app.include_router(ai_router)
 app.include_router(paper_chat_router)  # 논문별 채팅
-app.include_router(study_plan_router)  # Study Plan Agent
 app.include_router(lab_router)  # RAG Lab (품질 테스트)
-app.include_router(agent_jobs_router)  # Background Agent Jobs
+app.include_router(agent_jobs_router)  # Agent Jobs (Study Plan 포함)
 app.include_router(notifications_router)  # Notifications
 
 
