@@ -121,6 +121,16 @@ class AgentJobDetailResponse(AgentJobResponse):
     approval_decision: dict[str, Any] | None
     result_data: dict[str, Any] | None
 
+    # Thinking History (에이전트 reasoning 과정)
+    thinking_history: list[dict[str, Any]] | None = Field(
+        default=None,
+        description="에이전트 thinking/reasoning 이력",
+    )
+    cumulative_tokens: dict[str, int] | None = Field(
+        default=None,
+        description="누적 토큰 사용량 {prompt_tokens, completion_tokens, total_tokens}",
+    )
+
 
 class AgentJobListItem(BaseModel):
     """Agent Job 목록 아이템"""
