@@ -23,6 +23,7 @@ import type {
   NodeStatus,
   StudyPlanState,
   StudyPlanSSEEvent,
+  ObservationDetails,
 } from "./types";
 import {
   LandingSection,
@@ -248,10 +249,10 @@ export default function StudyPlanPage() {
 
       // thinking_history가 있으면 복원
       if (jobDetail.thinking_history && jobDetail.thinking_history.length > 0) {
-        const restoredSteps: ThinkingStep[] = jobDetail.thinking_history.map(
+        const restoredSteps = jobDetail.thinking_history.map(
           (entry: ThinkingHistoryEntry, index: number) => ({
             id: `restored-${index}-${entry.iteration}`,
-            type: entry.action ? "acting" : "thinking",
+            type: entry.action ? ("acting" as const) : ("thinking" as const),
             timestamp: entry.timestamp ? new Date(entry.timestamp) : new Date(),
             iteration: entry.iteration,
             title: entry.title,
@@ -262,10 +263,10 @@ export default function StudyPlanPage() {
             confidence: entry.confidence,
             success: entry.observation?.success,
             summary: entry.observation?.summary,
-            observationDetails: entry.observation?.details,
-            status: entry.status || "completed",
+            observationDetails: entry.observation?.details as ObservationDetails | undefined,
+            status: (entry.status || "completed") as "completed" | "in_progress",
           })
-        );
+        ) satisfies ThinkingStep[];
 
         setThinkingSteps(restoredSteps);
         setCurrentIteration(restoredSteps.length > 0
@@ -287,8 +288,8 @@ export default function StudyPlanPage() {
           status: "completed",
           nodeDetails: {
             synthesize_plan: {
-              final_plan: jobDetail.result_data.plan_a || "",
-              executive_summary: jobDetail.executive_summary || "",
+              final_plan: (typeof jobDetail.result_data?.plan_a === "string" ? jobDetail.result_data.plan_a : "") as string,
+              executive_summary: (jobDetail.executive_summary || "") as string,
             },
           },
         });
