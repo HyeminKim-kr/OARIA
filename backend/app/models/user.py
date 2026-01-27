@@ -16,6 +16,7 @@ if TYPE_CHECKING:
     from .chat import Conversation, AnswerLog
     from .agent_job import AgentJob
     from .notification import Notification
+    from .podcast import PodcastSubscription, PodcastEpisode
 
 
 class User(Base):
@@ -85,6 +86,16 @@ class User(Base):
     )
     notifications: Mapped[list["Notification"]] = relationship(
         "Notification",
+        back_populates="user",
+        cascade="all, delete-orphan",
+    )
+    podcast_subscriptions: Mapped[list["PodcastSubscription"]] = relationship(
+        "PodcastSubscription",
+        back_populates="user",
+        cascade="all, delete-orphan",
+    )
+    podcast_episodes: Mapped[list["PodcastEpisode"]] = relationship(
+        "PodcastEpisode",
         back_populates="user",
         cascade="all, delete-orphan",
     )

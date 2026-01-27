@@ -63,8 +63,13 @@ class Settings(BaseSettings):
     # S3/MinIO (batch와 동일한 환경변수명 사용)
     s3_endpoint_url: str = Field(
         default="http://localhost:19000",
-        description="S3/MinIO 엔드포인트",
+        description="S3/MinIO 엔드포인트 (내부)",
         alias="S3_ENDPOINT",
+    )
+    s3_public_endpoint_url: str = Field(
+        default="http://localhost:19000",
+        description="S3/MinIO 공개 엔드포인트 (브라우저 접근용)",
+        alias="S3_PUBLIC_ENDPOINT",
     )
     s3_access_key: str = Field(
         default="minioadmin",

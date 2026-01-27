@@ -5,58 +5,70 @@ import {
   Search,
   Bot,
   MessageSquare,
-  FileText,
   Beaker,
-  BookOpen,
-  TrendingUp,
   ArrowRight,
   BarChart3,
+  Mic2,
+  BookOpen,
 } from "lucide-react";
 
 interface AgentCard {
   id: string;
   name: string;
+  subtitle: string;
   description: string;
+  features: string[];
   icon: React.ReactNode;
   href: string;
-  color: string;
+  accentColor: string; // CSS variable or hex
+  bgGradientFrom: string;
+  bgGradientTo: string;
+  iconBg: string;
   comingSoon?: boolean;
 }
 
 const agents: AgentCard[] = [
   {
     id: "study-plan",
-    name: "Study Plan Agent",
-    description: "가설 기반 후속 실험 설계를 자동화합니다. NSPE 분석, Evidence Pack 구축, 실험 설계를 지원합니다.",
-    icon: <Beaker size={24} />,
+    name: "Study Plan",
+    subtitle: "실험 설계 에이전트",
+    description:
+      "가설 기반 후속 실험 설계를 자동화합니다. NSPE 분석, Evidence Pack 구축, 실험 설계를 지원합니다.",
+    features: ["NSPE 분석", "Evidence Pack", "실험 프로토콜 생성"],
+    icon: <Beaker size={28} />,
     href: "/agents/study-plan",
-    color: "bg-green-500",
+    accentColor: "#F97066",
+    bgGradientFrom: "from-[#F97066]/10",
+    bgGradientTo: "to-[#F97066]/5",
+    iconBg: "bg-[#F97066]",
+  },
+  {
+    id: "podcast",
+    name: "Podcast",
+    subtitle: "팟캐스트 생성 에이전트",
+    description:
+      "암 연구 논문을 기반으로 팟캐스트를 생성합니다. RAG 기반 인용과 다양한 대화 스타일, TTS 음성을 지원합니다.",
+    features: ["다중 화자 TTS", "RAG 기반 인용", "실시간 대사 추적"],
+    icon: <Mic2 size={28} />,
+    href: "/agents/podcast",
+    accentColor: "#94A3B8",
+    bgGradientFrom: "from-[#94A3B8]/10",
+    bgGradientTo: "to-[#94A3B8]/5",
+    iconBg: "bg-[#94A3B8]",
   },
   {
     id: "research-assistant",
     name: "Research Assistant",
-    description: "논문 분석, 연구 동향 파악, 관련 연구 탐색을 도와드립니다.",
-    icon: <BookOpen size={24} />,
+    subtitle: "연구 분석 에이전트",
+    description:
+      "논문 분석, 연구 동향 파악, 관련 연구 탐색을 도와드립니다. 체계적 문헌 고찰을 지원합니다.",
+    features: ["논문 분석", "동향 파악", "문헌 고찰"],
+    icon: <BookOpen size={28} />,
     href: "/agents/research-assistant",
-    color: "bg-blue-500",
-    comingSoon: true,
-  },
-  {
-    id: "literature-review",
-    name: "Literature Review",
-    description: "체계적 문헌 고찰을 위한 논문 수집, 분류, 요약을 지원합니다.",
-    icon: <FileText size={24} />,
-    href: "/agents/literature-review",
-    color: "bg-purple-500",
-    comingSoon: true,
-  },
-  {
-    id: "trend-analyzer",
-    name: "Trend Analyzer",
-    description: "연구 분야의 트렌드 분석, 핫토픽 발굴을 지원합니다.",
-    icon: <TrendingUp size={24} />,
-    href: "/agents/trend-analyzer",
-    color: "bg-orange-500",
+    accentColor: "#1E293B",
+    bgGradientFrom: "from-[#1E293B]/10",
+    bgGradientTo: "to-[#1E293B]/5",
+    iconBg: "bg-[#1E293B]",
     comingSoon: true,
   },
 ];
@@ -103,9 +115,9 @@ export default function AgentsPage() {
 
       {/* Scrollable Content */}
       <div className="flex-1 overflow-y-auto">
-        <div className="max-w-5xl mx-auto px-6 py-8">
+        <div className="max-w-6xl mx-auto px-6 py-8">
           {/* Page Header */}
-          <div className="text-center mb-10">
+          <div className="text-center mb-12">
             <div className="w-16 h-16 rounded-full bg-[var(--oaria-teal)]/10 flex items-center justify-center mx-auto mb-4">
               <Bot size={32} className="text-[var(--oaria-teal)]" />
             </div>
@@ -117,46 +129,89 @@ export default function AgentsPage() {
             </p>
           </div>
 
-          {/* Agent Cards Grid */}
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+          {/* Agent Cards - 3 tall vertical boxes in a row */}
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
             {agents.map((agent) => (
               <Link
                 key={agent.id}
                 href={agent.comingSoon ? "#" : agent.href}
-                className={`group relative p-6 rounded-xl border-2 border-[var(--oaria-border-strong)] bg-[var(--background)] hover:border-[var(--oaria-teal)]/50 hover:shadow-lg transition-all ${
-                  agent.comingSoon ? "opacity-60 cursor-not-allowed" : ""
+                className={`group relative flex flex-col rounded-2xl border-2 border-[var(--oaria-border-strong)] bg-[var(--background)] overflow-hidden transition-all duration-300 hover:shadow-xl ${
+                  agent.comingSoon
+                    ? "opacity-60 cursor-not-allowed"
+                    : "hover:-translate-y-1"
                 }`}
+                style={{
+                  ["--card-accent" as string]: agent.accentColor,
+                }}
                 onClick={(e) => agent.comingSoon && e.preventDefault()}
               >
-                {/* Coming Soon Badge */}
-                {agent.comingSoon && (
-                  <span className="absolute top-4 right-4 px-2 py-1 rounded-full bg-[var(--oaria-border)] text-xs font-medium text-[var(--oaria-text-secondary)]">
-                    Coming Soon
-                  </span>
-                )}
-
-                {/* Icon */}
+                {/* Top accent gradient */}
                 <div
-                  className={`w-12 h-12 rounded-xl ${agent.color} flex items-center justify-center mb-4 text-white`}
+                  className={`h-32 bg-gradient-to-b ${agent.bgGradientFrom} ${agent.bgGradientTo} flex items-center justify-center relative`}
                 >
-                  {agent.icon}
+                  {/* Coming Soon Badge */}
+                  {agent.comingSoon && (
+                    <span className="absolute top-4 right-4 px-3 py-1 rounded-full bg-[var(--oaria-border)] text-xs font-medium text-[var(--oaria-text-secondary)]">
+                      Coming Soon
+                    </span>
+                  )}
+
+                  {/* Icon */}
+                  <div
+                    className={`w-16 h-16 rounded-2xl ${agent.iconBg} flex items-center justify-center text-white shadow-lg`}
+                  >
+                    {agent.icon}
+                  </div>
                 </div>
 
                 {/* Content */}
-                <h3 className="font-[family-name:var(--font-outfit)] text-lg font-semibold mb-2 group-hover:text-[var(--oaria-teal)] transition-colors">
-                  {agent.name}
-                </h3>
-                <p className="font-[family-name:var(--font-dm-sans)] text-sm text-[var(--oaria-text-secondary)] mb-4">
-                  {agent.description}
-                </p>
+                <div className="flex flex-col flex-1 p-6">
+                  <h3 className="font-[family-name:var(--font-outfit)] text-xl font-semibold mb-1">
+                    {agent.name}
+                  </h3>
+                  <p
+                    className="font-[family-name:var(--font-dm-sans)] text-xs font-medium mb-4"
+                    style={{ color: agent.accentColor }}
+                  >
+                    {agent.subtitle}
+                  </p>
+                  <p className="font-[family-name:var(--font-dm-sans)] text-sm text-[var(--oaria-text-secondary)] mb-6 leading-relaxed">
+                    {agent.description}
+                  </p>
 
-                {/* Action */}
-                {!agent.comingSoon && (
-                  <div className="flex items-center gap-2 text-sm font-medium text-[var(--oaria-teal)] opacity-0 group-hover:opacity-100 transition-opacity">
-                    시작하기
-                    <ArrowRight size={16} />
+                  {/* Feature tags */}
+                  <div className="flex flex-wrap gap-2 mb-6">
+                    {agent.features.map((feature) => (
+                      <span
+                        key={feature}
+                        className="px-3 py-1 rounded-full text-xs font-medium border border-[var(--oaria-border)]"
+                        style={{
+                          color: agent.accentColor,
+                          backgroundColor: `${agent.accentColor}10`,
+                        }}
+                      >
+                        {feature}
+                      </span>
+                    ))}
                   </div>
-                )}
+
+                  {/* Spacer to push action to bottom */}
+                  <div className="flex-1" />
+
+                  {/* Action */}
+                  {!agent.comingSoon && (
+                    <div
+                      className="flex items-center gap-2 text-sm font-semibold opacity-0 group-hover:opacity-100 transition-opacity"
+                      style={{ color: agent.accentColor }}
+                    >
+                      시작하기
+                      <ArrowRight
+                        size={16}
+                        className="group-hover:translate-x-1 transition-transform"
+                      />
+                    </div>
+                  )}
+                </div>
               </Link>
             ))}
           </div>
