@@ -26,6 +26,15 @@ from .notification import (
     NotificationPriority,
     NotificationActionType,
 )
+from .podcast import (
+    PodcastSubscription,
+    PodcastEpisode,
+    PodcastFrequency,
+    PodcastStyle,
+    PodcastDuration,
+    PaperSelectionMode,
+    EpisodeStatus,
+)
 
 __all__ = [
     # Base
@@ -65,4 +74,12 @@ __all__ = [
     "NotificationCategory",
     "NotificationPriority",
     "NotificationActionType",
+    # Podcast
+    "PodcastSubscription",
+    "PodcastEpisode",
+    "PodcastFrequency",
+    "PodcastStyle",
+    "PodcastDuration",
+    "PaperSelectionMode",
+    "EpisodeStatus",
 ]

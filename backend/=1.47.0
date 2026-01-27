@@ -1,0 +1,5 @@
+Collecting mutagen
+  Downloading mutagen-1.47.0-py3-none-any.whl.metadata (1.7 kB)
+Downloading mutagen-1.47.0-py3-none-any.whl (194 kB)
+Installing collected packages: mutagen
+Successfully installed mutagen-1.47.0

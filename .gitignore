@@ -4,6 +4,8 @@
 CLAUDE.md
 claude.md
 .pids
+.dev-lock
+.dev-logs/
 
 # Python
 __pycache__/
