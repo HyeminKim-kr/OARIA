@@ -218,6 +218,28 @@ class AgentJobService:
         await self.db.refresh(job)
         return job
 
+    async def save_thinking_history(
+        self,
+        job: AgentJob,
+        thinking_history: list[dict[str, Any]],
+        cumulative_tokens: dict[str, int] | None = None,
+    ) -> AgentJob:
+        """Thinking history 저장 (에이전트 reasoning 과정)
+
+        페이지 새로고침 시에도 복원 가능하도록 DB에 저장합니다.
+
+        Args:
+            job: 작업 객체
+            thinking_history: thinking 이벤트 리스트
+            cumulative_tokens: 누적 토큰 사용량
+        """
+        job.thinking_history = thinking_history
+        if cumulative_tokens:
+            job.cumulative_tokens = cumulative_tokens
+        await self.db.commit()
+        await self.db.refresh(job)
+        return job
+
     async def set_waiting_approval(
         self,
         job: AgentJob,

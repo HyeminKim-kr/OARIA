@@ -152,6 +152,16 @@ class AgentJob(Base):
         nullable=False,
     )
 
+    # === Thinking History (에이전트 reasoning 과정 저장) ===
+    thinking_history: Mapped[list[dict[str, Any]] | None] = mapped_column(
+        JSONB,
+        nullable=True,
+    )  # [{iteration, title, bullets, action, confidence, token_usage, timestamp}, ...]
+    cumulative_tokens: Mapped[dict[str, Any] | None] = mapped_column(
+        JSONB,
+        nullable=True,
+    )  # {prompt_tokens, completion_tokens, total_tokens}
+
     # === Error Handling ===
     attempt_count: Mapped[int] = mapped_column(
         Integer,

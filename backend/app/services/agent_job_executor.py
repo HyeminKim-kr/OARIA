@@ -9,7 +9,6 @@
 
 import asyncio
 import logging
-from dataclasses import asdict
 from typing import Any
 from uuid import UUID
 
@@ -18,42 +17,14 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from ..core.sse_manager import sse_manager
 from ..database import async_session_maker
 from ..models.agent_job import AgentJob, AgentJobStatus
-from ..schemas.notification import NotificationCreateInternal
-from ..services.agent.study_plan.service import (
-    StudyPlanEventType,
-    study_plan_service,
-)
-from ..services.agent.study_plan.v3.nodes.synthesize_plan_v3 import synthesize_plan_v3
 from ..services.agent.study_plan.v4.service import get_study_plan_agent_v4
-from ..services.agent.study_plan.v4.core.loop import AgentLoopEvent
-from ..services.agent.study_plan.v3.state import (
-    ApprovalStatus,
-    create_initial_state,
-    ExperimentType,
-)
+from ..services.agent.study_plan.v4.langgraph.routing import AgentLoopEvent
 from .agent_job_service import AgentJobService
 from .notification_service import NotificationService
 
 logger = logging.getLogger(__name__)
 
 
-# 노드 → 진행률 매핑 (v3)
-NODE_PROGRESS_MAP = {
-    "parse_hypothesis": 10,
-    "clarify_hypothesis": 15,
-    "decompose_tests": 25,
-    "search_v3": 40,
-    "search_controls": 50,
-    "build_evidence": 60,
-    "analyze_methodologies": 65,
-    "design_experiments": 75,
-    "critique_v3": 82,
-    "identify_measurements": 87,
-    "validate_feasibility": 92,
-    "approval_gate": 95,
-    "synthesize_v3": 100,
-    "synthesize_plan": 100,
-}
 
 
 class AgentJobExecutor:
@@ -63,6 +34,13 @@ class AgentJobExecutor:
         self.db = db
         self.job_service = AgentJobService(db)
         self.notification_service = NotificationService(db)
+        # Thinking history 수집용
+        self._thinking_history: list[dict[str, Any]] = []
+        self._cumulative_tokens: dict[str, int] = {
+            "prompt_tokens": 0,
+            "completion_tokens": 0,
+            "total_tokens": 0,
+        }
 
     async def execute(self, job_id: UUID) -> None:
         """작업 실행
@@ -97,21 +75,20 @@ class AgentJobExecutor:
             await self._handle_failure(job, error=str(e))
 
     async def _execute_study_plan(self, job: AgentJob) -> None:
-        """Study Plan 에이전트 실행"""
+        """Study Plan 에이전트 실행 (v4 ReAct only)"""
         job_id = job.id
         user_id = job.user_id
         input_data = job.input_data or {}
-        is_resume = job.status == AgentJobStatus.APPROVED.value
 
-        logger.info(
-            f"[JobExecutor] {'Resuming' if is_resume else 'Executing'} "
-            f"Study Plan for job {job_id}"
-        )
+        # Reset thinking history for new execution
+        self._thinking_history = []
+        self._cumulative_tokens = {
+            "prompt_tokens": 0,
+            "completion_tokens": 0,
+            "total_tokens": 0,
+        }
 
-        # 승인 후 재개인 경우 별도 처리
-        if is_resume:
-            await self._resume_after_approval(job)
-            return
+        logger.info(f"[JobExecutor] Executing Study Plan v4 for job {job_id}")
 
         # 작업 시작
         job = await self.job_service.start_job(job)
@@ -134,221 +111,22 @@ class AgentJobExecutor:
         research_context = input_data.get("research_context")
         constraints = input_data.get("constraints", [])
         preferred_experiment_types = input_data.get("preferred_experiment_types", [])
-        conversation_id = input_data.get("conversation_id")
-
-        # 버전 확인 (v3 or v4)
-        is_v3 = job.agent_type in ["study_plan_v3", "study_plan"]
 
         try:
-            if is_v3:
-                # v3 스트리밍 실행
-                async for event in study_plan_service.execute_stream_v3(
-                    user_input=hypothesis,
-                    research_context=research_context,
-                    constraints=constraints,
-                    preferred_experiment_types=preferred_experiment_types,
-                    conversation_id=conversation_id,
-                    user_id=str(user_id),
-                ):
-                    await self._process_event(job, event)
-            else:
-                # v4 ReAct 스트리밍 실행
-                agent_v4 = get_study_plan_agent_v4()
-                async for event_type, event_data in agent_v4.execute_stream(
-                    hypothesis=hypothesis,
-                    research_context=research_context,
-                    constraints=constraints,
-                    preferred_experiment_types=preferred_experiment_types,
-                    user_id=str(user_id),
-                ):
-                    await self._process_v4_event(job, event_type, event_data)
+            # v4 ReAct 스트리밍 실행 (only v4 supported)
+            agent_v4 = get_study_plan_agent_v4()
+            async for event_type, event_data in agent_v4.execute_stream(
+                hypothesis=hypothesis,
+                research_context=research_context,
+                constraints=constraints,
+                preferred_experiment_types=preferred_experiment_types,
+                user_id=str(user_id),
+            ):
+                await self._process_v4_event(job, event_type, event_data)
 
         except Exception as e:
             logger.error(f"[JobExecutor] Study Plan execution error: {e}")
             raise
-
-    async def _resume_after_approval(self, job: AgentJob) -> None:
-        """승인 후 재개: 저장된 상태에서 synthesize만 실행"""
-        job_id = job.id
-        user_id = job.user_id
-        input_data = job.input_data or {}
-        step_results = job.step_results or []
-        approval_decision = job.approval_decision or {}
-
-        logger.info(f"[JobExecutor] Resuming job {job_id} after approval")
-
-        # 상태를 RUNNING으로 변경
-        job.status = AgentJobStatus.RUNNING.value
-        job.current_step = "synthesizing"
-        job.progress_percent = 95
-        await self.db.commit()
-        await self.db.refresh(job)
-
-        # SSE로 재개 이벤트 전송
-        await sse_manager.send_to_job_subscribers(
-            job_id=job_id,
-            event_type="status",
-            data={
-                "job_id": str(job_id),
-                "status": job.status,
-                "progress_percent": 95,
-                "current_step": "synthesizing",
-                "message": "승인이 완료되었습니다. 최종 계획서를 작성합니다.",
-            },
-        )
-
-        try:
-            # step_results에서 상태 재구성
-            state = self._reconstruct_state_from_results(
-                input_data=input_data,
-                step_results=step_results,
-                approval_decision=approval_decision,
-                user_id=str(user_id),
-            )
-
-            # synthesize_plan_v3 직접 호출
-            synthesis_result = await synthesize_plan_v3(state)
-
-            # 결과 병합
-            final_state = {**state, **synthesis_result}
-
-            # 완료 처리
-            result_data = {
-                "final_plan": final_state.get("final_plan", ""),
-                "executive_summary": final_state.get("executive_summary", ""),
-                "plan_a": final_state.get("plan_a", ""),
-                "plan_b": final_state.get("plan_b", ""),
-                "dp3_decision": final_state.get("dp3_decision", "single_plan"),
-                "highest_tier_used": final_state.get("current_tier", 1),
-                "success": True,
-            }
-
-            experiment_count = len(final_state.get("experiment_designs", []))
-
-            job = await self.job_service.complete(
-                job=job,
-                result_data=result_data,
-                executive_summary=result_data.get("executive_summary", ""),
-                experiment_count=experiment_count,
-            )
-
-            # 알림 생성
-            notification = await self.notification_service.notify_job_completed(job)
-
-            # SSE로 완료 이벤트 전송
-            await sse_manager.send_to_job_subscribers(
-                job_id=job_id,
-                event_type="completed",
-                data={
-                    "job_id": str(job_id),
-                    "event": "completed",
-                    "success": True,
-                    "status": job.status,
-                    "progress_percent": 100,
-                    "experiment_count": experiment_count,
-                    **result_data,
-                },
-            )
-
-            # 알림 브로드캐스트
-            await sse_manager.broadcast_notification(
-                user_id=user_id,
-                notification_data={
-                    "id": str(notification.id),
-                    "type": notification.type,
-                    "title": notification.title,
-                    "message": notification.message,
-                    "entity_id": str(job_id),
-                },
-            )
-
-            logger.info(f"[JobExecutor] Job {job_id} resumed and completed")
-
-        except Exception as e:
-            logger.error(f"[JobExecutor] Resume failed for job {job_id}: {e}")
-            await self._handle_failure(job, error=str(e))
-
-    def _reconstruct_state_from_results(
-        self,
-        input_data: dict[str, Any],
-        step_results: list[dict[str, Any]],
-        approval_decision: dict[str, Any],
-        user_id: str,
-    ) -> dict[str, Any]:
-        """step_results에서 StudyPlanState 재구성"""
-        # 기본 상태 생성
-        hypothesis = input_data.get("hypothesis", "")
-        research_context = input_data.get("research_context")
-        constraints = input_data.get("constraints", [])
-        preferred_exp_types = input_data.get("preferred_experiment_types", [])
-
-        # 실험 유형 변환
-        exp_types = []
-        for t in preferred_exp_types:
-            try:
-                exp_types.append(ExperimentType(t))
-            except ValueError:
-                pass
-
-        state = create_initial_state(
-            user_input=hypothesis,
-            research_context=research_context,
-            constraints=constraints,
-            preferred_experiment_types=exp_types,
-            user_id=user_id,
-        )
-
-        # step_results에서 상태 복원
-        for step_entry in step_results:
-            step_data = step_entry.get("result", {})
-            step_name = step_entry.get("step", "")
-
-            # 각 단계별 데이터 병합
-            if step_name == "parse_hypothesis":
-                if "hypothesis" in step_data:
-                    state["hypothesis"] = step_data["hypothesis"]
-                if "confidence" in step_data:
-                    state["hypothesis_confidence"] = step_data["confidence"]
-
-            elif step_name in ("search_v3", "search_studies"):
-                if "study_count" in step_data:
-                    # prior_studies는 step_data에 직접 포함되지 않음
-                    # 대신 coverage와 tier 정보만 저장
-                    state["search_coverage_score"] = step_data.get("coverage", 0)
-                    state["current_tier"] = step_data.get("current_tier", 1)
-
-            elif step_name == "decompose_tests":
-                if "test_questions" in step_data:
-                    state["test_questions"] = step_data["test_questions"]
-
-            elif step_name == "design_experiments":
-                if "experiments" in step_data:
-                    state["experiment_designs"] = step_data["experiments"]
-
-            elif step_name in ("critique_v3", "critique_refine"):
-                if "quality_score" in step_data:
-                    state["critique_result"] = {
-                        "quality_score": step_data.get("quality_score", 0),
-                        "passed": step_data.get("passed", True),
-                        "suggestions": step_data.get("suggestions", []),
-                    }
-                if "dp2_decision" in step_data:
-                    state["dp2_decision"] = step_data["dp2_decision"]
-
-            elif step_name == "validate_feasibility":
-                if "overall_score" in step_data:
-                    state["feasibility"] = {
-                        "overall_score": step_data.get("overall_score", 0),
-                        "technical_feasibility": step_data.get("technical_feasibility", 0),
-                        "resource_feasibility": step_data.get("resource_feasibility", 0),
-                        "timeline_feasibility": step_data.get("timeline_feasibility", 0),
-                    }
-
-        # 승인 상태 설정
-        state["approval_status"] = ApprovalStatus.APPROVED
-        state["approval_decision"] = approval_decision
-
-        return state
 
     async def _process_v4_event(
         self, job: AgentJob, event_type: str, event_data: dict[str, Any]
@@ -388,12 +166,42 @@ class AgentJobExecutor:
             )
 
         elif event_type == AgentLoopEvent.THINKING:
+            # Collect thinking event for history
+            thinking_entry = {
+                "iteration": iteration,
+                "timestamp": event_data.get("timestamp"),
+                "title": event_data.get("title", f"Iteration {iteration}"),
+                "bullets": event_data.get("bullets", []),
+                "message": event_data.get("message", ""),
+                "confidence": event_data.get("confidence", 0),
+                "status": "completed",
+            }
+
+            # Track token usage
+            if event_data.get("token_usage"):
+                token_usage = event_data["token_usage"]
+                thinking_entry["token_usage"] = token_usage
+                self._cumulative_tokens["prompt_tokens"] += token_usage.get("prompt_tokens", 0)
+                self._cumulative_tokens["completion_tokens"] += token_usage.get("completion_tokens", 0)
+                self._cumulative_tokens["total_tokens"] += token_usage.get("total_tokens", 0)
+
+            self._thinking_history.append(thinking_entry)
+
             await self.job_service.update_progress(
                 job=job,
                 current_step="thinking",
                 progress_percent=progress,
                 progress_detail=f"Iteration {iteration}: 다음 행동 결정 중...",
             )
+
+            # 매 5번째 iteration마다 thinking_history를 DB에 저장 (중간 저장)
+            if iteration % 5 == 0:
+                await self.job_service.save_thinking_history(
+                    job=job,
+                    thinking_history=self._thinking_history,
+                    cumulative_tokens=self._cumulative_tokens,
+                )
+
             await sse_manager.send_to_job_subscribers(
                 job_id=job_id,
                 event_type="thinking",
@@ -408,6 +216,12 @@ class AgentJobExecutor:
 
         elif event_type == AgentLoopEvent.ACTING:
             action = event_data.get("action", "unknown")
+
+            # Update the last thinking entry with the action taken
+            if self._thinking_history:
+                self._thinking_history[-1]["action"] = action
+                self._thinking_history[-1]["parameters"] = event_data.get("parameters", {})
+
             await self.job_service.update_progress(
                 job=job,
                 current_step=f"action:{action}",
@@ -429,6 +243,15 @@ class AgentJobExecutor:
         elif event_type == AgentLoopEvent.OBSERVATION:
             action = event_data.get("action", "unknown")
             success = event_data.get("success", False)
+
+            # Update the last thinking entry with observation result
+            if self._thinking_history:
+                self._thinking_history[-1]["observation"] = {
+                    "success": success,
+                    "summary": event_data.get("summary", ""),
+                    "details": event_data.get("details"),
+                }
+
             await sse_manager.send_to_job_subscribers(
                 job_id=job_id,
                 event_type="observation",
@@ -476,6 +299,13 @@ class AgentJobExecutor:
 
             experiment_count = event_data.get("experiment_count", 0)
 
+            # Save final thinking history before completing
+            await self.job_service.save_thinking_history(
+                job=job,
+                thinking_history=self._thinking_history,
+                cumulative_tokens=self._cumulative_tokens,
+            )
+
             job = await self.job_service.complete(
                 job=job,
                 result_data=result_data,
@@ -521,230 +351,6 @@ class AgentJobExecutor:
 
             logger.error(f"[JobExecutor] v4 error (critical={is_critical}): {error}")
             await self._handle_failure(job, error=error)
-
-    async def _process_event(self, job: AgentJob, event: Any) -> None:
-        """스트리밍 이벤트 처리
-
-        Args:
-            job: 작업 객체
-            event: StudyPlanEvent 객체
-        """
-        job_id = job.id
-        event_type = event.event_type
-        event_data = event.data
-
-        # 노드 이름과 진행률 추출
-        node_name = event_data.get("node", "")
-        progress = NODE_PROGRESS_MAP.get(node_name, job.progress_percent)
-        detail = event_data.get("detail", node_name)
-
-        # 이벤트 타입에 따른 처리
-        if event_type == StudyPlanEventType.STATUS:
-            # 상태 업데이트
-            await self.job_service.update_progress(
-                job=job,
-                current_step=event_data.get("status", "running"),
-                progress_percent=progress,
-                progress_detail=event_data.get("message"),
-            )
-
-        elif event_type == StudyPlanEventType.APPROVAL_REQUIRED:
-            # 승인 대기 상태로 전환
-            await self._handle_approval_required(job, event_data)
-            return  # 승인 대기 후 종료
-
-        elif event_type == StudyPlanEventType.ERROR:
-            # 에러 발생
-            error_msg = event_data.get("error", "Unknown error")
-            await self._handle_failure(job, error=error_msg)
-            return
-
-        elif event_type == StudyPlanEventType.DONE:
-            # 완료 처리
-            await self._handle_done(job, event_data)
-            return
-
-        else:
-            # 진행 상태 업데이트
-            job = await self.job_service.update_progress(
-                job=job,
-                current_step=node_name or str(event_type.value),
-                progress_percent=progress,
-                progress_detail=detail,
-                step_result=event_data if node_name else None,
-            )
-
-        # SSE로 이벤트 전송
-        await sse_manager.send_to_job_subscribers(
-            job_id=job_id,
-            event_type=str(event_type.value),
-            data={
-                "job_id": str(job_id),
-                "event": str(event_type.value),
-                "node": node_name,
-                "progress_percent": progress,
-                "current_step": node_name or str(event_type.value),
-                "detail": detail,
-                **event_data,
-            },
-        )
-
-    async def _handle_approval_required(
-        self, job: AgentJob, event_data: dict[str, Any]
-    ) -> None:
-        """승인 대기 처리"""
-        job_id = job.id
-        user_id = job.user_id
-
-        # 승인 선택지 추출
-        choices = event_data.get("choices", [])
-        items = event_data.get("items", [])
-
-        # 승인 대기 상태로 전환
-        job = await self.job_service.set_waiting_approval(
-            job=job,
-            gate_id="dp1_approval",
-            choices={
-                "choices": choices,
-                "items": items,
-            },
-        )
-
-        # 알림 생성
-        notification = await self.notification_service.create(
-            data=NotificationCreateInternal(
-                user_id=user_id,
-                type="approval_required",
-                category="agent",
-                title="승인이 필요합니다",
-                message=f"'{job.job_name or job.agent_type}' 작업이 승인을 기다리고 있습니다.",
-                entity_type="agent_job",
-                entity_id=job_id,
-                action_type="approve",
-                priority="high",
-            )
-        )
-
-        # SSE로 승인 요청 이벤트 전송
-        await sse_manager.send_to_job_subscribers(
-            job_id=job_id,
-            event_type="waiting_approval",
-            data={
-                "job_id": str(job_id),
-                "event": "waiting_approval",
-                "approval_required": True,
-                "approval_gate_id": "dp1_approval",
-                "approval_choices": choices,
-                "approval_items": items,
-            },
-        )
-
-        # 알림도 브로드캐스트
-        await sse_manager.broadcast_notification(
-            user_id=user_id,
-            notification_data={
-                "id": str(notification.id),
-                "type": notification.type,
-                "title": notification.title,
-                "message": notification.message,
-                "entity_id": str(job_id),
-            },
-        )
-
-        logger.info(f"[JobExecutor] Job {job_id} waiting for approval")
-
-    async def _handle_done(self, job: AgentJob, event_data: dict[str, Any]) -> None:
-        """완료 처리"""
-        job_id = job.id
-        user_id = job.user_id
-
-        # 결과 데이터 추출
-        result_data = {
-            "final_plan": event_data.get("final_plan", ""),
-            "executive_summary": event_data.get("executive_summary", ""),
-            "plan_a": event_data.get("plan_a", ""),
-            "plan_b": event_data.get("plan_b", ""),
-            "dp3_decision": event_data.get("dp3_decision", "single_plan"),
-            "highest_tier_used": event_data.get("highest_tier_used", 1),
-            "success": event_data.get("success", True),
-        }
-
-        experiment_count = event_data.get("experiment_count", 0)
-        executive_summary = event_data.get("executive_summary", "")
-        total_duration = event_data.get("total_duration_ms", 0)
-
-        # 완료 처리
-        job = await self.job_service.complete(
-            job=job,
-            result_data=result_data,
-            executive_summary=executive_summary,
-            experiment_count=experiment_count,
-        )
-
-        # 알림 생성
-        notification = await self.notification_service.notify_job_completed(job)
-
-        # SSE로 완료 이벤트 전송
-        await sse_manager.send_to_job_subscribers(
-            job_id=job_id,
-            event_type="completed",
-            data={
-                "job_id": str(job_id),
-                "event": "completed",
-                "success": True,
-                "status": job.status,
-                "progress_percent": 100,
-                "experiment_count": experiment_count,
-                "total_duration_ms": total_duration,
-                **result_data,
-            },
-        )
-
-        # 알림 브로드캐스트
-        await sse_manager.broadcast_notification(
-            user_id=user_id,
-            notification_data={
-                "id": str(notification.id),
-                "type": notification.type,
-                "title": notification.title,
-                "message": notification.message,
-                "entity_id": str(job_id),
-            },
-        )
-
-        logger.info(f"[JobExecutor] Job {job_id} completed successfully")
-
-    async def _handle_result(self, job: AgentJob, result: Any) -> None:
-        """동기 실행 결과 처리 (v4 등)"""
-        job_id = job.id
-
-        if result.success:
-            result_data = {
-                "final_plan": result.final_plan,
-                "executive_summary": result.executive_summary,
-                "approval_required": result.approval_required,
-                "approval_status": result.approval_status,
-            }
-
-            job = await self.job_service.complete(
-                job=job,
-                result_data=result_data,
-                executive_summary=result.executive_summary,
-                experiment_count=result.experiment_count,
-            )
-
-            await sse_manager.send_to_job_subscribers(
-                job_id=job_id,
-                event_type="completed",
-                data={
-                    "job_id": str(job_id),
-                    "event": "completed",
-                    "success": True,
-                    **result_data,
-                },
-            )
-        else:
-            await self._handle_failure(job, error=result.error or "Unknown error")
 
     async def _handle_failure(self, job: AgentJob, error: str) -> None:
         """실패 처리"""
