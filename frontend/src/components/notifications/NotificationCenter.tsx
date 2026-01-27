@@ -23,8 +23,24 @@ export function NotificationCenter({ onClose }: NotificationCenterProps) {
     if (!notification.is_read) {
       await markAsRead(notification.id);
     }
+
+    // action_url이 있으면 해당 URL로 이동
     if (notification.action_url) {
       router.push(notification.action_url);
+      onClose();
+      return;
+    }
+
+    // action_url이 없는 경우 entity_type과 entity_id 기반으로 이동
+    if (notification.entity_type === "agent_job" && notification.entity_id) {
+      // 승인 필요 알림인 경우 해당 작업 페이지로 이동
+      if (notification.type === "approval_required" || notification.action_type === "approve") {
+        router.push(`/agents/study-plan/jobs/${notification.entity_id}`);
+        onClose();
+        return;
+      }
+      // 완료/실패 알림인 경우 히스토리 페이지로 이동
+      router.push(`/agents/study-plan/history`);
       onClose();
     }
   };
@@ -65,6 +81,7 @@ export function NotificationCenter({ onClose }: NotificationCenterProps) {
           </div>
         );
       case "job_waiting_approval":
+      case "approval_required":
         return (
           <div className="w-8 h-8 rounded-full bg-yellow-100 dark:bg-yellow-900 flex items-center justify-center">
             <svg className="w-4 h-4 text-yellow-600 dark:text-yellow-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
