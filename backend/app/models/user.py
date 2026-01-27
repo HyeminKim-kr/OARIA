@@ -14,7 +14,6 @@ if TYPE_CHECKING:
     from .social_account import SocialAccount
     from .refresh_token import UserRefreshToken
     from .chat import Conversation, AnswerLog
-    from .study_plan import StudyPlan
     from .agent_job import AgentJob
     from .notification import Notification
 
@@ -78,11 +77,6 @@ class User(Base):
     answer_logs: Mapped[list["AnswerLog"]] = relationship(
         "AnswerLog",
         back_populates="user",
-    )
-    study_plans: Mapped[list["StudyPlan"]] = relationship(
-        "StudyPlan",
-        back_populates="user",
-        cascade="all, delete-orphan",
     )
     agent_jobs: Mapped[list["AgentJob"]] = relationship(
         "AgentJob",
