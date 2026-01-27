@@ -605,10 +605,10 @@ export default function AskPage() {
 
                 {/* Agent Progress UI */}
                 {isLoading && agentProgress && (
-                  <div className="ml-11 mb-4 p-4 rounded-lg bg-[var(--oaria-border)]/20 border border-[var(--oaria-border)]">
+                  <div className="ml-11 mb-4">
                     {/* Complexity Badge */}
                     {agentProgress.complexity && (
-                      <div className="flex items-center justify-center gap-2 mb-3">
+                      <div className={`flex items-center ${agentProgress.subtasks && agentProgress.subtasks.length > 0 ? "mb-3" : ""}`}>
                         <span className={`px-3 py-1 rounded-full text-xs font-medium ${
                           agentProgress.complexity.level === "simple"
                             ? "bg-green-100 text-green-700"
@@ -617,9 +617,6 @@ export default function AskPage() {
                             : "bg-purple-100 text-purple-700"
                         }`}>
                           {agentProgress.complexity.level.toUpperCase()}
-                        </span>
-                        <span className="text-xs text-[var(--oaria-text-secondary)]">
-                          {agentProgress.complexity.reasoning}
                         </span>
                       </div>
                     )}
