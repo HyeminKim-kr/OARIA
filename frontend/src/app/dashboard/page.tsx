@@ -2,7 +2,6 @@
 
 import { useMemo, useState, useEffect, useCallback } from "react";
 import Link from "next/link";
-import { useRouter } from "next/navigation";
 import { useQuery } from "@tanstack/react-query";
 import {
   Search,
@@ -41,11 +40,27 @@ const MOCK_JOURNALS = [
   "Cell Reports", "eLife", "PLoS ONE", "Nucleic Acids Research", "Bioinformatics",
 ];
 
-const MOCK_AUTHORS = [
-  "Zhang Y.", "Wang L.", "Chen X.", "Li J.", "Liu H.",
-  "Kim S.", "Park J.", "Tanaka K.", "Smith J.", "Johnson M.",
-  "Brown A.", "Lee D.", "Yang W.", "Wu Q.", "Patel R.",
-  "Garcia M.", "Müller T.", "Singh P.", "Anderson B.", "Taylor C.",
+const MOCK_AUTHORS_WITH_AFF: { name: string; aff: string }[] = [
+  { name: "Zhang Y.", aff: "Peking University, Beijing, China" },
+  { name: "Wang L.", aff: "Shanghai Jiao Tong University, Shanghai, China" },
+  { name: "Chen X.", aff: "Xiamen University, Xiamen, China" },
+  { name: "Li J.", aff: "Fudan University, Shanghai, China" },
+  { name: "Liu H.", aff: "Tsinghua University, Beijing, China" },
+  { name: "Kim S.", aff: "Seoul National University, Seoul, South Korea" },
+  { name: "Park J.", aff: "KAIST, Daejeon, South Korea" },
+  { name: "Tanaka K.", aff: "University of Tokyo, Tokyo, Japan" },
+  { name: "Smith J.", aff: "Harvard Medical School, Boston, USA" },
+  { name: "Johnson M.", aff: "Stanford University, USA" },
+  { name: "Brown A.", aff: "University of Cambridge, UK" },
+  { name: "Lee D.", aff: "MIT, Cambridge, USA" },
+  { name: "Yang W.", aff: "National University of Singapore, Singapore" },
+  { name: "Wu Q.", aff: "University of Melbourne, Melbourne, Australia" },
+  { name: "Patel R.", aff: "All India Institute of Medical Sciences, Delhi, India" },
+  { name: "Garcia M.", aff: "Hospital Clínic, Barcelona, Spain" },
+  { name: "Müller T.", aff: "Charité, Berlin, Germany" },
+  { name: "Singh P.", aff: "University of Toronto, Toronto, Canada" },
+  { name: "Anderson B.", aff: "Karolinska Institute, Stockholm, Sweden" },
+  { name: "Taylor C.", aff: "Francis Crick Institute, London, UK" },
 ];
 
 function generateMockPapers(count: number): Paper[] {
@@ -57,11 +72,15 @@ function generateMockPapers(count: number): Paper[] {
     const kwSet = new Set<string>();
     while (kwSet.size < kwCount) kwSet.add(MOCK_KEYWORDS[Math.floor(Math.random() * MOCK_KEYWORDS.length)]);
     const authCount = 1 + Math.floor(Math.random() * 6);
-    const authors = Array.from({ length: authCount }, (_, j) => ({
-      author_name: MOCK_AUTHORS[Math.floor(Math.random() * MOCK_AUTHORS.length)],
-      author_order: j + 1,
-      is_corresponding: j === 0,
-    }));
+    const authors = Array.from({ length: authCount }, (_, j) => {
+      const a = MOCK_AUTHORS_WITH_AFF[Math.floor(Math.random() * MOCK_AUTHORS_WITH_AFF.length)];
+      return {
+        author_name: a.name,
+        author_order: j + 1,
+        is_corresponding: j === 0,
+        affiliation: a.aff,
+      };
+    });
     const daysOffset = Math.floor(Math.random() * 2000);
     const created = new Date(baseDate.getTime() + daysOffset * 86400000);
     papers.push({
@@ -105,20 +124,57 @@ import NetworkGraph from "./components/NetworkGraph";
 import HeatmapChart from "./components/HeatmapChart";
 import DonutChart from "./components/DonutChart";
 import TopJournalsBar from "./components/TopJournalsBar";
-import KeywordTreemap from "./components/KeywordTreemap";
+import JournalTreemap from "./components/JournalTreemap";
 import RadialYearChart from "./components/RadialYearChart";
 import TopAuthorsBar from "./components/TopAuthorsBar";
-import PaperTimeline from "./components/PaperTimeline";
+import WorldMap, { COUNTRY_COORDS } from "./components/WorldMap";
+import type { CountryData } from "./components/WorldMap";
+
+// ─────────────────────────────────────────────────────
+// Case-insensitive keyword normalization
+// ─────────────────────────────────────────────────────
+
+/**
+ * Merge keywords that differ only by case.
+ * Keeps the most-used casing as the canonical form.
+ */
+function buildCaseMap(papers: Paper[]): Record<string, string> {
+  const rawCounts: Record<string, number> = {};
+  papers.forEach((p) =>
+    p.keywords?.forEach((kw) => {
+      const k = kw.trim();
+      if (k) rawCounts[k] = (rawCounts[k] || 0) + 1;
+    })
+  );
+  // Group by lowercase, pick highest-count form
+  const groups: Record<string, { form: string; count: number }> = {};
+  for (const [form, count] of Object.entries(rawCounts)) {
+    const lower = form.toLowerCase();
+    if (!groups[lower] || count > groups[lower].count) {
+      groups[lower] = { form, count };
+    }
+  }
+  const map: Record<string, string> = {};
+  for (const [form] of Object.entries(rawCounts)) {
+    map[form] = groups[form.toLowerCase()].form;
+  }
+  return map;
+}
+
+function normalizeKw(kw: string, caseMap: Record<string, string>): string {
+  const trimmed = kw.trim();
+  return caseMap[trimmed] || trimmed;
+}
 
 // ─────────────────────────────────────────────────────
 // Data processing helpers
 // ─────────────────────────────────────────────────────
 
-function processStreamData(papers: Paper[]) {
+function processStreamData(papers: Paper[], caseMap: Record<string, string>) {
   const kwCounts: Record<string, number> = {};
   papers.forEach((p) =>
     p.keywords?.forEach((kw) => {
-      const k = kw.trim();
+      const k = normalizeKw(kw, caseMap);
       if (k) kwCounts[k] = (kwCounts[k] || 0) + 1;
     })
   );
@@ -132,7 +188,7 @@ function processStreamData(papers: Paper[]) {
     if (!p.year) return;
     if (!yearMap[p.year]) yearMap[p.year] = {};
     p.keywords?.forEach((kw) => {
-      const k = kw.trim();
+      const k = normalizeKw(kw, caseMap);
       if (topKW.includes(k)) yearMap[p.year!][k] = (yearMap[p.year!][k] || 0) + 1;
     });
   });
@@ -147,7 +203,7 @@ function processStreamData(papers: Paper[]) {
   return { data, keys: topKW };
 }
 
-function processBubbleData(papers: Paper[]): BubbleData[] {
+function processBubbleData(papers: Paper[], caseMap: Record<string, string>): BubbleData[] {
   const now = new Date();
   const halfYear = new Date(now.getTime() - 180 * 86400000);
 
@@ -157,7 +213,7 @@ function processBubbleData(papers: Paper[]): BubbleData[] {
   papers.forEach((p) => {
     const isRecent = p.created_at ? new Date(p.created_at) > halfYear : false;
     p.keywords?.forEach((kw) => {
-      const k = kw.trim();
+      const k = normalizeKw(kw, caseMap);
       if (!k) return;
       kwTotal[k] = (kwTotal[k] || 0) + 1;
       if (isRecent) kwRecent[k] = (kwRecent[k] || 0) + 1;
@@ -175,12 +231,12 @@ function processBubbleData(papers: Paper[]): BubbleData[] {
     .slice(0, 25);
 }
 
-function processNetworkData(papers: Paper[]) {
+function processNetworkData(papers: Paper[], caseMap: Record<string, string>) {
   const kwCounts: Record<string, number> = {};
   const edgeCounts: Record<string, number> = {};
 
   papers.forEach((p) => {
-    const kws = (p.keywords || []).map((k) => k.trim()).filter(Boolean);
+    const kws = (p.keywords || []).map((k) => normalizeKw(k, caseMap)).filter(Boolean);
     kws.forEach((k) => (kwCounts[k] = (kwCounts[k] || 0) + 1));
     for (let i = 0; i < kws.length; i++) {
       for (let j = i + 1; j < kws.length; j++) {
@@ -280,29 +336,82 @@ function processTopAuthors(papers: Paper[]) {
     .map(([label, value]) => ({ label, value }));
 }
 
-function processTreemapData(papers: Paper[]) {
+function processJournalTreemapData(papers: Paper[]) {
   const counts: Record<string, number> = {};
-  papers.forEach((p) =>
-    p.keywords?.forEach((kw) => {
-      const k = kw.trim();
-      if (k) counts[k] = (counts[k] || 0) + 1;
-    })
-  );
+  papers.forEach((p) => {
+    if (p.journal) counts[p.journal] = (counts[p.journal] || 0) + 1;
+  });
+  const total = papers.length || 1;
   return Object.entries(counts)
     .sort((a, b) => b[1] - a[1])
-    .slice(0, 30)
-    .map(([name, value]) => ({ name, value }));
+    .slice(0, 20)
+    .map(([name, value]) => ({ name, value, pct: (value / total) * 100 }));
 }
 
-function processTimelineData(papers: Paper[]) {
-  return papers
-    .filter((p) => p.created_at)
-    .slice(0, 15)
-    .map((p) => ({
-      id: p.id,
-      title: p.title,
-      journal: p.journal || "",
-      date: p.created_at,
+// Extract country from affiliation text
+const COUNTRY_PATTERNS: [RegExp, string][] = [
+  [/\bUSA\b|\bUnited States\b|\bU\.S\.A/i, "USA"],
+  [/\bUK\b|\bUnited Kingdom\b|\bEngland\b|\bScotland\b|\bWales\b|\bLondon\b/i, "UK"],
+  [/\bChina\b|\bBeijing\b|\bShanghai\b|\bGuangzhou\b|\bXiamen\b/i, "China"],
+  [/\bJapan\b|\bTokyo\b|\bOsaka\b/i, "Japan"],
+  [/\bGermany\b|\bDeutschland\b|\bBerlin\b|\bMunich\b|\bDuisburg\b|\bEssen\b/i, "Germany"],
+  [/\bFrance\b|\bParis\b/i, "France"],
+  [/\bItaly\b|\bRoma\b|\bMilano\b/i, "Italy"],
+  [/\bSpain\b|\bMadrid\b|\bBarcelona\b/i, "Spain"],
+  [/\bCanada\b|\bToronto\b|\bVancouver\b/i, "Canada"],
+  [/\bAustralia\b|\bMelbourne\b|\bSydney\b/i, "Australia"],
+  [/\bSouth Korea\b|\bKorea\b|\bSeoul\b/i, "South Korea"],
+  [/\bIndia\b|\bMumbai\b|\bDelhi\b/i, "India"],
+  [/\bBrazil\b|\bSão Paulo\b/i, "Brazil"],
+  [/\bNetherlands\b|\bAmsterdam\b/i, "Netherlands"],
+  [/\bSwitzerland\b|\bZurich\b|\bGeneva\b|\bBasel\b/i, "Switzerland"],
+  [/\bSweden\b|\bStockholm\b/i, "Sweden"],
+  [/\bBelgium\b|\bLeuven\b|\bBrussels\b/i, "Belgium"],
+  [/\bAustria\b|\bVienna\b/i, "Austria"],
+  [/\bDenmark\b|\bCopenhagen\b/i, "Denmark"],
+  [/\bNorway\b|\bOslo\b/i, "Norway"],
+  [/\bFinland\b|\bHelsinki\b/i, "Finland"],
+  [/\bPoland\b|\bWarsaw\b/i, "Poland"],
+  [/\bTurkey\b|\bIstanbul\b|\bAnkara\b/i, "Turkey"],
+  [/\bIsrael\b|\bTel Aviv\b/i, "Israel"],
+  [/\bIran\b|\bTehran\b/i, "Iran"],
+  [/\bTaiwan\b|\bTaipei\b/i, "Taiwan"],
+  [/\bSingapore\b/i, "Singapore"],
+  [/\bIreland\b|\bDublin\b/i, "Ireland"],
+  [/\bPortugal\b|\bLisbon\b/i, "Portugal"],
+  [/\bGreece\b|\bAthens\b/i, "Greece"],
+];
+
+function extractCountry(affiliation: string): string | null {
+  for (const [regex, country] of COUNTRY_PATTERNS) {
+    if (regex.test(affiliation)) return country;
+  }
+  return null;
+}
+
+function processWorldMapData(papers: Paper[]): CountryData[] {
+  const countryCounts: Record<string, number> = {};
+  papers.forEach((p) => {
+    const seen = new Set<string>();
+    p.authors?.forEach((a) => {
+      if (!a.affiliation) return;
+      const country = extractCountry(a.affiliation);
+      if (country && !seen.has(country)) {
+        seen.add(country);
+        countryCounts[country] = (countryCounts[country] || 0) + 1;
+      }
+    });
+  });
+
+  return Object.entries(countryCounts)
+    .sort((a, b) => b[1] - a[1])
+    .slice(0, 25)
+    .filter(([country]) => COUNTRY_COORDS[country])
+    .map(([country, count]) => ({
+      country,
+      count,
+      lat: COUNTRY_COORDS[country][1],
+      lng: COUNTRY_COORDS[country][0],
     }));
 }
 
@@ -436,7 +545,6 @@ function KeywordModal({
 // ─────────────────────────────────────────────────────
 
 export default function DashboardPage() {
-  const router = useRouter();
   const [selectedKeyword, setSelectedKeyword] = useState<string | null>(null);
   const [useMockData, setUseMockData] = useState(false);
 
@@ -455,33 +563,57 @@ export default function DashboardPage() {
 
   const papers = useMockData ? getMockPapers() : (papersQuery.data || []);
 
+  // Case-insensitive keyword map
+  const caseMap = useMemo(() => buildCaseMap(papers), [papers]);
+
   // Processed data
-  const streamData = useMemo(() => processStreamData(papers), [papers]);
-  const bubbleData = useMemo(() => processBubbleData(papers), [papers]);
-  const networkData = useMemo(() => processNetworkData(papers), [papers]);
+  const streamData = useMemo(() => processStreamData(papers, caseMap), [papers, caseMap]);
+  const bubbleData = useMemo(() => processBubbleData(papers, caseMap), [papers, caseMap]);
+  const networkData = useMemo(() => processNetworkData(papers, caseMap), [papers, caseMap]);
   const heatmapData = useMemo(() => processHeatmapData(papers), [papers]);
   const donutData = useMemo(() => processDonutData(papers), [papers]);
   const topJournals = useMemo(() => processTopJournals(papers), [papers]);
   const topAuthors = useMemo(() => processTopAuthors(papers), [papers]);
-  const treemapData = useMemo(() => processTreemapData(papers), [papers]);
-  const timelineData = useMemo(() => processTimelineData(papers), [papers]);
+  const journalTreemapData = useMemo(() => processJournalTreemapData(papers), [papers]);
+  const worldMapData = useMemo(() => processWorldMapData(papers), [papers]);
   const statsData = useMockData ? MOCK_STATS : statsQuery.data;
-  const radialData = useMemo(
-    () =>
-      statsData?.by_year
-        ? [...statsData.by_year].reverse()
-        : [],
-    [statsData]
-  );
+  const radialData = useMemo(() => {
+    if (!statsData?.by_year) return [];
+    const byYear = [...statsData.by_year].sort((a, b) => a.year - b.year);
+    // If ≤3 distinct years with data, switch to quarterly view from papers
+    const yearsWithData = byYear.filter((d) => d.count > 0);
+    if (yearsWithData.length <= 3 && papers.length > 0) {
+      // Build quarterly distribution from papers
+      const qCounts: Record<string, number> = {};
+      papers.forEach((p) => {
+        if (!p.created_at) return;
+        const d = new Date(p.created_at);
+        const q = Math.floor(d.getMonth() / 3) + 1;
+        const label = `Q${q} '${String(d.getFullYear()).slice(2)}`;
+        qCounts[label] = (qCounts[label] || 0) + 1;
+      });
+      return Object.entries(qCounts)
+        .map(([label, count]) => ({ year: 0, count, label }))
+        .sort((a, b) => {
+          // Sort by year then quarter from label
+          const parseLabel = (l: string) => {
+            const m = l.match(/Q(\d) '(\d+)/);
+            return m ? parseInt(m[2]) * 10 + parseInt(m[1]) : 0;
+          };
+          return parseLabel(a.label!) - parseLabel(b.label!);
+        });
+    }
+    return byYear.map((d) => ({ ...d, label: undefined }));
+  }, [statsData, papers]);
 
   // Derived stats
   const totalPapers = statsData?.total || 0;
   const recentCount = statsData?.recent_count || 0;
   const uniqueKeywords = useMemo(() => {
     const set = new Set<string>();
-    papers.forEach((p) => p.keywords?.forEach((k) => set.add(k.trim())));
+    papers.forEach((p) => p.keywords?.forEach((k) => set.add(normalizeKw(k, caseMap).toLowerCase())));
     return set.size;
-  }, [papers]);
+  }, [papers, caseMap]);
   const uniqueJournals = useMemo(() => {
     const set = new Set<string>();
     papers.forEach((p) => {
@@ -494,12 +626,6 @@ export default function DashboardPage() {
     setSelectedKeyword(keyword);
   }, []);
 
-  const handlePaperClick = useCallback(
-    (id: string) => {
-      router.push(`/papers/${id}`);
-    },
-    [router]
-  );
 
   const isLoading = !useMockData && (statsQuery.isLoading || papersQuery.isLoading);
 
@@ -712,38 +838,33 @@ export default function DashboardPage() {
                 </div>
               </div>
 
-              {/* ─── Row 5: Treemap + Timeline ─── */}
-              <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-6">
-                <ChartSection
-                  title="Keyword Landscape"
-                  subtitle="키워드 빈도 트리맵 (클릭하면 관련 논문)"
-                >
-                  <div className="h-72">
-                    <KeywordTreemap
-                      data={treemapData}
-                      onKeywordClick={handleKeywordClick}
-                    />
-                  </div>
-                </ChartSection>
+              {/* ─── Row 5: Journal Treemap (full width, BTC style) ─── */}
+              <ChartSection
+                title="Journal Landscape"
+                subtitle="저널별 논문 비중 (Market Cap Style)"
+                className="mb-6"
+              >
+                <div className="h-80">
+                  <JournalTreemap data={journalTreemapData} />
+                </div>
+              </ChartSection>
 
-                <ChartSection
-                  title="Recent Papers Timeline"
-                  subtitle="최근 수집 논문 타임라인"
-                >
-                  <div className="h-72">
-                    <PaperTimeline
-                      data={timelineData}
-                      onPaperClick={handlePaperClick}
-                    />
-                  </div>
-                </ChartSection>
-              </div>
+              {/* ─── Row 6: World Map (full width) ─── */}
+              <ChartSection
+                title="Global Research Map"
+                subtitle="저자 소속 기관 국가별 분포"
+                className="mb-6"
+              >
+                <div className="h-80">
+                  <WorldMap data={worldMapData} />
+                </div>
+              </ChartSection>
 
-              {/* ─── Row 6: Radial + Authors ─── */}
+              {/* ─── Row 7: Radial + Authors ─── */}
               <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-6">
                 <ChartSection
                   title="Year Distribution"
-                  subtitle="연도별 논문 분포 (Radial)"
+                  subtitle={radialData.some((d) => d.label) ? "분기별 논문 분포 (Radial)" : "연도별 논문 분포 (Radial)"}
                 >
                   <div className="h-72">
                     <RadialYearChart data={radialData} />
