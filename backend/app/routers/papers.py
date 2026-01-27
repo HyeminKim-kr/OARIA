@@ -104,7 +104,7 @@ async def search_papers(
 
 @router.get("/recent", response_model=list[PaperListItem])
 async def get_recent_papers(
-    limit: int = Query(10, ge=1, le=50, description="가져올 개수"),
+    limit: int = Query(10, ge=1, le=500, description="가져올 개수"),
     db: AsyncSession = Depends(get_db),
 ):
     """최근 수집된 논문 목록"""
