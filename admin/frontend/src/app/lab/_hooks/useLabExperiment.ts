@@ -227,7 +227,7 @@ export function useLabExperiment() {
     updateConfigA,
     updateConfigB,
     updateStrategy,
-    updateSearchSettings,  // 새 검색 설정 업데이트 함수
+    updateSearchSettings,  // 검색 설정 업데이트 함수
     updateDataSource,
     status,
     strategies,
