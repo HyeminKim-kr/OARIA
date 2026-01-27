@@ -183,6 +183,35 @@ function processStreamData(papers: Paper[], caseMap: Record<string, string>) {
     .slice(0, 8)
     .map(([k]) => k);
 
+  // Determine time resolution: if span ≤ 3 years, use monthly bins
+  const years = papers.map((p) => p.year).filter(Boolean) as number[];
+  const minYear = Math.min(...years);
+  const maxYear = Math.max(...years);
+  const useMonthly = (maxYear - minYear) <= 3;
+
+  if (useMonthly) {
+    // Monthly bins using created_at
+    const monthMap: Record<string, Record<string, number>> = {};
+    papers.forEach((p) => {
+      if (!p.created_at) return;
+      const d = new Date(p.created_at);
+      const key = d.getFullYear() * 100 + d.getMonth() + 1; // e.g. 202501
+      if (!monthMap[key]) monthMap[key] = {};
+      p.keywords?.forEach((kw) => {
+        const k = normalizeKw(kw, caseMap);
+        if (topKW.includes(k)) monthMap[key][k] = (monthMap[key][k] || 0) + 1;
+      });
+    });
+    const data = Object.entries(monthMap)
+      .map(([ym, kws]) => ({
+        year: parseInt(ym),
+        ...Object.fromEntries(topKW.map((k) => [k, kws[k] || 0])),
+      }))
+      .sort((a, b) => a.year - b.year);
+    return { data, keys: topKW, monthly: true };
+  }
+
+  // Yearly bins
   const yearMap: Record<number, Record<string, number>> = {};
   papers.forEach((p) => {
     if (!p.year) return;
@@ -200,7 +229,7 @@ function processStreamData(papers: Paper[], caseMap: Record<string, string>) {
     }))
     .sort((a, b) => a.year - b.year);
 
-  return { data, keys: topKW };
+  return { data, keys: topKW, monthly: false };
 }
 
 function processBubbleData(papers: Paper[], caseMap: Record<string, string>): BubbleData[] {
@@ -336,12 +365,34 @@ function processTopAuthors(papers: Paper[]) {
     .map(([label, value]) => ({ label, value }));
 }
 
-function processJournalTreemapData(papers: Paper[]) {
+function processInstitutionTreemapData(papers: Paper[]) {
+  // Extract institution names from affiliations
   const counts: Record<string, number> = {};
   papers.forEach((p) => {
-    if (p.journal) counts[p.journal] = (counts[p.journal] || 0) + 1;
+    const seen = new Set<string>();
+    p.authors?.forEach((a) => {
+      if (!a.affiliation) return;
+      // Clean up: remove ROR URLs, grid IDs, numbers at start
+      let inst = a.affiliation
+        .replace(/https?:\/\/[^\s]+/g, "")
+        .replace(/grid\.[^\s]+/g, "")
+        .replace(/^\d+\s*/, "")
+        .trim();
+      // Try to extract the institution name (first major clause)
+      const parts = inst.split(/[,;]/);
+      if (parts.length > 1) {
+        // Find the part that looks like an institution (contains University, Institute, Hospital, etc.)
+        const instPart = parts.find((p) =>
+          /university|institute|hospital|school|college|center|centre|laboratory|lab\b|research/i.test(p)
+        );
+        inst = (instPart || parts[0]).trim();
+      }
+      if (inst.length < 5 || inst.length > 80 || seen.has(inst)) return;
+      seen.add(inst);
+      counts[inst] = (counts[inst] || 0) + 1;
+    });
   });
-  const total = papers.length || 1;
+  const total = Object.values(counts).reduce((s, v) => s + v, 0) || 1;
   return Object.entries(counts)
     .sort((a, b) => b[1] - a[1])
     .slice(0, 20)
@@ -574,35 +625,39 @@ export default function DashboardPage() {
   const donutData = useMemo(() => processDonutData(papers), [papers]);
   const topJournals = useMemo(() => processTopJournals(papers), [papers]);
   const topAuthors = useMemo(() => processTopAuthors(papers), [papers]);
-  const journalTreemapData = useMemo(() => processJournalTreemapData(papers), [papers]);
+  const institutionTreemapData = useMemo(() => processInstitutionTreemapData(papers), [papers]);
   const worldMapData = useMemo(() => processWorldMapData(papers), [papers]);
   const statsData = useMockData ? MOCK_STATS : statsQuery.data;
   const radialData = useMemo(() => {
-    if (!statsData?.by_year) return [];
-    const byYear = [...statsData.by_year].sort((a, b) => a.year - b.year);
-    // If ≤3 distinct years with data, switch to quarterly view from papers
+    if (!statsData?.by_year && papers.length === 0) return [];
+
+    // Gather year counts from stats or papers
+    const byYear = statsData?.by_year
+      ? [...statsData.by_year].sort((a, b) => a.year - b.year)
+      : [];
     const yearsWithData = byYear.filter((d) => d.count > 0);
+
+    // If ≤3 distinct years → use monthly breakdown from papers for granularity
     if (yearsWithData.length <= 3 && papers.length > 0) {
-      // Build quarterly distribution from papers
-      const qCounts: Record<string, number> = {};
+      const mCounts: Record<string, number> = {};
       papers.forEach((p) => {
         if (!p.created_at) return;
         const d = new Date(p.created_at);
-        const q = Math.floor(d.getMonth() / 3) + 1;
-        const label = `Q${q} '${String(d.getFullYear()).slice(2)}`;
-        qCounts[label] = (qCounts[label] || 0) + 1;
+        const yr = String(d.getFullYear()).slice(2);
+        const mo = d.getMonth() + 1;
+        const label = `${yr}.${String(mo).padStart(2, "0")}`;
+        const sortKey = d.getFullYear() * 100 + mo;
+        mCounts[`${sortKey}|${label}`] = (mCounts[`${sortKey}|${label}`] || 0) + 1;
       });
-      return Object.entries(qCounts)
-        .map(([label, count]) => ({ year: 0, count, label }))
-        .sort((a, b) => {
-          // Sort by year then quarter from label
-          const parseLabel = (l: string) => {
-            const m = l.match(/Q(\d) '(\d+)/);
-            return m ? parseInt(m[2]) * 10 + parseInt(m[1]) : 0;
-          };
-          return parseLabel(a.label!) - parseLabel(b.label!);
-        });
+      return Object.entries(mCounts)
+        .sort(([a], [b]) => parseInt(a) - parseInt(b))
+        .map(([key, count]) => ({
+          year: parseInt(key.split("|")[0]),
+          count,
+          label: key.split("|")[1],
+        }));
     }
+
     return byYear.map((d) => ({ ...d, label: undefined }));
   }, [statsData, papers]);
 
@@ -767,13 +822,14 @@ export default function DashboardPage() {
               {/* ─── Row 2: StreamGraph (full width) ─── */}
               <ChartSection
                 title="Research Trend Stream"
-                subtitle="연도별 핵심 키워드 트렌드 (Streamgraph)"
+                subtitle={streamData.monthly ? "월별 핵심 키워드 트렌드 (Streamgraph)" : "연도별 핵심 키워드 트렌드 (Streamgraph)"}
                 className="mb-6"
               >
                 <div className="h-72">
                   <StreamGraph
                     data={streamData.data}
                     keys={streamData.keys}
+                    monthly={streamData.monthly}
                   />
                 </div>
               </ChartSection>
@@ -838,24 +894,24 @@ export default function DashboardPage() {
                 </div>
               </div>
 
-              {/* ─── Row 5: Journal Treemap (full width, BTC style) ─── */}
+              {/* ─── Row 5: Institution Treemap (full width, BTC style) ─── */}
               <ChartSection
-                title="Journal Landscape"
-                subtitle="저널별 논문 비중 (Market Cap Style)"
+                title="Research Institutions"
+                subtitle="주요 연구 기관별 논문 비중"
                 className="mb-6"
               >
                 <div className="h-80">
-                  <JournalTreemap data={journalTreemapData} />
+                  <JournalTreemap data={institutionTreemapData} />
                 </div>
               </ChartSection>
 
-              {/* ─── Row 6: World Map (full width) ─── */}
+              {/* ─── Row 6: World Map (full width, taller) ─── */}
               <ChartSection
                 title="Global Research Map"
                 subtitle="저자 소속 기관 국가별 분포"
                 className="mb-6"
               >
-                <div className="h-80">
+                <div className="h-[480px]">
                   <WorldMap data={worldMapData} />
                 </div>
               </ChartSection>
@@ -864,7 +920,7 @@ export default function DashboardPage() {
               <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-6">
                 <ChartSection
                   title="Year Distribution"
-                  subtitle={radialData.some((d) => d.label) ? "분기별 논문 분포 (Radial)" : "연도별 논문 분포 (Radial)"}
+                  subtitle={radialData.some((d) => d.label) ? "월별 논문 분포 (Radial)" : "연도별 논문 분포 (Radial)"}
                 >
                   <div className="h-72">
                     <RadialYearChart data={radialData} />

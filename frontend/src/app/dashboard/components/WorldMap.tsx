@@ -14,8 +14,6 @@ interface Props {
   data: CountryData[];
 }
 
-// Simplified world map outline (Natural Earth 110m simplified to key country centroids)
-// We draw a basic equirectangular projection with bubble overlay
 const COUNTRY_COORDS: Record<string, [number, number]> = {
   "USA": [-98, 39], "UK": [-1.5, 54], "China": [104, 35], "Japan": [138, 36],
   "Germany": [10, 51], "France": [2, 47], "Italy": [12, 42], "Spain": [-3.7, 40],
@@ -36,55 +34,31 @@ const COUNTRY_COORDS: Record<string, [number, number]> = {
   "Kenya": [38, 1], "Ethiopia": [40, 9], "Ghana": [-1.5, 7.9],
 };
 
-// Very simplified world coastline for background (lon/lat pairs forming a basic outline)
-function drawWorldOutline(
-  g: d3.Selection<SVGGElement, unknown, null, undefined>,
-  projection: d3.GeoProjection,
-  width: number,
-  height: number
-) {
-  // Draw a simple graticule + outline rectangle
-  const graticule = d3.geoGraticule().step([30, 30]);
-  const path = d3.geoPath().projection(projection);
-
-  // World boundary (sphere outline)
-  g.append("path")
-    .datum({ type: "Sphere" } as d3.GeoPermissibleObjects)
-    .attr("d", path)
-    .attr("fill", "var(--background)")
-    .attr("stroke", "var(--oaria-border)")
-    .attr("stroke-width", 0.5);
-
-  // Graticule lines
-  g.append("path")
-    .datum(graticule())
-    .attr("d", path)
-    .attr("fill", "none")
-    .attr("stroke", "var(--oaria-border)")
-    .attr("stroke-width", 0.3)
-    .attr("stroke-opacity", 0.5);
-
-  // Simple land mass approximations (rough continental outlines as circles)
-  const continents = [
-    { cx: width * 0.25, cy: height * 0.38, rx: width * 0.08, ry: height * 0.15 }, // North America
-    { cx: width * 0.30, cy: height * 0.62, rx: width * 0.04, ry: height * 0.12 }, // South America
-    { cx: width * 0.50, cy: height * 0.35, rx: width * 0.08, ry: height * 0.12 }, // Europe
-    { cx: width * 0.52, cy: height * 0.55, rx: width * 0.06, ry: height * 0.12 }, // Africa
-    { cx: width * 0.68, cy: height * 0.40, rx: width * 0.12, ry: height * 0.14 }, // Asia
-    { cx: width * 0.78, cy: height * 0.72, rx: width * 0.05, ry: height * 0.06 }, // Australia
-  ];
-
-  g.selectAll(".continent")
-    .data(continents)
-    .join("ellipse")
-    .attr("class", "continent")
-    .attr("cx", (d) => d.cx)
-    .attr("cy", (d) => d.cy)
-    .attr("rx", (d) => d.rx)
-    .attr("ry", (d) => d.ry)
-    .attr("fill", "var(--oaria-border)")
-    .attr("opacity", 0.15);
-}
+// Simplified land outlines as GeoJSON polygon coordinates [lng, lat]
+// Rough continental shapes for visual background
+const LAND_FEATURES: d3.GeoPermissibleObjects = {
+  type: "GeometryCollection",
+  geometries: [
+    // North America
+    { type: "Polygon", coordinates: [[[-130,55],[-60,55],[-60,50],[-80,25],[-100,18],[-118,32],[-125,48],[-130,55]]] },
+    // South America
+    { type: "Polygon", coordinates: [[[-80,10],[-35,0],[-35,-10],[-50,-33],[-70,-55],[-75,-17],[-80,10]]] },
+    // Europe
+    { type: "Polygon", coordinates: [[[-10,36],[0,44],[5,44],[10,55],[30,70],[42,70],[42,42],[30,35],[22,35],[-10,36]]] },
+    // Africa
+    { type: "Polygon", coordinates: [[[0,37],[10,37],[35,30],[52,12],[50,0],[42,-12],[35,-35],[18,-35],[12,-5],[0,5],[0,37]]] },
+    // Asia (simplified)
+    { type: "Polygon", coordinates: [[[42,42],[60,40],[70,55],[90,70],[130,70],[145,60],[145,45],[130,25],[105,10],[95,10],[70,25],[50,30],[42,42]]] },
+    // Australia
+    { type: "Polygon", coordinates: [[[115,-15],[150,-15],[155,-25],[148,-38],[130,-35],[115,-22],[115,-15]]] },
+    // India subcontinent (detail)
+    { type: "Polygon", coordinates: [[[68,28],[88,28],[92,22],[88,12],[78,8],[72,15],[68,28]]] },
+    // UK/Ireland
+    { type: "Polygon", coordinates: [[[-8,50],[-5,50],[2,52],[2,58],[-5,59],[-8,56],[-8,50]]] },
+    // Japan
+    { type: "Polygon", coordinates: [[[130,31],[132,34],[136,37],[140,40],[142,43],[140,45],[144,44],[145,40],[140,35],[135,33],[130,31]]] },
+  ],
+} as unknown as d3.GeoPermissibleObjects;
 
 export default function WorldMap({ data }: Props) {
   const ref = useRef<HTMLDivElement>(null);
@@ -108,10 +82,40 @@ export default function WorldMap({ data }: Props) {
 
     const projection = d3
       .geoNaturalEarth1()
-      .scale(width / 5.5)
+      .scale(Math.min(width / 5.2, height / 2.6))
       .translate([width / 2, height / 2]);
 
-    drawWorldOutline(g, projection, width, height);
+    const path = d3.geoPath().projection(projection);
+    const graticule = d3.geoGraticule().step([20, 20]);
+
+    // Ocean / sphere
+    g.append("path")
+      .datum({ type: "Sphere" } as d3.GeoPermissibleObjects)
+      .attr("d", path)
+      .attr("fill", "var(--background)")
+      .attr("stroke", "var(--oaria-border)")
+      .attr("stroke-width", 0.8);
+
+    // Graticule
+    g.append("path")
+      .datum(graticule())
+      .attr("d", path)
+      .attr("fill", "none")
+      .attr("stroke", "var(--oaria-border)")
+      .attr("stroke-width", 0.3)
+      .attr("stroke-opacity", 0.4);
+
+    // Land masses
+    (LAND_FEATURES as { geometries: d3.GeoPermissibleObjects[] }).geometries.forEach((geo) => {
+      g.append("path")
+        .datum(geo)
+        .attr("d", path)
+        .attr("fill", "var(--oaria-border)")
+        .attr("fill-opacity", 0.18)
+        .attr("stroke", "var(--oaria-border)")
+        .attr("stroke-width", 0.5)
+        .attr("stroke-opacity", 0.4);
+    });
 
     const tip = d3
       .select(el)
@@ -129,7 +133,7 @@ export default function WorldMap({ data }: Props) {
       .style("color", "var(--foreground)");
 
     const maxCount = d3.max(data, (d) => d.count) || 1;
-    const rScale = d3.scaleSqrt().domain([1, maxCount]).range([4, 28]);
+    const rScale = d3.scaleSqrt().domain([1, maxCount]).range([5, 32]);
     const color = d3.scaleOrdinal<string>().range(PASTEL);
 
     // Bubbles
@@ -150,15 +154,15 @@ export default function WorldMap({ data }: Props) {
       .attr("r", (d) => rScale(d.count) + 4)
       .attr("fill", "none")
       .attr("stroke", (_d, i) => color(String(i)))
-      .attr("stroke-width", 1)
+      .attr("stroke-width", 1.5)
       .attr("opacity", 0)
       .transition()
       .duration(1200)
       .delay((_d, i) => i * 60)
-      .attr("opacity", 0.3)
+      .attr("opacity", 0.4)
       .transition()
-      .duration(1500)
-      .attr("r", (d) => rScale(d.count) + 12)
+      .duration(2000)
+      .attr("r", (d) => rScale(d.count) + 18)
       .attr("opacity", 0);
 
     // Main circle
@@ -166,11 +170,11 @@ export default function WorldMap({ data }: Props) {
       .append("circle")
       .attr("r", 0)
       .attr("fill", (_d, i) => color(String(i)))
-      .attr("opacity", 0.7)
+      .attr("opacity", 0.75)
       .attr("stroke", "white")
       .attr("stroke-width", 1.5)
       .on("mouseover", function (_event, d) {
-        d3.select(this).transition().duration(200).attr("r", rScale(d.count) + 3).attr("opacity", 1);
+        d3.select(this).transition().duration(200).attr("r", rScale(d.count) + 4).attr("opacity", 1);
         tip
           .style("visibility", "visible")
           .html(`<strong>${d.country}</strong><br/>${d.count.toLocaleString()}건 논문`);
@@ -180,30 +184,29 @@ export default function WorldMap({ data }: Props) {
         tip.style("left", `${mx + 16}px`).style("top", `${my - 10}px`);
       })
       .on("mouseout", function (_event, d) {
-        d3.select(this).transition().duration(200).attr("r", rScale(d.count)).attr("opacity", 0.7);
+        d3.select(this).transition().duration(200).attr("r", rScale(d.count)).attr("opacity", 0.75);
         tip.style("visibility", "hidden");
       })
       .transition()
       .duration(800)
-      .delay((_d, i) => i * 60)
+      .delay((_d, i) => i * 50)
       .attr("r", (d) => rScale(d.count));
 
     // Country labels for top entries
-    const topData = data.slice(0, 8);
     bubbles
-      .filter((_d, i) => i < topData.length)
+      .filter((_d, i) => i < 10)
       .append("text")
       .text((d) => d.country)
       .attr("dy", (d) => -(rScale(d.count) + 6))
       .attr("text-anchor", "middle")
       .style("font-size", "9px")
       .style("fill", "var(--oaria-text-secondary)")
-      .style("font-weight", "500")
+      .style("font-weight", "600")
       .style("pointer-events", "none")
       .attr("opacity", 0)
       .transition()
       .duration(600)
-      .delay((_d, i) => i * 60 + 400)
+      .delay((_d, i) => i * 50 + 500)
       .attr("opacity", 1);
 
     // Fade-in
