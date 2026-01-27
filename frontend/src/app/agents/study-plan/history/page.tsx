@@ -49,23 +49,40 @@ export default function StudyPlanHistoryPage() {
   const [deleteConfirm, setDeleteConfirm] = useState<string | null>(null);
   const [deleting, setDeleting] = useState(false);
 
+  // 버전 필터 (null = 전체)
+  const [versionFilter, setVersionFilter] = useState<string | null>(null);
+
   // 목록 불러오기
-  const fetchJobs = async (page: number = 1) => {
+  const fetchJobs = async (page: number = 1, version?: string | null) => {
     setLoading(true);
     setError(null);
+
+    // version 파라미터가 undefined면 현재 필터 사용
+    const filterVersion = version !== undefined ? version : versionFilter;
 
     try {
       const response = await agentJobsApi.list({
         page,
         size: pagination.size,
-        agent_type: "study_plan_v3",  // Study Plan 타입만 필터
+        // study_plan으로 시작하는 모든 타입을 가져오려면 필터 없이 조회 후 클라이언트에서 필터링
+        // 또는 백엔드에서 prefix 매칭 지원 필요
+        agent_type: filterVersion || undefined,
       });
       const data: PaginatedAgentJobs = response.data;
-      setJobs(data.items);
+
+      // study_plan 관련 작업만 필터링 (서버에서 필터 없이 조회한 경우)
+      let filteredItems = data.items;
+      if (!filterVersion) {
+        filteredItems = data.items.filter((job) =>
+          job.agent_type.startsWith("study_plan")
+        );
+      }
+
+      setJobs(filteredItems);
       setPagination({
         page: data.page,
         size: data.size,
-        total: data.total,
+        total: filterVersion ? data.total : filteredItems.length,
         pages: data.pages,
       });
     } catch (err) {
@@ -74,6 +91,12 @@ export default function StudyPlanHistoryPage() {
     } finally {
       setLoading(false);
     }
+  };
+
+  // 버전 필터 변경
+  const handleVersionFilterChange = (version: string | null) => {
+    setVersionFilter(version);
+    fetchJobs(1, version);
   };
 
   // 상세 조회
@@ -207,6 +230,9 @@ export default function StudyPlanHistoryPage() {
             <p className="font-[family-name:var(--font-dm-sans)] text-sm text-[var(--oaria-text-secondary)] mt-1">
               과거에 생성한 실험 설계 계획서를 확인할 수 있습니다.
             </p>
+
+            {/* 버전 필터 */}
+            {/* 버전 필터 제거 - v4 ReAct만 사용 */}
           </div>
 
           {/* Loading */}
@@ -267,6 +293,9 @@ export default function StudyPlanHistoryPage() {
                       <div className="flex-1 min-w-0">
                         <div className="flex items-center gap-2 mb-2 flex-wrap">
                           <JobStatusBadge status={job.status} size="sm" />
+                          <span className="px-2 py-0.5 rounded text-xs font-medium bg-purple-100 text-purple-700">
+                            ReAct
+                          </span>
                           <span className="text-xs text-[var(--oaria-text-secondary)] flex items-center gap-1">
                             <Calendar size={12} />
                             {formatDate(job.created_at)}
