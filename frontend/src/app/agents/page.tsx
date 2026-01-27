@@ -11,6 +11,7 @@ import {
   TrendingUp,
   ArrowRight,
   BarChart3,
+  Mic2,
 } from "lucide-react";
 
 interface AgentCard {
@@ -31,6 +32,14 @@ const agents: AgentCard[] = [
     icon: <Beaker size={24} />,
     href: "/agents/study-plan",
     color: "bg-green-500",
+  },
+  {
+    id: "podcast",
+    name: "Podcast Agent",
+    description: "암 연구 논문을 기반으로 팟캐스트 스크립트를 생성합니다. RAG 기반 인용과 다양한 대화 스타일을 지원합니다.",
+    icon: <Mic2 size={24} />,
+    href: "/agents/podcast",
+    color: "bg-purple-500",
   },
   {
     id: "research-assistant",
