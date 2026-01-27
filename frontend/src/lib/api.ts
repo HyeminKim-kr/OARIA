@@ -351,350 +351,6 @@ export const paperChatApi = {
  * 토큰 갱신을 지원하는 fetch wrapper
  * SSE 스트리밍처럼 axios 대신 native fetch를 써야 할 때 사용
  */
-// Study Plan Types
-export interface StudyPlanRequest {
-  hypothesis: string;
-  research_context?: string;
-  constraints?: string[];
-  preferred_experiment_types?: string[];
-}
-
-export interface StudyPlanSummaryResponse {
-  success: boolean;
-  plan_id?: string;
-  final_plan: string;
-  executive_summary: string;
-  experiment_count: number;
-  approval_required: boolean;
-  approval_status: string;
-  total_duration_ms: number;
-  error?: string;
-}
-
-// Study Plan SSE 이벤트 데이터 타입
-export interface StudyPlanHypothesisEvent {
-  original_text: string;
-  independent_variable: string;
-  dependent_variable: string;
-  keywords: string[];
-  confidence: number;
-}
-
-export interface StudyPlanTestQuestion {
-  category: string;
-  question: string;
-  priority: number;
-}
-
-export interface StudyPlanExperiment {
-  experiment_id: string;
-  experiment_type: string;
-  title: string;
-  test_category: string;
-  estimated_timeline: string;
-  estimated_cost_level: string;
-}
-
-export interface StudyPlanApprovalChoice {
-  choice_id: string;
-  label: string;
-  description: string;
-  estimated_cost: string;
-  estimated_timeline: string;
-}
-
-// Study Plan 저장 요청
-export interface StudyPlanSaveRequest {
-  hypothesis_input: string;
-  research_context?: string;
-  preferred_experiment_types?: string[];
-
-  // 파싱된 가설
-  hypothesis_structured?: Record<string, unknown>;
-  hypothesis_confidence?: number;
-
-  // 검증 질문
-  test_questions?: Record<string, unknown>[];
-
-  // 검색 결과
-  search_coverage_score?: number;
-  prior_studies_count?: number;
-
-  // Evidence Pack
-  evidence_packs?: Record<string, unknown>[];
-
-  // 실험 설계
-  experiment_designs?: Record<string, unknown>[];
-  experiment_count?: number;
-
-  // Critique
-  quality_score?: number;
-  revision_count?: number;
-
-  // 측정 항목
-  measurements?: Record<string, unknown>[];
-
-  // 실현가능성
-  feasibility_assessment?: Record<string, unknown>;
-
-  // 승인 게이트
-  approval_required?: boolean;
-  approval_status?: string;
-
-  // 최종 결과
-  final_plan?: string;
-  executive_summary?: string;
-  references?: Record<string, unknown>[];
-
-  // 메타
-  status?: string;
-  total_duration_ms?: number;
-  error_message?: string;
-}
-
-// Study Plan 목록 아이템
-export interface StudyPlanListItem {
-  id: string;
-  hypothesis_input: string;
-  experiment_count: number;
-  quality_score: number | null;
-  status: string;
-  created_at: string;
-}
-
-// 페이지네이션된 Study Plan 목록
-export interface PaginatedStudyPlans {
-  items: StudyPlanListItem[];
-  total: number;
-  page: number;
-  size: number;
-  pages: number;
-}
-
-// Study Plan 전체 상세 응답
-export interface StudyPlanFullResponse {
-  id: string;
-  user_id: string;
-
-  // 입력
-  hypothesis_input: string;
-  research_context: string | null;
-  preferred_experiment_types: string[];
-
-  // 파싱된 가설
-  hypothesis_structured: Record<string, unknown> | null;
-  hypothesis_confidence: number | null;
-
-  // 검증 질문
-  test_questions: Record<string, unknown>[];
-
-  // 검색 결과
-  search_coverage_score: number | null;
-  prior_studies_count: number;
-
-  // Evidence Pack
-  evidence_packs: Record<string, unknown>[];
-
-  // 실험 설계
-  experiment_designs: Record<string, unknown>[];
-  experiment_count: number;
-
-  // Critique
-  quality_score: number | null;
-  revision_count: number;
-
-  // 측정 항목
-  measurements: Record<string, unknown>[];
-
-  // 실현가능성
-  feasibility_assessment: Record<string, unknown> | null;
-
-  // 승인 게이트
-  approval_required: boolean;
-  approval_status: string;
-
-  // 최종 결과
-  final_plan: string | null;
-  executive_summary: string | null;
-  references: Record<string, unknown>[];
-
-  // 메타
-  status: string;
-  total_duration_ms: number | null;
-  error_message: string | null;
-  created_at: string;
-  updated_at: string;
-}
-
-// Study Plan v3 응답 타입 (Plan A/B, Decision Points 포함)
-export interface StudyPlanV3Response extends StudyPlanSummaryResponse {
-  // Plan A/B
-  plan_a?: string;
-  plan_b?: string;
-  plan_config?: Record<string, unknown>;
-
-  // Decision Points 결과
-  dp1_decisions?: Record<string, unknown>[];
-  dp2_decision?: string;
-  dp3_decision?: string;
-
-  // 3-tier 검색 정보
-  highest_tier_used?: number;
-  evidence_snippets_v3?: Record<string, unknown>[];
-  search_tier_history?: number[];
-}
-
-// Study Plan v3 저장 요청 (v3 필드 포함)
-export interface StudyPlanV3SaveRequest extends StudyPlanSaveRequest {
-  // Plan A/B
-  plan_a?: string;
-  plan_b?: string;
-  plan_config?: Record<string, unknown>;
-
-  // Decision Points 결과
-  dp1_decisions?: Record<string, unknown>[];
-  dp2_decision?: string;
-  dp3_decision?: string;
-
-  // 3-tier 검색 정보
-  highest_tier_used?: number;
-  evidence_snippets_v3?: Record<string, unknown>[];
-  search_tier_history?: number[];
-}
-
-// Study Plan SSE 이벤트 타입
-export interface StudyPlanSSEEvent {
-  node: string;
-  detail?: string;
-  // 가설 파싱
-  hypothesis?: {
-    original_text: string;
-    independent_variable: string;
-    dependent_variable: string;
-    mediating_variables?: string[];
-    moderating_variables?: string[];
-    population: string;
-    mechanism_pathway: string;
-    keywords: string[];
-    expanded_keywords?: string[];
-    gene_aliases?: string[];
-  };
-  confidence?: number;
-  // 검증 질문
-  test_questions?: Array<{
-    category: string;
-    question: string;
-    decision_rule: string;
-    rationale?: string;
-    priority: number;
-  }>;
-  count?: number;
-  // 검색
-  study_count?: number;
-  coverage?: number;
-  gaps?: string[];
-  current_tier?: number;
-  queries?: string[];
-  // 검색 확장
-  expanded_queries?: string[];
-  expand_count?: number;
-  // Evidence
-  snippet_count?: number;
-  pack_count?: number;
-  // 방법론
-  patterns?: Array<{ name: string; frequency: number }>;
-  biomarkers?: string[];
-  techniques?: string[];
-  // 실험 설계
-  experiments?: Array<{
-    id: string;
-    type: string;
-    title: string;
-    objective?: string;
-    test_category: string;
-    model_system?: string;
-    primary_endpoint?: string;
-    estimated_timeline?: string;
-    estimated_cost_level?: string;
-  }>;
-  // Critique
-  quality_score?: number;
-  passed?: boolean;
-  suggestions?: string[];
-  missing_controls?: string[];
-  confounders?: string[];
-  revision_count?: number;
-  dp2_decision?: string;
-  // 측정
-  measurement_count?: number;
-  priority?: string[];
-  measurements?: Array<{ name: string; category: string; method: string }>;
-  // 실현가능성
-  overall_score?: number;
-  technical_feasibility?: number;
-  resource_feasibility?: number;
-  timeline_feasibility?: number;
-  concerns?: string[];
-  // 승인
-  approval_required?: boolean;
-  item_count?: number;
-  items?: Array<{ type: string; reason: string }>;
-  // 합성
-  final_plan_length?: number;
-  summary_length?: number;
-  plan_a_length?: number;
-  plan_b_length?: number;
-  // 완료
-  success?: boolean;
-  experiment_count?: number;
-  total_duration_ms?: number;
-  final_plan?: string;
-  executive_summary?: string;
-  plan_a?: string;
-  plan_b?: string;
-  dp3_decision?: string;
-  highest_tier_used?: number;
-  // 에러
-  error?: string;
-  message?: string;
-}
-
-// Study Plan API
-export const studyPlanApi = {
-  // SSE 스트리밍 URL (v2 - 기존)
-  generateUrl: () => `${API_BASE_URL}/study-plan/generate`,
-
-  // SSE 스트리밍 URL (v3 - 중간 단계 데이터 포함)
-  generateV3StreamUrl: () => `${API_BASE_URL}/study-plan/generate-v3-stream`,
-
-  // SSE 스트리밍 URL (v4 - ReAct 에이전트)
-  generateV4StreamUrl: () => `${API_BASE_URL}/study-plan/generate-v4-stream`,
-
-  // 동기 실행 (테스트용)
-  generateSync: (request: StudyPlanRequest) =>
-    api.post<StudyPlanSummaryResponse>('/study-plan/generate-sync', request),
-
-  // v3 동기 실행 (3-tier 검색 + Decision Points)
-  generateV3: (request: StudyPlanRequest) =>
-    api.post<StudyPlanV3Response>('/study-plan/generate-v3', request),
-
-  // 저장 (v3 필드 포함)
-  save: (data: StudyPlanSaveRequest | StudyPlanV3SaveRequest) =>
-    api.post<StudyPlanFullResponse>('/study-plan/save', data),
-
-  // 히스토리 목록
-  list: (page = 1, size = 10) =>
-    api.get<PaginatedStudyPlans>('/study-plan/history', { params: { page, size } }),
-
-  // 상세 조회
-  get: (id: string) =>
-    api.get<StudyPlanFullResponse>(`/study-plan/${id}`),
-
-  // 삭제
-  delete: (id: string) =>
-    api.delete(`/study-plan/${id}`),
-};
-
 export async function fetchWithAuth(
   url: string,
   options: RequestInit = {}
@@ -787,12 +443,42 @@ export interface AgentJobResponse {
   updated_at: string;
 }
 
+// Thinking History Entry (에이전트 reasoning 과정)
+export interface ThinkingHistoryEntry {
+  iteration: number;
+  timestamp?: string;
+  title: string;
+  bullets: string[];
+  message?: string;
+  action?: string;
+  parameters?: Record<string, unknown>;
+  confidence?: number;
+  token_usage?: {
+    prompt_tokens: number;
+    completion_tokens: number;
+    total_tokens: number;
+  };
+  observation?: {
+    success: boolean;
+    summary?: string;
+    details?: Record<string, unknown>;
+  };
+  status?: string;
+}
+
 export interface AgentJobDetailResponse extends AgentJobResponse {
   input_data: Record<string, unknown>;
   config: Record<string, unknown> | null;
   step_results: Record<string, unknown>[];
   approval_decision: Record<string, unknown> | null;
   result_data: Record<string, unknown> | null;
+  // Thinking History (에이전트 reasoning 과정)
+  thinking_history: ThinkingHistoryEntry[] | null;
+  cumulative_tokens: {
+    prompt_tokens: number;
+    completion_tokens: number;
+    total_tokens: number;
+  } | null;
 }
 
 export interface PaginatedAgentJobs {

@@ -12,6 +12,23 @@ export type JobStreamStatus =
   | "failed"
   | "cancelled";
 
+// Token usage info from v4 agent
+export interface TokenUsage {
+  prompt_tokens: number;
+  completion_tokens: number;
+  total_tokens: number;
+  estimated_cost?: number;
+}
+
+// Recovery option from v4 agent
+export interface RecoveryOption {
+  id: string;
+  label: string;
+  description: string;
+  risk_level: "low" | "medium" | "high";
+  estimated_time?: string;
+}
+
 export interface JobStreamEvent {
   event: string;
   node?: string;
@@ -40,6 +57,21 @@ export interface JobStreamEvent {
   // Error related
   error?: string;
   message?: string;
+  // v4/LangGraph specific
+  iteration?: number;
+  timestamp?: string;
+  thought?: string;
+  action?: string;
+  parameters?: Record<string, unknown>;
+  confidence?: number;
+  duration_ms?: number;
+  token_usage?: TokenUsage;
+  cumulative_tokens?: TokenUsage;
+  quality_score?: number;
+  goal_achieved?: boolean;
+  goals_missing?: string[];
+  recovery_options?: RecoveryOption[];
+  is_terminal?: boolean;
   // Node-specific data
   [key: string]: unknown;
 }
@@ -49,6 +81,10 @@ interface UseJobStreamOptions {
   onApprovalRequired?: (event: JobStreamEvent) => void;
   onCompleted?: (event: JobStreamEvent) => void;
   onError?: (error: string) => void;
+  // v4/LangGraph specific callbacks
+  onTokenUpdate?: (current: TokenUsage | null, cumulative: TokenUsage | null) => void;
+  onRecoveryRequired?: (options: RecoveryOption[], error: string, action: string) => void;
+  onThinkingStep?: (event: JobStreamEvent) => void;
 }
 
 interface UseJobStreamReturn {
@@ -59,11 +95,19 @@ interface UseJobStreamReturn {
   error: string | null;
   result: JobStreamEvent | null;
   approvalData: JobStreamEvent | null;
+  // v4/LangGraph specific
+  currentTokenUsage: TokenUsage | null;
+  cumulativeTokenUsage: TokenUsage | null;
+  tokenHistory: TokenUsage[];
+  recoveryOptions: RecoveryOption[] | null;
+  iteration: number;
+  // Actions
   startJob: (agentType: string, inputData: Record<string, unknown>, config?: Record<string, unknown>) => Promise<string>;
   approve: (decision: Record<string, unknown>) => Promise<void>;
   cancel: () => Promise<void>;
   retry: () => Promise<void>;
   reset: () => void;
+  selectRecovery: (optionId: string) => Promise<void>;
 }
 
 export function useJobStream(options: UseJobStreamOptions = {}): UseJobStreamReturn {
@@ -74,6 +118,13 @@ export function useJobStream(options: UseJobStreamOptions = {}): UseJobStreamRet
   const [error, setError] = useState<string | null>(null);
   const [result, setResult] = useState<JobStreamEvent | null>(null);
   const [approvalData, setApprovalData] = useState<JobStreamEvent | null>(null);
+
+  // v4/LangGraph specific state
+  const [currentTokenUsage, setCurrentTokenUsage] = useState<TokenUsage | null>(null);
+  const [cumulativeTokenUsage, setCumulativeTokenUsage] = useState<TokenUsage | null>(null);
+  const [tokenHistory, setTokenHistory] = useState<TokenUsage[]>([]);
+  const [recoveryOptions, setRecoveryOptions] = useState<RecoveryOption[] | null>(null);
+  const [iteration, setIteration] = useState(0);
 
   const eventSourceRef = useRef<EventSource | null>(null);
   const optionsRef = useRef(options);
@@ -104,12 +155,26 @@ export function useJobStream(options: UseJobStreamOptions = {}): UseJobStreamRet
     eventSourceRef.current = eventSource;
 
     eventSource.onopen = () => {
+      console.log("[useJobStream] SSE connected");
       setStatus("running");
     };
 
-    eventSource.onmessage = (event) => {
+    // 공통 이벤트 핸들러
+    const handleEvent = (event: MessageEvent) => {
       try {
-        const data: JobStreamEvent = JSON.parse(event.data);
+        // Skip if event.data is undefined or empty
+        if (!event.data || event.data === "undefined") {
+          console.warn("[useJobStream] Received empty event data, skipping");
+          return;
+        }
+
+        // SSE event.type을 data.event에 주입 (SSE event: 라인의 값)
+        const parsedData = JSON.parse(event.data);
+        const data: JobStreamEvent = {
+          ...parsedData,
+          event: event.type || parsedData.event || "message",
+        };
+        console.log("[useJobStream] Event received:", data.event, data);
 
         // Update progress
         if (data.progress_percent !== undefined) {
@@ -119,17 +184,51 @@ export function useJobStream(options: UseJobStreamOptions = {}): UseJobStreamRet
           setCurrentStep(data.current_step);
         }
 
+        // Update iteration
+        if (data.iteration !== undefined) {
+          setIteration(data.iteration);
+        }
+
+        // Handle token usage updates (v4/LangGraph)
+        if (data.token_usage) {
+          setCurrentTokenUsage(data.token_usage);
+          setTokenHistory((prev) => [...prev, data.token_usage!]);
+          optionsRef.current.onTokenUpdate?.(data.token_usage, cumulativeTokenUsage);
+        }
+        if (data.cumulative_tokens) {
+          setCumulativeTokenUsage(data.cumulative_tokens);
+          optionsRef.current.onTokenUpdate?.(currentTokenUsage, data.cumulative_tokens);
+        }
+
+        // Handle recovery events (v4/LangGraph)
+        if (data.event === "recovery" && data.recovery_options) {
+          setRecoveryOptions(data.recovery_options);
+          optionsRef.current.onRecoveryRequired?.(
+            data.recovery_options,
+            data.error || "Action failed",
+            data.action || ""
+          );
+        }
+
+        // Handle thinking step events (v4/LangGraph)
+        const thinkingEvents = ["reasoning", "acting", "observation", "goal_check", "initialization"];
+        if (thinkingEvents.includes(data.event)) {
+          optionsRef.current.onThinkingStep?.(data);
+        }
+
         // Handle different event types
         if (data.event === "waiting_approval" || data.approval_required) {
           setStatus("waiting_approval");
           setApprovalData(data);
           optionsRef.current.onApprovalRequired?.(data);
-        } else if (data.event === "completed" || data.success) {
+        } else if (data.event === "completed" || data.event === "completion") {
+          // Only treat as completion when event type is explicitly "completed" or "completion"
+          // Do NOT use data.success alone - observation events also have success field
           setStatus("completed");
           setResult(data);
           eventSource.close();
           optionsRef.current.onCompleted?.(data);
-        } else if (data.event === "failed" || data.error) {
+        } else if (data.event === "failed" || data.event === "error" || data.error) {
           setStatus("failed");
           setError(data.error || data.message || "Job failed");
           eventSource.close();
@@ -142,9 +241,51 @@ export function useJobStream(options: UseJobStreamOptions = {}): UseJobStreamRet
         // Call generic event handler
         optionsRef.current.onEvent?.(data);
       } catch (e) {
-        console.error("[useJobStream] Parse error:", e);
+        console.error("[useJobStream] Parse error:", e, event.data);
       }
     };
+
+    // 모든 named events 리스너 등록 (SSE는 event type별로 리스너 필요)
+    const eventTypes = [
+      "status",
+      "progress",
+      "step_complete",
+      "hypothesis",
+      "tests",
+      "studies",
+      "search_expanding",
+      "evidence",
+      "methodologies",
+      "experiments",
+      "critique",
+      "revision",
+      "measurements",
+      "feasibility",
+      "waiting_approval",
+      "approval_required",
+      "completed",
+      "failed",
+      "cancelled",
+      "heartbeat",
+      // v4/LangGraph events
+      "thinking",
+      "acting",
+      "observation",
+      "recovery",
+      "goal_check",
+      "reasoning",
+      "initialization",
+      "completion",
+      "result",
+      "error",
+    ];
+
+    eventTypes.forEach((eventType) => {
+      eventSource.addEventListener(eventType, handleEvent);
+    });
+
+    // 기본 message 핸들러 (event type 없는 경우)
+    eventSource.onmessage = handleEvent;
 
     eventSource.onerror = (e) => {
       console.error("[useJobStream] SSE error:", e);
@@ -239,6 +380,27 @@ export function useJobStream(options: UseJobStreamOptions = {}): UseJobStreamRet
     }
   }, [jobId, connectToStream]);
 
+  // Select recovery option (v4/LangGraph)
+  const selectRecovery = useCallback(async (optionId: string) => {
+    if (!jobId) throw new Error("No job to recover");
+
+    try {
+      // Send recovery selection via approve endpoint with recovery flag
+      await agentJobsApi.approve(jobId, {
+        recovery_option: optionId,
+        is_recovery: true,
+      });
+      setRecoveryOptions(null);
+      setStatus("running");
+      // Reconnect to stream to continue receiving updates
+      await connectToStream(jobId);
+    } catch (e) {
+      const errorMessage = e instanceof Error ? e.message : "Recovery selection failed";
+      setError(errorMessage);
+      throw e;
+    }
+  }, [jobId, connectToStream]);
+
   // Reset state
   const reset = useCallback(() => {
     if (eventSourceRef.current) {
@@ -251,6 +413,12 @@ export function useJobStream(options: UseJobStreamOptions = {}): UseJobStreamRet
     setError(null);
     setResult(null);
     setApprovalData(null);
+    // Reset v4/LangGraph state
+    setCurrentTokenUsage(null);
+    setCumulativeTokenUsage(null);
+    setTokenHistory([]);
+    setRecoveryOptions(null);
+    setIteration(0);
   }, []);
 
   return {
@@ -261,10 +429,18 @@ export function useJobStream(options: UseJobStreamOptions = {}): UseJobStreamRet
     error,
     result,
     approvalData,
+    // v4/LangGraph specific
+    currentTokenUsage,
+    cumulativeTokenUsage,
+    tokenHistory,
+    recoveryOptions,
+    iteration,
+    // Actions
     startJob,
     approve,
     cancel,
     retry,
     reset,
+    selectRecovery,
   };
 }
