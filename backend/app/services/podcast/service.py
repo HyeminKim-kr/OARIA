@@ -30,6 +30,7 @@ from app.schemas.podcast import (
     PodcastGoalRequest,
     PodcastReference,
     TaskResult,
+    TurnTiming as TurnTimingSchema,
     DialogueScript as DialogueScriptSchema,
     DialogueTurn as DialogueTurnSchema,
     EpisodeResponse,
@@ -46,7 +47,7 @@ from .agent import (
     execute_script_generation,
 )
 from .agent.tasks.rag_search import format_references_for_podcast
-from .tts_service import tts_service
+from .tts_service import tts_service, TurnTiming
 
 logger = logging.getLogger(__name__)
 
@@ -239,6 +240,7 @@ class PodcastService:
             audio_url = None
             audio_duration = None
             tts_error = None
+            turn_timings_data: list[dict] = []
 
             if script_result.script and tts_service.is_enabled:
                 yield PodcastEvent(
@@ -249,10 +251,38 @@ class PodcastService:
                 episode.status = EpisodeStatus.GENERATING_AUDIO.value
                 await self.db.flush()
 
-                audio_url, audio_duration, tts_error = await tts_service.generate_and_upload(
-                    script=script_result.script,
-                    episode_id=episode.id,
-                )
+                # Generate audio and get turn timings
+                tts_result = await tts_service.generate_dialogue_audio(script_result.script)
+
+                if tts_result.error or not tts_result.audio_data:
+                    tts_error = tts_result.error
+                else:
+                    # Upload to S3
+                    try:
+                        from app.services.s3_service import s3_service
+
+                        object_key = f"podcast/episodes/{episode.id}/audio.mp3"
+                        audio_url = await s3_service.upload_bytes(
+                            data=tts_result.audio_data,
+                            object_key=object_key,
+                            content_type="audio/mpeg",
+                        )
+                        audio_duration = tts_result.duration_seconds
+                    except Exception as e:
+                        logger.error(f"Failed to upload podcast audio: {e}")
+                        tts_error = f"Upload failed: {e}"
+                        audio_duration = tts_result.duration_seconds
+
+                    # Capture turn timings
+                    turn_timings_data = [
+                        {
+                            "turn_index": tt.turn_index,
+                            "start_time": round(tt.start_time, 3),
+                            "end_time": round(tt.end_time, 3),
+                            "speaker": tt.speaker,
+                        }
+                        for tt in tts_result.turn_timings
+                    ]
 
                 if tts_error:
                     logger.warning(f"TTS generation warning: {tts_error}")
@@ -297,10 +327,13 @@ class PodcastService:
                 "total_duration_ms": total_duration_ms,
             }
 
-            # Update episode
+            # Update episode (inject turn_timings into script JSONB)
             episode.title = script_result.script.get("title") if script_result.script else None
             episode.description = script_result.script.get("description") if script_result.script else None
-            episode.script = script_result.script
+            script_to_store = dict(script_result.script) if script_result.script else None
+            if script_to_store and turn_timings_data:
+                script_to_store["turn_timings"] = turn_timings_data
+            episode.script = script_to_store
             episode.paper_ids = paper_ids
             episode.references = [ref.model_dump() for ref in podcast_refs]
             episode.task_results = task_results_data
@@ -318,6 +351,7 @@ class PodcastService:
                 data={
                     "script": script_result.script,
                     "references": [ref.model_dump() for ref in podcast_refs],
+                    "turn_timings": turn_timings_data if turn_timings_data else None,
                 },
             )
 
@@ -330,6 +364,7 @@ class PodcastService:
                     "audio_url": episode.audio_url,
                     "duration_seconds": episode.duration_seconds,
                     "total_duration_ms": total_duration_ms,
+                    "turn_timings": turn_timings_data if turn_timings_data else None,
                 },
             )
 
@@ -498,6 +533,19 @@ class PodcastService:
                     )
                 )
 
+        # Parse turn_timings from script JSONB
+        turn_timings = None
+        if episode.script and "turn_timings" in episode.script:
+            turn_timings = [
+                TurnTimingSchema(
+                    turn_index=tt.get("turn_index", 0),
+                    start_time=tt.get("start_time", 0.0),
+                    end_time=tt.get("end_time", 0.0),
+                    speaker=tt.get("speaker", ""),
+                )
+                for tt in episode.script["turn_timings"]
+            ]
+
         return EpisodeResponse(
             id=episode.id,
             goal=episode.goal,
@@ -511,6 +559,7 @@ class PodcastService:
             duration_seconds=episode.duration_seconds,
             script=script_schema,
             references=refs,
+            turn_timings=turn_timings,
             paper_ids=episode.paper_ids,
             task_results=task_results,
             created_at=episode.created_at,

@@ -92,6 +92,15 @@ class DialogueScript(BaseModel):
     total_estimated_duration: int  # seconds
 
 
+class TurnTiming(BaseModel):
+    """턴별 오디오 타이밍 정보"""
+
+    turn_index: int
+    start_time: float
+    end_time: float
+    speaker: str
+
+
 class PodcastReference(BaseModel):
     """팟캐스트에서 사용된 참조 문헌"""
 
@@ -131,6 +140,7 @@ class EpisodeResponse(BaseModel):
     duration_seconds: int | None = None
     script: DialogueScript | None = None
     references: list[PodcastReference] | None = None
+    turn_timings: list[TurnTiming] | None = None
 
     # Metadata
     paper_ids: list[str] | None = None

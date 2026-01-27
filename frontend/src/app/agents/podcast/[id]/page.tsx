@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, use } from "react";
+import { useState, useEffect, useRef, useMemo, use } from "react";
 import Link from "next/link";
 import {
   Search,
@@ -19,7 +19,7 @@ import {
   AlertCircle,
   CheckCircle2,
 } from "lucide-react";
-import { podcastApi, PodcastEpisode, PodcastDialogueScript, PodcastReference } from "@/lib/api";
+import { podcastApi, PodcastEpisode, PodcastDialogueScript, PodcastReference, TurnTiming } from "@/lib/api";
 
 interface PageProps {
   params: Promise<{ id: string }>;
@@ -31,6 +31,8 @@ export default function PodcastEpisodeDetailPage({ params }: PageProps) {
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [isPlaying, setIsPlaying] = useState(false);
+  const [activeTurnIndex, setActiveTurnIndex] = useState<number | null>(null);
+  const audioRef = useRef<HTMLAudioElement | null>(null);
 
   // Fetch episode
   useEffect(() => {
@@ -51,6 +53,37 @@ export default function PodcastEpisodeDetailPage({ params }: PageProps) {
 
     fetchEpisode();
   }, [resolvedParams.id]);
+
+  // Extract turn_timings from episode data (may be in top-level or nested in script JSONB)
+  const turnTimings: TurnTiming[] = useMemo(() =>
+    episode?.turn_timings
+    || episode?.script?.turn_timings
+    || (episode?.script as unknown as Record<string, TurnTiming[]> | null)?.turn_timings
+    || [],
+    [episode],
+  );
+
+  // Auto-scroll to active turn when it changes
+  useEffect(() => {
+    if (activeTurnIndex !== null) {
+      const el = document.getElementById(`turn-${activeTurnIndex}`);
+      el?.scrollIntoView({ behavior: "smooth", block: "nearest" });
+    }
+  }, [activeTurnIndex]);
+
+  // Audio timeupdate handler (called via onTimeUpdate prop, no listener timing issues)
+  const handleAudioTimeUpdate = (e: React.SyntheticEvent<HTMLAudioElement>) => {
+    if (turnTimings.length === 0) return;
+    const currentTime = e.currentTarget.currentTime;
+    let foundIndex: number | null = null;
+    for (const tt of turnTimings) {
+      if (currentTime >= tt.start_time && currentTime < tt.end_time) {
+        foundIndex = tt.turn_index;
+        break;
+      }
+    }
+    setActiveTurnIndex((prev) => (prev !== foundIndex ? foundIndex : prev));
+  };
 
   // Format date
   const formatDate = (dateStr: string) => {
@@ -193,7 +226,7 @@ export default function PodcastEpisodeDetailPage({ params }: PageProps) {
               {/* Header */}
               <div className="p-6 rounded-xl border-2 border-[var(--oaria-teal)]/30 bg-[var(--oaria-teal)]/5">
                 <div className="flex items-start gap-4 mb-4">
-                  <div className="w-14 h-14 rounded-xl bg-purple-500 flex items-center justify-center text-white flex-shrink-0">
+                  <div className="w-14 h-14 rounded-xl bg-[var(--oaria-coral)] flex items-center justify-center text-white flex-shrink-0">
                     <Mic2 size={28} />
                   </div>
                   <div className="flex-1">
@@ -207,7 +240,7 @@ export default function PodcastEpisodeDetailPage({ params }: PageProps) {
                           </span>
                         );
                       })()}
-                      <span className="px-2 py-0.5 rounded-full text-xs font-medium bg-purple-500/20 text-purple-500">
+                      <span className="px-2 py-0.5 rounded-full text-xs font-medium bg-[var(--oaria-coral)]/20 text-[var(--oaria-coral)]">
                         {getStyleLabel(episode.style)}
                       </span>
                     </div>
@@ -251,19 +284,35 @@ export default function PodcastEpisodeDetailPage({ params }: PageProps) {
                   <div className="mt-4 p-4 rounded-lg bg-[var(--background)] border border-[var(--oaria-border)]">
                     <div className="flex items-center gap-3">
                       <button
-                        onClick={() => setIsPlaying(!isPlaying)}
+                        onClick={() => {
+                          const audio = audioRef.current;
+                          if (!audio) return;
+                          if (isPlaying) {
+                            audio.pause();
+                          } else {
+                            audio.play();
+                          }
+                        }}
                         className="w-12 h-12 rounded-full bg-[var(--oaria-teal)] text-white flex items-center justify-center hover:bg-[#0B7A70] transition-colors"
                       >
                         {isPlaying ? <Volume2 size={20} /> : <Play size={20} className="ml-0.5" />}
                       </button>
                       <div className="flex-1">
                         <audio
+                          ref={audioRef}
                           src={episode.audio_url}
                           controls
                           className="w-full h-10"
                           onPlay={() => setIsPlaying(true)}
                           onPause={() => setIsPlaying(false)}
+                          onTimeUpdate={handleAudioTimeUpdate}
+                          onEnded={() => setActiveTurnIndex(null)}
                         />
+                        {turnTimings.length > 0 && (
+                          <p className="text-xs text-[var(--oaria-text-secondary)] mt-1">
+                            대화를 클릭하면 해당 위치로 이동합니다
+                          </p>
+                        )}
                       </div>
                     </div>
                   </div>
@@ -277,36 +326,54 @@ export default function PodcastEpisodeDetailPage({ params }: PageProps) {
                     스크립트
                   </h2>
                   <div className="space-y-3">
-                    {script.turns.map((turn, idx) => (
-                      <div
-                        key={idx}
-                        className={`p-4 rounded-xl border-2 ${
-                          turn.speaker === script.speakers[0]
-                            ? "border-[var(--oaria-teal)]/30 bg-[var(--oaria-teal)]/5"
-                            : "border-[var(--oaria-border)] bg-[var(--background)]"
-                        }`}
-                      >
-                        <div className="flex items-center gap-2 mb-2">
-                          <span
-                            className={`px-2 py-0.5 rounded text-xs font-semibold ${
-                              turn.speaker === script.speakers[0]
-                                ? "bg-[var(--oaria-teal)] text-white"
-                                : "bg-purple-500 text-white"
-                            }`}
-                          >
-                            {turn.speaker}
-                          </span>
-                          {turn.citations && turn.citations.length > 0 && (
-                            <span className="text-xs text-[var(--oaria-text-secondary)]">
-                              인용: [{turn.citations.join(", ")}]
+                    {script.turns.map((turn, idx) => {
+                      const isActive = activeTurnIndex === idx;
+                      const hasTiming = turnTimings.some(tt => tt.turn_index === idx);
+                      return (
+                        <div
+                          key={idx}
+                          id={`turn-${idx}`}
+                          onClick={() => {
+                            if (!hasTiming || !audioRef.current) return;
+                            const timing = turnTimings.find(tt => tt.turn_index === idx);
+                            if (timing) {
+                              audioRef.current.currentTime = timing.start_time;
+                              audioRef.current.play();
+                            }
+                          }}
+                          className={`p-4 rounded-xl border-2 transition-all duration-300 ${
+                            isActive
+                              ? "border-[var(--oaria-teal)] bg-[var(--oaria-teal)]/15 ring-2 ring-[var(--oaria-teal)]/40 shadow-lg shadow-[var(--oaria-teal)]/10"
+                              : turn.speaker === script.speakers[0]
+                              ? "border-[var(--oaria-teal)]/30 bg-[var(--oaria-teal)]/5"
+                              : "border-[var(--oaria-border)] bg-[var(--background)]"
+                          } ${hasTiming ? "cursor-pointer hover:border-[var(--oaria-teal)]/60" : ""}`}
+                        >
+                          <div className="flex items-center gap-2 mb-2">
+                            {isActive && (
+                              <Volume2 size={14} className="text-[var(--oaria-teal)] animate-pulse" />
+                            )}
+                            <span
+                              className={`px-2 py-0.5 rounded text-xs font-semibold ${
+                                turn.speaker === script.speakers[0]
+                                  ? "bg-[var(--oaria-teal)] text-white"
+                                  : "bg-[var(--oaria-coral)] text-white"
+                              }`}
+                            >
+                              {turn.speaker}
                             </span>
-                          )}
+                            {turn.citations && turn.citations.length > 0 && (
+                              <span className="text-xs text-[var(--oaria-text-secondary)]">
+                                인용: [{turn.citations.join(", ")}]
+                              </span>
+                            )}
+                          </div>
+                          <p className="font-[family-name:var(--font-dm-sans)] text-sm leading-relaxed">
+                            {turn.text}
+                          </p>
                         </div>
-                        <p className="font-[family-name:var(--font-dm-sans)] text-sm leading-relaxed">
-                          {turn.text}
-                        </p>
-                      </div>
-                    ))}
+                      );
+                    })}
                   </div>
                 </div>
               )}

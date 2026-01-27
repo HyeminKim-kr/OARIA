@@ -177,7 +177,7 @@ export default function PodcastHistoryPage() {
           {/* Header */}
           <div className="flex items-center justify-between mb-8">
             <div className="flex items-center gap-4">
-              <div className="w-12 h-12 rounded-xl bg-purple-500 flex items-center justify-center text-white">
+              <div className="w-12 h-12 rounded-xl bg-[var(--oaria-coral)] flex items-center justify-center text-white">
                 <Mic2 size={24} />
               </div>
               <div>
@@ -249,7 +249,7 @@ export default function PodcastHistoryPage() {
                     <div className="flex-1 min-w-0">
                       <div className="flex items-center gap-2 mb-2">
                         {getStatusBadge(episode.status)}
-                        <span className="px-2 py-0.5 rounded-full text-xs font-medium bg-purple-500/20 text-purple-500">
+                        <span className="px-2 py-0.5 rounded-full text-xs font-medium bg-[var(--oaria-coral)]/20 text-[var(--oaria-coral)]">
                           {getStyleLabel(episode.style)}
                         </span>
                       </div>

@@ -587,6 +587,13 @@ export const notificationsApi = {
 };
 
 // Podcast Types
+export interface TurnTiming {
+  turn_index: number;
+  start_time: number;
+  end_time: number;
+  speaker: string;
+}
+
 export interface PodcastDialogueTurn {
   speaker: string;
   text: string;
@@ -599,6 +606,7 @@ export interface PodcastDialogueScript {
   speakers: string[];
   turns: PodcastDialogueTurn[];
   total_estimated_duration: number;
+  turn_timings?: TurnTiming[];
 }
 
 export interface PodcastReference {
@@ -627,6 +635,7 @@ export interface PodcastEpisode {
   duration_seconds: number | null;
   paper_ids: string[] | null;
   references: PodcastReference[] | null;
+  turn_timings: TurnTiming[] | null;
   task_results: Record<string, unknown> | null;
   search_filters: Record<string, unknown> | null;
   status: string;
@@ -668,9 +677,11 @@ export interface PodcastSSEEvent {
   gate2_passed?: boolean;
   script?: PodcastDialogueScript;
   references?: PodcastReference[];
+  turn_timings?: TurnTiming[];
   episode_id?: string;
   title?: string;
   audio_url?: string;
+  duration_seconds?: number;
   error?: string;
 }
 

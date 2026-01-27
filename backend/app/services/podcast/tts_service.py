@@ -7,7 +7,7 @@ Uses OpenAI TTS to generate multi-speaker audio from dialogue scripts.
 import io
 import logging
 import uuid
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any
 
@@ -18,18 +18,28 @@ from app.config import settings
 logger = logging.getLogger(__name__)
 
 
-# OpenAI TTS voice mapping
+# OpenAI TTS voice mapping (energetic, uplifting voices)
 VOICE_MAP = {
     # Two hosts style
-    "Alex": "alloy",      # Neutral, clear voice
-    "Sam": "nova",        # Warm, friendly voice
+    "Alex": "fable",      # Expressive, energetic
+    "Sam": "shimmer",     # Light, optimistic
 
     # Interview style
-    "Dr. Kim": "onyx",    # Deep, authoritative voice
+    "Dr. Kim": "onyx",    # Deep, authoritative
 
     # Fallback
-    "default": "alloy",
+    "default": "fable",
 }
+
+
+@dataclass
+class TurnTiming:
+    """Timing info for a single dialogue turn."""
+
+    turn_index: int
+    start_time: float
+    end_time: float
+    speaker: str
 
 
 @dataclass
@@ -40,6 +50,7 @@ class TTSResult:
     duration_seconds: int
     format: str  # "mp3"
     speaker_count: int
+    turn_timings: list[TurnTiming] = field(default_factory=list)
     error: str | None = None
 
 
@@ -100,22 +111,34 @@ class TTSService:
 
         return response.content
 
+    def _get_mp3_duration(self, audio_bytes: bytes) -> float:
+        """Get the duration of an MP3 audio segment in seconds using mutagen."""
+        try:
+            from mutagen.mp3 import MP3
+
+            mp3 = MP3(io.BytesIO(audio_bytes))
+            return mp3.info.length
+        except Exception as e:
+            logger.warning(f"Failed to measure MP3 duration with mutagen: {e}")
+            return 0.0
+
     async def generate_dialogue_audio(
         self,
         script: dict[str, Any],
-        speed: float = 1.0,
+        speed: float = 1.3,
     ) -> TTSResult:
         """
         Generate audio for a complete dialogue script.
 
         Generates audio for each turn and concatenates them.
+        Tracks per-turn timing for frontend transcript highlighting.
 
         Args:
             script: DialogueScript as dict with 'turns' list
-            speed: Speech speed
+            speed: Speech speed (default 1.05 for slightly more dynamic pacing)
 
         Returns:
-            TTSResult with combined audio
+            TTSResult with combined audio and turn_timings
         """
         if not self.is_enabled:
             return TTSResult(
@@ -138,8 +161,10 @@ class TTSService:
 
         speakers = set()
         audio_segments: list[bytes] = []
+        turn_timings: list[TurnTiming] = []
+        cumulative_time = 0.0
 
-        for turn in turns:
+        for idx, turn in enumerate(turns):
             speaker = turn.get("speaker", "Alex")
             text = turn.get("text", "")
 
@@ -155,6 +180,16 @@ class TTSService:
                     voice=voice,
                     speed=speed,
                 )
+                segment_duration = self._get_mp3_duration(audio_data)
+                turn_timings.append(
+                    TurnTiming(
+                        turn_index=idx,
+                        start_time=cumulative_time,
+                        end_time=cumulative_time + segment_duration,
+                        speaker=speaker,
+                    )
+                )
+                cumulative_time += segment_duration
                 audio_segments.append(audio_data)
             except Exception as e:
                 logger.error(f"TTS generation failed for turn: {e}")
@@ -172,15 +207,15 @@ class TTSService:
         # Concatenate audio segments
         combined_audio = self._concatenate_mp3_segments(audio_segments)
 
-        # Estimate duration (rough: ~150 words per minute at 1.0 speed)
-        total_words = sum(len(turn.get("text", "").split()) for turn in turns)
-        estimated_duration = int((total_words / 150) * 60 / speed)
+        # Use actual cumulative duration instead of WPM estimate
+        total_duration = int(cumulative_time)
 
         return TTSResult(
             audio_data=combined_audio,
-            duration_seconds=estimated_duration,
+            duration_seconds=total_duration,
             format="mp3",
             speaker_count=len(speakers),
+            turn_timings=turn_timings,
         )
 
     def _concatenate_mp3_segments(self, segments: list[bytes]) -> bytes:

@@ -38,6 +38,8 @@ dependencies = [
     "lxml>=5.0.0",
     "redis>=7.1.0",
     "langchain-openai>=1.1.7",
+    # Audio duration measurement
+    "mutagen>=1.47.0",
 ]
 
 [dependency-groups]

@@ -25,7 +25,7 @@ import {
   Quote,
   Volume2,
 } from "lucide-react";
-import { podcastApi, PodcastSSEEvent, PodcastDialogueScript, PodcastReference, fetchWithAuth } from "@/lib/api";
+import { podcastApi, PodcastSSEEvent, PodcastDialogueScript, PodcastReference, TurnTiming, fetchWithAuth } from "@/lib/api";
 
 // ─────────────────────────────────────────────────────────────
 // Types
@@ -144,6 +144,11 @@ export default function PodcastPage() {
   const [audioUrl, setAudioUrl] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
 
+  // Transcript tracking state
+  const [turnTimings, setTurnTimings] = useState<TurnTiming[]>([]);
+  const [activeTurnIndex, setActiveTurnIndex] = useState<number | null>(null);
+  const audioRef = useRef<HTMLAudioElement | null>(null);
+
   // FAQ expansion state
   const [expandedFaq, setExpandedFaq] = useState<number | null>(null);
 
@@ -158,6 +163,28 @@ export default function PodcastPage() {
       if (abortControllerRef.current) abortControllerRef.current.abort();
     };
   }, []);
+
+  // Auto-scroll to active turn when it changes
+  useEffect(() => {
+    if (activeTurnIndex !== null) {
+      const el = document.getElementById(`turn-${activeTurnIndex}`);
+      el?.scrollIntoView({ behavior: "smooth", block: "nearest" });
+    }
+  }, [activeTurnIndex]);
+
+  // Audio timeupdate handler (called via onTimeUpdate prop, no listener timing issues)
+  const handleAudioTimeUpdate = (e: React.SyntheticEvent<HTMLAudioElement>) => {
+    if (turnTimings.length === 0) return;
+    const currentTime = e.currentTarget.currentTime;
+    let foundIndex: number | null = null;
+    for (const tt of turnTimings) {
+      if (currentTime >= tt.start_time && currentTime < tt.end_time) {
+        foundIndex = tt.turn_index;
+        break;
+      }
+    }
+    setActiveTurnIndex((prev) => (prev !== foundIndex ? foundIndex : prev));
+  };
 
   // Add activity log
   const addLog = (log: Omit<ActivityLog, "id" | "timestamp">) => {
@@ -185,6 +212,8 @@ export default function PodcastPage() {
     setReferences([]);
     setEpisodeId(null);
     setAudioUrl(null);
+    setTurnTimings([]);
+    setActiveTurnIndex(null);
     setNodes(createInitialNodes());
     setActivityLogs([]);
     setElapsedTime(0);
@@ -346,12 +375,18 @@ export default function PodcastPage() {
         if (data.references) {
           setReferences(data.references);
         }
+        if (data.turn_timings) {
+          setTurnTimings(data.turn_timings);
+        }
         break;
 
       case "done":
         setEpisodeId(data.episode_id || null);
         if (data.audio_url) {
           setAudioUrl(data.audio_url);
+        }
+        if (data.turn_timings) {
+          setTurnTimings((prev) => prev.length === 0 ? data.turn_timings! : prev);
         }
         addLog({
           type: "result",
@@ -386,6 +421,8 @@ export default function PodcastPage() {
     setReferences([]);
     setEpisodeId(null);
     setAudioUrl(null);
+    setTurnTimings([]);
+    setActiveTurnIndex(null);
     setError(null);
     setNodes(createInitialNodes());
     setActivityLogs([]);
@@ -441,7 +478,7 @@ export default function PodcastPage() {
 
             {/* Hero Section */}
             <div className="text-center mb-12">
-              <div className="w-20 h-20 rounded-2xl bg-purple-500 flex items-center justify-center mx-auto mb-6 text-white">
+              <div className="w-20 h-20 rounded-2xl bg-[var(--oaria-coral)] flex items-center justify-center mx-auto mb-6 text-white">
                 <Mic2 size={40} />
               </div>
               <h1 className="font-[family-name:var(--font-outfit)] text-4xl font-bold mb-4">
@@ -584,7 +621,7 @@ export default function PodcastPage() {
 
             {/* Header */}
             <div className="flex items-center gap-4 mb-8">
-              <div className="w-12 h-12 rounded-xl bg-purple-500 flex items-center justify-center text-white">
+              <div className="w-12 h-12 rounded-xl bg-[var(--oaria-coral)] flex items-center justify-center text-white">
                 <Mic2 size={24} />
               </div>
               <div>
@@ -779,7 +816,7 @@ export default function PodcastPage() {
                     </div>
                   </div>
                   <div className="flex items-center gap-4 text-sm">
-                    <span className="px-3 py-1 rounded-full bg-purple-500/20 text-purple-500 font-medium">
+                    <span className="px-3 py-1 rounded-full bg-[var(--oaria-coral)]/20 text-[var(--oaria-coral)] font-medium">
                       {script.speakers.join(" & ")}
                     </span>
                     <span className="text-[var(--oaria-text-secondary)]">
@@ -795,11 +832,19 @@ export default function PodcastPage() {
                         <span className="font-[family-name:var(--font-dm-sans)] text-sm font-medium">
                           팟캐스트 오디오
                         </span>
+                        {turnTimings.length > 0 && (
+                          <span className="text-xs text-[var(--oaria-text-secondary)]">
+                            (대화를 클릭하면 해당 위치로 이동합니다)
+                          </span>
+                        )}
                       </div>
                       <audio
+                        ref={audioRef}
                         src={audioUrl}
                         controls
                         className="w-full h-10"
+                        onTimeUpdate={handleAudioTimeUpdate}
+                        onEnded={() => setActiveTurnIndex(null)}
                       />
                     </div>
                   )}
@@ -807,34 +852,52 @@ export default function PodcastPage() {
 
                 {/* Dialogue Turns */}
                 <div className="space-y-4">
-                  {script.turns.map((turn, idx) => (
-                    <div
-                      key={idx}
-                      className={`p-4 rounded-xl border-2 ${
-                        turn.speaker === script.speakers[0]
-                          ? "border-[var(--oaria-teal)]/30 bg-[var(--oaria-teal)]/5"
-                          : "border-[var(--oaria-border)] bg-[var(--background)]"
-                      }`}
-                    >
-                      <div className="flex items-center gap-2 mb-2">
-                        <span className={`px-2 py-0.5 rounded text-xs font-semibold ${
-                          turn.speaker === script.speakers[0]
-                            ? "bg-[var(--oaria-teal)] text-white"
-                            : "bg-purple-500 text-white"
-                        }`}>
-                          {turn.speaker}
-                        </span>
-                        {turn.citations && turn.citations.length > 0 && (
-                          <span className="text-xs text-[var(--oaria-text-secondary)]">
-                            인용: [{turn.citations.join(", ")}]
+                  {script.turns.map((turn, idx) => {
+                    const isActive = activeTurnIndex === idx;
+                    const hasTiming = turnTimings.some(tt => tt.turn_index === idx);
+                    return (
+                      <div
+                        key={idx}
+                        id={`turn-${idx}`}
+                        onClick={() => {
+                          if (!hasTiming || !audioRef.current) return;
+                          const timing = turnTimings.find(tt => tt.turn_index === idx);
+                          if (timing) {
+                            audioRef.current.currentTime = timing.start_time;
+                            audioRef.current.play();
+                          }
+                        }}
+                        className={`p-4 rounded-xl border-2 transition-all duration-300 ${
+                          isActive
+                            ? "border-[var(--oaria-teal)] bg-[var(--oaria-teal)]/15 ring-2 ring-[var(--oaria-teal)]/40 shadow-lg shadow-[var(--oaria-teal)]/10"
+                            : turn.speaker === script.speakers[0]
+                            ? "border-[var(--oaria-teal)]/30 bg-[var(--oaria-teal)]/5"
+                            : "border-[var(--oaria-border)] bg-[var(--background)]"
+                        } ${hasTiming ? "cursor-pointer hover:border-[var(--oaria-teal)]/60" : ""}`}
+                      >
+                        <div className="flex items-center gap-2 mb-2">
+                          {isActive && (
+                            <Volume2 size={14} className="text-[var(--oaria-teal)] animate-pulse" />
+                          )}
+                          <span className={`px-2 py-0.5 rounded text-xs font-semibold ${
+                            turn.speaker === script.speakers[0]
+                              ? "bg-[var(--oaria-teal)] text-white"
+                              : "bg-[var(--oaria-coral)] text-white"
+                          }`}>
+                            {turn.speaker}
                           </span>
-                        )}
+                          {turn.citations && turn.citations.length > 0 && (
+                            <span className="text-xs text-[var(--oaria-text-secondary)]">
+                              인용: [{turn.citations.join(", ")}]
+                            </span>
+                          )}
+                        </div>
+                        <p className="font-[family-name:var(--font-dm-sans)] text-sm leading-relaxed">
+                          {turn.text}
+                        </p>
                       </div>
-                      <p className="font-[family-name:var(--font-dm-sans)] text-sm leading-relaxed">
-                        {turn.text}
-                      </p>
-                    </div>
-                  ))}
+                    );
+                  })}
                 </div>
 
                 {/* References */}
