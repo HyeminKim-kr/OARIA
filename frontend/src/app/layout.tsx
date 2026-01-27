@@ -5,6 +5,7 @@ import { AuthProvider } from "@/contexts/AuthContext";
 import { NotificationProvider } from "@/contexts/NotificationContext";
 import { QueryProvider } from "@/components/providers/QueryProvider";
 import { ToastContainer } from "@/components/notifications";
+import { ThemeProvider } from "@/components/providers/ThemeProvider";
 
 const outfit = Outfit({
   variable: "--font-outfit",
@@ -29,16 +30,21 @@ export default function RootLayout({
   children: React.ReactNode;
 }>) {
   return (
-    <html lang="ko">
+    <html lang="ko" suppressHydrationWarning>
       <body
         className={`${outfit.variable} ${dmSans.variable} antialiased`}
       >
-        <AuthProvider>
-          <NotificationProvider>
-            <QueryProvider>{children}</QueryProvider>
-            <ToastContainer />
-          </NotificationProvider>
-        </AuthProvider>
+        <ThemeProvider>
+          <AuthProvider>
+            <NotificationProvider>
+              <QueryProvider>{children}</QueryProvider>
+              <ToastContainer />
+            </NotificationProvider>
+          </AuthProvider>
+          <footer className="fixed bottom-2 right-3 text-[10px] text-[var(--oaria-text-secondary)] opacity-50 select-none z-50">
+            v0.1.0
+          </footer>
+        </ThemeProvider>
       </body>
     </html>
   );
