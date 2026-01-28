@@ -16,6 +16,7 @@ import {
   Bookmark,
   MessageSquare,
   Loader2,
+  BarChart3,
 } from "lucide-react";
 import { papersApi } from "@/lib/api";
 import { PaperCard } from "@/components/papers";
@@ -23,7 +24,6 @@ import { PaperCard } from "@/components/papers";
 export default function MainPage() {
   const [searchQuery, setSearchQuery] = useState("");
   const [debouncedQuery, setDebouncedQuery] = useState("");
-  const [activeTab, setActiveTab] = useState<"papers" | "agents">("papers");
   const [activeFilter, setActiveFilter] = useState<"recent" | "recommended" | "bookmark">(
     "recent"
   );
@@ -55,25 +55,39 @@ export default function MainPage() {
 
   return (
     <div className="h-full flex flex-col overflow-hidden">
-      {/* Header with Toggle - Fixed */}
+      {/* Header with Tabs - Fixed */}
       <div className="bg-[var(--background)]">
-        <div className="flex items-center justify-center py-4">
-          {/* Ask/Search Toggle */}
-          <div className="inline-flex items-center bg-[var(--oaria-border)]/50 rounded-full p-1">
+        <div className="flex items-center justify-center">
+          {/* Navigation Tabs */}
+          <div className="flex items-center gap-6">
             <Link
               href="/ask"
-              className="flex items-center gap-2 px-4 py-2 rounded-full text-sm font-medium text-[var(--oaria-text-secondary)] hover:text-[var(--foreground)] transition-all"
+              className="flex items-center gap-2 px-4 py-3 font-[family-name:var(--font-dm-sans)] text-base font-medium border-b-2 border-transparent text-[var(--oaria-text-secondary)] hover:text-[var(--foreground)] transition-colors"
             >
-              <MessageSquare size={16} />
+              <MessageSquare size={20} />
               Ask AI
             </Link>
             <button
               type="button"
-              className="flex items-center gap-2 px-4 py-2 rounded-full text-sm font-medium bg-[var(--oaria-teal)] text-white shadow-sm"
+              className="flex items-center gap-2 px-4 py-3 font-[family-name:var(--font-dm-sans)] text-base font-medium border-b-2 border-[var(--oaria-teal)] text-[var(--oaria-teal)]"
             >
-              <Search size={16} />
+              <Search size={20} />
               Search Papers
             </button>
+            <Link
+              href="/agents"
+              className="flex items-center gap-2 px-4 py-3 font-[family-name:var(--font-dm-sans)] text-base font-medium border-b-2 border-transparent text-[var(--oaria-text-secondary)] hover:text-[var(--foreground)] transition-colors"
+            >
+              <Bot size={20} />
+              Agents
+            </Link>
+            <Link
+              href="/dashboard"
+              className="flex items-center gap-2 px-4 py-3 font-[family-name:var(--font-dm-sans)] text-base font-medium border-b-2 border-transparent text-[var(--oaria-text-secondary)] hover:text-[var(--foreground)] transition-colors"
+            >
+              <BarChart3 size={20} />
+              Dashboard
+            </Link>
           </div>
         </div>
       </div>
@@ -126,32 +140,6 @@ export default function MainPage() {
               </div>
             </form>
 
-          {/* Tabs */}
-          <div className="flex items-center justify-center gap-6 mb-4 border-b-2 border-[var(--oaria-border-strong)]">
-            <button
-              onClick={() => setActiveTab("papers")}
-              className={`flex items-center gap-2 px-4 py-3 font-[family-name:var(--font-dm-sans)] text-base font-medium border-b-2 transition-colors ${
-                activeTab === "papers"
-                  ? "border-[var(--oaria-teal)] text-[var(--oaria-teal)]"
-                  : "border-transparent text-[var(--oaria-text-secondary)] hover:text-[var(--foreground)]"
-              }`}
-            >
-              <FileText size={20} />
-              Papers
-            </button>
-            <button
-              onClick={() => setActiveTab("agents")}
-              className={`flex items-center gap-2 px-4 py-3 font-[family-name:var(--font-dm-sans)] text-base font-medium border-b-2 transition-colors ${
-                activeTab === "agents"
-                  ? "border-[var(--oaria-teal)] text-[var(--oaria-teal)]"
-                  : "border-transparent text-[var(--oaria-text-secondary)] hover:text-[var(--foreground)]"
-              }`}
-            >
-              <Bot size={20} />
-              에이전트
-            </button>
-          </div>
-
           {/* Filters */}
           <div className="flex items-center justify-between mb-4">
             <div className="flex items-center gap-3">
@@ -197,7 +185,7 @@ export default function MainPage() {
           </div>
 
           {/* Paper Cards */}
-          <div className="space-y-3">
+          <div className="space-y-5">
             {isLoading ? (
               // Loading skeleton
               <div className="space-y-3">
@@ -228,7 +216,11 @@ export default function MainPage() {
               </div>
             ) : papers && papers.length > 0 ? (
               // Paper list
-              papers.map((paper) => <PaperCard key={paper.id} paper={paper} />)
+              <div className="flex flex-col gap-5">
+                {papers.map((paper) => (
+                  <PaperCard key={paper.id} paper={paper} />
+                ))}
+              </div>
             ) : (
               // Empty state
               <div className="rounded-xl border-2 border-[var(--oaria-border-strong)] bg-[var(--background)] p-8 text-center">

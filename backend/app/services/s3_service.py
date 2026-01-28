@@ -22,6 +22,14 @@ class S3Service:
             aws_secret_access_key=settings.s3_secret_key,
         )
         self._bucket = settings.s3_bucket
+        self._internal_endpoint = settings.s3_endpoint_url
+        self._public_endpoint = settings.s3_public_endpoint_url
+
+    def _make_url_public(self, url: str) -> str:
+        """Convert internal S3 URL to public URL."""
+        if self._internal_endpoint != self._public_endpoint:
+            return url.replace(self._internal_endpoint, self._public_endpoint)
+        return url
 
     def get_raw_xml(self, paper_id: str) -> str | None:
         """논문 원본 XML 조회
@@ -172,6 +180,77 @@ class S3Service:
             if e.response["Error"]["Code"] == "NoSuchKey":
                 return None
             raise
+
+    async def upload_bytes(
+        self,
+        data: bytes,
+        object_key: str,
+        content_type: str = "application/octet-stream",
+    ) -> str:
+        """Upload bytes data to S3.
+
+        Args:
+            data: Bytes to upload
+            object_key: S3 object key (path)
+            content_type: MIME type of the content
+
+        Returns:
+            URL of the uploaded object (public URL)
+        """
+        import asyncio
+
+        # Run sync boto3 upload in thread pool
+        def _upload():
+            self._client.put_object(
+                Bucket=self._bucket,
+                Key=object_key,
+                Body=data,
+                ContentType=content_type,
+            )
+            # Return presigned URL for access
+            url = self._client.generate_presigned_url(
+                "get_object",
+                Params={
+                    "Bucket": self._bucket,
+                    "Key": object_key,
+                },
+                ExpiresIn=86400 * 7,  # 7 days
+            )
+            return self._make_url_public(url)
+
+        return await asyncio.to_thread(_upload)
+
+    def upload_bytes_sync(
+        self,
+        data: bytes,
+        object_key: str,
+        content_type: str = "application/octet-stream",
+    ) -> str:
+        """Upload bytes data to S3 (synchronous version).
+
+        Args:
+            data: Bytes to upload
+            object_key: S3 object key (path)
+            content_type: MIME type of the content
+
+        Returns:
+            URL of the uploaded object
+        """
+        self._client.put_object(
+            Bucket=self._bucket,
+            Key=object_key,
+            Body=data,
+            ContentType=content_type,
+        )
+        # Return presigned URL for access
+        return self._client.generate_presigned_url(
+            "get_object",
+            Params={
+                "Bucket": self._bucket,
+                "Key": object_key,
+            },
+            ExpiresIn=86400 * 7,  # 7 days
+        )
 
 
 # 싱글톤 인스턴스

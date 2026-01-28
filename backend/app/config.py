@@ -63,8 +63,13 @@ class Settings(BaseSettings):
     # S3/MinIO (batch와 동일한 환경변수명 사용)
     s3_endpoint_url: str = Field(
         default="http://localhost:19000",
-        description="S3/MinIO 엔드포인트",
+        description="S3/MinIO 엔드포인트 (내부)",
         alias="S3_ENDPOINT",
+    )
+    s3_public_endpoint_url: str = Field(
+        default="http://localhost:19000",
+        description="S3/MinIO 공개 엔드포인트 (브라우저 접근용)",
+        alias="S3_PUBLIC_ENDPOINT",
     )
     s3_access_key: str = Field(
         default="minioadmin",
@@ -92,6 +97,39 @@ class Settings(BaseSettings):
     )
     openai_chat_model: str = Field(
         default="gpt-4o-mini", description="챗 모델"
+    )
+
+    # v4 호환성 (openai_chat_model의 alias)
+    @computed_field
+    @property
+    def openai_model(self) -> str:
+        """v4 에이전트용 모델 설정 (openai_chat_model alias)"""
+        return self.openai_chat_model
+
+    # Redis (Study Plan Agent v3 - Budget/Cache)
+    redis_url: str = Field(
+        default="redis://localhost:16379",
+        description="Redis 연결 URL (Budget Manager, Cache용)",
+    )
+
+    # Tavily (Web Search)
+    tavily_api_key: str = Field(
+        default="",
+        description="Tavily API 키 (Web 검색용)",
+    )
+
+    # Study Plan Agent v3 - Search Budget
+    search_web_monthly_limit: int = Field(
+        default=1000,
+        description="Tavily Web 검색 월간 제한 (무료 플랜 기준)",
+    )
+    search_web_per_run_limit: int = Field(
+        default=1,
+        description="단일 실행당 Web 검색 최대 횟수",
+    )
+    search_epmc_per_run_limit: int = Field(
+        default=2,
+        description="단일 실행당 Europe PMC 검색 최대 횟수",
     )
 
     @computed_field

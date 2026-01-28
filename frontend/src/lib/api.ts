@@ -401,3 +401,327 @@ export async function fetchWithAuth(
 
   return response;
 }
+
+// ============================================================
+// Agent Jobs & Notifications Types
+// ============================================================
+
+export interface AgentJobListItem {
+  id: string;
+  agent_type: string;
+  job_name: string | null;
+  status: string;
+  progress_percent: number;
+  approval_required: boolean;
+  experiment_count: number;
+  created_at: string;
+}
+
+export interface AgentJobResponse {
+  id: string;
+  user_id: string;
+  agent_type: string;
+  job_name: string | null;
+  status: string;
+  current_step: string | null;
+  progress_percent: number;
+  progress_detail: string | null;
+  approval_required: boolean;
+  approval_gate_id: string | null;
+  approval_choices: Record<string, unknown> | null;
+  approved_at: string | null;
+  executive_summary: string | null;
+  experiment_count: number;
+  attempt_count: number;
+  max_attempts: number;
+  last_error_code: string | null;
+  last_error_message: string | null;
+  started_at: string | null;
+  completed_at: string | null;
+  total_duration_ms: number | null;
+  created_at: string;
+  updated_at: string;
+}
+
+// Thinking History Entry (에이전트 reasoning 과정)
+export interface ThinkingHistoryEntry {
+  iteration: number;
+  timestamp?: string;
+  title: string;
+  bullets: string[];
+  message?: string;
+  action?: string;
+  parameters?: Record<string, unknown>;
+  confidence?: number;
+  token_usage?: {
+    prompt_tokens: number;
+    completion_tokens: number;
+    total_tokens: number;
+  };
+  observation?: {
+    success: boolean;
+    summary?: string;
+    details?: Record<string, unknown>;
+  };
+  status?: string;
+}
+
+export interface AgentJobDetailResponse extends AgentJobResponse {
+  input_data: Record<string, unknown>;
+  config: Record<string, unknown> | null;
+  step_results: Record<string, unknown>[];
+  approval_decision: Record<string, unknown> | null;
+  result_data: Record<string, unknown> | null;
+  // Thinking History (에이전트 reasoning 과정)
+  thinking_history: ThinkingHistoryEntry[] | null;
+  cumulative_tokens: {
+    prompt_tokens: number;
+    completion_tokens: number;
+    total_tokens: number;
+  } | null;
+}
+
+export interface PaginatedAgentJobs {
+  items: AgentJobListItem[];
+  total: number;
+  page: number;
+  size: number;
+  pages: number;
+}
+
+export interface NotificationItem {
+  id: string;
+  type: string;
+  category: string;
+  title: string;
+  message: string;
+  priority: string;
+  icon: string | null;
+  entity_type: string | null;
+  entity_id: string | null;
+  action_type: string | null;
+  action_url: string | null;
+  is_read: boolean;
+  created_at: string;
+}
+
+export interface PaginatedNotifications {
+  items: NotificationItem[];
+  total: number;
+  page: number;
+  size: number;
+  pages: number;
+  unread_count: number;
+}
+
+// Agent Jobs API
+export const agentJobsApi = {
+  // 작업 생성
+  create: (data: {
+    agent_type: string;
+    input_data: Record<string, unknown>;
+    config?: Record<string, unknown>;
+    job_name?: string;
+  }) => api.post<AgentJobResponse>('/agent-jobs/', data),
+
+  // 작업 목록
+  list: (params?: {
+    page?: number;
+    size?: number;
+    status_filter?: string;
+    agent_type?: string;
+  }) => api.get<PaginatedAgentJobs>('/agent-jobs/', { params }),
+
+  // 작업 상세
+  get: (id: string) => api.get<AgentJobDetailResponse>(`/agent-jobs/${id}`),
+
+  // 작업 스트림 URL
+  streamUrl: (id: string) => `${API_BASE_URL}/agent-jobs/${id}/stream`,
+
+  // 승인
+  approve: (id: string, decision: Record<string, unknown>) =>
+    api.post<AgentJobResponse>(`/agent-jobs/${id}/approve`, { decision }),
+
+  // 취소
+  cancel: (id: string) => api.post<AgentJobResponse>(`/agent-jobs/${id}/cancel`),
+
+  // 재시도
+  retry: (id: string, reset_config?: Record<string, unknown>) =>
+    api.post<AgentJobResponse>(`/agent-jobs/${id}/retry`, { reset_config }),
+
+  // 삭제
+  delete: (id: string) => api.delete(`/agent-jobs/${id}`),
+};
+
+// Notifications API
+export const notificationsApi = {
+  // 알림 목록
+  list: (params?: {
+    page?: number;
+    size?: number;
+    category?: string;
+    include_dismissed?: boolean;
+  }) => api.get<PaginatedNotifications>('/notifications/', { params }),
+
+  // 읽지 않은 수
+  unreadCount: () => api.get<{ count: number }>('/notifications/unread-count'),
+
+  // 알림 상세
+  get: (id: string) => api.get<NotificationItem>(`/notifications/${id}`),
+
+  // 읽음 처리
+  markAsRead: (id: string) => api.post(`/notifications/${id}/read`),
+
+  // 전체 읽음
+  markAllAsRead: () => api.post('/notifications/read-all'),
+
+  // 숨기기
+  dismiss: (id: string) => api.post(`/notifications/${id}/dismiss`),
+
+  // 여러 알림 숨기기
+  dismissMany: (notification_ids: string[]) =>
+    api.post('/notifications/dismiss-many', { notification_ids }),
+
+  // SSE 스트림 URL
+  streamUrl: () => `${API_BASE_URL}/notifications/stream`,
+};
+
+// Podcast Types
+export interface TurnTiming {
+  turn_index: number;
+  start_time: number;
+  end_time: number;
+  speaker: string;
+}
+
+export interface PodcastDialogueTurn {
+  speaker: string;
+  text: string;
+  citations?: number[];
+}
+
+export interface PodcastDialogueScript {
+  title: string;
+  description: string;
+  speakers: string[];
+  turns: PodcastDialogueTurn[];
+  total_estimated_duration: number;
+  turn_timings?: TurnTiming[];
+}
+
+export interface PodcastReference {
+  index: number;
+  paper_id: string;
+  title: string;
+  authors: string[] | null;
+  journal: string | null;
+  year: number | null;
+  snippet: string;
+}
+
+export interface PodcastEpisode {
+  id: string;
+  user_id: string;
+  subscription_id: string | null;
+  goal: string;
+  duration: string;
+  style: string;
+  paper_mode: string;
+  language: string;
+  title: string | null;
+  description: string | null;
+  script: PodcastDialogueScript | null;
+  audio_url: string | null;
+  duration_seconds: number | null;
+  paper_ids: string[] | null;
+  references: PodcastReference[] | null;
+  turn_timings: TurnTiming[] | null;
+  task_results: Record<string, unknown> | null;
+  search_filters: Record<string, unknown> | null;
+  status: string;
+  error_message: string | null;
+  created_at: string;
+  completed_at: string | null;
+}
+
+export interface PaginatedPodcastEpisodes {
+  items: PodcastEpisode[];
+  total: number;
+  page: number;
+  size: number;
+  pages: number;
+}
+
+export interface PodcastSubscription {
+  id: string;
+  user_id: string;
+  topics: string[];
+  frequency: string;
+  episode_style: string;
+  episode_duration: string;
+  language: string;
+  is_active: boolean;
+  last_generated_at: string | null;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface PodcastSSEEvent {
+  status?: string;
+  message?: string;
+  task_name?: string;
+  task_index?: number;
+  total_tasks?: number;
+  duration_ms?: number;
+  summary?: string;
+  gate2_passed?: boolean;
+  script?: PodcastDialogueScript;
+  references?: PodcastReference[];
+  turn_timings?: TurnTiming[];
+  episode_id?: string;
+  title?: string;
+  audio_url?: string;
+  duration_seconds?: number;
+  error?: string;
+}
+
+// Podcast API
+export const podcastApi = {
+  // 에피소드 생성 (SSE 스트림)
+  generateStreamUrl: () => `${API_BASE_URL}/podcast/generate`,
+
+  // 에피소드 목록
+  list: (page = 1, size = 10) =>
+    api.get<PaginatedPodcastEpisodes>('/podcast/episodes', { params: { page, size } }),
+
+  // 에피소드 상세
+  get: (id: string) => api.get<PodcastEpisode>(`/podcast/episodes/${id}`),
+
+  // 에피소드 삭제
+  delete: (id: string) => api.delete(`/podcast/episodes/${id}`),
+
+  // 구독 목록
+  listSubscriptions: () => api.get<PodcastSubscription[]>('/podcast/subscriptions'),
+
+  // 구독 생성
+  createSubscription: (data: {
+    topics: string[];
+    frequency?: string;
+    episode_style?: string;
+    episode_duration?: string;
+    language?: string;
+  }) => api.post<PodcastSubscription>('/podcast/subscriptions', data),
+
+  // 구독 수정
+  updateSubscription: (id: string, data: Partial<{
+    topics: string[];
+    frequency: string;
+    episode_style: string;
+    episode_duration: string;
+    language: string;
+    is_active: boolean;
+  }>) => api.put<PodcastSubscription>(`/podcast/subscriptions/${id}`, data),
+
+  // 구독 삭제
+  deleteSubscription: (id: string) => api.delete(`/podcast/subscriptions/${id}`),
+};

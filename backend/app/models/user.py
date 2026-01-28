@@ -14,6 +14,9 @@ if TYPE_CHECKING:
     from .social_account import SocialAccount
     from .refresh_token import UserRefreshToken
     from .chat import Conversation, AnswerLog
+    from .agent_job import AgentJob
+    from .notification import Notification
+    from .podcast import PodcastSubscription, PodcastEpisode
 
 
 class User(Base):
@@ -75,6 +78,26 @@ class User(Base):
     answer_logs: Mapped[list["AnswerLog"]] = relationship(
         "AnswerLog",
         back_populates="user",
+    )
+    agent_jobs: Mapped[list["AgentJob"]] = relationship(
+        "AgentJob",
+        back_populates="user",
+        cascade="all, delete-orphan",
+    )
+    notifications: Mapped[list["Notification"]] = relationship(
+        "Notification",
+        back_populates="user",
+        cascade="all, delete-orphan",
+    )
+    podcast_subscriptions: Mapped[list["PodcastSubscription"]] = relationship(
+        "PodcastSubscription",
+        back_populates="user",
+        cascade="all, delete-orphan",
+    )
+    podcast_episodes: Mapped[list["PodcastEpisode"]] = relationship(
+        "PodcastEpisode",
+        back_populates="user",
+        cascade="all, delete-orphan",
     )
 
     def __repr__(self) -> str:

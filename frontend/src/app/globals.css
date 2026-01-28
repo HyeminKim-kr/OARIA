@@ -1,5 +1,6 @@
 @import "tailwindcss";
 @plugin "@tailwindcss/typography";
+@custom-variant dark (&:where(.dark, .dark *));
 
 :root {
   /* Background */
@@ -22,6 +23,17 @@
   --oaria-text-secondary: #64748B;
 }
 
+.dark {
+  --background: #0F172A;
+  --foreground: #FAFAFA;
+
+  --oaria-light-ring: #334155;
+  --oaria-dark-ring: #CBD5E1;
+  --oaria-border: #1E293B;
+  --oaria-border-strong: #334155;
+  --oaria-text-secondary: #94A3B8;
+}
+
 @theme inline {
   --color-background: var(--background);
   --color-foreground: var(--foreground);
@@ -29,14 +41,61 @@
   --font-body: var(--font-dm-sans);
 }
 
-@media (prefers-color-scheme: dark) {
-  :root {
-    --background: #0F172A;
-    --foreground: #FAFAFA;
-  }
-}
-
 body {
   background: var(--background);
   color: var(--foreground);
+}
+
+/* Markdown checkbox styling */
+.prose input[type="checkbox"] {
+  appearance: none;
+  width: 1rem;
+  height: 1rem;
+  border: 2px solid var(--oaria-border-strong);
+  border-radius: 0.25rem;
+  margin-right: 0.5rem;
+  vertical-align: middle;
+  position: relative;
+  cursor: pointer;
+}
+
+.prose input[type="checkbox"]:checked {
+  background-color: var(--oaria-teal);
+  border-color: var(--oaria-teal);
+}
+
+.prose input[type="checkbox"]:checked::after {
+  content: "✓";
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  color: white;
+  font-size: 0.75rem;
+  font-weight: bold;
+}
+
+/* Markdown table styling */
+.prose table {
+  width: 100%;
+  border-collapse: collapse;
+  margin: 1rem 0;
+}
+
+.prose th,
+.prose td {
+  text-align: left;
+}
+
+.prose blockquote {
+  border-left: 4px solid var(--oaria-teal);
+  background-color: var(--oaria-teal);
+  background-color: rgba(13, 148, 136, 0.05);
+  padding: 0.75rem 1rem;
+  margin: 1rem 0;
+}
+
+.prose hr {
+  border-color: var(--oaria-border);
+  margin: 1.5rem 0;
 }

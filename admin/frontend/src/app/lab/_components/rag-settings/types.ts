@@ -21,7 +21,10 @@ export interface SettingFormData {
   retriever: string;
   reranker: string | null;
   classifier: string | null;
-  parameters: { limit: number; alpha: number };
+  parameters: {
+    limit: number;
+    alpha: number;
+  };
 }
 
 // Mismatch 정보

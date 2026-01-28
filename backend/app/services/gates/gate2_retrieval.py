@@ -7,9 +7,13 @@ RAG 검색 결과의 품질을 검증하는 두 번째 Gate입니다.
 - OAR-37: Similarity Threshold (max similarity >= 0.7)
 - OAR-38: Min Relevant Docs (similarity >= 0.6인 문서 >= 3개)
 - OAR-39: Domain Validation (oncology 문서 비율 >= 80%)
+
+환경 변수:
+- GATE2_ENABLED: true/false (기본 true) - Gate 2 활성화 여부
 """
 
 import logging
+import os
 from dataclasses import dataclass
 from enum import Enum
 
@@ -94,6 +98,13 @@ class Gate2Service:
     """Gate 2: Retrieval Confidence 검증 서비스
 
     검색 결과의 품질을 검증합니다.
+
+    설정 우선순위:
+        1. DB (rag_settings.parameters 내 gate2_* 값)
+        2. 기본값
+
+    환경 변수:
+        GATE2_ENABLED: true/false (기본 true)
     """
 
     # 기본 임계값 설정
@@ -111,24 +122,69 @@ class Gate2Service:
         "암", "종양", "항암", "전이", "악성"
     ]
 
-    def __init__(
-        self,
-        similarity_threshold: float = DEFAULT_SIMILARITY_THRESHOLD,
-        relevant_score: float = DEFAULT_RELEVANT_SCORE,
-        min_relevant_docs: int = DEFAULT_MIN_RELEVANT_DOCS,
-        domain_ratio: float = DEFAULT_DOMAIN_RATIO,
-    ):
-        """
-        Args:
-            similarity_threshold: 최대 유사도 임계값 (OAR-37)
-            relevant_score: 관련 문서 판정 기준 점수 (OAR-38)
-            min_relevant_docs: 최소 관련 문서 수 (OAR-38)
-            domain_ratio: oncology 도메인 비율 임계값 (OAR-39)
-        """
-        self.similarity_threshold = similarity_threshold
-        self.relevant_score = relevant_score
-        self.min_relevant_docs = min_relevant_docs
-        self.domain_ratio = domain_ratio
+    _instance: "Gate2Service | None" = None
+
+    def __new__(cls) -> "Gate2Service":
+        if cls._instance is None:
+            cls._instance = super().__new__(cls)
+            cls._instance._enabled = (
+                os.getenv("GATE2_ENABLED", "true").lower() == "true"
+            )
+            # 기본값으로 초기화 (DB 로드 전 사용)
+            cls._instance._similarity_threshold = cls.DEFAULT_SIMILARITY_THRESHOLD
+            cls._instance._relevant_score = cls.DEFAULT_RELEVANT_SCORE
+            cls._instance._min_relevant_docs = cls.DEFAULT_MIN_RELEVANT_DOCS
+            cls._instance._domain_ratio = cls.DEFAULT_DOMAIN_RATIO
+        return cls._instance
+
+    @property
+    def is_enabled(self) -> bool:
+        """Gate 2 활성화 여부"""
+        return self._enabled
+
+    @property
+    def similarity_threshold(self) -> float:
+        """최대 유사도 임계값 (DB 설정 우선)"""
+        return self._get_config_value("gate2SimilarityThreshold", self._similarity_threshold)
+
+    @property
+    def relevant_score(self) -> float:
+        """관련 문서 판정 기준 점수 (DB 설정 우선)"""
+        return self._get_config_value("gate2RelevantScore", self._relevant_score)
+
+    @property
+    def min_relevant_docs(self) -> int:
+        """최소 관련 문서 수 (DB 설정 우선)"""
+        return int(self._get_config_value("gate2MinRelevantDocs", self._min_relevant_docs))
+
+    @property
+    def domain_ratio(self) -> float:
+        """oncology 도메인 비율 임계값 (DB 설정 우선)"""
+        return self._get_config_value("gate2DomainRatio", self._domain_ratio)
+
+    def _get_config_value(self, key: str, default: float | int) -> float | int:
+        """RAGConfigManager에서 설정값 가져오기"""
+        try:
+            from app.core.rag_config import RAGConfigManager
+
+            if RAGConfigManager.is_loaded():
+                config = RAGConfigManager.get()
+                value = config.parameters.get(key)
+                if value is not None:
+                    return value
+        except Exception as e:
+            logger.warning(f"[Gate2Service] Failed to get config value for {key}: {e}")
+        return default
+
+    def get_status(self) -> dict:
+        """서비스 상태 반환"""
+        return {
+            "enabled": self._enabled,
+            "similarity_threshold": self.similarity_threshold,
+            "relevant_score": self.relevant_score,
+            "min_relevant_docs": self.min_relevant_docs,
+            "domain_ratio": self.domain_ratio,
+        }
 
     def validate(self, references: list[Reference]) -> Gate2Result:
         """검색 결과 품질 검증 (OAR-40)
@@ -141,6 +197,17 @@ class Gate2Service:
         Returns:
             Gate2Result: 검증 결과
         """
+        # Gate 2 비활성화 시 항상 통과
+        if not self._enabled:
+            logger.info("Gate 2 is disabled, auto-passing")
+            return Gate2Result(
+                passed=True,
+                max_similarity=1.0,
+                relevant_count=len(references) if references else 0,
+                oncology_ratio=1.0,
+                details={"bypassed": True, "reason": "Gate 2 disabled via GATE2_ENABLED=false"},
+            )
+
         if not references:
             logger.warning("Gate 2: No references to validate")
             return Gate2Result(
@@ -306,3 +373,8 @@ gate2_service = Gate2Service()
 def get_gate2_service() -> Gate2Service:
     """Gate 2 서비스 의존성"""
     return gate2_service
+
+
+def reset_gate2_service() -> None:
+    """Gate 2 서비스 리셋 (테스트용)"""
+    Gate2Service._instance = None

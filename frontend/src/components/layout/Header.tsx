@@ -2,10 +2,13 @@
 
 import Link from "next/link";
 import { useAuth } from "@/contexts/AuthContext";
-import { Moon, Bell, User, LogOut } from "lucide-react";
+import { Moon, Sun, User, LogOut } from "lucide-react";
+import { NotificationBell } from "@/components/notifications";
+import { useTheme } from "next-themes";
 
 export function Header() {
   const { user, logout } = useAuth();
+  const { theme, setTheme } = useTheme();
 
   return (
     <header className="fixed top-0 left-0 right-0 h-16 bg-[var(--background)] border-b-2 border-[var(--oaria-border-strong)] flex items-center justify-between px-8 z-50">
@@ -84,21 +87,17 @@ export function Header() {
 
       {/* Icons - Right */}
       <div className="flex items-center gap-2">
-        {/* Dark Mode */}
+        {/* Dark Mode Toggle */}
         <button
+          onClick={() => setTheme(theme === "dark" ? "light" : "dark")}
           className="p-2.5 rounded-lg hover:bg-[var(--oaria-border)]/50 transition-colors text-[var(--oaria-text-secondary)] hover:text-[var(--foreground)]"
-          title="Dark mode"
+          title={theme === "dark" ? "Light mode" : "Dark mode"}
         >
-          <Moon size={20} />
+          {theme === "dark" ? <Sun size={20} /> : <Moon size={20} />}
         </button>
 
         {/* Notifications */}
-        <button
-          className="p-2.5 rounded-lg hover:bg-[var(--oaria-border)]/50 transition-colors text-[var(--oaria-text-secondary)] hover:text-[var(--foreground)]"
-          title="Notifications"
-        >
-          <Bell size={20} />
-        </button>
+        <NotificationBell />
 
         {/* Profile */}
         {user && (

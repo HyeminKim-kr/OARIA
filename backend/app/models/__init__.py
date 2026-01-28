@@ -18,6 +18,23 @@ from .batch import (
 from .chat import Conversation, Message, AnswerLog
 from .rag_settings import RAGSettings
 from .rag_strategy import RAGStrategy
+from .agent_job import AgentJob, AgentJobStatus, AgentType
+from .notification import (
+    Notification,
+    NotificationType,
+    NotificationCategory,
+    NotificationPriority,
+    NotificationActionType,
+)
+from .podcast import (
+    PodcastSubscription,
+    PodcastEpisode,
+    PodcastFrequency,
+    PodcastStyle,
+    PodcastDuration,
+    PaperSelectionMode,
+    EpisodeStatus,
+)
 
 __all__ = [
     # Base
@@ -48,4 +65,21 @@ __all__ = [
     # RAG
     "RAGSettings",
     "RAGStrategy",
+    # Agent Jobs & Notifications
+    "AgentJob",
+    "AgentJobStatus",
+    "AgentType",
+    "Notification",
+    "NotificationType",
+    "NotificationCategory",
+    "NotificationPriority",
+    "NotificationActionType",
+    # Podcast
+    "PodcastSubscription",
+    "PodcastEpisode",
+    "PodcastFrequency",
+    "PodcastStyle",
+    "PodcastDuration",
+    "PaperSelectionMode",
+    "EpisodeStatus",
 ]

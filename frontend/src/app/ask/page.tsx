@@ -18,6 +18,7 @@ import {
   Copy,
   Check,
   AlertTriangle,
+  BarChart3,
 } from "lucide-react";
 import { ChatSidebar } from "@/components/chat/ChatSidebar";
 import { ReferenceModal } from "@/components/chat/ReferenceModal";
@@ -380,24 +381,38 @@ export default function AskPage() {
 
       {/* Main Content Area - offset by sidebar width on large screens */}
       <div className="h-full flex flex-col lg:ml-64">
-        {/* Header with Toggle */}
+        {/* Header with Tabs */}
         <div className="bg-[var(--background)]">
-          <div className="flex items-center justify-center py-4">
-            {/* Ask/Search Toggle */}
-            <div className="inline-flex items-center bg-[var(--oaria-border)]/50 rounded-full p-1">
+          <div className="flex items-center justify-center">
+            {/* Navigation Tabs */}
+            <div className="flex items-center gap-6">
               <button
                 type="button"
-                className="flex items-center gap-2 px-4 py-2 rounded-full text-sm font-medium bg-[var(--oaria-teal)] text-white shadow-sm"
+                className="flex items-center gap-2 px-4 py-3 font-[family-name:var(--font-dm-sans)] text-base font-medium border-b-2 border-[var(--oaria-teal)] text-[var(--oaria-teal)]"
               >
-                <MessageSquare size={16} />
+                <MessageSquare size={20} />
                 Ask AI
               </button>
               <Link
                 href="/main"
-                className="flex items-center gap-2 px-4 py-2 rounded-full text-sm font-medium text-[var(--oaria-text-secondary)] hover:text-[var(--foreground)] transition-all"
+                className="flex items-center gap-2 px-4 py-3 font-[family-name:var(--font-dm-sans)] text-base font-medium border-b-2 border-transparent text-[var(--oaria-text-secondary)] hover:text-[var(--foreground)] transition-colors"
               >
-                <Search size={16} />
+                <Search size={20} />
                 Search Papers
+              </Link>
+              <Link
+                href="/agents"
+                className="flex items-center gap-2 px-4 py-3 font-[family-name:var(--font-dm-sans)] text-base font-medium border-b-2 border-transparent text-[var(--oaria-text-secondary)] hover:text-[var(--foreground)] transition-colors"
+              >
+                <Bot size={20} />
+                Agents
+              </Link>
+              <Link
+                href="/dashboard"
+                className="flex items-center gap-2 px-4 py-3 font-[family-name:var(--font-dm-sans)] text-base font-medium border-b-2 border-transparent text-[var(--oaria-text-secondary)] hover:text-[var(--foreground)] transition-colors"
+              >
+                <BarChart3 size={20} />
+                Dashboard
               </Link>
             </div>
           </div>
@@ -590,10 +605,10 @@ export default function AskPage() {
 
                 {/* Agent Progress UI */}
                 {isLoading && agentProgress && (
-                  <div className="ml-11 mb-4 p-4 rounded-lg bg-[var(--oaria-border)]/20 border border-[var(--oaria-border)]">
+                  <div className="ml-11 mb-4">
                     {/* Complexity Badge */}
                     {agentProgress.complexity && (
-                      <div className="flex items-center justify-center gap-2 mb-3">
+                      <div className={`flex items-center ${agentProgress.subtasks && agentProgress.subtasks.length > 0 ? "mb-3" : ""}`}>
                         <span className={`px-3 py-1 rounded-full text-xs font-medium ${
                           agentProgress.complexity.level === "simple"
                             ? "bg-green-100 text-green-700"
@@ -602,9 +617,6 @@ export default function AskPage() {
                             : "bg-purple-100 text-purple-700"
                         }`}>
                           {agentProgress.complexity.level.toUpperCase()}
-                        </span>
-                        <span className="text-xs text-[var(--oaria-text-secondary)]">
-                          {agentProgress.complexity.reasoning}
                         </span>
                       </div>
                     )}
