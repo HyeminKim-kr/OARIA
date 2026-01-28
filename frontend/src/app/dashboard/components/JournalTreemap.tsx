@@ -8,6 +8,10 @@ interface TreemapItem {
   pct: number; // percentage of total
 }
 
+interface BoostedItem extends TreemapItem {
+  _originalValue: number;
+}
+
 interface Props {
   data: TreemapItem[];
 }
@@ -55,16 +59,24 @@ export default function JournalTreemap({ data }: Props) {
       .style("z-index", "50")
       .style("color", "var(--foreground)");
 
+    // Apply minimum value boost for small items to ensure visibility
+    const minValue = Math.max(...data.map(d => d.value)) * 0.08; // At least 8% of max
+    const boostedData = data.map(d => ({
+      ...d,
+      _originalValue: d.value,
+      value: Math.max(d.value, minValue),
+    }));
+
     const root = d3
-      .hierarchy({ name: "root", children: data })
-      .sum((d) => (d as unknown as TreemapItem).value)
+      .hierarchy<{ name: string; children?: BoostedItem[] }>({ name: "root", children: boostedData })
+      .sum((d) => (d as BoostedItem).value || 0)
       .sort((a, b) => (b.value || 0) - (a.value || 0));
 
-    d3.treemap<{ name: string; children?: TreemapItem[] }>()
+    d3.treemap<{ name: string; children?: BoostedItem[] }>()
       .size([width, height])
       .padding(2)
       .paddingInner(3)
-      .round(true)(root as d3.HierarchyRectangularNode<{ name: string; children?: TreemapItem[] }>);
+      .round(true)(root as d3.HierarchyRectangularNode<{ name: string; children?: BoostedItem[] }>);
 
     const svg = d3
       .select(el)
@@ -74,7 +86,7 @@ export default function JournalTreemap({ data }: Props) {
 
     const defs = svg.append("defs");
 
-    const leaves = (root as d3.HierarchyRectangularNode<{ name: string; children?: TreemapItem[] }>).leaves();
+    const leaves = (root as d3.HierarchyRectangularNode<{ name: string; children?: BoostedItem[] }>).leaves();
 
     // Create gradients per cell
     leaves.forEach((d, i) => {
@@ -109,10 +121,11 @@ export default function JournalTreemap({ data }: Props) {
           .attr("filter", `url(#jt-glow-${i})`)
           .transition().duration(200)
           .attr("opacity", 1);
-        const item = d.data as unknown as TreemapItem;
+        const item = d.data as BoostedItem;
+        const realValue = item._originalValue ?? d.value ?? 0;
         tip
           .style("visibility", "visible")
-          .html(`<strong>${item.name}</strong><br/>${(d.value || 0).toLocaleString()}편 · ${item.pct?.toFixed(1) || 0}%`);
+          .html(`<strong>${item.name}</strong><br/>${realValue.toLocaleString()}편 · ${item.pct?.toFixed(1) || 0}%`);
       })
       .on("mousemove", function (event) {
         const [mx, my] = d3.pointer(event, el);
@@ -194,7 +207,9 @@ export default function JournalTreemap({ data }: Props) {
         const w = d.x1 - d.x0;
         const h = d.y1 - d.y0;
         if (w < 70 || h < 60) return "";
-        return `${(d.value || 0).toLocaleString()} papers`;
+        const item = d.data as BoostedItem;
+        const realValue = item._originalValue ?? d.value ?? 0;
+        return `${realValue.toLocaleString()} papers`;
       })
       .style("font-size", "9px")
       .style("fill", "rgba(255,255,255,0.6)")

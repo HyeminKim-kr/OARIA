@@ -25,12 +25,14 @@ import { PASTEL } from "./constants";
 // ─────────────────────────────────────────────────────
 
 const MOCK_KEYWORDS = [
-  "CRISPR", "Machine Learning", "Deep Learning", "Genomics", "Proteomics",
-  "Drug Discovery", "Single Cell", "Immunotherapy", "Biomarkers", "RNA-seq",
-  "Metabolomics", "Cancer", "Neuroscience", "Epigenetics", "Microbiome",
-  "Nanomedicine", "Gene Therapy", "Stem Cells", "Clinical Trials", "mRNA",
-  "Bioinformatics", "Precision Medicine", "Antibody", "Apoptosis", "Autophagy",
-  "Cell Signaling", "Transcriptomics", "Metastasis", "Angiogenesis", "COVID-19",
+  "Vector Embedding", "Chunking", "RAG", "Semantic Search", "Fine-tuning",
+  "Transformer", "LLM", "Tokenization", "Prompt Engineering", "RLHF",
+  "Knowledge Graph", "Named Entity Recognition", "Text Classification",
+  "Attention Mechanism", "Few-shot Learning", "Zero-shot Learning",
+  "Retrieval-Augmented Generation", "Sentence Embedding", "BM25",
+  "Cross-Encoder", "Bi-Encoder", "Hallucination Detection",
+  "Chain-of-Thought", "Multi-modal", "Document Parsing",
+  "Hybrid Search", "Reranking", "Context Window", "Agentic AI", "Tool Use",
 ];
 
 const MOCK_JOURNALS = [
@@ -118,7 +120,7 @@ function getMockPapers() {
 }
 
 // D3 chart components
-import StreamGraph from "./components/StreamGraph";
+import BumpChart from "./components/BumpChart";
 import BubbleChart, { BubbleData } from "./components/BubbleChart";
 import NetworkGraph from "./components/NetworkGraph";
 import HeatmapChart from "./components/HeatmapChart";
@@ -170,7 +172,8 @@ function normalizeKw(kw: string, caseMap: Record<string, string>): string {
 // Data processing helpers
 // ─────────────────────────────────────────────────────
 
-function processStreamData(papers: Paper[], caseMap: Record<string, string>) {
+function processBumpData(papers: Paper[], caseMap: Record<string, string>) {
+  // Count keywords first
   const kwCounts: Record<string, number> = {};
   papers.forEach((p) =>
     p.keywords?.forEach((kw) => {
@@ -178,58 +181,100 @@ function processStreamData(papers: Paper[], caseMap: Record<string, string>) {
       if (k) kwCounts[k] = (kwCounts[k] || 0) + 1;
     })
   );
-  const topKW = Object.entries(kwCounts)
-    .sort((a, b) => b[1] - a[1])
-    .slice(0, 8)
-    .map(([k]) => k);
 
-  // Determine time resolution: if span ≤ 3 years, use monthly bins
+  const totalKeywords = Object.values(kwCounts).reduce((a, b) => a + b, 0);
+
+  // If keywords are too sparse, fall back to journals
+  const useJournals = totalKeywords < papers.length * 0.3;
+
+  let topItems: string[];
+  let dataType: "keyword" | "journal";
+
+  if (useJournals) {
+    // Fall back to journals
+    dataType = "journal";
+    const journalCounts: Record<string, number> = {};
+    papers.forEach((p) => {
+      if (p.journal) journalCounts[p.journal] = (journalCounts[p.journal] || 0) + 1;
+    });
+    topItems = Object.entries(journalCounts)
+      .sort((a, b) => b[1] - a[1])
+      .slice(0, 10)
+      .map(([j]) => j);
+  } else {
+    dataType = "keyword";
+    topItems = Object.entries(kwCounts)
+      .sort((a, b) => b[1] - a[1])
+      .slice(0, 10)
+      .map(([k]) => k);
+  }
+
+  // Determine time resolution
   const years = papers.map((p) => p.year).filter(Boolean) as number[];
+  if (years.length === 0) return { items: [], keywords: [], periods: [], dataType: "keyword" as const };
+
   const minYear = Math.min(...years);
   const maxYear = Math.max(...years);
   const useMonthly = (maxYear - minYear) <= 3;
 
+  // Build period → item → count
+  const periodItemCount: Record<string, Record<string, number>> = {};
+
   if (useMonthly) {
-    // Monthly bins using created_at
-    const monthMap: Record<string, Record<string, number>> = {};
     papers.forEach((p) => {
       if (!p.created_at) return;
       const d = new Date(p.created_at);
-      const key = d.getFullYear() * 100 + d.getMonth() + 1; // e.g. 202501
-      if (!monthMap[key]) monthMap[key] = {};
-      p.keywords?.forEach((kw) => {
-        const k = normalizeKw(kw, caseMap);
-        if (topKW.includes(k)) monthMap[key][k] = (monthMap[key][k] || 0) + 1;
-      });
+      const yr = d.getFullYear();
+      const mo = String(d.getMonth() + 1).padStart(2, "0");
+      const period = `${yr}.${mo}`;
+      if (!periodItemCount[period]) periodItemCount[period] = {};
+
+      if (useJournals) {
+        if (p.journal && topItems.includes(p.journal)) {
+          periodItemCount[period][p.journal] = (periodItemCount[period][p.journal] || 0) + 1;
+        }
+      } else {
+        p.keywords?.forEach((kw) => {
+          const k = normalizeKw(kw, caseMap);
+          if (topItems.includes(k)) periodItemCount[period][k] = (periodItemCount[period][k] || 0) + 1;
+        });
+      }
     });
-    const data = Object.entries(monthMap)
-      .map(([ym, kws]) => ({
-        year: parseInt(ym),
-        ...Object.fromEntries(topKW.map((k) => [k, kws[k] || 0])),
-      }))
-      .sort((a, b) => a.year - b.year);
-    return { data, keys: topKW, monthly: true };
+  } else {
+    papers.forEach((p) => {
+      if (!p.year) return;
+      const period = String(p.year);
+      if (!periodItemCount[period]) periodItemCount[period] = {};
+
+      if (useJournals) {
+        if (p.journal && topItems.includes(p.journal)) {
+          periodItemCount[period][p.journal] = (periodItemCount[period][p.journal] || 0) + 1;
+        }
+      } else {
+        p.keywords?.forEach((kw) => {
+          const k = normalizeKw(kw, caseMap);
+          if (topItems.includes(k)) periodItemCount[period][k] = (periodItemCount[period][k] || 0) + 1;
+        });
+      }
+    });
   }
 
-  // Yearly bins
-  const yearMap: Record<number, Record<string, number>> = {};
-  papers.forEach((p) => {
-    if (!p.year) return;
-    if (!yearMap[p.year]) yearMap[p.year] = {};
-    p.keywords?.forEach((kw) => {
-      const k = normalizeKw(kw, caseMap);
-      if (topKW.includes(k)) yearMap[p.year!][k] = (yearMap[p.year!][k] || 0) + 1;
+  const periods = Object.keys(periodItemCount).sort();
+
+  // Compute ranks per period
+  const items: { period: string; keyword: string; rank: number; count: number }[] = [];
+  periods.forEach((period) => {
+    const itemCounts = periodItemCount[period];
+    const sorted = topItems
+      .map((item) => ({ kw: item, count: itemCounts[item] || 0 }))
+      .filter((d) => d.count > 0)
+      .sort((a, b) => b.count - a.count);
+    sorted.forEach((d, i) => {
+      items.push({ period, keyword: d.kw, rank: i + 1, count: d.count });
     });
   });
 
-  const data = Object.entries(yearMap)
-    .map(([year, kws]) => ({
-      year: parseInt(year),
-      ...Object.fromEntries(topKW.map((k) => [k, kws[k] || 0])),
-    }))
-    .sort((a, b) => a.year - b.year);
-
-  return { data, keys: topKW, monthly: false };
+  return { items, keywords: topItems, periods, dataType };
 }
 
 function processBubbleData(papers: Paper[], caseMap: Record<string, string>): BubbleData[] {
@@ -365,37 +410,50 @@ function processTopAuthors(papers: Paper[]) {
     .map(([label, value]) => ({ label, value }));
 }
 
+// Institution category classification
+const INSTITUTION_CATEGORIES: { label: string; patterns: RegExp[] }[] = [
+  { label: "Comprehensive University", patterns: [/university|universität|université|universidad|universidade|대학교/i] },
+  { label: "Medical School / Hospital", patterns: [/medical school|hospital|clinic|charité|medical center|medical college|mayo|병원/i] },
+  { label: "Engineering / Tech Institute", patterns: [/institute of technology|polytechnic|MIT\b|KAIST|Caltech|ETH|tech\b/i] },
+  { label: "National Research Institute", patterns: [/national institute|national lab|NIH\b|CNRS|Max Planck|national center|국립/i] },
+  { label: "Government / Public Agency", patterns: [/ministry|CDC\b|FDA\b|government|public health|WHO\b|agency/i] },
+  { label: "Pharmaceutical / Biotech", patterns: [/pharma|biotech|pfizer|roche|novartis|merck|genentech|amgen|gilead|astrazeneca|johnson|bayer/i] },
+  { label: "AI / Tech Company", patterns: [/google|deepmind|microsoft|meta ai|openai|nvidia|ibm research|amazon|apple|baidu|tencent|alibaba/i] },
+  { label: "Academy of Sciences", patterns: [/academy of science|chinese academy|russian academy|académie|학술원/i] },
+  { label: "Cancer / Specialized Center", patterns: [/cancer center|cancer institute|oncology|sloan|dana.farber|MD anderson/i] },
+  { label: "Military / Defense", patterns: [/military|army|navy|defense|defence|air force|naval/i] },
+  { label: "Private Research Foundation", patterns: [/foundation|howard hughes|wellcome|gates|salk|broad institute|cold spring|연구재단/i] },
+  { label: "International Organization", patterns: [/WHO|UNESCO|IAEA|EMBL|CERN|world health|european molecular/i] },
+  { label: "Children's / Pediatric", patterns: [/children|pediatric|paediatric|child health/i] },
+  { label: "Veterinary / Agriculture", patterns: [/veterinary|agriculture|agricultural|agri\b|animal science/i] },
+];
+
+function classifyInstitution(affiliation: string): string {
+  for (const cat of INSTITUTION_CATEGORIES) {
+    for (const pat of cat.patterns) {
+      if (pat.test(affiliation)) return cat.label;
+    }
+  }
+  return "Other Research Org";
+}
+
 function processInstitutionTreemapData(papers: Paper[]) {
-  // Extract institution names from affiliations
   const counts: Record<string, number> = {};
   papers.forEach((p) => {
     const seen = new Set<string>();
     p.authors?.forEach((a) => {
       if (!a.affiliation) return;
-      // Clean up: remove ROR URLs, grid IDs, numbers at start
-      let inst = a.affiliation
-        .replace(/https?:\/\/[^\s]+/g, "")
-        .replace(/grid\.[^\s]+/g, "")
-        .replace(/^\d+\s*/, "")
-        .trim();
-      // Try to extract the institution name (first major clause)
-      const parts = inst.split(/[,;]/);
-      if (parts.length > 1) {
-        // Find the part that looks like an institution (contains University, Institute, Hospital, etc.)
-        const instPart = parts.find((p) =>
-          /university|institute|hospital|school|college|center|centre|laboratory|lab\b|research/i.test(p)
-        );
-        inst = (instPart || parts[0]).trim();
+      const category = classifyInstitution(a.affiliation);
+      if (!seen.has(category)) {
+        seen.add(category);
+        counts[category] = (counts[category] || 0) + 1;
       }
-      if (inst.length < 5 || inst.length > 80 || seen.has(inst)) return;
-      seen.add(inst);
-      counts[inst] = (counts[inst] || 0) + 1;
     });
   });
   const total = Object.values(counts).reduce((s, v) => s + v, 0) || 1;
   return Object.entries(counts)
     .sort((a, b) => b[1] - a[1])
-    .slice(0, 20)
+    .slice(0, 15)
     .map(([name, value]) => ({ name, value, pct: (value / total) * 100 }));
 }
 
@@ -608,8 +666,9 @@ export default function DashboardPage() {
 
   const papersQuery = useQuery({
     queryKey: ["dashboard", "analysisPapers"],
-    queryFn: () => dashboardApi.getAnalysisPapers(500),
+    queryFn: () => dashboardApi.getAnalysisPapers(1000),  // Fetch more for better analysis
     enabled: !useMockData,
+    staleTime: 5 * 60 * 1000,  // Cache for 5 minutes
   });
 
   const papers = useMockData ? getMockPapers() : (papersQuery.data || []);
@@ -618,7 +677,7 @@ export default function DashboardPage() {
   const caseMap = useMemo(() => buildCaseMap(papers), [papers]);
 
   // Processed data
-  const streamData = useMemo(() => processStreamData(papers, caseMap), [papers, caseMap]);
+  const bumpData = useMemo(() => processBumpData(papers, caseMap), [papers, caseMap]);
   const bubbleData = useMemo(() => processBubbleData(papers, caseMap), [papers, caseMap]);
   const networkData = useMemo(() => processNetworkData(papers, caseMap), [papers, caseMap]);
   const heatmapData = useMemo(() => processHeatmapData(papers), [papers]);
@@ -819,17 +878,19 @@ export default function DashboardPage() {
                 ))}
               </div>
 
-              {/* ─── Row 2: StreamGraph (full width) ─── */}
+              {/* ─── Row 2: Keyword/Journal Ranking (full width) ─── */}
               <ChartSection
-                title="Research Trend Stream"
-                subtitle={streamData.monthly ? "월별 핵심 키워드 트렌드 (Streamgraph)" : "연도별 핵심 키워드 트렌드 (Streamgraph)"}
+                title={(bumpData as { dataType?: string }).dataType === "journal" ? "Journal Trends" : "Keyword Ranking"}
+                subtitle={(bumpData as { dataType?: string }).dataType === "journal"
+                  ? "기간별 주요 저널 순위 변화 (Bump Chart)"
+                  : "기간별 핵심 키워드 순위 변화 (Bump Chart)"}
                 className="mb-6"
               >
-                <div className="h-72">
-                  <StreamGraph
-                    data={streamData.data}
-                    keys={streamData.keys}
-                    monthly={streamData.monthly}
+                <div className="h-80">
+                  <BumpChart
+                    data={bumpData.items}
+                    keywords={bumpData.keywords}
+                    periods={bumpData.periods}
                   />
                 </div>
               </ChartSection>
@@ -896,8 +957,8 @@ export default function DashboardPage() {
 
               {/* ─── Row 5: Institution Treemap (full width, BTC style) ─── */}
               <ChartSection
-                title="Research Institutions"
-                subtitle="주요 연구 기관별 논문 비중"
+                title="Institution Categories"
+                subtitle="연구 기관 유형별 논문 비중"
                 className="mb-6"
               >
                 <div className="h-80">

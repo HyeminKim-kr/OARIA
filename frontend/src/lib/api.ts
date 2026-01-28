@@ -614,7 +614,7 @@ export const dashboardApi = {
     api.get<{ count: number }>('/notifications/unread-count'),
   getAgentJobsByStatus: () =>
     api.get<PaginatedAgentJobs>('/agent-jobs/', { params: { page: 1, size: 100 } }),
-  getAnalysisPapers: (limit = 200) =>
+  getAnalysisPapers: (limit = 500) =>
     api.get<Paper[]>(`/papers/recent?limit=${limit}`).then((res) => res.data),
 };
 
