@@ -69,7 +69,6 @@ const agents: AgentCard[] = [
     bgGradientFrom: "from-[#1E293B]/10",
     bgGradientTo: "to-[#1E293B]/5",
     iconBg: "bg-[#1E293B]",
-    comingSoon: true,
   },
 ];
 
