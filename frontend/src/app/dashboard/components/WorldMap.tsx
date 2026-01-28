@@ -1,5 +1,5 @@
 "use client";
-import { useRef, useEffect } from "react";
+import { useRef, useEffect, useState } from "react";
 import * as d3 from "d3";
 import * as topojson from "topojson-client";
 
@@ -34,7 +34,6 @@ const COUNTRY_COORDS: Record<string, [number, number]> = {
   "Kenya": [38, 1], "Ethiopia": [40, 9], "Ghana": [-1.5, 7.9],
 };
 
-// Country flag emoji mapping
 const COUNTRY_FLAGS: Record<string, string> = {
   "USA": "🇺🇸", "UK": "🇬🇧", "China": "🇨🇳", "Japan": "🇯🇵",
   "Germany": "🇩🇪", "France": "🇫🇷", "Italy": "🇮🇹", "Spain": "🇪🇸",
@@ -53,15 +52,15 @@ const COUNTRY_FLAGS: Record<string, string> = {
 
 const WORLD_ATLAS_URL = "https://cdn.jsdelivr.net/npm/world-atlas@2/countries-110m.json";
 
-// Vibrant color palette for bubbles
-const BUBBLE_COLORS = [
-  "#FF6B6B", "#4ECDC4", "#45B7D1", "#96CEB4", "#FFEAA7",
-  "#DDA0DD", "#98D8C8", "#F7DC6F", "#BB8FCE", "#85C1E9",
-  "#F8B500", "#00CED1", "#FF7F50", "#9370DB", "#20B2AA",
+// Vibrant color palette for better visibility in both light/dark modes
+const SOLID_COLORS = [
+  "#2563eb", "#7c3aed", "#0891b2", "#059669", "#d97706",
+  "#dc2626", "#4f46e5", "#0d9488", "#ca8a04", "#e11d48",
 ];
 
 export default function WorldMap({ data }: Props) {
   const ref = useRef<HTMLDivElement>(null);
+  const [zoomLevel, setZoomLevel] = useState(1);
 
   useEffect(() => {
     if (!ref.current || !data.length) return;
@@ -72,7 +71,6 @@ export default function WorldMap({ data }: Props) {
     const height = el.clientHeight;
     if (width <= 0 || height <= 0) return;
 
-    // Calculate total for percentages
     const totalCount = data.reduce((sum, d) => sum + d.count, 0);
 
     const svg = d3
@@ -80,34 +78,13 @@ export default function WorldMap({ data }: Props) {
       .append("svg")
       .attr("width", width)
       .attr("height", height)
-      .style("border-radius", "12px");
+      .style("border-radius", "12px")
+      .style("cursor", "grab");
 
-    // Add defs for gradients
     const defs = svg.append("defs");
 
-    // Create radial gradients for each bubble
-    data.forEach((d, i) => {
-      const baseColor = BUBBLE_COLORS[i % BUBBLE_COLORS.length];
-      const grad = defs
-        .append("radialGradient")
-        .attr("id", `bubble-grad-${i}`)
-        .attr("cx", "30%")
-        .attr("cy", "30%")
-        .attr("r", "70%");
-      grad.append("stop").attr("offset", "0%").attr("stop-color", d3.color(baseColor)?.brighter(0.8)?.toString() || baseColor);
-      grad.append("stop").attr("offset", "100%").attr("stop-color", baseColor);
-
-      // Glow filter
-      const filter = defs.append("filter").attr("id", `bubble-glow-${i}`).attr("x", "-50%").attr("y", "-50%").attr("width", "200%").attr("height", "200%");
-      filter.append("feGaussianBlur").attr("in", "SourceGraphic").attr("stdDeviation", "4").attr("result", "blur");
-      filter.append("feFlood").attr("flood-color", baseColor).attr("flood-opacity", "0.6").attr("result", "color");
-      filter.append("feComposite").attr("in", "color").attr("in2", "blur").attr("operator", "in").attr("result", "glow");
-      const merge = filter.append("feMerge");
-      merge.append("feMergeNode").attr("in", "glow");
-      merge.append("feMergeNode").attr("in", "SourceGraphic");
-    });
-
-    const g = svg.append("g");
+    // Main group for zoom/pan
+    const mainG = svg.append("g");
 
     const projection = d3
       .geoNaturalEarth1()
@@ -116,29 +93,72 @@ export default function WorldMap({ data }: Props) {
 
     const pathGen = d3.geoPath().projection(projection);
 
-    // Tooltip with enhanced styling
+    // Detect dark mode
+    const isDark = window.matchMedia("(prefers-color-scheme: dark)").matches
+      || document.documentElement.classList.contains("dark");
+
+    // Zoom behavior
+    const zoom = d3.zoom<SVGSVGElement, unknown>()
+      .scaleExtent([1, 8])
+      .on("zoom", (event) => {
+        mainG.attr("transform", event.transform);
+        setZoomLevel(event.transform.k);
+
+        // Update bubble text visibility based on zoom
+        mainG.selectAll(".bubble-pct-text")
+          .style("display", (d) => {
+            const item = d as CountryData;
+            const baseR = rScale(item.count);
+            const scaledR = baseR * event.transform.k;
+            return scaledR > 15 ? "block" : "none";
+          })
+          .style("font-size", (d) => {
+            const item = d as CountryData;
+            const baseR = rScale(item.count);
+            const scaledR = baseR * event.transform.k;
+            return scaledR > 30 ? "11px" : "8px";
+          });
+
+        // Update country labels visibility
+        mainG.selectAll(".country-label")
+          .style("display", (_d, i) => {
+            if (event.transform.k > 1.5) return "block";
+            return i < 10 ? "block" : "none";
+          });
+      })
+      .on("start", () => svg.style("cursor", "grabbing"))
+      .on("end", () => svg.style("cursor", "grab"));
+
+    svg.call(zoom);
+
+    // Double click to reset
+    svg.on("dblclick.zoom", () => {
+      svg.transition().duration(500).call(zoom.transform, d3.zoomIdentity);
+    });
+
+    const maxCount = d3.max(data, (d) => d.count) || 1;
+    const rScale = d3.scaleSqrt().domain([1, maxCount]).range([5, 38]);
+
+    // Tooltip
     const tip = d3
       .select(el)
       .append("div")
       .style("position", "absolute")
       .style("visibility", "hidden")
-      .style("background", "var(--background)")
-      .style("border", "1px solid var(--oaria-border)")
+      .style("background", isDark ? "rgba(15,15,25,0.95)" : "rgba(255,255,255,0.98)")
+      .style("border", "1px solid " + (isDark ? "rgba(255,255,255,0.1)" : "rgba(0,0,0,0.1)"))
       .style("border-radius", "12px")
-      .style("padding", "12px 18px")
+      .style("padding", "14px 18px")
       .style("font-size", "13px")
       .style("line-height", "1.6")
-      .style("box-shadow", "0 8px 32px rgba(0,0,0,0.15)")
+      .style("box-shadow", isDark ? "0 8px 32px rgba(0,0,0,0.5)" : "0 8px 32px rgba(0,0,0,0.12)")
       .style("pointer-events", "none")
-      .style("z-index", "50")
+      .style("z-index", "100")
       .style("color", "var(--foreground)")
-      .style("min-width", "160px")
-      .style("backdrop-filter", "blur(8px)");
+      .style("min-width", "180px")
+      .style("backdrop-filter", "blur(12px)");
 
-    const maxCount = d3.max(data, (d) => d.count) || 1;
-    const rScale = d3.scaleSqrt().domain([1, maxCount]).range([6, 42]);
-
-    // Fetch real world TopoJSON
+    // Fetch world map
     fetch(WORLD_ATLAS_URL)
       .then((res) => res.json())
       .then((world) => {
@@ -147,83 +167,124 @@ export default function WorldMap({ data }: Props) {
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
         const borders = topojson.mesh(world as any, (world as any).objects.countries, (a: any, b: any) => a !== b);
 
-        // Detect dark mode
-        const isDark = window.matchMedia("(prefers-color-scheme: dark)").matches
-          || document.documentElement.classList.contains("dark");
+        // Ocean gradient - more contrast for light mode
+        const oceanGrad = defs.append("linearGradient")
+          .attr("id", "ocean-gradient")
+          .attr("x1", "0%").attr("y1", "0%")
+          .attr("x2", "0%").attr("y2", "100%");
+        oceanGrad.append("stop").attr("offset", "0%")
+          .attr("stop-color", isDark ? "#0c1929" : "#dbeafe");
+        oceanGrad.append("stop").attr("offset", "100%")
+          .attr("stop-color", isDark ? "#0a1220" : "#bfdbfe");
 
-        // Ocean with gradient
-        const oceanGrad = defs.append("linearGradient").attr("id", "ocean-grad").attr("x1", "0%").attr("y1", "0%").attr("x2", "100%").attr("y2", "100%");
-        oceanGrad.append("stop").attr("offset", "0%").attr("stop-color", isDark ? "#0f0f1a" : "#e8f4f8");
-        oceanGrad.append("stop").attr("offset", "100%").attr("stop-color", isDark ? "#1a1a2e" : "#f0f4f8");
-
-        g.append("rect")
-          .attr("width", width)
-          .attr("height", height)
-          .attr("fill", "url(#ocean-grad)");
-
-        // Sphere outline
-        g.append("path")
-          .datum({ type: "Sphere" } as d3.GeoPermissibleObjects)
-          .attr("d", pathGen)
-          .attr("fill", "none")
-          .attr("stroke", isDark ? "#3a3a5e" : "#a0b0c0")
-          .attr("stroke-width", 1);
+        // Ocean background
+        mainG.append("rect")
+          .attr("width", width * 3)
+          .attr("height", height * 3)
+          .attr("x", -width)
+          .attr("y", -height)
+          .attr("fill", "url(#ocean-gradient)");
 
         // Graticule
-        const graticule = d3.geoGraticule().step([30, 30]);
-        g.append("path")
+        const graticule = d3.geoGraticule().step([20, 20]);
+        mainG.append("path")
           .datum(graticule())
           .attr("d", pathGen)
           .attr("fill", "none")
-          .attr("stroke", isDark ? "#2a2a4a" : "#c0cdd8")
-          .attr("stroke-width", 0.3)
-          .attr("stroke-opacity", isDark ? 0.4 : 0.35);
+          .attr("stroke", isDark ? "rgba(255,255,255,0.05)" : "rgba(0,0,0,0.05)")
+          .attr("stroke-width", 0.5);
 
-        // Countries
-        g.append("g")
+        // Countries - better contrast for light mode
+        mainG.append("g")
           .selectAll("path")
           .data((countries as { type: string; features: d3.GeoPermissibleObjects[] }).features)
           .join("path")
           .attr("d", pathGen as never)
-          .attr("fill", isDark ? "#2a2a4a" : "#c8d6e5")
-          .attr("fill-opacity", isDark ? 0.9 : 0.8)
-          .attr("stroke", isDark ? "#3a3a5e" : "#a0b0c0")
+          .attr("fill", isDark ? "#1e3a5f" : "#f8fafc")
+          .attr("stroke", isDark ? "#2d4a6f" : "#94a3b8")
           .attr("stroke-width", 0.5);
 
         // Borders
-        g.append("path")
+        mainG.append("path")
           .datum(borders as d3.GeoPermissibleObjects)
           .attr("d", pathGen)
           .attr("fill", "none")
-          .attr("stroke", isDark ? "#4a4a6e" : "#8899aa")
-          .attr("stroke-width", 0.6)
-          .attr("stroke-opacity", 0.6);
+          .attr("stroke", isDark ? "#3d5a7f" : "#64748b")
+          .attr("stroke-width", 0.4);
 
-        // --- Bubbles ---
-        drawBubbles(g, data, projection, rScale, tip, el, totalCount, isDark);
+        // Draw bubbles
+        drawBubbles(mainG, defs, data, projection, rScale, tip, el, totalCount, isDark);
       })
       .catch(() => {
-        const isDark = window.matchMedia("(prefers-color-scheme: dark)").matches
-          || document.documentElement.classList.contains("dark");
-        // Fallback: draw without real map
-        g.append("path")
-          .datum({ type: "Sphere" } as d3.GeoPermissibleObjects)
-          .attr("d", pathGen)
-          .attr("fill", isDark ? "#1a1a2e" : "#f0f4f8")
-          .attr("stroke", isDark ? "#3a3a5e" : "#a0b0c0")
-          .attr("stroke-width", 0.8);
+        // Fallback
+        mainG.append("rect")
+          .attr("width", width)
+          .attr("height", height)
+          .attr("fill", isDark ? "#0c1929" : "#e3f2fd");
 
-        const graticule = d3.geoGraticule().step([20, 20]);
-        g.append("path")
-          .datum(graticule())
-          .attr("d", pathGen)
-          .attr("fill", "none")
-          .attr("stroke", isDark ? "#2a2a4a" : "#c0cdd8")
-          .attr("stroke-width", 0.3)
-          .attr("stroke-opacity", 0.5);
-
-        drawBubbles(g, data, projection, rScale, tip, el, totalCount, isDark);
+        drawBubbles(mainG, defs, data, projection, rScale, tip, el, totalCount, isDark);
       });
+
+    // Zoom controls
+    const controlsG = svg.append("g")
+      .attr("transform", `translate(${width - 45}, 15)`);
+
+    const btnStyle = {
+      width: 28,
+      height: 28,
+      rx: 6,
+      fill: isDark ? "rgba(255,255,255,0.1)" : "rgba(0,0,0,0.05)",
+      stroke: isDark ? "rgba(255,255,255,0.2)" : "rgba(0,0,0,0.1)",
+    };
+
+    // Zoom in button
+    const zoomInBtn = controlsG.append("g")
+      .style("cursor", "pointer")
+      .on("click", () => svg.transition().duration(300).call(zoom.scaleBy, 1.5));
+
+    zoomInBtn.append("rect")
+      .attr("width", btnStyle.width).attr("height", btnStyle.height)
+      .attr("rx", btnStyle.rx).attr("fill", btnStyle.fill).attr("stroke", btnStyle.stroke);
+    zoomInBtn.append("text")
+      .attr("x", 14).attr("y", 19)
+      .attr("text-anchor", "middle")
+      .text("+")
+      .style("font-size", "16px")
+      .style("font-weight", "600")
+      .style("fill", "var(--foreground)");
+
+    // Zoom out button
+    const zoomOutBtn = controlsG.append("g")
+      .attr("transform", "translate(0, 32)")
+      .style("cursor", "pointer")
+      .on("click", () => svg.transition().duration(300).call(zoom.scaleBy, 0.67));
+
+    zoomOutBtn.append("rect")
+      .attr("width", btnStyle.width).attr("height", btnStyle.height)
+      .attr("rx", btnStyle.rx).attr("fill", btnStyle.fill).attr("stroke", btnStyle.stroke);
+    zoomOutBtn.append("text")
+      .attr("x", 14).attr("y", 18)
+      .attr("text-anchor", "middle")
+      .text("−")
+      .style("font-size", "18px")
+      .style("font-weight", "600")
+      .style("fill", "var(--foreground)");
+
+    // Reset button
+    const resetBtn = controlsG.append("g")
+      .attr("transform", "translate(0, 64)")
+      .style("cursor", "pointer")
+      .on("click", () => svg.transition().duration(500).call(zoom.transform, d3.zoomIdentity));
+
+    resetBtn.append("rect")
+      .attr("width", btnStyle.width).attr("height", btnStyle.height)
+      .attr("rx", btnStyle.rx).attr("fill", btnStyle.fill).attr("stroke", btnStyle.stroke);
+    resetBtn.append("text")
+      .attr("x", 14).attr("y", 18)
+      .attr("text-anchor", "middle")
+      .text("⟲")
+      .style("font-size", "14px")
+      .style("fill", "var(--foreground)");
 
     svg.attr("opacity", 0).transition().duration(600).attr("opacity", 1);
   }, [data]);
@@ -236,19 +297,43 @@ export default function WorldMap({ data }: Props) {
     );
   }
 
-  return <div ref={ref} className="w-full h-full relative" />;
+  return (
+    <div className="w-full h-full relative">
+      <div ref={ref} className="w-full h-full" />
+      {zoomLevel > 1 && (
+        <div className="absolute bottom-2 left-2 text-xs text-[var(--oaria-text-secondary)] bg-[var(--background)]/80 px-2 py-1 rounded">
+          {zoomLevel.toFixed(1)}x • 더블클릭으로 리셋
+        </div>
+      )}
+    </div>
+  );
 }
 
 function drawBubbles(
   g: d3.Selection<SVGGElement, unknown, null, undefined>,
+  defs: d3.Selection<SVGDefsElement, unknown, null, undefined>,
   data: CountryData[],
   projection: d3.GeoProjection,
   rScale: d3.ScalePower<number, number>,
   tip: d3.Selection<HTMLDivElement, unknown, null, undefined>,
   el: HTMLDivElement,
   totalCount: number,
-  isDark = false
+  isDark: boolean
 ) {
+  // Create gradients for each bubble - more vibrant for light mode
+  data.forEach((_, i) => {
+    const color = SOLID_COLORS[i % SOLID_COLORS.length];
+    const grad = defs.append("radialGradient")
+      .attr("id", `bubble-grad-${i}`)
+      .attr("cx", "30%").attr("cy", "30%").attr("r", "70%");
+    grad.append("stop").attr("offset", "0%")
+      .attr("stop-color", d3.color(color)?.brighter(isDark ? 0.5 : 0.3)?.toString() || color)
+      .attr("stop-opacity", isDark ? 0.9 : 0.95);
+    grad.append("stop").attr("offset", "100%")
+      .attr("stop-color", d3.color(color)?.darker(isDark ? 0 : 0.1)?.toString() || color)
+      .attr("stop-opacity", isDark ? 0.75 : 0.9);
+  });
+
   const bubbles = g
     .selectAll(".bubble")
     .data(data)
@@ -260,68 +345,54 @@ function drawBubbles(
     })
     .style("cursor", "pointer");
 
-  // Outer glow ring
+  // Soft shadow/glow
   bubbles
     .append("circle")
-    .attr("class", "glow-ring")
-    .attr("r", (d) => rScale(d.count) + 6)
-    .attr("fill", "none")
-    .attr("stroke", (_d, i) => BUBBLE_COLORS[i % BUBBLE_COLORS.length])
-    .attr("stroke-width", 2)
-    .attr("stroke-opacity", 0.2)
+    .attr("r", (d) => rScale(d.count) + 3)
+    .attr("fill", (_d, i) => SOLID_COLORS[i % SOLID_COLORS.length])
+    .attr("opacity", 0.2)
+    .attr("filter", "blur(4px)")
     .style("pointer-events", "none");
 
-  // Shadow / glow for bubbles
-  bubbles
-    .append("circle")
-    .attr("r", (d) => rScale(d.count) + 4)
-    .attr("fill", (_d, i) => BUBBLE_COLORS[i % BUBBLE_COLORS.length])
-    .attr("opacity", 0.25)
-    .attr("filter", "blur(6px)")
-    .style("pointer-events", "none");
-
-  // Main circle with gradient
+  // Main bubble with gradient - better stroke visibility
   bubbles
     .append("circle")
     .attr("class", "main-bubble")
     .attr("r", 0)
     .attr("fill", (_d, i) => `url(#bubble-grad-${i})`)
-    .attr("stroke", isDark ? "rgba(255,255,255,0.3)" : "rgba(255,255,255,0.8)")
-    .attr("stroke-width", (d) => (rScale(d.count) > 20 ? 2.5 : 1.5))
-    .style("filter", "drop-shadow(0 2px 4px rgba(0,0,0,0.2))")
+    .attr("stroke", isDark ? "rgba(255,255,255,0.4)" : "rgba(255,255,255,0.9)")
+    .attr("stroke-width", isDark ? 1.5 : 2)
+    .style("filter", isDark ? "none" : "drop-shadow(0 2px 4px rgba(0,0,0,0.15))")
     .on("mouseover", function (_event, d) {
       const i = data.indexOf(d);
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      d3.select((this as any).parentNode).select(".glow-ring")
+      d3.select(this)
         .transition().duration(200)
-        .attr("stroke-opacity", 0.5)
-        .attr("stroke-width", 3);
-      d3.select(this).transition().duration(200)
-        .attr("r", rScale(d.count) + 6)
-        .attr("stroke-width", 3)
-        .style("filter", `drop-shadow(0 4px 12px ${BUBBLE_COLORS[i % BUBBLE_COLORS.length]}66)`);
+        .attr("r", rScale(d.count) * 1.15)
+        .attr("stroke-width", 2.5);
 
-      const rank = data.indexOf(d) + 1;
+      const rank = i + 1;
       const pct = ((d.count / totalCount) * 100).toFixed(1);
       const flag = COUNTRY_FLAGS[d.country] || "🌍";
 
-      tip
-        .style("visibility", "visible")
+      tip.style("visibility", "visible")
         .html(
-          `<div style="display:flex;align-items:center;gap:8px;margin-bottom:6px">` +
-          `<span style="font-size:24px">${flag}</span>` +
-          `<div>` +
-          `<strong style="font-size:15px">${d.country}</strong>` +
-          `<span style="opacity:0.5;margin-left:6px">#${rank}</span>` +
-          `</div></div>` +
-          `<div style="display:flex;justify-content:space-between;align-items:baseline;margin-top:4px">` +
-          `<span style="font-size:22px;font-weight:800;color:${BUBBLE_COLORS[i % BUBBLE_COLORS.length]}">${d.count.toLocaleString()}</span>` +
-          `<span style="opacity:0.6;font-size:12px">papers</span>` +
-          `</div>` +
-          `<div style="margin-top:6px;padding-top:6px;border-top:1px solid var(--oaria-border);display:flex;justify-content:space-between">` +
-          `<span style="opacity:0.6;font-size:12px">전체 대비</span>` +
-          `<span style="font-weight:700;font-size:14px">${pct}%</span>` +
-          `</div>`
+          `<div style="display:flex;align-items:center;gap:10px;margin-bottom:10px;padding-bottom:10px;border-bottom:1px solid var(--oaria-border)">
+            <span style="font-size:28px">${flag}</span>
+            <div>
+              <div style="font-size:16px;font-weight:700">${d.country}</div>
+              <div style="font-size:11px;opacity:0.6">Rank #${rank}</div>
+            </div>
+          </div>
+          <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px">
+            <div>
+              <div style="font-size:10px;opacity:0.5;margin-bottom:2px">논문 수</div>
+              <div style="font-size:20px;font-weight:800;color:${SOLID_COLORS[i % SOLID_COLORS.length]}">${d.count.toLocaleString()}</div>
+            </div>
+            <div>
+              <div style="font-size:10px;opacity:0.5;margin-bottom:2px">전체 비율</div>
+              <div style="font-size:20px;font-weight:800">${pct}%</div>
+            </div>
+          </div>`
         );
     })
     .on("mousemove", function (event) {
@@ -329,76 +400,58 @@ function drawBubbles(
       tip.style("left", `${mx + 20}px`).style("top", `${my - 10}px`);
     })
     .on("mouseout", function (_event, d) {
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      d3.select((this as any).parentNode).select(".glow-ring")
+      d3.select(this)
         .transition().duration(200)
-        .attr("stroke-opacity", 0.2)
-        .attr("stroke-width", 2);
-      d3.select(this).transition().duration(200)
         .attr("r", rScale(d.count))
-        .attr("stroke-width", rScale(d.count) > 20 ? 2.5 : 1.5)
-        .style("filter", "drop-shadow(0 2px 4px rgba(0,0,0,0.2))");
+        .attr("stroke-width", 1.5);
       tip.style("visibility", "hidden");
     })
     .transition()
-    .duration(800)
-    .delay((_d, i) => i * 50)
-    .ease(d3.easeElasticOut.amplitude(1).period(0.4))
+    .duration(700)
+    .delay((_d, i) => i * 40)
+    .ease(d3.easeBackOut.overshoot(1.2))
     .attr("r", (d) => rScale(d.count));
 
-  // Percentage inside bubbles (for larger ones)
+  // Percentage text inside bubbles (visible based on zoom)
   bubbles
-    .filter((d) => rScale(d.count) > 22)
     .append("text")
+    .attr("class", "bubble-pct-text")
+    .datum((d) => d)
     .text((d) => `${((d.count / totalCount) * 100).toFixed(0)}%`)
     .attr("text-anchor", "middle")
     .attr("dy", "0.35em")
-    .style("font-size", (d) => (rScale(d.count) > 32 ? "13px" : "10px"))
+    .style("font-size", (d) => rScale(d.count) > 25 ? "11px" : "8px")
+    .style("font-weight", "700")
     .style("fill", "white")
-    .style("font-weight", "800")
     .style("pointer-events", "none")
-    .style("text-shadow", "0 1px 3px rgba(0,0,0,0.5)")
+    .style("text-shadow", "0 1px 2px rgba(0,0,0,0.5)")
+    .style("display", (d) => rScale(d.count) > 18 ? "block" : "none")
     .attr("opacity", 0)
     .transition()
-    .duration(500)
-    .delay((_d, i) => i * 50 + 500)
+    .duration(400)
+    .delay((_d, i) => i * 40 + 500)
     .attr("opacity", 1);
 
-  // Country labels outside small bubbles
+  // Country labels
   bubbles
-    .filter((_d, i) => i < 10)
-    .filter((d) => rScale(d.count) <= 22)
+    .filter((_d, i) => i < 15)
     .append("text")
+    .attr("class", "country-label")
     .text((d) => d.country)
-    .attr("dy", (d) => rScale(d.count) + 14)
+    .attr("dy", (d) => rScale(d.count) + 12)
     .attr("text-anchor", "middle")
     .style("font-size", "9px")
-    .style("fill", "var(--oaria-text-secondary)")
     .style("font-weight", "600")
-    .style("pointer-events", "none")
-    .style("text-shadow", isDark ? "0 1px 2px rgba(0,0,0,0.8)" : "0 1px 2px rgba(255,255,255,0.8)")
-    .attr("opacity", 0)
-    .transition()
-    .duration(500)
-    .delay((_d, i) => i * 50 + 500)
-    .attr("opacity", 0.9);
-
-  // Country labels for large bubbles above
-  bubbles
-    .filter((d) => rScale(d.count) > 22)
-    .append("text")
-    .text((d) => d.country)
-    .attr("dy", (d) => -(rScale(d.count) + 10))
-    .attr("text-anchor", "middle")
-    .style("font-size", "11px")
     .style("fill", "var(--foreground)")
-    .style("font-weight", "700")
     .style("pointer-events", "none")
-    .style("text-shadow", isDark ? "0 1px 3px rgba(0,0,0,0.8)" : "0 1px 3px rgba(255,255,255,0.9)")
+    .style("text-shadow", isDark
+      ? "0 0 4px rgba(0,0,0,0.8), 0 1px 2px rgba(0,0,0,0.9)"
+      : "0 0 4px rgba(255,255,255,0.9), 0 1px 2px rgba(255,255,255,1)")
+    .style("display", (_d, i) => i < 10 ? "block" : "none")
     .attr("opacity", 0)
     .transition()
-    .duration(500)
-    .delay((_d, i) => i * 50 + 500)
+    .duration(400)
+    .delay((_d, i) => i * 40 + 600)
     .attr("opacity", 1);
 }
 
