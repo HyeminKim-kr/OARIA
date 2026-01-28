@@ -18,10 +18,8 @@ from langchain_openai import ChatOpenAI
 from langchain_core.messages import SystemMessage, HumanMessage
 
 from app.services.agent.study_plan.v4.core.types import Action, TokenUsageDict
-from app.services.agent.study_plan.v4.core.state import (
-    WorkingMemory,
-    ExecutionHistory,
-)
+from app.services.agent.study_plan.v4.core.state import ExecutionHistory
+from app.services.agent.study_plan.v4.core.state_view import StateView
 from app.services.agent.study_plan.v4.core.phase_tracker import PhaseTracker
 from app.services.agent.study_plan.v4.prompts.reasoning import (
     TOOL_SELECTION_PROMPT,
@@ -110,7 +108,7 @@ class Reasoner:
 
     async def reason(
         self,
-        state: WorkingMemory,
+        state: StateView,
         history: ExecutionHistory,
         goal: str,
     ) -> tuple[str, Action]:
@@ -120,7 +118,7 @@ class Reasoner:
         Falls back to prompt-based reasoning if function calling fails.
 
         Args:
-            state: Current working memory
+            state: Current state view (read-only)
             history: Execution history
             goal: The goal to achieve
 
@@ -138,7 +136,7 @@ class Reasoner:
 
     async def reason_with_tokens(
         self,
-        state: WorkingMemory,
+        state: StateView,
         history: ExecutionHistory,
         goal: str,
     ) -> tuple[str, Action, TokenUsageDict | None]:
@@ -148,7 +146,7 @@ class Reasoner:
         This is used by LangGraph nodes for token tracking.
 
         Args:
-            state: Current working memory
+            state: Current state view (read-only)
             history: Execution history
             goal: The goal to achieve
 
@@ -160,7 +158,7 @@ class Reasoner:
 
     async def _reason_with_function_calling(
         self,
-        state: WorkingMemory,
+        state: StateView,
         history: ExecutionHistory,
         goal: str,
     ) -> tuple[str, Action]:
@@ -287,7 +285,7 @@ class Reasoner:
 
     async def _reason_with_prompt(
         self,
-        state: WorkingMemory,
+        state: StateView,
         history: ExecutionHistory,
         goal: str,
     ) -> tuple[str, Action]:
@@ -356,7 +354,7 @@ class Reasoner:
 
     def _validate_finish_allowed(
         self,
-        state: WorkingMemory,
+        state: StateView,
     ) -> tuple[bool, str, str]:
         """Check if FINISH is allowed based on current state.
 
@@ -387,7 +385,7 @@ class Reasoner:
 
     def _build_context(
         self,
-        state: WorkingMemory,
+        state: StateView,
         history: ExecutionHistory,
         goal: str,
     ) -> dict:
@@ -583,7 +581,7 @@ class Reasoner:
     async def _get_alternative(
         self,
         original: dict,
-        state: WorkingMemory,
+        state: StateView,
         history: ExecutionHistory,
     ) -> dict:
         """Get alternative action when original has failed too many times."""

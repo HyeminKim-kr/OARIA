@@ -14,7 +14,7 @@ from app.services.agent.study_plan.v4.core.phase import (
     get_phase_number,
     get_total_phases,
 )
-from app.services.agent.study_plan.v4.core.state import WorkingMemory
+from app.services.agent.study_plan.v4.core.state_view import StateView
 
 
 @dataclass
@@ -43,18 +43,18 @@ class PhaseProgress:
 class PhaseTracker:
     """Tracks agent phase and provides phase-aware context.
 
-    Determines the current phase based on WorkingMemory state
+    Determines the current phase based on StateView
     and generates prompts to help LLM understand where it is.
     """
 
     # Research phase: max search attempts per question before moving on
     MAX_SEARCH_ATTEMPTS_PER_QUESTION = 3
 
-    def __init__(self, state: WorkingMemory):
-        """Initialize with current working memory.
+    def __init__(self, state: StateView):
+        """Initialize with state view.
 
         Args:
-            state: Current working memory
+            state: Current state view (read-only)
         """
         self.state = state
         self._tool_calls: dict[str, int] = {}

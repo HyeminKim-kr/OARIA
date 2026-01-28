@@ -70,6 +70,11 @@ def finalize_node(state: StudyPlanState) -> dict:
     experiments = state.get("experiments") or []
     plan_a = state.get("plan_a")
     plan_b = state.get("plan_b")
+    retrieved_papers = state.get("retrieved_papers") or []
+    evidence_snippets = state.get("evidence_snippets") or []
+
+    print(f"[FINALIZE] retrieved_papers count: {len(retrieved_papers)}", file=sys.stderr, flush=True)
+    print(f"[FINALIZE] evidence_snippets count: {len(evidence_snippets)}", file=sys.stderr, flush=True)
 
     # Create completion event for streaming
     # NOTE: Must use "completed" to match AgentEventType.COMPLETED
@@ -95,6 +100,11 @@ def finalize_node(state: StudyPlanState) -> dict:
             "plan_a": plan_a or "",
             "plan_b": plan_b or "",
             "executive_summary": state.get("executive_summary") or "",
+            # Papers and evidence for citations
+            "retrieved_papers": retrieved_papers,
+            "evidence_snippets": evidence_snippets,
+            "paper_count": len(retrieved_papers),
+            "snippet_count": len(evidence_snippets),
         },
     )
 
@@ -108,6 +118,9 @@ def finalize_node(state: StudyPlanState) -> dict:
             "executive_summary": state.get("executive_summary"),
             "experiments": experiments,
             "quality_score": state.get("quality_score", 0.0),
+            # Papers and evidence for citations
+            "retrieved_papers": retrieved_papers,
+            "evidence_snippets": evidence_snippets,
         },
     )
 

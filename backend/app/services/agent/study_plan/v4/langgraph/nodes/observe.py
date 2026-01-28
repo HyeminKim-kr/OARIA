@@ -88,7 +88,10 @@ def _extract_updates(action_name: str, result: Any, state: StudyPlanState) -> di
     """Extract state updates from action result.
 
     Routes to specific extractors based on action type.
+    Returns empty dict on failure (logged with details).
     """
+    import sys
+
     extractors = {
         "parse_hypothesis": _extract_hypothesis,
         "decompose_questions": _extract_questions,
@@ -109,11 +112,40 @@ def _extract_updates(action_name: str, result: Any, state: StudyPlanState) -> di
     extractor = extractors.get(action_name)
     if extractor:
         try:
-            return extractor(result, state)
+            print(f"[Extractor:{action_name}] CALLING extractor...", file=sys.stderr, flush=True)
+            updates = extractor(result, state)
+
+            # Log extraction success/failure details (to stderr for visibility)
+            if updates:
+                print(
+                    f"[Extractor:{action_name}] SUCCESS - "
+                    f"Extracted fields: {list(updates.keys())}",
+                    file=sys.stderr, flush=True
+                )
+                logger.info(f"[Extractor:{action_name}] SUCCESS - Extracted: {list(updates.keys())}")
+            else:
+                print(
+                    f"[Extractor:{action_name}] EMPTY - "
+                    f"Result type: {type(result).__name__}",
+                    file=sys.stderr, flush=True
+                )
+                logger.warning(f"[Extractor:{action_name}] EMPTY - Result type: {type(result).__name__}")
+            return updates
+
         except Exception as e:
-            logger.warning(f"Failed to extract from {action_name}: {e}")
+            # Log detailed error for debugging
+            print(
+                f"[Extractor:{action_name}] FAILED - {type(e).__name__}: {e}",
+                file=sys.stderr, flush=True
+            )
+            logger.error(
+                f"[Extractor:{action_name}] FAILED - {type(e).__name__}: {e}",
+                exc_info=True
+            )
             return {}
 
+    # Unknown action - no extractor found
+    print(f"[Extractor:{action_name}] No extractor registered", file=sys.stderr, flush=True)
     return {}
 
 
@@ -173,12 +205,12 @@ def _extract_papers(result: Any, state: StudyPlanState) -> dict:
         if "coverage" in result:
             updates["search_coverage"] = result["coverage"]
 
-        # Track search tier
+        # Track search tier (uses add reducer, return single item)
         if "tier" in result:
-            current_tiers = list(state.get("search_tiers_used") or [])
-            if result["tier"] not in current_tiers:
-                current_tiers.append(result["tier"])
-                updates["search_tiers_used"] = current_tiers
+            tier = result["tier"]
+            current_tiers = state.get("search_tiers_used") or []
+            if tier not in current_tiers:
+                updates["search_tiers_used"] = [tier]  # Single item for add reducer
 
     elif isinstance(result, list):
         # Assume list of papers
@@ -236,7 +268,11 @@ def _extract_experiment(result: Any, state: StudyPlanState) -> dict:
 
 
 def _extract_controls(result: Any, state: StudyPlanState) -> dict:
-    """Extract designed controls."""
+    """Extract designed controls.
+
+    NOTE: controls is a dict[str, list] - no add reducer.
+    We must deep copy to avoid mutating state in-place.
+    """
     controls_list = []
 
     if isinstance(result, dict):
@@ -248,19 +284,21 @@ def _extract_controls(result: Any, state: StudyPlanState) -> dict:
         exp_id = None
 
     if controls_list:
-        # Get current controls dict
-        current_controls = dict(state.get("controls") or {})
+        # Deep copy to avoid in-place mutation of state
+        current_controls = {
+            k: list(v) for k, v in (state.get("controls") or {}).items()
+        }
 
         # Determine experiment ID
         if not exp_id:
             experiments = state.get("experiments") or []
             exp_id = experiments[-1].get("id", "default") if experiments else "default"
 
-        # Add controls for this experiment
+        # Add controls for this experiment (create new list, don't extend in-place)
         if exp_id in current_controls:
-            current_controls[exp_id].extend(controls_list)
+            current_controls[exp_id] = current_controls[exp_id] + list(controls_list)
         else:
-            current_controls[exp_id] = controls_list
+            current_controls[exp_id] = list(controls_list)
 
         return {"controls": current_controls}
 
@@ -301,7 +339,12 @@ def _extract_validation(result: Any, state: StudyPlanState) -> dict:
 
 
 def _extract_critique(result: Any, state: StudyPlanState) -> dict:
-    """Extract critique results."""
+    """Extract critique results.
+
+    Note: critique_history uses Annotated[list, add] reducer.
+    We return a single-item list [critique] which LangGraph will append.
+    DO NOT return the full accumulated list - that causes nested lists!
+    """
     if isinstance(result, dict):
         critique = {
             "score": result.get("score", 0),
@@ -310,17 +353,11 @@ def _extract_critique(result: Any, state: StudyPlanState) -> dict:
             "iteration": state.get("iteration_count", 0),
         }
 
-        # Update quality score
-        updates = {
+        return {
             "quality_score": result.get("score", state.get("quality_score", 0)),
+            # Return single-item list for add reducer (NOT full history!)
+            "critique_history": [critique],
         }
-
-        # Add to critique history
-        history = list(state.get("critique_history") or [])
-        history.append(critique)
-        updates["critique_history"] = history
-
-        return updates
     return {}
 
 

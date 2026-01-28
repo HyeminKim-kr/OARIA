@@ -13,10 +13,8 @@ from typing import TYPE_CHECKING
 from langchain_openai import ChatOpenAI
 
 from app.services.agent.study_plan.v4.core.types import Action, RecoveryPlan
-from app.services.agent.study_plan.v4.core.state import (
-    WorkingMemory,
-    ExecutionHistory,
-)
+from app.services.agent.study_plan.v4.core.state import ExecutionHistory
+from app.services.agent.study_plan.v4.core.state_view import StateView
 from app.services.agent.study_plan.v4.prompts.recovery import RECOVERY_STRATEGY_PROMPT
 
 if TYPE_CHECKING:
@@ -211,7 +209,7 @@ class FailureHandler:
     async def handle(
         self,
         context: FailureContext,
-        state: WorkingMemory,
+        state: StateView,
         history: ExecutionHistory,
     ) -> RecoveryPlan:
         """Create a recovery plan for the failure.
@@ -259,7 +257,7 @@ class FailureHandler:
         self,
         strategy: str,
         context: FailureContext,
-        state: WorkingMemory,
+        state: StateView,
     ) -> RecoveryPlan:
         """Create a recovery plan for a specific strategy."""
         actions = self._plan_recovery_actions(strategy, context, state)
@@ -274,7 +272,7 @@ class FailureHandler:
         self,
         strategy: str,
         context: FailureContext,
-        state: WorkingMemory,
+        state: StateView,
     ) -> list[Action]:
         """Plan specific actions for a recovery strategy."""
         actions = []
@@ -405,7 +403,7 @@ class FailureHandler:
     async def _llm_select_strategy(
         self,
         context: FailureContext,
-        state: WorkingMemory,
+        state: StateView,
         history: ExecutionHistory,
         available_strategies: list[str],
     ) -> RecoveryPlan:

@@ -10,7 +10,8 @@ from datetime import datetime, timezone
 from typing import TYPE_CHECKING
 
 from app.services.agent.study_plan.v4.langgraph.state import StudyPlanState
-from app.services.agent.study_plan.v4.core.state import WorkingMemory, ExecutionHistory
+from app.services.agent.study_plan.v4.core.state import ExecutionHistory
+from app.services.agent.study_plan.v4.core.state_view import StateView
 from app.services.agent.study_plan.v4.core.phase_tracker import PhaseTracker
 
 if TYPE_CHECKING:
@@ -191,8 +192,8 @@ def create_reason_node(reasoner: "Reasoner"):
     async def reason_node(state: StudyPlanState) -> dict:
         """Decide the next action based on current state.
 
-        Wraps the Reasoner component, converting between
-        LangGraph state and WorkingMemory.
+        Wraps the Reasoner component using StateView for
+        read-only state access.
 
         Args:
             state: Current LangGraph state
@@ -220,8 +221,8 @@ def create_reason_node(reasoner: "Reasoner"):
             for i, exp in enumerate(experiments_in_state[:3]):
                 logger.info(f"[DEBUG]   Exp {i}: id={exp.get('id')}, name={exp.get('name', 'N/A')[:50]}")
 
-        # Convert LangGraph state to WorkingMemory
-        working_memory = _state_to_working_memory(state)
+        # Create StateView (read-only view of state)
+        state_view = StateView(state)
 
         # Reconstruct ExecutionHistory from trace
         history = _state_to_execution_history(state)
@@ -231,7 +232,7 @@ def create_reason_node(reasoner: "Reasoner"):
 
         # Call reasoner with token tracking
         thought, action, token_usage = await reasoner.reason_with_tokens(
-            working_memory, history, goal
+            state_view, history, goal
         )
 
         logger.info(f"Thought: {thought[:100]}...")
@@ -244,7 +245,7 @@ def create_reason_node(reasoner: "Reasoner"):
         logger.debug(f"Parsed thinking bullets: {len(parsed_thinking.get('bullets', []))}")
 
         # Get phase information
-        phase_tracker = PhaseTracker(working_memory)
+        phase_tracker = PhaseTracker(state_view)
         current_phase = phase_tracker.get_current_phase()
         phase_progress = phase_tracker.get_phase_progress()
         allowed_tools = phase_tracker.get_allowed_tools()
@@ -429,55 +430,6 @@ def create_reason_node(reasoner: "Reasoner"):
         }
 
     return reason_node
-
-
-def _state_to_working_memory(state: StudyPlanState) -> WorkingMemory:
-    """Convert LangGraph state to WorkingMemory.
-
-    This allows reusing the existing Reasoner without modification.
-    """
-    memory = WorkingMemory()
-
-    # Copy relevant fields
-    memory.run_id = state.get("run_id", memory.run_id)
-    memory.goal = state.get("goal", "")
-    memory.original_hypothesis = state.get("original_hypothesis", "")
-    memory.research_context = state.get("research_context")
-    memory.constraints = state.get("constraints") or []
-    memory.preferred_experiment_types = state.get("preferred_experiment_types") or []
-
-    # Parsed state
-    memory.structured_hypothesis = state.get("structured_hypothesis")
-    memory.hypothesis_confidence = state.get("hypothesis_confidence", 0.0)
-    memory.test_questions = state.get("test_questions") or []
-    memory.answered_questions = set(state.get("answered_questions") or [])
-
-    # Search results
-    memory.retrieved_papers = state.get("retrieved_papers") or []
-    memory.evidence_snippets = state.get("evidence_snippets") or []
-    memory.search_coverage = state.get("search_coverage", 0.0)
-    memory.search_tiers_used = state.get("search_tiers_used") or []
-
-    # Design results
-    memory.experiments = state.get("experiments") or []
-    memory.controls = state.get("controls") or {}
-    memory.measurements = state.get("measurements") or []
-
-    # Validation
-    memory.validation_results = state.get("validation_results") or []
-    memory.quality_score = state.get("quality_score", 0.0)
-    memory.critique_history = state.get("critique_history") or []
-
-    # Output
-    memory.plan_a = state.get("plan_a")
-    memory.plan_b = state.get("plan_b")
-    memory.executive_summary = state.get("executive_summary")
-
-    # Metadata
-    memory.iteration_count = state.get("iteration_count", 0)
-    memory.total_cost = state.get("total_cost", 0.0)
-
-    return memory
 
 
 def _state_to_execution_history(state: StudyPlanState) -> ExecutionHistory:

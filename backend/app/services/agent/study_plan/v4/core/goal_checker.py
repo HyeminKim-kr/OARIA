@@ -10,7 +10,7 @@ import logging
 from dataclasses import dataclass
 from typing import Any
 
-from app.services.agent.study_plan.v4.core.state import WorkingMemory
+from app.services.agent.study_plan.v4.core.state_view import StateView
 
 logger = logging.getLogger(__name__)
 
@@ -67,7 +67,7 @@ class GoalChecker:
         self.min_quality_score = min_quality_score
         self.min_measurements_coverage = min_measurements_coverage
 
-    def check(self, state: WorkingMemory) -> GoalStatus:
+    def check(self, state: StateView) -> GoalStatus:
         """Check if goal is achieved based on current state.
 
         Args:
@@ -102,19 +102,19 @@ class GoalChecker:
             quality_assessment=quality_assessment,
         )
 
-    def _check_hypothesis_parsed(self, state: WorkingMemory) -> bool:
+    def _check_hypothesis_parsed(self, state: StateView) -> bool:
         """Check if hypothesis has been parsed."""
         return state.structured_hypothesis is not None
 
-    def _check_test_questions(self, state: WorkingMemory) -> bool:
+    def _check_test_questions(self, state: StateView) -> bool:
         """Check if sufficient test questions have been generated."""
         return len(state.test_questions) >= self.min_test_questions
 
-    def _check_experiments(self, state: WorkingMemory) -> bool:
+    def _check_experiments(self, state: StateView) -> bool:
         """Check if sufficient experiments have been designed."""
         return len(state.experiments) >= self.min_experiments
 
-    def _check_controls(self, state: WorkingMemory) -> bool:
+    def _check_controls(self, state: StateView) -> bool:
         """Check if each experiment has required controls.
 
         Required controls:
@@ -145,7 +145,7 @@ class GoalChecker:
 
         return True
 
-    def _check_measurements_coverage(self, state: WorkingMemory) -> bool:
+    def _check_measurements_coverage(self, state: StateView) -> bool:
         """Check if measurements cover hypothesis variables."""
         if not state.structured_hypothesis:
             return False
@@ -181,13 +181,13 @@ class GoalChecker:
 
         return coverage >= self.min_measurements_coverage
 
-    def _check_quality_score(self, state: WorkingMemory) -> bool:
+    def _check_quality_score(self, state: StateView) -> bool:
         """Check if quality score meets minimum."""
         return state.quality_score >= self.min_quality_score
 
     def _generate_quality_assessment(
         self,
-        state: WorkingMemory,
+        state: StateView,
         details: dict[str, bool],
     ) -> str:
         """Generate a human-readable quality assessment."""
@@ -218,7 +218,7 @@ class GoalChecker:
 
         return "\n".join(lines)
 
-    def get_next_priority(self, state: WorkingMemory) -> str | None:
+    def get_next_priority(self, state: StateView) -> str | None:
         """Get the highest priority missing requirement.
 
         Useful for guiding the agent on what to work on next.

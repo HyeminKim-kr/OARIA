@@ -220,7 +220,7 @@ class StudyPlanState(TypedDict, total=False):
     retrieved_papers: Annotated[list[dict[str, Any]], add]
     evidence_snippets: Annotated[list[dict[str, Any]], add]
     search_coverage: float
-    search_tiers_used: list[int]
+    search_tiers_used: Annotated[list[int], add]  # Using add reducer for consistency
 
     # === Design Results ===
     # NOTE: experiments is NOT using add reducer - manually accumulated in observe node

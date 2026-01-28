@@ -101,11 +101,30 @@ class EPMCSearchTool(BaseTool):
                 max_results=max_results,
             )
 
-            papers = results.get("papers", [])
+            # EPMCPaper 객체를 dict로 변환 (URL 포함)
+            papers = []
+            for paper in results.papers[:max_results]:
+                paper_dict = {
+                    "pmcid": paper.pmcid,
+                    "pmid": paper.pmid,
+                    "title": paper.title,
+                    "abstract": paper.abstract,
+                    "journal": paper.journal,
+                    "year": paper.year,
+                    "authors": paper.authors,
+                    "is_open_access": paper.is_open_access,
+                    "citations": paper.citations,
+                    "doi": paper.doi,
+                    "url": paper.url,
+                    # 출처 표시용 필드
+                    "citation_text": paper.citation_text,
+                    "markdown_link": paper.markdown_link,
+                }
+                papers.append(paper_dict)
 
             return {
-                "papers": papers[:max_results],
-                "total_found": results.get("total", len(papers)),
+                "papers": papers,
+                "total_found": results.total_count,
                 "coverage": self._calculate_coverage(papers),
                 "tier": 2,
                 "source": "epmc",
