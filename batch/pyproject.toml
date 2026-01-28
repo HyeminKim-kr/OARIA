@@ -36,7 +36,7 @@ dependencies = [
 
     # PubMedBERT Embedder
     "sentence-transformers>=2.2.0",
-    "torch>=2.0.0",
+    "torch>=2.0.0",  # CPU-only (tool.uv.sources에서 설정)
 ]
 
 [project.optional-dependencies]
@@ -56,3 +56,17 @@ packages = ["src"]
 [tool.pytest.ini_options]
 asyncio_mode = "auto"
 testpaths = ["tests"]
+
+# ==============================================
+# UV 설정 - CPU 전용 PyTorch
+# ==============================================
+[tool.uv]
+index-url = "https://pypi.org/simple"
+
+[[tool.uv.index]]
+name = "pytorch-cpu"
+url = "https://download.pytorch.org/whl/cpu"
+explicit = true  # torch만 이 index 사용, 다른 패키지는 PyPI
+
+[tool.uv.sources]
+torch = { index = "pytorch-cpu" }
