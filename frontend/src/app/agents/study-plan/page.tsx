@@ -25,6 +25,7 @@ import type {
   NodeStatus,
   StudyPlanState,
   StudyPlanSSEEvent,
+  ObservationDetails,
 } from "./types";
 import {
   LandingSection,
@@ -72,6 +73,8 @@ export default function StudyPlanPage() {
     planB?: string;
     experimentCount?: number;
     totalDuration?: number;
+    paperCount?: number;
+    snippetCount?: number;
   }>({});
 
   // v4 사고 과정 state
@@ -201,6 +204,8 @@ export default function StudyPlanPage() {
         planB: sseEvent.plan_b,
         experimentCount: sseEvent.experiment_count || 0,
         totalDuration: sseEvent.total_duration_ms || 0,
+        paperCount: sseEvent.paper_count || 0,
+        snippetCount: sseEvent.snippet_count || 0,
       });
 
       setIsLoading(false);
@@ -265,8 +270,8 @@ export default function StudyPlanPage() {
             confidence: entry.confidence,
             success: entry.observation?.success,
             summary: entry.observation?.summary,
-            observationDetails: entry.observation?.details,
-            status: entry.status || "completed",
+            observationDetails: entry.observation?.details as ObservationDetails | undefined,
+            status: (entry.status === "in_progress" ? "in_progress" : "completed") as "completed" | "in_progress",
           })
         );
 
@@ -285,12 +290,14 @@ export default function StudyPlanPage() {
           planB: jobDetail.result_data.plan_b as string | undefined,
           experimentCount: jobDetail.experiment_count || 0,
           totalDuration: jobDetail.total_duration_ms || 0,
+          paperCount: (jobDetail.result_data.paper_count as number) || 0,
+          snippetCount: (jobDetail.result_data.snippet_count as number) || 0,
         });
         setState({
           status: "completed",
           nodeDetails: {
             synthesize_plan: {
-              final_plan: jobDetail.result_data.plan_a || "",
+              final_plan: (typeof jobDetail.result_data.plan_a === "string" ? jobDetail.result_data.plan_a : "") || "",
               executive_summary: jobDetail.executive_summary || "",
             },
           },
@@ -608,6 +615,8 @@ export default function StudyPlanPage() {
                       experimentCount={resultData.experimentCount}
                       totalDuration={resultData.totalDuration}
                       nodeDetails={state.nodeDetails as Record<string, unknown>}
+                      paperCount={resultData.paperCount}
+                      snippetCount={resultData.snippetCount}
                     />
                   </div>
                 )}

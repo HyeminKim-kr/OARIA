@@ -299,7 +299,13 @@ class AgentJobExecutor:
                 "executive_summary": event_data.get("executive_summary", ""),
                 "quality_score": event_data.get("quality_score", 0),
                 "success": event_data.get("success", True),
+                # Papers and evidence for citations
+                "retrieved_papers": event_data.get("retrieved_papers", []),
+                "evidence_snippets": event_data.get("evidence_snippets", []),
+                "paper_count": event_data.get("paper_count", 0),
+                "snippet_count": event_data.get("snippet_count", 0),
             }
+            print(f"[EXECUTOR] result_data paper_count: {result_data['paper_count']}", file=sys.stderr, flush=True)
 
             experiment_count = event_data.get("experiment_count", 0)
 

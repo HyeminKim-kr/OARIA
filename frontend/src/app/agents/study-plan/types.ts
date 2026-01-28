@@ -464,6 +464,8 @@ export interface StudyPlanSSEEvent {
   plan_b?: string;
   dp3_decision?: string;
   highest_tier_used?: number;
+  // Papers count (논문 수)
+  paper_count?: number;
   // 에러
   error?: string;
   message?: string;
