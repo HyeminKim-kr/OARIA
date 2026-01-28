@@ -1,4 +1,4 @@
-"""Podcast agent module.
+"""Podcast LangGraph agent module.
 
 F-11: Agentic Podcast System
 - Fixed 3-task structure (RAG → Analysis → Script)
