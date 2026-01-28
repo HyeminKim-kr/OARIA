@@ -124,13 +124,15 @@ import BumpChart from "./components/BumpChart";
 import BubbleChart, { BubbleData } from "./components/BubbleChart";
 import NetworkGraph from "./components/NetworkGraph";
 import HeatmapChart from "./components/HeatmapChart";
-import DonutChart from "./components/DonutChart";
-import TopJournalsBar from "./components/TopJournalsBar";
+// DonutChart removed - replaced with DataQualityRadar
+import JournalLollipop from "./components/JournalLollipop";
 import JournalTreemap from "./components/JournalTreemap";
 import RadialYearChart from "./components/RadialYearChart";
 import TopAuthorsBar from "./components/TopAuthorsBar";
 import WorldMap, { COUNTRY_COORDS } from "./components/WorldMap";
 import type { CountryData } from "./components/WorldMap";
+import DataQualityRadar from "./components/DataQualityRadar";
+import type { DataQualityMetric } from "./components/DataQualityRadar";
 
 // ─────────────────────────────────────────────────────
 // Case-insensitive keyword normalization
@@ -364,26 +366,30 @@ function processHeatmapData(papers: Paper[]) {
   return Object.values(cells);
 }
 
-function processDonutData(papers: Paper[]) {
-  // Group papers by recent quarter
-  const now = new Date();
-  const quarters: Record<string, number> = {};
-  papers.forEach((p) => {
-    if (!p.created_at) return;
-    const d = new Date(p.created_at);
-    const monthsDiff = (now.getFullYear() - d.getFullYear()) * 12 + (now.getMonth() - d.getMonth());
-    let label: string;
-    if (monthsDiff < 1) label = "This Month";
-    else if (monthsDiff < 3) label = "Last 3 Months";
-    else if (monthsDiff < 6) label = "3-6 Months";
-    else if (monthsDiff < 12) label = "6-12 Months";
-    else label = "1 Year+";
-    quarters[label] = (quarters[label] || 0) + 1;
-  });
-  const order = ["This Month", "Last 3 Months", "3-6 Months", "6-12 Months", "1 Year+"];
-  return order
-    .filter((label) => quarters[label])
-    .map((label) => ({ label, value: quarters[label] }));
+function processDataQualityMetrics(papers: Paper[]): DataQualityMetric[] {
+  const total = papers.length;
+  if (total === 0) return [];
+
+  // Calculate various data quality metrics
+  const withKeywords = papers.filter(p => p.keywords && p.keywords.length > 0).length;
+  const withAbstract = papers.filter(p => p.abstract && p.abstract.length > 50).length;
+  const withMultipleAuthors = papers.filter(p => p.authors && p.authors.length > 1).length;
+  const withAffiliation = papers.filter(p =>
+    p.authors?.some(a => a.affiliation && a.affiliation.length > 10)
+  ).length;
+  const withOrcid = papers.filter(p =>
+    p.authors?.some(a => a.orcid)
+  ).length;
+  const withCitations = papers.filter(p => p.citation_count && p.citation_count > 0).length;
+
+  return [
+    { axis: "Keywords", value: (withKeywords / total) * 100, count: withKeywords, total, description: "검색 및 분류에 사용되는 키워드 보유" },
+    { axis: "Abstract", value: (withAbstract / total) * 100, count: withAbstract, total, description: "50자 이상의 초록 포함 여부" },
+    { axis: "Co-Authors", value: (withMultipleAuthors / total) * 100, count: withMultipleAuthors, total, description: "2인 이상 공동 저자 연구" },
+    { axis: "Affiliation", value: (withAffiliation / total) * 100, count: withAffiliation, total, description: "저자 소속 기관 정보 보유" },
+    { axis: "ORCID", value: (withOrcid / total) * 100, count: withOrcid, total, description: "ORCID 식별자 보유 저자 포함" },
+    { axis: "Citations", value: (withCitations / total) * 100, count: withCitations, total, description: "인용 횟수 데이터 보유" },
+  ];
 }
 
 function processTopJournals(papers: Paper[]) {
@@ -666,7 +672,7 @@ export default function DashboardPage() {
 
   const papersQuery = useQuery({
     queryKey: ["dashboard", "analysisPapers"],
-    queryFn: () => dashboardApi.getAnalysisPapers(1000),  // Fetch more for better analysis
+    queryFn: () => dashboardApi.getAnalysisPapers(500),  // API limit is 500
     enabled: !useMockData,
     staleTime: 5 * 60 * 1000,  // Cache for 5 minutes
   });
@@ -681,7 +687,7 @@ export default function DashboardPage() {
   const bubbleData = useMemo(() => processBubbleData(papers, caseMap), [papers, caseMap]);
   const networkData = useMemo(() => processNetworkData(papers, caseMap), [papers, caseMap]);
   const heatmapData = useMemo(() => processHeatmapData(papers), [papers]);
-  const donutData = useMemo(() => processDonutData(papers), [papers]);
+  const dataQualityMetrics = useMemo(() => processDataQualityMetrics(papers), [papers]);
   const topJournals = useMemo(() => processTopJournals(papers), [papers]);
   const topAuthors = useMemo(() => processTopAuthors(papers), [papers]);
   const institutionTreemapData = useMemo(() => processInstitutionTreemapData(papers), [papers]);
@@ -788,10 +794,10 @@ export default function DashboardPage() {
           <div className="mb-8 flex items-start justify-between">
             <div>
               <h1 className="font-[family-name:var(--font-outfit)] text-3xl font-semibold mb-1">
-                Research Intelligence
+                Dashboard
               </h1>
               <p className="font-[family-name:var(--font-dm-sans)] text-base text-[var(--oaria-text-secondary)]">
-                연구 지형을 내려다보는 관점
+                논문 데이터 분석 및 인사이트
               </p>
             </div>
             <button
@@ -937,19 +943,23 @@ export default function DashboardPage() {
                 <div className="grid grid-rows-2 gap-6">
                   <ChartSection
                     title="Top 10 Journals"
-                    subtitle="논문 수 기준"
+                    subtitle="논문 수 기준 상위 저널"
                   >
-                    <div className="h-48">
-                      <TopJournalsBar data={topJournals} />
+                    <div className="h-56">
+                      <JournalLollipop data={topJournals} />
                     </div>
                   </ChartSection>
 
                   <ChartSection
-                    title="Collection Recency"
-                    subtitle="수집 시기별 논문 분포"
+                    title="Data Quality"
+                    subtitle="논문 메타데이터 품질 지표"
                   >
-                    <div className="h-40">
-                      <DonutChart data={donutData} centerLabel="Recency" />
+                    <div className="h-56">
+                      <DataQualityRadar
+                        data={dataQualityMetrics}
+                        totalPapers={totalPapers}
+                        sampleSize={papers.length}
+                      />
                     </div>
                   </ChartSection>
                 </div>
