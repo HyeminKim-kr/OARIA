@@ -32,7 +32,7 @@ from app.schemas.podcast import (
     PaginatedEpisodes,
     PaginatedSubscriptions,
 )
-from app.services.podcast import PodcastService, get_podcast_service
+from app.services.agent.podcast import PodcastService, get_podcast_service
 
 router = APIRouter(prefix="/podcast", tags=["podcast"])
 

@@ -1,14 +1,12 @@
-"""Podcast service module.
+"""Podcast core services.
 
 F-11: Agentic Podcast System
-- Goal-driven podcast generation
-- Fixed 3-task agent (RAG → Analysis → Script)
 - TTS audio generation
-- Scheduled generation via Celery
+- Celery scheduling
+- Goal generation
 """
 
-from .service import PodcastService, PodcastEvent, get_podcast_service
-from .tts_service import TTSService, TTSResult, tts_service, get_tts_service
+from .tts import TTSService, TTSResult, TurnTiming, tts_service, get_tts_service
 from .goal_generator import (
     generate_goal_from_template,
     generate_goal_with_llm,
@@ -16,13 +14,10 @@ from .goal_generator import (
 )
 
 __all__ = [
-    # Service
-    "PodcastService",
-    "PodcastEvent",
-    "get_podcast_service",
     # TTS
     "TTSService",
     "TTSResult",
+    "TurnTiming",
     "tts_service",
     "get_tts_service",
     # Goal generation

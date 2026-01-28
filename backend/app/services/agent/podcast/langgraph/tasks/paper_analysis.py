@@ -14,7 +14,7 @@ from openai import AsyncOpenAI
 from app.config import settings
 from app.schemas.chat import Reference
 from ..state import PodcastTaskResult, PodcastTaskType
-from ..prompts import PAPER_ANALYSIS_PROMPT, get_language_instruction
+from ...prompts import PAPER_ANALYSIS_PROMPT, get_language_instruction
 from .rag_search import format_references_for_podcast
 
 logger = logging.getLogger(__name__)
