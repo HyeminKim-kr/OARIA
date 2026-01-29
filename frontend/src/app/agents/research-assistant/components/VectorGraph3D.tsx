@@ -129,22 +129,34 @@ export default function VectorGraph3D({
     setWebglSupported(isWebGLSupported());
   }, []);
 
-  // 크기 업데이트
+  // 크기 업데이트 (ResizeObserver 사용)
   useEffect(() => {
+    if (!containerRef.current) return;
+
     const updateDimensions = () => {
       if (containerRef.current) {
-        const width = containerRef.current.clientWidth;
-        const height = containerRef.current.clientHeight;
-        if (width > 0 && height > 0) {
-          setDimensions({ width, height });
+        const rect = containerRef.current.getBoundingClientRect();
+        if (rect.width > 0 && rect.height > 0) {
+          setDimensions({ width: rect.width, height: rect.height });
         }
       }
     };
 
-    updateDimensions();
+    // 초기 측정 (약간의 지연 후)
+    const timer = setTimeout(updateDimensions, 100);
+
+    // ResizeObserver로 크기 변화 감지
+    const resizeObserver = new ResizeObserver(updateDimensions);
+    resizeObserver.observe(containerRef.current);
+
     window.addEventListener("resize", updateDimensions);
-    return () => window.removeEventListener("resize", updateDimensions);
-  }, []);
+
+    return () => {
+      clearTimeout(timer);
+      resizeObserver.disconnect();
+      window.removeEventListener("resize", updateDimensions);
+    };
+  }, [isClient]);
 
   // 3D 그래프 초기화
   useEffect(() => {
@@ -286,18 +298,6 @@ export default function VectorGraph3D({
     );
   }
 
-  // 로딩 UI
-  if (isLoading) {
-    return (
-      <div className="absolute inset-0 w-full h-full flex items-center justify-center">
-        <div className="flex flex-col items-center gap-4">
-          <div className="w-12 h-12 border-4 border-purple-500 border-t-transparent rounded-full animate-spin" />
-          <span className="text-white/60 text-sm">3D 그래프 초기화 중...</span>
-        </div>
-      </div>
-    );
-  }
-
   // 에러 발생 시
   if (error) {
     return (
@@ -321,41 +321,54 @@ export default function VectorGraph3D({
 
   return (
     <div className="absolute inset-0 w-full h-full">
+      {/* 컨테이너는 항상 렌더링 (dimensions 측정을 위해) */}
       <div ref={containerRef} className="w-full h-full" />
 
-      {/* Zoom Controls */}
-      <div className="absolute bottom-6 right-6 flex gap-2 z-10">
-        <button
-          onClick={handleZoomIn}
-          className="w-10 h-10 rounded-lg flex items-center justify-center text-white/60 hover:text-white text-xl font-bold transition-all hover:bg-white/10"
-          style={{
-            background: "rgba(255,255,255,0.03)",
-            border: "1px solid rgba(255,255,255,0.06)",
-          }}
-        >
-          +
-        </button>
-        <button
-          onClick={handleZoomOut}
-          className="w-10 h-10 rounded-lg flex items-center justify-center text-white/60 hover:text-white text-xl font-bold transition-all hover:bg-white/10"
-          style={{
-            background: "rgba(255,255,255,0.03)",
-            border: "1px solid rgba(255,255,255,0.06)",
-          }}
-        >
-          -
-        </button>
-        <button
-          onClick={handleZoomReset}
-          className="px-4 h-10 rounded-lg text-white/40 hover:text-white text-[10px] font-semibold uppercase tracking-wider transition-all hover:bg-white/10"
-          style={{
-            background: "rgba(255,255,255,0.03)",
-            border: "1px solid rgba(255,255,255,0.06)",
-          }}
-        >
-          Reset
-        </button>
-      </div>
+      {/* 로딩 UI - 컨테이너 위에 오버레이 */}
+      {isLoading && (
+        <div className="absolute inset-0 w-full h-full flex items-center justify-center bg-transparent">
+          <div className="flex flex-col items-center gap-4">
+            <div className="w-12 h-12 border-4 border-purple-500 border-t-transparent rounded-full animate-spin" />
+            <span className="text-white/60 text-sm">3D 그래프 초기화 중...</span>
+          </div>
+        </div>
+      )}
+
+      {/* Zoom Controls - 로딩 완료 후에만 표시 */}
+      {!isLoading && (
+        <div className="absolute bottom-6 right-6 flex gap-2 z-10">
+          <button
+            onClick={handleZoomIn}
+            className="w-10 h-10 rounded-lg flex items-center justify-center text-white/60 hover:text-white text-xl font-bold transition-all hover:bg-white/10"
+            style={{
+              background: "rgba(255,255,255,0.03)",
+              border: "1px solid rgba(255,255,255,0.06)",
+            }}
+          >
+            +
+          </button>
+          <button
+            onClick={handleZoomOut}
+            className="w-10 h-10 rounded-lg flex items-center justify-center text-white/60 hover:text-white text-xl font-bold transition-all hover:bg-white/10"
+            style={{
+              background: "rgba(255,255,255,0.03)",
+              border: "1px solid rgba(255,255,255,0.06)",
+            }}
+          >
+            -
+          </button>
+          <button
+            onClick={handleZoomReset}
+            className="px-4 h-10 rounded-lg text-white/40 hover:text-white text-[10px] font-semibold uppercase tracking-wider transition-all hover:bg-white/10"
+            style={{
+              background: "rgba(255,255,255,0.03)",
+              border: "1px solid rgba(255,255,255,0.06)",
+            }}
+          >
+            Reset
+          </button>
+        </div>
+      )}
     </div>
   );
 }
