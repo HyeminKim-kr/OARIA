@@ -51,9 +51,32 @@ export function SourcesCard({
     return `${(relevance * 100).toFixed(0)}%`;
   };
 
+  // Get paper URL with fallback logic
+  const getPaperUrl = (source: PaperSource): string | null => {
+    // Priority: url > doi > pmcid > pmid
+    if (source.url) return source.url;
+    if (source.doi) return `https://doi.org/${source.doi}`;
+    if (source.pmcid) return `https://europepmc.org/article/PMC/${source.pmcid}`;
+    if (source.pmid) return `https://pubmed.ncbi.nlm.nih.gov/${source.pmid}/`;
+    return null;
+  };
+
+  // Handle paper click - navigate to URL
+  const handlePaperClick = (source: PaperSource) => {
+    const url = getPaperUrl(source);
+    if (url) {
+      window.open(url, "_blank", "noopener,noreferrer");
+    } else {
+      // No URL available, toggle selection to show details
+      setSelectedSource(selectedSource === source.id ? null : source.id);
+    }
+  };
+
   // Render individual paper source
   const renderPaperSource = (source: PaperSource, index: number) => {
     const isSelected = selectedSource === source.id;
+    const paperUrl = getPaperUrl(source);
+    const hasUrl = !!paperUrl;
 
     return (
       <motion.div
@@ -67,8 +90,9 @@ export function SourcesCard({
             ? "border-[var(--oaria-teal)] bg-[var(--oaria-teal)]/5"
             : "border-transparent hover:border-[var(--oaria-border)] hover:bg-[var(--oaria-surface)]"
           }
+          ${hasUrl ? "hover:border-[var(--oaria-teal)]/50" : ""}
         `}
-        onClick={() => setSelectedSource(isSelected ? null : source.id)}
+        onClick={() => handlePaperClick(source)}
       >
         <div className="flex items-start gap-3">
           {/* Source Number Badge */}
@@ -131,11 +155,18 @@ export function SourcesCard({
             </AnimatePresence>
           </div>
 
-          {/* Icon */}
-          <BookOpen
-            size={16}
-            className="flex-shrink-0 text-[var(--oaria-text-secondary)] opacity-50 group-hover:opacity-100"
-          />
+          {/* Icon - Show external link if URL available, otherwise book icon */}
+          {hasUrl ? (
+            <ExternalLink
+              size={16}
+              className="flex-shrink-0 text-[var(--oaria-teal)] opacity-50 group-hover:opacity-100"
+            />
+          ) : (
+            <BookOpen
+              size={16}
+              className="flex-shrink-0 text-[var(--oaria-text-secondary)] opacity-50 group-hover:opacity-100"
+            />
+          )}
         </div>
       </motion.div>
     );

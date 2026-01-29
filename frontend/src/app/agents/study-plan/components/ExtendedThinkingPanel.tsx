@@ -343,7 +343,7 @@ export function ExtendedThinkingPanel({
 
             {/* Title */}
             <h3 className="font-semibold text-sm">
-              {isCompleted ? "사고 과정 완료" : "AI 추론 중"}
+              {isCompleted ? "사고 과정 완료" : "AI 사고 과정"}
             </h3>
 
             {/* Loading dots */}

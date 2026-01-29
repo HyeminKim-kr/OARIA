@@ -90,18 +90,28 @@ class WebSearchTool(BaseTool):
                 max_results=max_results,
             )
 
-            # TavilyResult 객체를 dict로 변환 (URL 포함)
+            # TavilyResult 객체를 dict로 변환 (통합 형식)
             papers = []
             for item in search_result.results[:max_results]:
+                title_short = item.title[:50] + "..." if len(item.title) > 50 else item.title
                 paper_dict = {
+                    # 공통 필수 필드
                     "title": item.title,
                     "url": item.url,
-                    "content": item.content,
                     "score": item.score,
-                    "published_date": item.published_date,
-                    # 출처 표시용 필드
-                    "citation_text": item.title[:50] + "..." if len(item.title) > 50 else item.title,
+                    "source": "web",  # 검색 소스 표시 (External Research)
+                    "citation_text": title_short,
                     "markdown_link": f"[{item.title[:40]}...]({item.url})" if item.url else item.title,
+                    # Web 전용 필드
+                    "content": item.content,
+                    "published_date": item.published_date,
+                    # RAG 호환 필드 (null)
+                    "paper_id": None,
+                    "journal": None,
+                    "year": None,
+                    "doi": None,
+                    "pmcid": None,
+                    "pmid": None,
                 }
                 papers.append(paper_dict)
 
@@ -115,10 +125,10 @@ class WebSearchTool(BaseTool):
         except ImportError:
             logger.warning("Tavily service not available")
             return {
-                "results": [],
+                "papers": [],
                 "total_found": 0,
                 "tier": 3,
-                "source": "tavily",
+                "source": "web",
                 "error": "Tavily service not available",
             }
 

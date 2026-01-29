@@ -32,7 +32,7 @@ export function ObservationDetailsCard({ details, action }: ObservationDetailsCa
       case "search_rag":
       case "search_epmc":
       case "search_web":
-        return details.papers && <SearchDetails papers={details.papers} totalCount={details.total_count} coverage={details.coverage} />;
+        return details.papers && <SearchDetails papers={details.papers} totalCount={details.total_count} coverage={details.coverage} searchType={details.type} />;
 
       case "design_experiment":
         return details.experiment && <ExperimentDetails experiment={details.experiment} />;
@@ -151,13 +151,32 @@ function QuestionsDetails({ questions, count }: { questions: NonNullable<Observa
   );
 }
 
-function SearchDetails({ papers, totalCount, coverage }: { papers: NonNullable<ObservationDetails["papers"]>; totalCount?: number; coverage?: number }) {
+function SearchDetails({ papers, totalCount, coverage, searchType }: { papers: NonNullable<ObservationDetails["papers"]>; totalCount?: number; coverage?: number; searchType?: string }) {
+  // 검색 소스에 따른 라벨 및 스타일
+  const getSourceInfo = (type?: string) => {
+    switch (type) {
+      case "search_rag":
+        return { label: "RAG", color: "bg-emerald-500/20 text-emerald-400 border-emerald-500/30" };
+      case "search_epmc":
+        return { label: "EPMC", color: "bg-blue-500/20 text-blue-400 border-blue-500/30" };
+      case "search_web":
+        return { label: "External Research", color: "bg-orange-500/20 text-orange-400 border-orange-500/30" };
+      default:
+        return { label: "Search", color: "bg-gray-500/20 text-gray-400 border-gray-500/30" };
+    }
+  };
+
+  const sourceInfo = getSourceInfo(searchType);
+
   return (
     <div className="p-3 space-y-2">
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-2 text-xs font-medium text-[var(--oaria-teal)]">
           <BookOpen size={14} />
           검색 결과 {totalCount || papers.length}편
+          <span className={`px-1.5 py-0.5 rounded border text-[10px] font-medium ${sourceInfo.color}`}>
+            {sourceInfo.label}
+          </span>
         </div>
         {coverage !== undefined && (
           <span className="text-xs text-[var(--oaria-text-secondary)]">

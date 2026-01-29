@@ -76,11 +76,14 @@ export interface PaperSource {
   id: number;
   type: "paper";
   title: string;
+  url?: string;           // 논문 URL (클릭 시 이동)
+  source?: string;        // 검색 소스 (rag, epmc, web)
   journal?: string;
   year?: number;
   authors?: string[];
   relevance?: number;
   pmid?: string;
+  pmcid?: string;         // PMC ID
   doi?: string;
 }
 
