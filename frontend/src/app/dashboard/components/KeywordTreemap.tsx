@@ -1,7 +1,7 @@
 "use client";
 import { useRef, useEffect } from "react";
 import * as d3 from "d3";
-import { PASTEL_SOFT } from "../constants";
+import { getChartPalette, getThemeColors } from "../constants";
 
 interface TreemapItem {
   name: string;
@@ -21,6 +21,12 @@ export default function KeywordTreemap({ data, onKeywordClick }: Props) {
     const el = ref.current;
     d3.select(el).selectAll("*").remove();
 
+    // Detect dark mode
+    const isDark = window.matchMedia("(prefers-color-scheme: dark)").matches
+      || document.documentElement.classList.contains("dark");
+    const theme = getThemeColors(isDark);
+    const palette = getChartPalette(isDark);
+
     const width = el.clientWidth;
     const height = el.clientHeight;
     if (width <= 0 || height <= 0) return;
@@ -30,15 +36,15 @@ export default function KeywordTreemap({ data, onKeywordClick }: Props) {
       .append("div")
       .style("position", "absolute")
       .style("visibility", "hidden")
-      .style("background", "var(--background)")
-      .style("border", "1px solid var(--oaria-border)")
+      .style("background", theme.tooltipBg)
+      .style("border", `1px solid ${theme.tooltipBorder}`)
       .style("border-radius", "10px")
       .style("padding", "8px 14px")
       .style("font-size", "13px")
-      .style("box-shadow", "0 4px 20px rgba(0,0,0,0.08)")
+      .style("box-shadow", `0 4px 20px ${theme.tooltipShadow}`)
       .style("pointer-events", "none")
       .style("z-index", "50")
-      .style("color", "var(--foreground)");
+      .style("color", theme.textPrimary);
 
     const root = d3
       .hierarchy({ name: "root", children: data })
@@ -56,7 +62,13 @@ export default function KeywordTreemap({ data, onKeywordClick }: Props) {
       .attr("width", width)
       .attr("height", height);
 
-    const color = d3.scaleOrdinal<string>().range(PASTEL_SOFT);
+    // Use solid colors with alpha for treemap (softer look)
+    const softPalette = palette.map(c => {
+      const col = d3.color(c);
+      if (col) col.opacity = isDark ? 0.3 : 0.25;
+      return col?.toString() || c;
+    });
+    const color = d3.scaleOrdinal<string>().range(softPalette);
 
     const leaves = (root as d3.HierarchyRectangularNode<{ name: string; children?: TreemapItem[] }>).leaves();
 
@@ -67,17 +79,17 @@ export default function KeywordTreemap({ data, onKeywordClick }: Props) {
       .attr("transform", (d) => `translate(${d.x0},${d.y0})`)
       .style("cursor", "pointer")
       .on("mouseover", function (_event, d) {
-        d3.select(this).select("rect").attr("stroke", "var(--oaria-teal)").attr("stroke-width", 2);
+        d3.select(this).select("rect").attr("stroke", theme.primary).attr("stroke-width", 2);
         tip
           .style("visibility", "visible")
-          .html(`<strong>${d.data.name}</strong><br/>${d.value}건`);
+          .html(`<strong>${d.data.name}</strong><br/><span style="color:${theme.primary}">${d.value}건</span>`);
       })
       .on("mousemove", function (event) {
         const [mx, my] = d3.pointer(event, el);
         tip.style("left", `${mx + 16}px`).style("top", `${my - 10}px`);
       })
       .on("mouseout", function () {
-        d3.select(this).select("rect").attr("stroke", "var(--background)").attr("stroke-width", 1);
+        d3.select(this).select("rect").attr("stroke", theme.surface).attr("stroke-width", 1);
         tip.style("visibility", "hidden");
       })
       .on("click", (_event, d) => onKeywordClick?.(d.data.name));
@@ -88,7 +100,7 @@ export default function KeywordTreemap({ data, onKeywordClick }: Props) {
       .attr("height", (d) => d.y1 - d.y0)
       .attr("rx", 6)
       .attr("fill", (_d, i) => color(String(i)))
-      .attr("stroke", "var(--background)")
+      .attr("stroke", theme.surface)
       .attr("stroke-width", 1)
       .attr("opacity", 0)
       .transition()
@@ -109,7 +121,7 @@ export default function KeywordTreemap({ data, onKeywordClick }: Props) {
         return name.length > maxChars ? name.slice(0, maxChars - 1) + ".." : name;
       })
       .style("font-size", "11px")
-      .style("fill", "var(--foreground)")
+      .style("fill", theme.textPrimary)
       .style("font-weight", "600")
       .style("pointer-events", "none");
 
@@ -123,7 +135,7 @@ export default function KeywordTreemap({ data, onKeywordClick }: Props) {
         return w > 40 && h > 34 ? `${d.value}` : "";
       })
       .style("font-size", "10px")
-      .style("fill", "var(--oaria-text-secondary)")
+      .style("fill", theme.textSecondary)
       .style("pointer-events", "none");
   }, [data, onKeywordClick]);
 

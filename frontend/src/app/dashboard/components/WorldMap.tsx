@@ -50,12 +50,19 @@ const COUNTRY_FLAGS: Record<string, string> = {
   "New Zealand": "🇳🇿", "Nigeria": "🇳🇬", "Kenya": "🇰🇪", "Ethiopia": "🇪🇹", "Ghana": "🇬🇭",
 };
 
+import { BRAND, getThemeColors } from "../constants";
+
 const WORLD_ATLAS_URL = "https://cdn.jsdelivr.net/npm/world-atlas@2/countries-110m.json";
 
-// Vibrant color palette for better visibility in both light/dark modes
-const SOLID_COLORS = [
-  "#2563eb", "#7c3aed", "#0891b2", "#059669", "#d97706",
-  "#dc2626", "#4f46e5", "#0d9488", "#ca8a04", "#e11d48",
+// Brand-aligned color palette for map bubbles
+const SOLID_COLORS_LIGHT = [
+  BRAND.teal, "#0F766E", BRAND.coral, "#0891B2", "#7C3AED",
+  "#059669", "#EA580C", "#2563EB", "#DB2777", "#CA8A04",
+];
+
+const SOLID_COLORS_DARK = [
+  "#2DD4BF", "#5EEAD4", "#FDA4AF", "#22D3EE", "#A78BFA",
+  "#34D399", "#FB923C", "#60A5FA", "#F472B6", "#FACC15",
 ];
 
 export default function WorldMap({ data }: Props) {
@@ -96,6 +103,8 @@ export default function WorldMap({ data }: Props) {
     // Detect dark mode
     const isDark = window.matchMedia("(prefers-color-scheme: dark)").matches
       || document.documentElement.classList.contains("dark");
+    const theme = getThemeColors(isDark);
+    const SOLID_COLORS = isDark ? SOLID_COLORS_DARK : SOLID_COLORS_LIGHT;
 
     // Zoom behavior
     const zoom = d3.zoom<SVGSVGElement, unknown>()
@@ -145,16 +154,16 @@ export default function WorldMap({ data }: Props) {
       .append("div")
       .style("position", "absolute")
       .style("visibility", "hidden")
-      .style("background", isDark ? "rgba(15,15,25,0.95)" : "rgba(255,255,255,0.98)")
-      .style("border", "1px solid " + (isDark ? "rgba(255,255,255,0.1)" : "rgba(0,0,0,0.1)"))
+      .style("background", theme.tooltipBg)
+      .style("border", `1px solid ${theme.tooltipBorder}`)
       .style("border-radius", "12px")
       .style("padding", "14px 18px")
       .style("font-size", "13px")
       .style("line-height", "1.6")
-      .style("box-shadow", isDark ? "0 8px 32px rgba(0,0,0,0.5)" : "0 8px 32px rgba(0,0,0,0.12)")
+      .style("box-shadow", `0 8px 32px ${theme.tooltipShadow}`)
       .style("pointer-events", "none")
       .style("z-index", "100")
-      .style("color", "var(--foreground)")
+      .style("color", theme.textPrimary)
       .style("min-width", "180px")
       .style("backdrop-filter", "blur(12px)");
 

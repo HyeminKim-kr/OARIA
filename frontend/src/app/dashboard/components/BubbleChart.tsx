@@ -1,7 +1,7 @@
 "use client";
 import { useRef, useEffect } from "react";
 import * as d3 from "d3";
-import { PASTEL } from "../constants";
+import { getChartPalette, getThemeColors } from "../constants";
 
 export interface BubbleData {
   keyword: string;
@@ -26,6 +26,12 @@ export default function BubbleChart({ data, onKeywordClick }: Props) {
     const height = el.clientHeight;
     if (width <= 0 || height <= 0) return;
 
+    // Detect dark mode
+    const isDark = window.matchMedia("(prefers-color-scheme: dark)").matches
+      || document.documentElement.classList.contains("dark");
+    const theme = getThemeColors(isDark);
+    const palette = getChartPalette(isDark);
+
     const svg = d3
       .select(el)
       .append("svg")
@@ -37,15 +43,15 @@ export default function BubbleChart({ data, onKeywordClick }: Props) {
       .append("div")
       .style("position", "absolute")
       .style("visibility", "hidden")
-      .style("background", "var(--background)")
-      .style("border", "1px solid var(--oaria-border)")
+      .style("background", theme.tooltipBg)
+      .style("border", `1px solid ${theme.tooltipBorder}`)
       .style("border-radius", "10px")
       .style("padding", "8px 14px")
       .style("font-size", "13px")
-      .style("box-shadow", "0 4px 20px rgba(0,0,0,0.08)")
+      .style("box-shadow", `0 4px 20px ${theme.tooltipShadow}`)
       .style("pointer-events", "none")
       .style("z-index", "50")
-      .style("color", "var(--foreground)");
+      .style("color", theme.textPrimary);
 
     const maxCount = d3.max(data, (d) => d.count) || 1;
     const rScale = d3
@@ -53,7 +59,7 @@ export default function BubbleChart({ data, onKeywordClick }: Props) {
       .domain([0, maxCount])
       .range([12, Math.min(width, height) / 5]);
 
-    const color = d3.scaleOrdinal<string>().range(PASTEL);
+    const color = d3.scaleOrdinal<string>().range(palette);
 
     const nodes = data.map((d) => ({
       ...d,
@@ -123,22 +129,24 @@ export default function BubbleChart({ data, onKeywordClick }: Props) {
       .append("circle")
       .attr("r", 0)
       .attr("fill", (_d, i) => color(String(i)))
-      .attr("opacity", 0.78)
-      .attr("stroke", "white")
-      .attr("stroke-width", 1.5)
+      .attr("opacity", 0.88)
+      .attr("stroke", theme.surface)
+      .attr("stroke-width", 2)
       .transition()
       .duration(800)
       .delay((_d, i) => i * 60)
       .attr("r", (d) => d.r);
 
+    // Text inside bubbles - use high contrast color (white or dark based on bubble color)
     node
       .append("text")
       .text((d) => (d.r > 25 ? (d.keyword.length > 14 ? d.keyword.slice(0, 12) + ".." : d.keyword) : ""))
       .attr("text-anchor", "middle")
       .attr("dy", "-0.2em")
       .style("font-size", (d) => `${Math.max(9, d.r / 3.5)}px`)
-      .style("fill", "var(--foreground)")
-      .style("font-weight", "600")
+      .style("fill", "#FFFFFF") // Always white for visibility on colored bubbles
+      .style("font-weight", "700")
+      .style("text-shadow", "0 1px 2px rgba(0,0,0,0.3)")
       .style("pointer-events", "none");
 
     node
@@ -147,7 +155,8 @@ export default function BubbleChart({ data, onKeywordClick }: Props) {
       .attr("text-anchor", "middle")
       .attr("dy", "1em")
       .style("font-size", (d) => `${Math.max(8, d.r / 4)}px`)
-      .style("fill", "var(--oaria-text-secondary)")
+      .style("fill", "rgba(255,255,255,0.85)") // Slightly transparent white
+      .style("text-shadow", "0 1px 2px rgba(0,0,0,0.2)")
       .style("pointer-events", "none");
 
     sim.on("tick", () => {

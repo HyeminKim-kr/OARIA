@@ -1,6 +1,7 @@
 "use client";
 import { useRef, useEffect } from "react";
 import * as d3 from "d3";
+import { BRAND, getThemeColors as getBaseThemeColors } from "../constants";
 
 interface DataQualityMetric {
   axis: string;
@@ -16,21 +17,24 @@ interface Props {
   sampleSize?: number;  // Sample size used for calculation
 }
 
-// Theme-aware color function
-function getThemeColors(isDark: boolean) {
+// Brand-aligned theme colors for radar chart
+function getRadarThemeColors(isDark: boolean) {
+  const base = getBaseThemeColors(isDark);
   return {
-    primary: isDark ? "#22D3EE" : "#0891B2",      // Cyan
-    secondary: isDark ? "#60A5FA" : "#2563EB",    // Blue
-    highlight: isDark ? "#FBBF24" : "#D97706",    // Amber
-    danger: isDark ? "#F87171" : "#DC2626",       // Red
-    success: isDark ? "#4ADE80" : "#16A34A",      // Green
-    gradientStart: isDark ? "#22D3EE" : "#0891B2",
-    gradientEnd: isDark ? "#60A5FA" : "#2563EB",
-    bgCircle: isDark ? "rgba(255,255,255,0.03)" : "rgba(0,0,0,0.02)",
-    strokeCircle: isDark ? "rgba(255,255,255,0.08)" : "rgba(0,0,0,0.06)",
-    axisLine: isDark ? "rgba(255,255,255,0.08)" : "rgba(0,0,0,0.06)",
-    text: isDark ? "rgba(255,255,255,0.7)" : "rgba(0,0,0,0.7)",
-    textMuted: isDark ? "rgba(255,255,255,0.4)" : "rgba(0,0,0,0.4)",
+    ...base,
+    // Brand-aligned radar colors
+    primary: isDark ? "#2DD4BF" : BRAND.teal,           // Teal
+    secondary: isDark ? "#5EEAD4" : BRAND.lightTeal,    // Light Teal
+    highlight: isDark ? "#FACC15" : "#CA8A04",          // Yellow/Amber
+    danger: isDark ? "#FDA4AF" : BRAND.coral,           // Coral
+    success: isDark ? "#4ADE80" : "#16A34A",            // Green
+    gradientStart: isDark ? "#2DD4BF" : BRAND.teal,
+    gradientEnd: isDark ? "#5EEAD4" : BRAND.lightTeal,
+    bgCircle: isDark ? "rgba(45, 212, 191, 0.03)" : "rgba(13, 148, 136, 0.03)",
+    strokeCircle: isDark ? "rgba(45, 212, 191, 0.15)" : "rgba(13, 148, 136, 0.1)",
+    axisLine: isDark ? "rgba(148, 163, 184, 0.15)" : "rgba(15, 23, 42, 0.08)",
+    text: isDark ? "#F8FAFC" : "#0F172A",
+    textMuted: isDark ? "#94A3B8" : "#64748B",
   };
 }
 
@@ -63,7 +67,7 @@ export default function DataQualityRadar({ data, totalPapers, sampleSize }: Prop
     const isDark = window.matchMedia("(prefers-color-scheme: dark)").matches
       || document.documentElement.classList.contains("dark");
 
-    const COLORS = getThemeColors(isDark);
+    const COLORS = getRadarThemeColors(isDark);
 
     const defs = svg.append("defs");
 

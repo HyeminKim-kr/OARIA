@@ -1,6 +1,7 @@
 "use client";
 import { useRef, useEffect } from "react";
 import * as d3 from "d3";
+import { BRAND, getThemeColors } from "../constants";
 
 interface JournalData {
   label: string;
@@ -27,6 +28,7 @@ export default function JournalLollipop({ data }: Props) {
 
     const isDark = window.matchMedia("(prefers-color-scheme: dark)").matches
       || document.documentElement.classList.contains("dark");
+    const theme = getThemeColors(isDark);
 
     const svg = d3
       .select(el)
@@ -36,15 +38,15 @@ export default function JournalLollipop({ data }: Props) {
 
     const defs = svg.append("defs");
 
-    // Gradient for bars
+    // Brand-aligned gradient for bars: Teal gradient
     const gradient = defs.append("linearGradient")
       .attr("id", "lollipop-grad")
       .attr("x1", "0%").attr("y1", "0%")
       .attr("x2", "100%").attr("y2", "0%");
     gradient.append("stop").attr("offset", "0%")
-      .attr("stop-color", isDark ? "#3B82F6" : "#60A5FA");
+      .attr("stop-color", isDark ? "#2DD4BF" : BRAND.teal);
     gradient.append("stop").attr("offset", "100%")
-      .attr("stop-color", isDark ? "#8B5CF6" : "#A78BFA");
+      .attr("stop-color", isDark ? "#5EEAD4" : BRAND.lightTeal);
 
     // Glow filter
     const glowFilter = defs.append("filter")
@@ -54,7 +56,7 @@ export default function JournalLollipop({ data }: Props) {
     glowFilter.append("feDropShadow")
       .attr("dx", "0").attr("dy", "0")
       .attr("stdDeviation", "3")
-      .attr("flood-color", isDark ? "#3B82F6" : "#60A5FA")
+      .attr("flood-color", isDark ? "#2DD4BF" : BRAND.teal)
       .attr("flood-opacity", "0.4");
 
     const maxCount = d3.max(data, d => d.value) || 1;
@@ -77,14 +79,15 @@ export default function JournalLollipop({ data }: Props) {
       .append("div")
       .style("position", "absolute")
       .style("visibility", "hidden")
-      .style("background", isDark ? "rgba(15,15,25,0.95)" : "rgba(255,255,255,0.98)")
-      .style("border", `1px solid ${isDark ? "rgba(255,255,255,0.1)" : "rgba(0,0,0,0.1)"}`)
+      .style("background", theme.tooltipBg)
+      .style("border", `1px solid ${theme.tooltipBorder}`)
       .style("border-radius", "10px")
       .style("padding", "10px 14px")
       .style("font-size", "12px")
-      .style("box-shadow", "0 4px 20px rgba(0,0,0,0.15)")
+      .style("box-shadow", `0 4px 20px ${theme.tooltipShadow}`)
       .style("pointer-events", "none")
       .style("z-index", "50")
+      .style("color", theme.textPrimary)
       .style("backdrop-filter", "blur(8px)");
 
     // Create rows
@@ -119,14 +122,14 @@ export default function JournalLollipop({ data }: Props) {
       .ease(d3.easeElasticOut.amplitude(1).period(0.5))
       .attr("width", d => xScale(d.value));
 
-    // Lollipop head (circle)
+    // Lollipop head (circle) - Brand teal
     rows.append("circle")
       .attr("class", "lollipop-head")
       .attr("cx", 0)
       .attr("cy", yScale.bandwidth() / 2)
       .attr("r", 0)
-      .attr("fill", isDark ? "#8B5CF6" : "#A78BFA")
-      .attr("stroke", isDark ? "#1a1a2e" : "white")
+      .attr("fill", isDark ? "#2DD4BF" : BRAND.teal)
+      .attr("stroke", theme.surface)
       .attr("stroke-width", 2)
       .attr("filter", "url(#lollipop-glow)")
       .transition()
@@ -141,8 +144,8 @@ export default function JournalLollipop({ data }: Props) {
       .attr("cx", -20)
       .attr("cy", yScale.bandwidth() / 2)
       .attr("r", 10)
-      .attr("fill", isDark ? "rgba(255,255,255,0.1)" : "rgba(0,0,0,0.05)")
-      .attr("stroke", isDark ? "rgba(255,255,255,0.2)" : "rgba(0,0,0,0.1)")
+      .attr("fill", theme.surfaceHover)
+      .attr("stroke", theme.border)
       .attr("stroke-width", 1);
 
     rows.append("text")
@@ -153,16 +156,16 @@ export default function JournalLollipop({ data }: Props) {
       .text((_, i) => i + 1)
       .style("font-size", "9px")
       .style("font-weight", "700")
-      .style("fill", "var(--foreground)");
+      .style("fill", theme.textPrimary);
 
-    // Count badge (right side)
+    // Count badge (right side) - Brand teal accent
     rows.append("rect")
       .attr("x", barMaxWidth + 8)
       .attr("y", (yScale.bandwidth() - 18) / 2)
       .attr("width", 50)
       .attr("height", 18)
       .attr("rx", 9)
-      .attr("fill", isDark ? "rgba(139,92,246,0.2)" : "rgba(167,139,250,0.2)");
+      .attr("fill", isDark ? "rgba(45, 212, 191, 0.2)" : "rgba(13, 148, 136, 0.15)");
 
     rows.append("text")
       .attr("x", barMaxWidth + 33)
@@ -172,7 +175,7 @@ export default function JournalLollipop({ data }: Props) {
       .text(d => d.value.toLocaleString())
       .style("font-size", "10px")
       .style("font-weight", "700")
-      .style("fill", isDark ? "#A78BFA" : "#7C3AED");
+      .style("fill", isDark ? "#2DD4BF" : BRAND.teal);
 
     // Journal name (truncated)
     rows.append("text")
@@ -184,7 +187,7 @@ export default function JournalLollipop({ data }: Props) {
       })
       .style("font-size", "10px")
       .style("font-weight", "600")
-      .style("fill", "var(--foreground)")
+      .style("fill", theme.textPrimary)
       .attr("opacity", 0)
       .transition()
       .duration(400)
@@ -213,7 +216,7 @@ export default function JournalLollipop({ data }: Props) {
               </div>
               <div>
                 <span style="opacity:0.5">Papers</span>
-                <span style="margin-left:4px;font-weight:700;color:${isDark ? "#A78BFA" : "#7C3AED"}">${d.value.toLocaleString()}</span>
+                <span style="margin-left:4px;font-weight:700;color:${isDark ? "#2DD4BF" : BRAND.teal}">${d.value.toLocaleString()}</span>
               </div>
             </div>`
           );

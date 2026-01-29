@@ -1,7 +1,7 @@
 "use client";
 import { useRef, useEffect } from "react";
 import * as d3 from "d3";
-import { PASTEL } from "../constants";
+import { getChartPalette, getThemeColors } from "../constants";
 
 interface AuthorItem {
   label: string;
@@ -19,6 +19,12 @@ export default function TopAuthorsBar({ data }: Props) {
     if (!ref.current || !data.length) return;
     const el = ref.current;
     d3.select(el).selectAll("*").remove();
+
+    // Detect dark mode
+    const isDark = window.matchMedia("(prefers-color-scheme: dark)").matches
+      || document.documentElement.classList.contains("dark");
+    const theme = getThemeColors(isDark);
+    const palette = getChartPalette(isDark);
 
     const margin = { top: 5, right: 40, bottom: 5, left: 110 };
     const width = el.clientWidth - margin.left - margin.right;
@@ -44,7 +50,7 @@ export default function TopAuthorsBar({ data }: Props) {
       .domain([0, d3.max(data, (d) => d.value) || 1])
       .range([0, width]);
 
-    const color = d3.scaleOrdinal<string>().range(PASTEL);
+    const color = d3.scaleOrdinal<string>().range(palette);
 
     // Bars
     svg
@@ -56,7 +62,7 @@ export default function TopAuthorsBar({ data }: Props) {
       .attr("x", 0)
       .attr("rx", 6)
       .attr("fill", (_d, i) => color(String(i)))
-      .attr("opacity", 0.8)
+      .attr("opacity", 0.9)
       .attr("width", 0)
       .transition()
       .duration(800)
@@ -73,9 +79,9 @@ export default function TopAuthorsBar({ data }: Props) {
       .attr("cy", (d) => (y(d.label) || 0) + y.bandwidth() / 2)
       .attr("r", 10)
       .attr("fill", (_d, i) => color(String(i)))
-      .attr("opacity", 0.3);
+      .attr("opacity", 0.4);
 
-    // Labels
+    // Labels - High contrast text
     svg
       .selectAll(".label")
       .data(data)
@@ -87,9 +93,10 @@ export default function TopAuthorsBar({ data }: Props) {
       .attr("text-anchor", "end")
       .text((d) => (d.label.length > 14 ? d.label.slice(0, 12) + ".." : d.label))
       .style("font-size", "11px")
-      .style("fill", "var(--oaria-text-secondary)");
+      .style("fill", theme.textSecondary)
+      .style("font-weight", "500");
 
-    // Values
+    // Values - High contrast text
     svg
       .selectAll(".val")
       .data(data)
@@ -100,8 +107,8 @@ export default function TopAuthorsBar({ data }: Props) {
       .attr("dy", "0.35em")
       .text((d) => d.value)
       .style("font-size", "11px")
-      .style("fill", "var(--oaria-text-secondary)")
-      .style("font-weight", "600")
+      .style("fill", theme.textPrimary)
+      .style("font-weight", "700")
       .attr("opacity", 0)
       .transition()
       .duration(800)

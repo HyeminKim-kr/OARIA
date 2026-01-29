@@ -1,6 +1,7 @@
 "use client";
 import { useRef, useEffect } from "react";
 import * as d3 from "d3";
+import { BRAND, getThemeColors } from "../constants";
 
 interface TreemapItem {
   name: string;
@@ -16,20 +17,35 @@ interface Props {
   data: TreemapItem[];
 }
 
-// BTC market-cap style: gradient fills, bold proportional blocks, glow on hover
-const GRADIENT_PAIRS: [string, string][] = [
-  ["#7EC8E3", "#4A98B5"], // blue
-  ["#B8A9D9", "#8B7AB5"], // purple
-  ["#82D9A8", "#52B07A"], // green
-  ["#F2A6B3", "#D07888"], // pink
-  ["#F5C6A0", "#D0996E"], // orange
-  ["#A3D9C7", "#6FB09A"], // teal
-  ["#C9ABEB", "#9B7DC0"], // lavender
-  ["#F7DFA0", "#D4B56C"], // gold
-  ["#9DC6E0", "#6B98B5"], // steel
-  ["#E4ACC4", "#BA7E98"], // rose
-  ["#B5D99C", "#88B06C"], // lime
-  ["#DBA8C7", "#B07A9C"], // mauve
+// Brand-aligned gradient pairs: OARIA teal/coral theme
+const GRADIENT_PAIRS_LIGHT: [string, string][] = [
+  [BRAND.teal, "#0F766E"],           // Primary teal
+  [BRAND.lightTeal, BRAND.teal],     // Light to primary teal
+  [BRAND.coral, "#DC2626"],          // Coral to red
+  ["#0891B2", "#0E7490"],            // Cyan
+  ["#7C3AED", "#6D28D9"],            // Violet
+  ["#059669", "#047857"],            // Emerald
+  ["#EA580C", "#C2410C"],            // Orange
+  ["#2563EB", "#1D4ED8"],            // Blue
+  ["#DB2777", "#BE185D"],            // Pink
+  ["#CA8A04", "#A16207"],            // Yellow
+  ["#4F46E5", "#4338CA"],            // Indigo
+  ["#16A34A", "#15803D"],            // Green
+];
+
+const GRADIENT_PAIRS_DARK: [string, string][] = [
+  ["#2DD4BF", BRAND.teal],           // Light teal to primary
+  ["#5EEAD4", "#2DD4BF"],            // Lighter teal
+  ["#FDA4AF", BRAND.coral],          // Light coral
+  ["#22D3EE", "#0891B2"],            // Cyan
+  ["#A78BFA", "#7C3AED"],            // Violet
+  ["#34D399", "#10B981"],            // Emerald
+  ["#FB923C", "#F97316"],            // Orange
+  ["#60A5FA", "#3B82F6"],            // Blue
+  ["#F472B6", "#EC4899"],            // Pink
+  ["#FACC15", "#EAB308"],            // Yellow
+  ["#818CF8", "#6366F1"],            // Indigo
+  ["#4ADE80", "#22C55E"],            // Green
 ];
 
 export default function JournalTreemap({ data }: Props) {
@@ -40,6 +56,12 @@ export default function JournalTreemap({ data }: Props) {
     const el = ref.current;
     d3.select(el).selectAll("*").remove();
 
+    // Detect dark mode
+    const isDark = window.matchMedia("(prefers-color-scheme: dark)").matches
+      || document.documentElement.classList.contains("dark");
+    const theme = getThemeColors(isDark);
+    const gradientPairs = isDark ? GRADIENT_PAIRS_DARK : GRADIENT_PAIRS_LIGHT;
+
     const width = el.clientWidth;
     const height = el.clientHeight;
     if (width <= 0 || height <= 0) return;
@@ -49,15 +71,15 @@ export default function JournalTreemap({ data }: Props) {
       .append("div")
       .style("position", "absolute")
       .style("visibility", "hidden")
-      .style("background", "var(--background)")
-      .style("border", "1px solid var(--oaria-border)")
+      .style("background", theme.tooltipBg)
+      .style("border", `1px solid ${theme.tooltipBorder}`)
       .style("border-radius", "10px")
       .style("padding", "8px 14px")
       .style("font-size", "13px")
-      .style("box-shadow", "0 4px 20px rgba(0,0,0,0.08)")
+      .style("box-shadow", `0 4px 20px ${theme.tooltipShadow}`)
       .style("pointer-events", "none")
       .style("z-index", "50")
-      .style("color", "var(--foreground)");
+      .style("color", theme.textPrimary);
 
     // Apply minimum value boost for small items to ensure visibility
     const minValue = Math.max(...data.map(d => d.value)) * 0.08; // At least 8% of max
@@ -90,7 +112,7 @@ export default function JournalTreemap({ data }: Props) {
 
     // Create gradients per cell
     leaves.forEach((d, i) => {
-      const [c1, c2] = GRADIENT_PAIRS[i % GRADIENT_PAIRS.length];
+      const [c1, c2] = gradientPairs[i % gradientPairs.length];
       const grad = defs
         .append("linearGradient")
         .attr("id", `jt-grad-${i}`)
