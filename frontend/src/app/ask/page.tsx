@@ -74,6 +74,15 @@ interface Gate2Status {
   message: string | null;
 }
 
+interface Gate3Status {
+  passed: boolean;
+  faithfulness: number | null;
+  answer_relevancy: number | null;
+  overall_score: number | null;
+  reason: string | null;
+  message: string | null;
+}
+
 interface AgentProgress {
   complexity?: {
     level: string;
@@ -81,6 +90,7 @@ interface AgentProgress {
   };
   subtasks?: SubTask[];
   gate2?: Gate2Status;
+  gate3?: Gate3Status;
 }
 
 interface GateClassification {
@@ -291,6 +301,21 @@ export default function AskPage() {
                   gate2: {
                     task_id: data.task_id,
                     passed: data.passed,
+                    reason: data.reason,
+                    message: data.message,
+                  },
+                }));
+              }
+
+              // gate3 이벤트 (답변 품질 평가 결과 - OAR-13)
+              if (data.faithfulness !== undefined || data.answer_relevancy !== undefined) {
+                setAgentProgress((prev) => ({
+                  ...prev,
+                  gate3: {
+                    passed: data.passed,
+                    faithfulness: data.faithfulness,
+                    answer_relevancy: data.answer_relevancy,
+                    overall_score: data.overall_score,
                     reason: data.reason,
                     message: data.message,
                   },
@@ -671,6 +696,48 @@ export default function AskPage() {
                                 {agentProgress.gate2.reason === "insufficient_docs" && "충분한 근거 논문을 찾지 못했습니다."}
                                 {agentProgress.gate2.reason === "domain_mismatch" && "검색 결과가 암 연구와 관련성이 낮습니다."}
                               </p>
+                            </div>
+                          </>
+                        )}
+                      </div>
+                    )}
+
+                    {/* Gate 3: RAGAS Quality (OAR-13) */}
+                    {agentProgress.gate3 && (
+                      <div className={`mt-3 pt-3 border-t border-[var(--oaria-border)] flex items-center gap-2 ${
+                        agentProgress.gate3.passed ? "text-green-600" : "text-amber-600"
+                      }`}>
+                        {agentProgress.gate3.passed ? (
+                          <>
+                            <span className="w-5 h-5 rounded-full bg-green-500 flex items-center justify-center">
+                              <span className="text-white text-xs">✓</span>
+                            </span>
+                            <div className="flex-1">
+                              <span className="text-sm font-medium">Gate 3: 답변 품질 검증 통과</span>
+                              {agentProgress.gate3.faithfulness !== null && agentProgress.gate3.answer_relevancy !== null && (
+                                <p className="text-xs text-green-600 mt-0.5">
+                                  Faithfulness: {(agentProgress.gate3.faithfulness * 100).toFixed(0)}% ·
+                                  Relevancy: {(agentProgress.gate3.answer_relevancy * 100).toFixed(0)}%
+                                </p>
+                              )}
+                            </div>
+                          </>
+                        ) : (
+                          <>
+                            <AlertTriangle size={18} className="text-amber-500" />
+                            <div className="flex-1">
+                              <span className="text-sm font-medium">Gate 3: 답변 품질 미달</span>
+                              <p className="text-xs text-amber-700 mt-0.5">
+                                {agentProgress.gate3.reason === "low_faithfulness" && "답변의 근거가 충분하지 않습니다."}
+                                {agentProgress.gate3.reason === "low_relevancy" && "답변이 질문과 충분히 관련되지 않습니다."}
+                                {!agentProgress.gate3.reason && agentProgress.gate3.message}
+                              </p>
+                              {agentProgress.gate3.faithfulness !== null && agentProgress.gate3.answer_relevancy !== null && (
+                                <p className="text-xs text-amber-600 mt-0.5">
+                                  Faithfulness: {(agentProgress.gate3.faithfulness * 100).toFixed(0)}% ·
+                                  Relevancy: {(agentProgress.gate3.answer_relevancy * 100).toFixed(0)}%
+                                </p>
+                              )}
                             </div>
                           </>
                         )}
