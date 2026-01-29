@@ -35,9 +35,9 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     && rm -rf /var/lib/apt/lists/* \
     && apt-get clean
 
-# 보안: non-root user 생성
+# 보안: non-root user 생성 (홈 디렉토리 포함 - HuggingFace 캐시용)
 RUN groupadd --system --gid 1001 appgroup && \
-    useradd --system --uid 1001 --gid appgroup appuser
+    useradd --system --uid 1001 --gid appgroup --create-home --home-dir /home/appuser appuser
 
 # 가상환경 복사 (--link로 효율적인 레이어 처리)
 COPY --link --from=builder /app/.venv /app/.venv
