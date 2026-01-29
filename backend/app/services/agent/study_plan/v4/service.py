@@ -247,6 +247,7 @@ class StudyPlanAgentV4:
             config = create_thread_config(thread_id)
 
             # Stream events
+            import sys
             async for sse_event in stream_with_events(self.graph, initial_state, config):
                 # Parse SSE event
                 lines = sse_event.strip().split("\n")
@@ -260,10 +261,12 @@ class StudyPlanAgentV4:
                         event_data = json.loads(line[6:])
 
                 if event_type and event_data:
+                    print(f"[SERVICE] Yielding event: {event_type}", file=sys.stderr, flush=True)
                     yield (event_type, event_data)
 
                     # Store result when completed
-                    if event_type == SSEEventType.COMPLETION:
+                    if event_type == SSEEventType.COMPLETED:
+                        print(f"[SERVICE] COMPLETED event matched!", file=sys.stderr, flush=True)
                         await self.memory.store_run(
                             run_id=thread_id,
                             hypothesis=hypothesis,

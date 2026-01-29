@@ -3,6 +3,10 @@
 import logging
 from typing import Any
 
+from sqlalchemy import select
+
+from app.database import async_session_maker
+from app.models.paper import Paper
 from app.services.agent.study_plan.v4.tools.base import BaseTool, ToolParameter
 
 logger = logging.getLogger(__name__)
@@ -16,6 +20,58 @@ class RAGSearchTool(BaseTool):
     - Tier 2: Europe PMC (external paper database)
     - Tier 3: Tavily (web search for protocols, reagents, etc.)
     """
+
+    async def _fetch_paper_urls(self, paper_ids: list[str]) -> dict[str, dict[str, Any]]:
+        """Fetch paper URLs from database by paper_id.
+
+        Args:
+            paper_ids: List of paper_ids to look up
+
+        Returns:
+            Dict mapping paper_id to URL info dict
+        """
+        if not paper_ids:
+            return {}
+
+        url_map: dict[str, dict[str, Any]] = {}
+
+        try:
+            async with async_session_maker() as session:
+                # Query papers by paper_id
+                stmt = select(Paper).where(Paper.paper_id.in_(paper_ids))
+                result = await session.execute(stmt)
+                papers = result.scalars().all()
+
+                for paper in papers:
+                    # Build URL with priority: source_url > DOI > PMC > PubMed
+                    url = None
+                    if paper.source_url:
+                        url = paper.source_url
+                    elif paper.doi:
+                        url = f"https://doi.org/{paper.doi}"
+                    elif paper.pmcid:
+                        url = f"https://europepmc.org/article/PMC/{paper.pmcid}"
+                    elif paper.pmid:
+                        url = f"https://pubmed.ncbi.nlm.nih.gov/{paper.pmid}/"
+
+                    if url:
+                        # Create citation text
+                        title_short = paper.title[:50] + "..." if len(paper.title) > 50 else paper.title
+                        url_map[paper.paper_id] = {
+                            "url": url,
+                            "doi": paper.doi,
+                            "pmcid": paper.pmcid,
+                            "pmid": paper.pmid,
+                            "citation_text": title_short,
+                            "markdown_link": f"[{title_short}]({url})",
+                        }
+
+                logger.info(f"Fetched URLs for {len(url_map)}/{len(paper_ids)} papers from DB")
+
+        except Exception as e:
+            logger.warning(f"Failed to fetch paper URLs from DB: {e}")
+
+        return url_map
 
     @property
     def name(self) -> str:
@@ -101,16 +157,32 @@ class RAGSearchTool(BaseTool):
                 sections=sections,
             )
 
-            # Convert PaperResult objects to dicts
+            # Collect paper_ids for URL lookup
+            paper_ids = [paper.paper_id for paper in result.papers if paper.paper_id]
+
+            # Fetch URLs from database
+            url_map = await self._fetch_paper_urls(paper_ids)
+
+            # Convert PaperResult objects to dicts with URLs
             papers = []
             snippets = []
             for paper in result.papers:
+                # Get URL info from DB lookup
+                url_info = url_map.get(paper.paper_id, {})
+
                 paper_dict = {
                     "paper_id": paper.paper_id,
                     "title": paper.title,
                     "journal": paper.journal,
                     "year": paper.year,
                     "score": paper.max_relevance_score,
+                    # URL fields from DB
+                    "url": url_info.get("url"),
+                    "doi": url_info.get("doi"),
+                    "pmcid": url_info.get("pmcid"),
+                    "pmid": url_info.get("pmid"),
+                    "citation_text": url_info.get("citation_text", paper.title[:50] + "..." if len(paper.title) > 50 else paper.title),
+                    "markdown_link": url_info.get("markdown_link"),
                 }
                 papers.append(paper_dict)
 

@@ -15,7 +15,7 @@ from app.services.agent.study_plan.v4.core.types import Action, Observation
 
 if TYPE_CHECKING:
     from app.services.agent.study_plan.v4.tools.registry import ToolRegistry
-    from app.services.agent.study_plan.v4.core.state import WorkingMemory
+    from app.services.agent.study_plan.v4.core.state_view import StateView
 
 logger = logging.getLogger(__name__)
 
@@ -37,9 +37,9 @@ class Executor:
         self,
         action_name: str,
         action_input: dict[str, Any],
-        state: "WorkingMemory | None",
+        state: "StateView | None",
     ) -> dict[str, Any]:
-        """Auto-fill missing parameters from WorkingMemory state.
+        """Auto-fill missing parameters from state.
 
         This solves the problem where LLM calls tools without required params.
         We intelligently fill in the missing data from current state.
@@ -47,7 +47,7 @@ class Executor:
         Args:
             action_name: Name of the tool being called
             action_input: Original input from LLM
-            state: Current WorkingMemory state
+            state: Current StateView (read-only view of LangGraph state)
 
         Returns:
             Enriched action input with auto-filled params
@@ -73,9 +73,10 @@ class Executor:
             if not enriched.get("hypothesis") and state.structured_hypothesis:
                 enriched["hypothesis"] = state.structured_hypothesis
 
-            # Auto-fill evidence from search results
-            if not enriched.get("evidence") and state.evidence_snippets:
+            # ALWAYS use state's real evidence (LLM often provides fake citations)
+            if state.evidence_snippets:
                 enriched["evidence"] = state.evidence_snippets[:5]
+                logger.info(f"[DESIGN_EXPERIMENT] Using {len(enriched['evidence'])} real evidence snippets from state")
 
         # design_controls: auto-fill experiment from experiments list
         elif action_name == "design_controls":
@@ -145,8 +146,46 @@ class Executor:
                 enriched["experiments"] = state.experiments
                 logger.info(f"Auto-filled experiments for synthesize_plan: {len(state.experiments)} experiments")
 
-            if not enriched.get("evidence") and state.evidence_snippets:
-                enriched["evidence"] = state.evidence_snippets
+            # evidence: ALWAYS use state's papers with URLs for citations
+            # LLM often provides fake evidence like "Smith et al., 2023" without URLs
+            # We must override with real papers from state to generate proper references
+            if state.retrieved_papers or state.evidence_snippets:
+                evidence_with_urls = []
+
+                # 1) Add evidence snippets (may not have URLs)
+                for snippet in (state.evidence_snippets or []):
+                    ev = dict(snippet) if isinstance(snippet, dict) else {"text": str(snippet)}
+                    # Try to find matching paper for URL
+                    paper_id = ev.get("paper_id")
+                    if paper_id and state.retrieved_papers:
+                        for paper in state.retrieved_papers:
+                            if paper.get("paper_id") == paper_id or paper.get("pmcid") == paper_id:
+                                ev["url"] = paper.get("url")
+                                ev["citation_text"] = paper.get("citation_text")
+                                ev["markdown_link"] = paper.get("markdown_link")
+                                break
+                    evidence_with_urls.append(ev)
+
+                # 2) Add papers as evidence (have URLs from EPMC)
+                for paper in (state.retrieved_papers or []):
+                    if isinstance(paper, dict) and paper.get("url"):
+                        ev = {
+                            "claim": paper.get("title", ""),
+                            "source": f"{paper.get('journal', '')} ({paper.get('year', '')})",
+                            "url": paper.get("url"),
+                            "citation_text": paper.get("citation_text"),
+                            "markdown_link": paper.get("markdown_link"),
+                            "title": paper.get("title", ""),
+                            "authors": paper.get("authors", []),
+                            "journal": paper.get("journal", ""),
+                            "year": paper.get("year"),
+                        }
+                        evidence_with_urls.append(ev)
+
+                if evidence_with_urls:
+                    # Override LLM's fake evidence with real papers
+                    enriched["evidence"] = evidence_with_urls
+                    logger.info(f"[SYNTHESIZE] Overriding LLM evidence with {len(evidence_with_urls)} real papers from state")
 
             if not enriched.get("metadata"):
                 enriched["metadata"] = {
@@ -176,24 +215,25 @@ class Executor:
                 }
                 logger.info(f"Auto-filled design for critique_design: {len(state.experiments)} experiments")
 
-        # decompose_questions: auto-fill hypothesis
+        # decompose_questions: auto-fill structured_hypothesis
         elif action_name == "decompose_questions":
-            if not enriched.get("hypothesis") and state.structured_hypothesis:
-                enriched["hypothesis"] = state.structured_hypothesis
-                logger.info("Auto-filled hypothesis for decompose_questions")
+            # Tool expects "structured_hypothesis", NOT "hypothesis"
+            if not enriched.get("structured_hypothesis") and state.structured_hypothesis:
+                enriched["structured_hypothesis"] = state.structured_hypothesis
+                logger.info("Auto-filled structured_hypothesis for decompose_questions")
 
         return enriched
 
     async def execute(
         self,
         action: Action,
-        state: "WorkingMemory | None" = None,
+        state: "StateView | None" = None,
     ) -> Observation:
         """Execute an action and return observation.
 
         Args:
             action: The action to execute
-            state: Optional WorkingMemory for auto-filling missing params
+            state: Optional StateView for auto-filling missing params
 
         Returns:
             Observation with results or error
@@ -281,7 +321,7 @@ class Executor:
     async def execute_with_retry(
         self,
         action: Action,
-        state: "WorkingMemory | None" = None,
+        state: "StateView | None" = None,
         max_retries: int = 2,
         delay_seconds: float = 1.0,
     ) -> Observation:
@@ -289,7 +329,7 @@ class Executor:
 
         Args:
             action: The action to execute
-            state: Optional WorkingMemory for auto-filling missing params
+            state: Optional StateView for auto-filling missing params
             max_retries: Maximum number of retry attempts
             delay_seconds: Delay between retries
 

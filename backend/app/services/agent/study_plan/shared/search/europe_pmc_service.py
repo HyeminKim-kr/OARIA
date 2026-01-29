@@ -29,6 +29,28 @@ class EPMCPaper:
     authors: list[str]
     is_open_access: bool
     citations: int = 0
+    doi: Optional[str] = None
+    url: Optional[str] = None
+
+    @property
+    def first_author(self) -> str:
+        """첫 번째 저자 반환 (et al. 형식용)"""
+        if self.authors:
+            return self.authors[0].split()[-1]  # 성만 추출
+        return "Unknown"
+
+    @property
+    def citation_text(self) -> str:
+        """인용 텍스트 생성: 'Author et al. (Journal, Year)'"""
+        author = f"{self.first_author} et al." if len(self.authors) > 1 else self.first_author
+        return f"{author} ({self.journal}, {self.year})"
+
+    @property
+    def markdown_link(self) -> str:
+        """마크다운 링크 형식: [citation](url)"""
+        if self.url:
+            return f"[{self.citation_text}]({self.url})"
+        return self.citation_text
 
 
 @dataclass
@@ -102,19 +124,34 @@ class EuropePmcService:
             result_list = data.get("resultList", {}).get("result", [])
             
             for item in result_list:
+                pmcid = item.get("pmcid", "")
+                pmid = item.get("pmid")
+                doi = item.get("doi")
+
+                # URL 구성 (우선순위: DOI > PMC > PubMed)
+                url = None
+                if doi:
+                    url = f"https://doi.org/{doi}"
+                elif pmcid:
+                    url = f"https://europepmc.org/article/PMC/{pmcid}"
+                elif pmid:
+                    url = f"https://pubmed.ncbi.nlm.nih.gov/{pmid}/"
+
                 paper = EPMCPaper(
-                    pmcid=item.get("pmcid", ""),
-                    pmid=item.get("pmid"),
+                    pmcid=pmcid,
+                    pmid=pmid,
                     title=item.get("title", ""),
                     abstract=item.get("abstractText", ""),
                     journal=item.get("journalTitle", ""),
                     year=int(item.get("pubYear", 0)),
                     authors=[
-                        a.get("fullName", "") 
+                        a.get("fullName", "")
                         for a in item.get("authorList", {}).get("author", [])
                     ],
                     is_open_access=item.get("isOpenAccess") == "Y",
                     citations=int(item.get("citedByCount", 0)),
+                    doi=doi,
+                    url=url,
                 )
                 papers.append(paper)
             

@@ -14,11 +14,15 @@ to test the given hypothesis.
 ## Original Hypothesis
 {hypothesis}
 
+{phase_context}
+
 ## Current State
 {state_summary}
 
-## Available Tools
+## Available Tools (Phase-filtered)
 {tool_descriptions}
+
+**IMPORTANT: You can ONLY use the tools listed above. Other tools are not available in the current phase.**
 
 ## Recent Actions
 {recent_actions}
@@ -221,6 +225,8 @@ FUNCTION_CALLING_USER_PROMPT = """## Goal
 ## Original Hypothesis
 {hypothesis}
 
+{phase_context}
+
 ## Current State
 {state_summary}
 
@@ -232,7 +238,8 @@ FUNCTION_CALLING_USER_PROMPT = """## Goal
 Consecutive failures: {consecutive_failures}
 
 ## Instructions
-Based on the current state, decide which tool to call next.
+Based on the current phase and state, decide which tool to call next.
+**You MUST use only the tools allowed in the current phase.**
 
 **CRITICAL: You MUST output a <thinking> block BEFORE calling any tool.**
 This is MANDATORY - do not skip it. The thinking block helps users understand your reasoning.

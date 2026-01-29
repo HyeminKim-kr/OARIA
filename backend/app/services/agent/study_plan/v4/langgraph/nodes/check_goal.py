@@ -9,7 +9,7 @@ from datetime import datetime, timezone
 from typing import TYPE_CHECKING
 
 from app.services.agent.study_plan.v4.langgraph.state import StudyPlanState
-from app.services.agent.study_plan.v4.core.state import WorkingMemory
+from app.services.agent.study_plan.v4.core.state_view import StateView
 
 if TYPE_CHECKING:
     from app.services.agent.study_plan.v4.core.goal_checker import GoalChecker
@@ -33,8 +33,8 @@ def create_check_goal_node(goal_checker: "GoalChecker"):
     def check_goal_node(state: StudyPlanState) -> dict:
         """Evaluate goal achievement.
 
-        Wraps the GoalChecker component, converting between
-        LangGraph state and WorkingMemory.
+        Wraps the GoalChecker component using StateView for
+        read-only state access.
 
         Args:
             state: Current LangGraph state
@@ -42,14 +42,24 @@ def create_check_goal_node(goal_checker: "GoalChecker"):
         Returns:
             Updated state with goal status
         """
+        import sys
+        print("\n" + "="*70, file=sys.stderr, flush=True)
+        print("[CHECK_GOAL NODE CALLED]", file=sys.stderr, flush=True)
+        print("="*70 + "\n", file=sys.stderr, flush=True)
+
         iteration = state.get("iteration_count", 0)
+        current_action = state.get("current_action", "")
+        is_terminal = state.get("is_terminal", False)
+        print(f"[CHECK_GOAL] iteration={iteration}, current_action={current_action}", file=sys.stderr, flush=True)
+        print(f"[CHECK_GOAL] is_terminal={is_terminal}", file=sys.stderr, flush=True)
+
         logger.info(f"=== Check Goal Node (iteration {iteration}) ===")
 
-        # Convert state to WorkingMemory for GoalChecker
-        working_memory = _state_to_working_memory(state)
+        # Create StateView (read-only view of state)
+        state_view = StateView(state)
 
         # Check goal status
-        status = goal_checker.check(working_memory)
+        status = goal_checker.check(state_view)
 
         logger.info(f"Goal achieved: {status.achieved}")
         if not status.achieved:
@@ -103,7 +113,15 @@ def create_check_goal_node(goal_checker: "GoalChecker"):
         # Get next priority if not achieved
         next_priority = None
         if not goal_achieved:
-            next_priority = goal_checker.get_next_priority(working_memory)
+            next_priority = goal_checker.get_next_priority(state_view)
+
+        import sys
+        print(f"[CHECK_GOAL] goal_achieved={goal_achieved}, force_complete={force_complete}", file=sys.stderr, flush=True)
+        print(f"[CHECK_GOAL] status.achieved={status.achieved}", file=sys.stderr, flush=True)
+        print(f"[CHECK_GOAL] missing={status.missing}", file=sys.stderr, flush=True)
+        print(f"[CHECK_GOAL] RETURNING goal_achieved={goal_achieved}", file=sys.stderr, flush=True)
+        print(f"[CHECK_GOAL] pending_events count: {len(pending_events)}", file=sys.stderr, flush=True)
+        print("="*70 + "\n", file=sys.stderr, flush=True)
 
         return {
             "goal_achieved": goal_achieved,
@@ -117,49 +135,3 @@ def create_check_goal_node(goal_checker: "GoalChecker"):
         }
 
     return check_goal_node
-
-
-def _state_to_working_memory(state: StudyPlanState) -> WorkingMemory:
-    """Convert LangGraph state to WorkingMemory for GoalChecker.
-
-    This includes all fields needed for goal checking.
-    """
-    memory = WorkingMemory()
-
-    # Input
-    memory.run_id = state.get("run_id", memory.run_id)
-    memory.goal = state.get("goal", "")
-    memory.original_hypothesis = state.get("original_hypothesis", "")
-
-    # Parsed
-    memory.structured_hypothesis = state.get("structured_hypothesis")
-    memory.hypothesis_confidence = state.get("hypothesis_confidence", 0.0)
-
-    # Questions
-    memory.test_questions = state.get("test_questions") or []
-    memory.answered_questions = set(state.get("answered_questions") or [])
-
-    # Search
-    memory.retrieved_papers = state.get("retrieved_papers") or []
-    memory.evidence_snippets = state.get("evidence_snippets") or []
-    memory.search_coverage = state.get("search_coverage", 0.0)
-
-    # Design
-    memory.experiments = state.get("experiments") or []
-    memory.controls = state.get("controls") or {}
-    memory.measurements = state.get("measurements") or []
-
-    # Validation
-    memory.validation_results = state.get("validation_results") or []
-    memory.quality_score = state.get("quality_score", 0.0)
-    memory.critique_history = state.get("critique_history") or []
-
-    # Output
-    memory.plan_a = state.get("plan_a")
-    memory.plan_b = state.get("plan_b")
-    memory.executive_summary = state.get("executive_summary")
-
-    # Metadata
-    memory.iteration_count = state.get("iteration_count", 0)
-
-    return memory

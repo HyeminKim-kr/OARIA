@@ -29,6 +29,8 @@ interface ResultsPanelProps {
   experimentCount?: number;
   totalDuration?: number;
   nodeDetails?: Record<string, unknown>;
+  paperCount?: number;
+  snippetCount?: number;
 }
 
 type TabId = "summary" | "experiments" | "evidence" | "full";
@@ -54,6 +56,8 @@ export function ResultsPanel({
   experimentCount = 0,
   totalDuration = 0,
   nodeDetails = {},
+  paperCount = 0,
+  snippetCount = 0,
 }: ResultsPanelProps) {
   const [activeTab, setActiveTab] = useState<TabId>("summary");
   const [copied, setCopied] = useState(false);
@@ -83,9 +87,9 @@ export function ResultsPanel({
     estimated_cost_level?: string;
   }> || [];
 
-  // Extract evidence from nodeDetails
-  const evidenceSnippets = Number((nodeDetails.build_evidence as Record<string, unknown>)?.snippet_count) || 0;
-  const evidencePacks = Number((nodeDetails.build_evidence as Record<string, unknown>)?.pack_count) || 0;
+  // Use props for paper and snippet counts (fallback to nodeDetails for backwards compatibility)
+  const evidenceSnippets = snippetCount || Number((nodeDetails.build_evidence as Record<string, unknown>)?.snippet_count) || 0;
+  const evidencePacks = paperCount || Number((nodeDetails.build_evidence as Record<string, unknown>)?.pack_count) || 0;
 
   const getExperimentIcon = (type: string) => {
     switch (type?.toLowerCase()) {
@@ -240,8 +244,22 @@ export function ResultsPanel({
                           : "bg-green-50 dark:bg-green-900/10 border-green-200 dark:border-green-800"
                       }`}
                     >
-                      <div className="prose prose-sm max-w-none dark:prose-invert">
-                        <ReactMarkdown remarkPlugins={[remarkGfm]}>
+                      <div className="prose prose-sm max-w-none dark:prose-invert prose-a:text-[var(--oaria-teal)] prose-a:underline hover:prose-a:text-[var(--oaria-teal)]/80">
+                        <ReactMarkdown
+                          remarkPlugins={[remarkGfm]}
+                          components={{
+                            a: ({ href, children }) => (
+                              <a
+                                href={href}
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                className="text-[var(--oaria-teal)] underline hover:text-[var(--oaria-teal)]/80 transition-colors"
+                              >
+                                {children}
+                              </a>
+                            ),
+                          }}
+                        >
                           {showPlanB ? planB : planA}
                         </ReactMarkdown>
                       </div>
@@ -364,7 +382,23 @@ export function ResultsPanel({
 
               {/* Markdown Content */}
               <div className="prose prose-sm max-w-none dark:prose-invert prose-headings:font-semibold prose-table:text-sm prose-th:bg-[var(--oaria-border)]/50 prose-th:px-3 prose-th:py-2 prose-td:px-3 prose-td:py-2 prose-td:border prose-td:border-[var(--oaria-border)] prose-th:border prose-th:border-[var(--oaria-border)] max-h-[500px] overflow-y-auto">
-                <ReactMarkdown remarkPlugins={[remarkGfm]}>{finalPlan}</ReactMarkdown>
+                <ReactMarkdown
+                  remarkPlugins={[remarkGfm]}
+                  components={{
+                    a: ({ href, children }) => (
+                      <a
+                        href={href}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="text-[var(--oaria-teal)] underline hover:text-[var(--oaria-teal)]/80 transition-colors"
+                      >
+                        {children}
+                      </a>
+                    ),
+                  }}
+                >
+                  {finalPlan}
+                </ReactMarkdown>
               </div>
             </motion.div>
           )}

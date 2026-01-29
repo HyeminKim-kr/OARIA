@@ -23,7 +23,7 @@ from app.models.podcast import (
 from app.schemas.podcast import PodcastGoalRequest, PodcastFilters
 from app.services.notification_service import notification_service
 
-from .service import PodcastService
+from ..service import PodcastService
 from .goal_generator import (
     generate_goal_with_llm,
     should_generate_for_subscription,
@@ -85,7 +85,7 @@ async def _generate_episode_for_subscription(
         # Execute generation pipeline
         try:
             # Import tasks here to avoid circular imports
-            from .agent import execute_rag_search, execute_paper_analysis, execute_script_generation
+            from ..langgraph import execute_rag_search, execute_paper_analysis, execute_script_generation
 
             # Task 1: RAG Search
             episode.status = EpisodeStatus.SEARCHING.value
@@ -201,7 +201,7 @@ async def _generate_episode_for_subscription(
         return None
 
 
-@celery_app.task(name="app.services.podcast.scheduler.generate_daily_podcasts")
+@celery_app.task(name="app.services.agent.podcast.core.scheduler.generate_daily_podcasts")
 def generate_daily_podcasts() -> dict[str, Any]:
     """
     Celery task: Generate podcasts for daily subscriptions.
@@ -241,7 +241,7 @@ def generate_daily_podcasts() -> dict[str, Any]:
     return asyncio.run(_run())
 
 
-@celery_app.task(name="app.services.podcast.scheduler.generate_weekly_digests")
+@celery_app.task(name="app.services.agent.podcast.core.scheduler.generate_weekly_digests")
 def generate_weekly_digests() -> dict[str, Any]:
     """
     Celery task: Generate podcasts for weekly subscriptions.
@@ -281,7 +281,7 @@ def generate_weekly_digests() -> dict[str, Any]:
     return asyncio.run(_run())
 
 
-@celery_app.task(name="app.services.podcast.scheduler.generate_for_subscription")
+@celery_app.task(name="app.services.agent.podcast.core.scheduler.generate_for_subscription")
 def generate_for_subscription(subscription_id: str) -> dict[str, Any]:
     """
     Celery task: Generate podcast for a specific subscription.

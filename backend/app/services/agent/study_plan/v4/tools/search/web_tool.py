@@ -84,15 +84,30 @@ class WebSearchTool(BaseTool):
             )
 
             tavily_service = TavilyService()
-            results = await tavily_service.search(
+            search_result = await tavily_service.search(
                 query=query,
                 search_depth=search_depth,
                 max_results=max_results,
             )
 
+            # TavilyResult 객체를 dict로 변환 (URL 포함)
+            papers = []
+            for item in search_result.results[:max_results]:
+                paper_dict = {
+                    "title": item.title,
+                    "url": item.url,
+                    "content": item.content,
+                    "score": item.score,
+                    "published_date": item.published_date,
+                    # 출처 표시용 필드
+                    "citation_text": item.title[:50] + "..." if len(item.title) > 50 else item.title,
+                    "markdown_link": f"[{item.title[:40]}...]({item.url})" if item.url else item.title,
+                }
+                papers.append(paper_dict)
+
             return {
-                "results": results.get("results", [])[:max_results],
-                "total_found": len(results.get("results", [])),
+                "papers": papers,  # "results" 대신 "papers"로 통일
+                "total_found": len(search_result.results),
                 "tier": 3,
                 "source": "tavily",
             }

@@ -381,13 +381,32 @@ class SynthesizePlanTool(BaseTool):
                 exp_lines.append(f"- {name}: {objective}")
             exp_text = "\n".join(exp_lines)
 
-            # evidence formatting with type safety
+            # evidence formatting with type safety and markdown links
             ev_lines = []
             for e in ev_list[:10]:  # 더 많은 evidence 포함
                 e_dict = ensure_dict(e) if not isinstance(e, dict) else e
                 claim = safe_get(e_dict, "claim", str(e))[:200]
+
+                # URL이 있으면 마크다운 링크로, 없으면 텍스트로
+                markdown_link = safe_get(e_dict, "markdown_link", "")
+                url = safe_get(e_dict, "url", "")
                 source = safe_get(e_dict, "source", "")
-                if source:
+                citation_text = safe_get(e_dict, "citation_text", "")
+
+                if markdown_link:
+                    # 이미 마크다운 링크가 있는 경우
+                    ev_lines.append(f"- {claim} (출처: {markdown_link})")
+                elif url and citation_text:
+                    # URL과 인용 텍스트가 있는 경우
+                    ev_lines.append(f"- {claim} (출처: [{citation_text}]({url}))")
+                elif url and source:
+                    # URL과 source가 있는 경우
+                    ev_lines.append(f"- {claim} (출처: [{source}]({url}))")
+                elif url:
+                    # URL만 있는 경우
+                    ev_lines.append(f"- {claim} (출처: [링크]({url}))")
+                elif source:
+                    # source만 있는 경우 (URL 없음)
                     ev_lines.append(f"- {claim} (출처: {source})")
                 else:
                     ev_lines.append(f"- {claim}")
@@ -426,6 +445,11 @@ class SynthesizePlanTool(BaseTool):
 
             plan = response.content
 
+            # Append actual references with URLs at the end
+            references_section = self._generate_references_section(ev_list)
+            if references_section:
+                plan = plan + "\n\n" + references_section
+
             # Generate summary
             summary = self._generate_summary(exp_list, hypothesis)
 
@@ -440,6 +464,60 @@ class SynthesizePlanTool(BaseTool):
                 "summary": f"Error generating plan: {e}",
                 "error": str(e),
             }
+
+    def _generate_references_section(self, evidence_list: list) -> str:
+        """Generate references section with actual paper URLs.
+
+        Args:
+            evidence_list: List of evidence items with URL info
+
+        Returns:
+            Markdown formatted references section
+        """
+        if not evidence_list:
+            return ""
+
+        references = []
+        seen_urls = set()  # Avoid duplicates
+
+        for i, ev in enumerate(evidence_list, 1):
+            ev_dict = ensure_dict(ev) if not isinstance(ev, dict) else ev
+
+            # Get URL and title info
+            url = safe_get(ev_dict, "url", "")
+            title = safe_get(ev_dict, "title", safe_get(ev_dict, "claim", ""))
+            journal = safe_get(ev_dict, "journal", safe_get(ev_dict, "source", ""))
+            year = safe_get(ev_dict, "year", "")
+            citation_text = safe_get(ev_dict, "citation_text", "")
+
+            # Skip if no URL or already seen
+            if not url or url in seen_urls:
+                continue
+            seen_urls.add(url)
+
+            # Format reference
+            if title and url:
+                # Clean title (remove truncation if present)
+                display_title = title[:100] + "..." if len(title) > 100 else title
+                journal_info = f" ({journal}, {year})" if journal and year else f" ({journal})" if journal else f" ({year})" if year else ""
+                references.append(f"{len(references) + 1}. [{display_title}]({url}){journal_info}")
+
+        if not references:
+            return ""
+
+        lines = [
+            "---",
+            "",
+            "## 14. 참고문헌 (References)",
+            "",
+            "### 검색된 논문 및 자료",
+            "",
+        ]
+        lines.extend(references)
+        lines.append("")
+        lines.append("---")
+
+        return "\n".join(lines)
 
     def _generate_summary(
         self,

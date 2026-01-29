@@ -15,7 +15,7 @@ from openai import AsyncOpenAI
 from app.config import settings
 from app.schemas.chat import Reference
 from ..state import PodcastTaskResult, PodcastTaskType, DialogueScript, DialogueTurn
-from ..prompts import (
+from ...prompts import (
     get_script_prompt,
     get_duration_instruction,
     get_language_instruction,

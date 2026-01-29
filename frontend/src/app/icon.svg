@@ -1,0 +1,10 @@
+<svg width="32" height="32" viewBox="0 0 62 62" fill="none" xmlns="http://www.w3.org/2000/svg">
+  <circle cx="31" cy="31" r="28" stroke="#E2E8F0" stroke-width="2" fill="none"/>
+  <circle cx="31" cy="31" r="28" stroke="#0D9488" stroke-width="2.5" stroke-dasharray="44 132" stroke-linecap="round" fill="none"/>
+  <circle cx="31" cy="31" r="21" stroke="#E2E8F0" stroke-width="2" fill="none"/>
+  <circle cx="31" cy="31" r="21" stroke="#5EEAD4" stroke-width="2.5" stroke-dasharray="33 99" stroke-linecap="round" fill="none" transform="rotate(60 31 31)"/>
+  <circle cx="31" cy="31" r="14" stroke="#E2E8F0" stroke-width="2" fill="none"/>
+  <circle cx="31" cy="31" r="14" stroke="#F97066" stroke-width="2.5" stroke-dasharray="22 66" stroke-linecap="round" fill="none" transform="rotate(120 31 31)"/>
+  <circle cx="31" cy="31" r="6.5" fill="#1E293B"/>
+  <circle cx="31" cy="31" r="3.25" fill="white"/>
+</svg>

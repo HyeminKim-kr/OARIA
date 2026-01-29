@@ -9,14 +9,14 @@ v4 특징:
 """
 
 from app.services.agent.study_plan.v4.core.state import (
-    WorkingMemory,
     ExecutionHistory,
     ExecutionStep,
 )
+from app.services.agent.study_plan.v4.core.state_view import StateView
 from app.services.agent.study_plan.v4.service import StudyPlanAgentV4
 
 __all__ = [
-    "WorkingMemory",
+    "StateView",
     "ExecutionHistory",
     "ExecutionStep",
     "StudyPlanAgentV4",

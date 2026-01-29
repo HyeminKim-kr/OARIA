@@ -24,8 +24,17 @@ def finalize_node(state: StudyPlanState) -> dict:
     Returns:
         Updated state with completion information
     """
+    import sys
+    print("\n" + "="*70, file=sys.stderr, flush=True)
+    print("[FINALIZE NODE CALLED]", file=sys.stderr, flush=True)
+    print("="*70 + "\n", file=sys.stderr, flush=True)
+
     iteration = state.get("iteration_count", 0)
     goal_achieved = state.get("goal_achieved", False)
+
+    print(f"[FINALIZE] iteration={iteration}, goal_achieved={goal_achieved}", file=sys.stderr, flush=True)
+    print(f"[FINALIZE] plan_a exists: {state.get('plan_a') is not None}", file=sys.stderr, flush=True)
+    print(f"[FINALIZE] plan_b exists: {state.get('plan_b') is not None}", file=sys.stderr, flush=True)
 
     logger.info(f"=== Finalize Node (iteration {iteration}) ===")
     logger.info(f"Goal achieved: {goal_achieved}")
@@ -61,14 +70,22 @@ def finalize_node(state: StudyPlanState) -> dict:
     experiments = state.get("experiments") or []
     plan_a = state.get("plan_a")
     plan_b = state.get("plan_b")
+    retrieved_papers = state.get("retrieved_papers") or []
+    evidence_snippets = state.get("evidence_snippets") or []
+
+    print(f"[FINALIZE] retrieved_papers count: {len(retrieved_papers)}", file=sys.stderr, flush=True)
+    print(f"[FINALIZE] evidence_snippets count: {len(evidence_snippets)}", file=sys.stderr, flush=True)
 
     # Create completion event for streaming
+    # NOTE: Must use "completed" to match AgentEventType.COMPLETED
+    # NOTE: Must include plan_a, plan_b, executive_summary for agent_job_executor.py
     completion_event = (
-        "completion",
+        "completed",
         {
             "timestamp": datetime.now(timezone.utc).isoformat(),
             "status": final_status,
             "goal_achieved": goal_achieved,
+            "success": goal_achieved,  # For agent_job_executor
             "force_complete": force_complete,
             "force_reason": force_reason,
             "iteration_count": iteration,
@@ -79,6 +96,15 @@ def finalize_node(state: StudyPlanState) -> dict:
             "quality_score": state.get("quality_score", 0.0),
             "cumulative_tokens": cumulative_tokens,
             "estimated_cost": estimated_cost,
+            # Required by agent_job_executor.py
+            "plan_a": plan_a or "",
+            "plan_b": plan_b or "",
+            "executive_summary": state.get("executive_summary") or "",
+            # Papers and evidence for citations
+            "retrieved_papers": retrieved_papers,
+            "evidence_snippets": evidence_snippets,
+            "paper_count": len(retrieved_papers),
+            "snippet_count": len(evidence_snippets),
         },
     )
 
@@ -92,6 +118,9 @@ def finalize_node(state: StudyPlanState) -> dict:
             "executive_summary": state.get("executive_summary"),
             "experiments": experiments,
             "quality_score": state.get("quality_score", 0.0),
+            # Papers and evidence for citations
+            "retrieved_papers": retrieved_papers,
+            "evidence_snippets": evidence_snippets,
         },
     )
 
@@ -105,6 +134,11 @@ def finalize_node(state: StudyPlanState) -> dict:
     logger.info(f"Experiments designed: {len(experiments)}")
     logger.info(f"Plan A: {'Yes' if plan_a else 'No'}")
     logger.info(f"Plan B: {'Yes' if plan_b else 'No'}")
+
+    import sys
+    print(f"[FINALIZE] About to return. pending_events count: {len(pending_events)}", file=sys.stderr, flush=True)
+    print(f"[FINALIZE] final_status={final_status}", file=sys.stderr, flush=True)
+    print("="*70 + "\n", file=sys.stderr, flush=True)
 
     return {
         "final_status": final_status,

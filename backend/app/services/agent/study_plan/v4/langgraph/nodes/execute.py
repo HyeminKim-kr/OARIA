@@ -10,7 +10,7 @@ from typing import TYPE_CHECKING, Any
 
 from app.services.agent.study_plan.v4.langgraph.state import StudyPlanState
 from app.services.agent.study_plan.v4.core.types import Action
-from app.services.agent.study_plan.v4.core.state import WorkingMemory
+from app.services.agent.study_plan.v4.core.state_view import StateView
 
 if TYPE_CHECKING:
     from app.services.agent.study_plan.v4.core.executor import Executor
@@ -54,11 +54,11 @@ def create_execute_node(executor: "Executor"):
             confidence=state.get("current_confidence", 0.5),
         )
 
-        # Convert state to WorkingMemory for auto-fill functionality
-        working_memory = _state_to_working_memory(state)
+        # Create StateView (read-only view of state) for auto-fill functionality
+        state_view = StateView(state)
 
         # Execute the action
-        observation = await executor.execute(action, working_memory)
+        observation = await executor.execute(action, state_view)
 
         logger.info(f"Execution result: success={observation.success}")
         if not observation.success:
@@ -126,29 +126,6 @@ def create_execute_node(executor: "Executor"):
         }
 
     return execute_node
-
-
-def _state_to_working_memory(state: StudyPlanState) -> WorkingMemory:
-    """Convert LangGraph state to WorkingMemory for auto-fill.
-
-    This is a simplified version that only includes fields needed
-    for the Executor's auto-fill functionality.
-    """
-    memory = WorkingMemory()
-
-    memory.run_id = state.get("run_id", memory.run_id)
-    memory.original_hypothesis = state.get("original_hypothesis", "")
-    memory.structured_hypothesis = state.get("structured_hypothesis")
-    memory.test_questions = state.get("test_questions") or []
-    memory.answered_questions = set(state.get("answered_questions") or [])
-    memory.evidence_snippets = state.get("evidence_snippets") or []
-    memory.experiments = state.get("experiments") or []
-    memory.controls = state.get("controls") or {}
-    memory.measurements = state.get("measurements") or []
-    memory.plan_a = state.get("plan_a")
-    memory.constraints = state.get("constraints") or []
-
-    return memory
 
 
 def _truncate_result(result, max_length: int = 500) -> str:

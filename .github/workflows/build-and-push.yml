@@ -106,6 +106,8 @@ jobs:
           tags: |
             ${{ env.REGISTRY }}/${{ env.GCP_PROJECT_ID }}/oaria-${{ inputs.environment }}-docker/service-frontend:${{ github.sha }}
             ${{ env.REGISTRY }}/${{ env.GCP_PROJECT_ID }}/oaria-${{ inputs.environment }}-docker/service-frontend:latest
+          build-args: |
+            NEXT_PUBLIC_API_URL=${{ inputs.environment == 'prod' && 'https://oaria.cloud/api' || 'https://oaria.cloud/api' }}
           cache-from: type=gha
           cache-to: type=gha,mode=max
           platforms: linux/amd64
@@ -182,6 +184,8 @@ jobs:
           tags: |
             ${{ env.REGISTRY }}/${{ env.GCP_PROJECT_ID }}/oaria-${{ inputs.environment }}-docker/admin-frontend:${{ github.sha }}
             ${{ env.REGISTRY }}/${{ env.GCP_PROJECT_ID }}/oaria-${{ inputs.environment }}-docker/admin-frontend:latest
+          build-args: |
+            NEXT_PUBLIC_API_URL=${{ inputs.environment == 'prod' && 'https://admin.oaria.cloud/api' || 'https://admin.oaria.cloud/api' }}
           cache-from: type=gha
           cache-to: type=gha,mode=max
           platforms: linux/amd64

@@ -18,10 +18,9 @@ from langchain_openai import ChatOpenAI
 from langchain_core.messages import SystemMessage, HumanMessage
 
 from app.services.agent.study_plan.v4.core.types import Action, TokenUsageDict
-from app.services.agent.study_plan.v4.core.state import (
-    WorkingMemory,
-    ExecutionHistory,
-)
+from app.services.agent.study_plan.v4.core.state import ExecutionHistory
+from app.services.agent.study_plan.v4.core.state_view import StateView
+from app.services.agent.study_plan.v4.core.phase_tracker import PhaseTracker
 from app.services.agent.study_plan.v4.prompts.reasoning import (
     TOOL_SELECTION_PROMPT,
     ALTERNATIVE_SELECTION_PROMPT,
@@ -109,7 +108,7 @@ class Reasoner:
 
     async def reason(
         self,
-        state: WorkingMemory,
+        state: StateView,
         history: ExecutionHistory,
         goal: str,
     ) -> tuple[str, Action]:
@@ -119,7 +118,7 @@ class Reasoner:
         Falls back to prompt-based reasoning if function calling fails.
 
         Args:
-            state: Current working memory
+            state: Current state view (read-only)
             history: Execution history
             goal: The goal to achieve
 
@@ -137,7 +136,7 @@ class Reasoner:
 
     async def reason_with_tokens(
         self,
-        state: WorkingMemory,
+        state: StateView,
         history: ExecutionHistory,
         goal: str,
     ) -> tuple[str, Action, TokenUsageDict | None]:
@@ -147,7 +146,7 @@ class Reasoner:
         This is used by LangGraph nodes for token tracking.
 
         Args:
-            state: Current working memory
+            state: Current state view (read-only)
             history: Execution history
             goal: The goal to achieve
 
@@ -159,7 +158,7 @@ class Reasoner:
 
     async def _reason_with_function_calling(
         self,
-        state: WorkingMemory,
+        state: StateView,
         history: ExecutionHistory,
         goal: str,
     ) -> tuple[str, Action]:
@@ -186,10 +185,12 @@ class Reasoner:
         system_msg = SystemMessage(content=FUNCTION_CALLING_SYSTEM_PROMPT)
         user_msg = HumanMessage(content=FUNCTION_CALLING_USER_PROMPT.format(**context))
 
-        # Get OpenAI function definitions
-        functions = self.tools.get_openai_functions()
+        # Get OpenAI function definitions - FILTERED BY PHASE
+        allowed_tools = context.get("allowed_tools")
+        functions = self.tools.get_openai_functions(allowed_tools)
 
-        logger.debug(f"Calling LLM with {len(functions)} function definitions")
+        logger.info(f"[Phase Filter] Providing {len(functions)} functions to LLM (allowed: {allowed_tools})")
+        print(f"[FC DEBUG] Phase-filtered functions: {[f['function']['name'] for f in functions]}")
 
         # Call LLM with tools (function calling)
         response = await self.llm.ainvoke(
@@ -284,7 +285,7 @@ class Reasoner:
 
     async def _reason_with_prompt(
         self,
-        state: WorkingMemory,
+        state: StateView,
         history: ExecutionHistory,
         goal: str,
     ) -> tuple[str, Action]:
@@ -353,7 +354,7 @@ class Reasoner:
 
     def _validate_finish_allowed(
         self,
-        state: WorkingMemory,
+        state: StateView,
     ) -> tuple[bool, str, str]:
         """Check if FINISH is allowed based on current state.
 
@@ -384,7 +385,7 @@ class Reasoner:
 
     def _build_context(
         self,
-        state: WorkingMemory,
+        state: StateView,
         history: ExecutionHistory,
         goal: str,
     ) -> dict:
@@ -399,11 +400,20 @@ class Reasoner:
 
         failed_actions_str = "\n".join(failed_actions_info) if failed_actions_info else "None"
 
+        # Phase context 생성
+        phase_tracker = PhaseTracker(state)
+        phase_context = phase_tracker.get_phase_prompt()
+        allowed_tools = phase_tracker.get_allowed_tools()
+
+        logger.info(f"[Phase] Current phase: {phase_tracker.get_current_phase().value}, allowed tools: {allowed_tools}")
+
         return {
             "goal": goal,
             "hypothesis": state.original_hypothesis,
+            "phase_context": phase_context,
+            "allowed_tools": allowed_tools,  # Phase별 허용된 도구 목록
             "state_summary": state.get_summary(),
-            "tool_descriptions": self.tools.get_descriptions_for_llm(),
+            "tool_descriptions": self.tools.get_descriptions_for_llm(allowed_tools),  # 필터링된 도구만
             "recent_actions": history.get_context_for_llm(),
             "failed_actions": failed_actions_str,
             "consecutive_failures": history._consecutive_failures,
@@ -571,7 +581,7 @@ class Reasoner:
     async def _get_alternative(
         self,
         original: dict,
-        state: WorkingMemory,
+        state: StateView,
         history: ExecutionHistory,
     ) -> dict:
         """Get alternative action when original has failed too many times."""
