@@ -102,6 +102,7 @@ export interface MessageReference {
   offset_end: number;
   text_version: string;
   distance: number;
+  citation_index?: number;
 }
 
 export interface MessageItem {

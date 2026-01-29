@@ -783,15 +783,15 @@ export const papersApi = {
   triggerEmbedPaper: (id: string) =>
     api.post<EmbedTriggerResponse>(`/papers/${id}/embed`).then((res) => res.data),
   triggerReembed: (queryId?: string) =>
-    api.post<EmbedTriggerResponse>('/papers/embed/retry', null, { params: { queryId } }).then((res) => res.data),
+    api.post<EmbedTriggerResponse>('/papers/embed/retry', undefined, { params: { queryId } }).then((res) => res.data),
 
   // Job Manager V2 - 임베딩 배치 관리
   getEmbedJobs: () =>
     api.get<EmbedJobsResponse>('/papers/embedding/jobs').then((res) => res.data),
   triggerEmbedBatch: (limit?: number) =>
-    api.post<EmbedBatchTriggerResponse>('/papers/embedding/batch-trigger', null, { params: { limit } }).then((res) => res.data),
+    api.post<EmbedBatchTriggerResponse>('/papers/embedding/batch-trigger', undefined, { params: { limit } }).then((res) => res.data),
   cancelEmbedBatch: () =>
-    api.post<EmbedBatchCancelResponse>('/papers/embedding/batch-cancel').then((res) => res.data),
+    api.post<EmbedBatchCancelResponse>('/papers/embedding/batch-cancel', undefined).then((res) => res.data),
   retryEmbedJob: (jobId: string) =>
     api.post<{ success: boolean }>(`/papers/embedding/jobs/${jobId}/retry`).then((res) => res.data),
   cancelEmbedJob: (jobId: string) =>
