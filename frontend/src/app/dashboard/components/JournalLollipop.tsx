@@ -22,7 +22,7 @@ export default function JournalLollipop({ data }: Props) {
 
     const width = el.clientWidth;
     const height = el.clientHeight;
-    const margin = { top: 20, right: 30, bottom: 20, left: 10 };
+    const margin = { top: 8, right: 50, bottom: 8, left: 10 };
 
     if (width <= 0 || height <= 0) return;
 
@@ -38,29 +38,18 @@ export default function JournalLollipop({ data }: Props) {
 
     const defs = svg.append("defs");
 
-    // Brand-aligned gradient for bars: Teal gradient
+    // Brand gradient for bars
     const gradient = defs.append("linearGradient")
-      .attr("id", "lollipop-grad")
+      .attr("id", "journal-bar-grad")
       .attr("x1", "0%").attr("y1", "0%")
       .attr("x2", "100%").attr("y2", "0%");
     gradient.append("stop").attr("offset", "0%")
-      .attr("stop-color", isDark ? "#2DD4BF" : BRAND.teal);
+      .attr("stop-color", isDark ? BRAND.lightTeal : BRAND.teal);
     gradient.append("stop").attr("offset", "100%")
       .attr("stop-color", isDark ? "#5EEAD4" : BRAND.lightTeal);
 
-    // Glow filter
-    const glowFilter = defs.append("filter")
-      .attr("id", "lollipop-glow")
-      .attr("x", "-50%").attr("y", "-50%")
-      .attr("width", "200%").attr("height", "200%");
-    glowFilter.append("feDropShadow")
-      .attr("dx", "0").attr("dy", "0")
-      .attr("stdDeviation", "3")
-      .attr("flood-color", isDark ? "#2DD4BF" : BRAND.teal)
-      .attr("flood-opacity", "0.4");
-
     const maxCount = d3.max(data, d => d.value) || 1;
-    const barMaxWidth = width - margin.left - margin.right - 100;
+    const barMaxWidth = width - margin.left - margin.right - 10;
 
     const xScale = d3.scaleLinear()
       .domain([0, maxCount])
@@ -69,7 +58,7 @@ export default function JournalLollipop({ data }: Props) {
     const yScale = d3.scaleBand()
       .domain(data.map(d => d.label))
       .range([margin.top, height - margin.bottom])
-      .padding(0.4);
+      .padding(0.35);
 
     const g = svg.append("g")
       .attr("transform", `translate(${margin.left}, 0)`);
@@ -80,11 +69,11 @@ export default function JournalLollipop({ data }: Props) {
       .style("position", "absolute")
       .style("visibility", "hidden")
       .style("background", theme.tooltipBg)
-      .style("border", `1px solid ${theme.tooltipBorder}`)
-      .style("border-radius", "10px")
+      .style("border", `1px solid ${theme.border}`)
+      .style("border-radius", "8px")
       .style("padding", "10px 14px")
       .style("font-size", "12px")
-      .style("box-shadow", `0 4px 20px ${theme.tooltipShadow}`)
+      .style("box-shadow", `0 4px 16px ${theme.tooltipShadow}`)
       .style("pointer-events", "none")
       .style("z-index", "50")
       .style("color", theme.textPrimary)
@@ -98,125 +87,87 @@ export default function JournalLollipop({ data }: Props) {
       .attr("transform", d => `translate(0, ${yScale(d.label)})`)
       .style("cursor", "pointer");
 
-    // Background track
-    rows.append("rect")
-      .attr("x", 0)
-      .attr("y", (yScale.bandwidth() - 4) / 2)
-      .attr("width", barMaxWidth)
-      .attr("height", 4)
-      .attr("rx", 2)
-      .attr("fill", isDark ? "rgba(255,255,255,0.05)" : "rgba(0,0,0,0.05)");
+    const barHeight = Math.min(yScale.bandwidth(), 20);
+    const barY = (yScale.bandwidth() - barHeight) / 2;
 
-    // Animated bar (stem)
+    // Background track - subtle
     rows.append("rect")
-      .attr("class", "lollipop-stem")
       .attr("x", 0)
-      .attr("y", (yScale.bandwidth() - 4) / 2)
+      .attr("y", barY)
+      .attr("width", barMaxWidth)
+      .attr("height", barHeight)
+      .attr("rx", barHeight / 2)
+      .attr("fill", isDark ? "rgba(45, 212, 191, 0.08)" : "rgba(13, 148, 136, 0.06)");
+
+    // Animated gradient bar
+    rows.append("rect")
+      .attr("class", "journal-bar")
+      .attr("x", 0)
+      .attr("y", barY)
       .attr("width", 0)
-      .attr("height", 4)
-      .attr("rx", 2)
-      .attr("fill", "url(#lollipop-grad)")
+      .attr("height", barHeight)
+      .attr("rx", barHeight / 2)
+      .attr("fill", "url(#journal-bar-grad)")
       .transition()
       .duration(800)
-      .delay((_, i) => i * 60)
-      .ease(d3.easeElasticOut.amplitude(1).period(0.5))
+      .delay((_, i) => i * 50)
+      .ease(d3.easeCubicOut)
       .attr("width", d => xScale(d.value));
 
-    // Lollipop head (circle) - Brand teal
-    rows.append("circle")
-      .attr("class", "lollipop-head")
-      .attr("cx", 0)
-      .attr("cy", yScale.bandwidth() / 2)
-      .attr("r", 0)
-      .attr("fill", isDark ? "#2DD4BF" : BRAND.teal)
-      .attr("stroke", theme.surface)
-      .attr("stroke-width", 2)
-      .attr("filter", "url(#lollipop-glow)")
-      .transition()
-      .duration(800)
-      .delay((_, i) => i * 60)
-      .ease(d3.easeElasticOut.amplitude(1).period(0.4))
-      .attr("cx", d => xScale(d.value))
-      .attr("r", 8);
-
-    // Rank badge
-    rows.append("circle")
-      .attr("cx", -20)
-      .attr("cy", yScale.bandwidth() / 2)
-      .attr("r", 10)
-      .attr("fill", theme.surfaceHover)
-      .attr("stroke", theme.border)
-      .attr("stroke-width", 1);
-
+    // Journal name inside bar (left side)
     rows.append("text")
-      .attr("x", -20)
+      .attr("x", 8)
       .attr("y", yScale.bandwidth() / 2)
       .attr("dy", "0.35em")
-      .attr("text-anchor", "middle")
-      .text((_, i) => i + 1)
-      .style("font-size", "9px")
-      .style("font-weight", "700")
-      .style("fill", theme.textPrimary);
-
-    // Count badge (right side) - Brand teal accent
-    rows.append("rect")
-      .attr("x", barMaxWidth + 8)
-      .attr("y", (yScale.bandwidth() - 18) / 2)
-      .attr("width", 50)
-      .attr("height", 18)
-      .attr("rx", 9)
-      .attr("fill", isDark ? "rgba(45, 212, 191, 0.2)" : "rgba(13, 148, 136, 0.15)");
-
-    rows.append("text")
-      .attr("x", barMaxWidth + 33)
-      .attr("y", yScale.bandwidth() / 2)
-      .attr("dy", "0.35em")
-      .attr("text-anchor", "middle")
-      .text(d => d.value.toLocaleString())
-      .style("font-size", "10px")
-      .style("font-weight", "700")
-      .style("fill", isDark ? "#2DD4BF" : BRAND.teal);
-
-    // Journal name (truncated)
-    rows.append("text")
-      .attr("x", 5)
-      .attr("y", yScale.bandwidth() / 2 - 10)
       .text(d => {
-        const maxLen = Math.floor(barMaxWidth / 7);
+        const maxLen = Math.floor(barMaxWidth / 8);
         return d.label.length > maxLen ? d.label.slice(0, maxLen - 2) + "..." : d.label;
       })
       .style("font-size", "10px")
       .style("font-weight", "600")
-      .style("fill", theme.textPrimary)
+      .style("fill", "#FFFFFF")
+      .style("text-shadow", "0 1px 2px rgba(0,0,0,0.3)")
       .attr("opacity", 0)
       .transition()
       .duration(400)
-      .delay((_, i) => i * 60 + 300)
+      .delay((_, i) => i * 50 + 400)
+      .attr("opacity", 1);
+
+    // Count badge (right side of bar)
+    rows.append("text")
+      .attr("x", d => xScale(d.value) + 6)
+      .attr("y", yScale.bandwidth() / 2)
+      .attr("dy", "0.35em")
+      .text(d => d.value.toLocaleString())
+      .style("font-size", "10px")
+      .style("font-weight", "700")
+      .style("fill", isDark ? BRAND.lightTeal : BRAND.teal)
+      .attr("opacity", 0)
+      .transition()
+      .duration(400)
+      .delay((_, i) => i * 50 + 600)
       .attr("opacity", 1);
 
     // Hover interactions
     rows
       .on("mouseover", function (event, d) {
         const i = data.indexOf(d);
-        d3.select(this).select(".lollipop-head")
+        d3.select(this).select(".journal-bar")
           .transition().duration(150)
-          .attr("r", 11);
-        d3.select(this).select(".lollipop-stem")
-          .transition().duration(150)
-          .attr("height", 6)
-          .attr("y", (yScale.bandwidth() - 6) / 2);
+          .attr("height", barHeight + 4)
+          .attr("y", barY - 2);
 
         tip.style("visibility", "visible")
           .html(
-            `<div style="font-weight:700;margin-bottom:6px">${d.label}</div>
+            `<div style="font-weight:700;margin-bottom:6px;color:${theme.textPrimary}">${d.label}</div>
             <div style="display:flex;gap:16px;font-size:11px">
               <div>
-                <span style="opacity:0.5">Rank</span>
-                <span style="margin-left:4px;font-weight:700">#${i + 1}</span>
+                <span style="color:${theme.textSecondary}">Rank</span>
+                <span style="margin-left:4px;font-weight:700;color:${theme.textPrimary}">#${i + 1}</span>
               </div>
               <div>
-                <span style="opacity:0.5">Papers</span>
-                <span style="margin-left:4px;font-weight:700;color:${isDark ? "#2DD4BF" : BRAND.teal}">${d.value.toLocaleString()}</span>
+                <span style="color:${theme.textSecondary}">Papers</span>
+                <span style="margin-left:4px;font-weight:700;color:${isDark ? BRAND.lightTeal : BRAND.teal}">${d.value.toLocaleString()}</span>
               </div>
             </div>`
           );
@@ -226,13 +177,10 @@ export default function JournalLollipop({ data }: Props) {
         tip.style("left", `${mx + 15}px`).style("top", `${my - 10}px`);
       })
       .on("mouseout", function () {
-        d3.select(this).select(".lollipop-head")
+        d3.select(this).select(".journal-bar")
           .transition().duration(150)
-          .attr("r", 8);
-        d3.select(this).select(".lollipop-stem")
-          .transition().duration(150)
-          .attr("height", 4)
-          .attr("y", (yScale.bandwidth() - 4) / 2);
+          .attr("height", barHeight)
+          .attr("y", barY);
         tip.style("visibility", "hidden");
       });
 

@@ -105,15 +105,22 @@ async def search_papers(
 @router.get("/recent", response_model=list[PaperListItem])
 async def get_recent_papers(
     limit: int = Query(10, ge=1, le=500, description="가져올 개수"),
+    year_from: Optional[int] = Query(None, description="시작 연도"),
+    year_to: Optional[int] = Query(None, description="종료 연도"),
     db: AsyncSession = Depends(get_db),
 ):
     """최근 수집된 논문 목록"""
     query = (
         select(Paper)
         .options(selectinload(Paper.authors))
-        .order_by(desc(Paper.created_at))
-        .limit(limit)
     )
+
+    if year_from:
+        query = query.where(Paper.year >= year_from)
+    if year_to:
+        query = query.where(Paper.year <= year_to)
+
+    query = query.order_by(desc(Paper.created_at)).limit(limit)
 
     result = await db.execute(query)
     papers = result.scalars().unique().all()

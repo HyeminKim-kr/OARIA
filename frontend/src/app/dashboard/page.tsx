@@ -212,54 +212,60 @@ function processBumpData(papers: Paper[], caseMap: Record<string, string>) {
   }
 
   // Determine time resolution
-  const years = papers.map((p) => p.year).filter(Boolean) as number[];
+  const years = papers
+    .map((p) => p.year || (p.created_at ? new Date(p.created_at).getFullYear() : null))
+    .filter(Boolean) as number[];
+
   if (years.length === 0) return { items: [], keywords: [], periods: [], dataType: "keyword" as const };
 
   const minYear = Math.min(...years);
   const maxYear = Math.max(...years);
-  const useMonthly = (maxYear - minYear) <= 3;
+
+  const dates = papers
+    .map((p) => (p.created_at ? new Date(p.created_at).getTime() : null))
+    .filter(Boolean) as number[];
+  const dateRangeDays = dates.length > 0 ? (Math.max(...dates) - Math.min(...dates)) / (86400 * 1000) : 0;
+
+  // Use weekly if range is short (<= 45 days)
+  const useWeekly = dateRangeDays > 0 && dateRangeDays <= 45;
+  const useMonthly = !useWeekly && (maxYear - minYear) <= 3;
 
   // Build period → item → count
   const periodItemCount: Record<string, Record<string, number>> = {};
 
-  if (useMonthly) {
-    papers.forEach((p) => {
-      if (!p.created_at) return;
+  papers.forEach((p) => {
+    let period: string | null = null;
+
+    if (useWeekly && p.created_at) {
       const d = new Date(p.created_at);
       const yr = d.getFullYear();
       const mo = String(d.getMonth() + 1).padStart(2, "0");
-      const period = `${yr}.${mo}`;
-      if (!periodItemCount[period]) periodItemCount[period] = {};
+      // Week of month: 1st, 2nd, 3rd, 4th, 5th
+      const week = Math.ceil(d.getDate() / 7);
+      period = `${yr}.${mo}.W${week}`;
+    } else if (useMonthly && p.created_at) {
+      const d = new Date(p.created_at);
+      const yr = d.getFullYear();
+      const mo = String(d.getMonth() + 1).padStart(2, "0");
+      period = `${yr}.${mo}`;
+    } else if (p.year || p.created_at) {
+      period = String(p.year || new Date(p.created_at!).getFullYear());
+    }
 
-      if (useJournals) {
-        if (p.journal && topItems.includes(p.journal)) {
-          periodItemCount[period][p.journal] = (periodItemCount[period][p.journal] || 0) + 1;
-        }
-      } else {
-        p.keywords?.forEach((kw) => {
-          const k = normalizeKw(kw, caseMap);
-          if (topItems.includes(k)) periodItemCount[period][k] = (periodItemCount[period][k] || 0) + 1;
-        });
-      }
-    });
-  } else {
-    papers.forEach((p) => {
-      if (!p.year) return;
-      const period = String(p.year);
-      if (!periodItemCount[period]) periodItemCount[period] = {};
+    if (!period) return;
+    if (!periodItemCount[period]) periodItemCount[period] = {};
 
-      if (useJournals) {
-        if (p.journal && topItems.includes(p.journal)) {
-          periodItemCount[period][p.journal] = (periodItemCount[period][p.journal] || 0) + 1;
-        }
-      } else {
-        p.keywords?.forEach((kw) => {
-          const k = normalizeKw(kw, caseMap);
-          if (topItems.includes(k)) periodItemCount[period][k] = (periodItemCount[period][k] || 0) + 1;
-        });
+    if (useJournals) {
+      if (p.journal && topItems.includes(p.journal)) {
+        periodItemCount[period][p.journal] = (periodItemCount[period][p.journal] || 0) + 1;
       }
-    });
-  }
+    } else {
+      p.keywords?.forEach((kw) => {
+        const k = normalizeKw(kw, caseMap);
+        if (topItems.includes(k)) periodItemCount[period][k] = (periodItemCount[period][k] || 0) + 1;
+      });
+    }
+  });
 
   const periods = Object.keys(periodItemCount).sort();
 
@@ -672,7 +678,7 @@ export default function DashboardPage() {
 
   const papersQuery = useQuery({
     queryKey: ["dashboard", "analysisPapers"],
-    queryFn: () => dashboardApi.getAnalysisPapers(500),  // API limit is 500
+    queryFn: () => dashboardApi.getAnalysisPapers(500, 2020),  // Fetch from 2020 onwards
     enabled: !useMockData,
     staleTime: 5 * 60 * 1000,  // Cache for 5 minutes
   });
@@ -802,11 +808,10 @@ export default function DashboardPage() {
             </div>
             <button
               onClick={() => setUseMockData((v) => !v)}
-              className={`flex items-center gap-2 px-4 py-2 rounded-xl border text-sm font-medium transition-all ${
-                useMockData
-                  ? "border-[var(--oaria-teal)] bg-[var(--oaria-teal)]/10 text-[var(--oaria-teal)]"
-                  : "border-[var(--oaria-border)] text-[var(--oaria-text-secondary)] hover:border-[var(--oaria-teal)] hover:text-[var(--oaria-teal)]"
-              }`}
+              className={`flex items-center gap-2 px-4 py-2 rounded-xl border text-sm font-medium transition-all ${useMockData
+                ? "border-[var(--oaria-teal)] bg-[var(--oaria-teal)]/10 text-[var(--oaria-teal)]"
+                : "border-[var(--oaria-border)] text-[var(--oaria-text-secondary)] hover:border-[var(--oaria-teal)] hover:text-[var(--oaria-teal)]"
+                }`}
             >
               {useMockData ? <FlaskConical size={16} /> : <Database size={16} />}
               {useMockData ? "Mock Data" : "Live Data"}

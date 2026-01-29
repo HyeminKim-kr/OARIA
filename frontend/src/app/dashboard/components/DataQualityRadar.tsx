@@ -48,10 +48,11 @@ export default function DataQualityRadar({ data, totalPapers, sampleSize }: Prop
 
     const width = el.clientWidth;
     const height = el.clientHeight;
-    const margin = 60;
+    // Dynamic margin based on container size for better spacing
+    const margin = Math.max(50, Math.min(width, height) * 0.22);
     const radius = Math.min(width, height) / 2 - margin;
 
-    if (radius <= 0) return;
+    if (radius <= 20) return;
 
     const svg = d3
       .select(el)
@@ -176,75 +177,81 @@ export default function DataQualityRadar({ data, totalPapers, sampleSize }: Prop
         .attr("stroke-dashoffset", 0);
     }
 
-    // Tooltip
+    // Tooltip - High contrast for both modes
     const tip = d3
       .select(el)
       .append("div")
       .style("position", "absolute")
       .style("visibility", "hidden")
-      .style("background", isDark ? "rgba(20,20,30,0.95)" : "rgba(255,255,255,0.98)")
-      .style("border", `2px solid ${COLORS.primary}`)
+      .style("background", isDark ? BRAND.darkBg : "#FFFFFF")
+      .style("border", `1px solid ${isDark ? COLORS.primary : BRAND.border}`)
       .style("border-radius", "12px")
       .style("padding", "14px 18px")
       .style("font-size", "12px")
-      .style("box-shadow", `0 8px 32px rgba(6,214,160,0.25)`)
+      .style("box-shadow", isDark ? "0 8px 32px rgba(0,0,0,0.4)" : "0 8px 32px rgba(0,0,0,0.12)")
       .style("pointer-events", "none")
       .style("z-index", "100")
-      .style("color", "var(--foreground)")
+      .style("color", isDark ? "#F8FAFC" : BRAND.deepNavy)
       .style("min-width", "180px")
       .style("backdrop-filter", "blur(10px)");
 
-    // Axis labels and data points
+    // Get color based on value (green for high, red for low)
+    const getValueColor = (val: number) => {
+      if (val >= 80) return COLORS.success;
+      if (val >= 60) return COLORS.primary;
+      if (val >= 40) return COLORS.highlight;
+      return COLORS.danger;
+    };
+
+    // Axis labels - positioned outside the chart cleanly
     data.forEach((d, i) => {
       const angle = angleSlice * i - Math.PI / 2;
-      const labelRadius = radius + 30;
+      const labelRadius = radius + 18;
       const labelX = Math.cos(angle) * labelRadius;
       const labelY = Math.sin(angle) * labelRadius;
 
-      // Get color based on value (green for high, red for low)
-      const getValueColor = (val: number) => {
-        if (val >= 80) return COLORS.success;
-        if (val >= 60) return COLORS.primary;
-        if (val >= 40) return COLORS.highlight;
-        return COLORS.danger;
-      };
+      // Determine text anchor based on position
+      const isRight = labelX > 5;
+      const isLeft = labelX < -5;
+      const anchor = isRight ? "start" : isLeft ? "end" : "middle";
 
-      // Axis label with value badge
+      // Adjust position for top/bottom labels
+      const isTop = labelY < -5;
+      const isBottom = labelY > 5;
+      const dyOffset = isTop ? "-0.3em" : isBottom ? "0.8em" : "0.35em";
+
       const labelGroup = g.append("g")
         .attr("transform", `translate(${labelX}, ${labelY})`)
         .style("cursor", "pointer");
 
-      // Label text
+      // Compact label: "Name 85%"
       labelGroup.append("text")
-        .attr("text-anchor", "middle")
-        .attr("dy", "-0.5em")
-        .text(d.axis)
-        .style("font-size", "10px")
-        .style("font-weight", "700")
-        .style("fill", "var(--foreground)");
-
-      // Value badge
-      const badgeWidth = 36;
-      const badgeHeight = 18;
-
-      labelGroup.append("rect")
-        .attr("x", -badgeWidth / 2)
-        .attr("y", 2)
-        .attr("width", badgeWidth)
-        .attr("height", badgeHeight)
-        .attr("rx", 9)
-        .attr("fill", getValueColor(d.value))
-        .attr("opacity", 0.9);
-
-      labelGroup.append("text")
-        .attr("text-anchor", "middle")
-        .attr("dy", "1.4em")
-        .text(`${d.value.toFixed(0)}%`)
+        .attr("text-anchor", anchor)
+        .attr("dy", dyOffset)
+        .text(`${d.axis}`)
         .style("font-size", "9px")
-        .style("font-weight", "800")
-        .style("fill", "white");
+        .style("font-weight", "600")
+        .style("fill", COLORS.text);
 
-      // Data point
+      // Value text below/beside the label name
+      const valueOffset = isTop ? 10 : isBottom ? -10 : 0;
+      labelGroup.append("text")
+        .attr("text-anchor", anchor)
+        .attr("dy", isTop ? "0.8em" : isBottom ? "-0.4em" : "1.5em")
+        .text(`${d.value.toFixed(0)}%`)
+        .style("font-size", "10px")
+        .style("font-weight", "800")
+        .style("fill", getValueColor(d.value));
+
+      // Hover for label
+      labelGroup.on("mouseover", () => showTooltip(d, i))
+        .on("mousemove", (e) => moveTooltip(e as unknown as MouseEvent))
+        .on("mouseout", hideTooltip);
+    });
+
+    // Data points on the radar
+    data.forEach((d, i) => {
+      const angle = angleSlice * i - Math.PI / 2;
       const pointRadius = (d.value / 100) * radius;
       const pointX = Math.cos(angle) * pointRadius;
       const pointY = Math.sin(angle) * pointRadius;
@@ -253,96 +260,74 @@ export default function DataQualityRadar({ data, totalPapers, sampleSize }: Prop
         .attr("transform", `translate(${pointX}, ${pointY})`)
         .style("cursor", "pointer");
 
-      // Outer ring
-      point.append("circle")
-        .attr("r", 12)
-        .attr("fill", getValueColor(d.value))
-        .attr("opacity", 0.15);
-
-      // Inner point
+      // Inner point only (no outer ring to reduce clutter)
       point.append("circle")
         .attr("r", 0)
         .attr("fill", getValueColor(d.value))
         .attr("stroke", isDark ? "#1a1a2e" : "white")
         .attr("stroke-width", 2)
-        .attr("filter", "url(#point-shadow)")
         .transition()
         .duration(600)
-        .delay(i * 100 + 800)
-        .ease(d3.easeBackOut.overshoot(2))
-        .attr("r", 6);
+        .delay(i * 80 + 600)
+        .ease(d3.easeBackOut.overshoot(1.5))
+        .attr("r", 5);
 
-      // Hover interactions
-      const showTooltip = () => {
-        point.select("circle:nth-child(2)")
-          .transition().duration(150)
-          .attr("r", 9);
-
-        tip.style("visibility", "visible")
-          .html(
-            `<div style="display:flex;align-items:center;gap:8px;margin-bottom:8px">
-              <div style="width:10px;height:10px;border-radius:50%;background:${getValueColor(d.value)}"></div>
-              <span style="font-weight:800;font-size:14px">${d.axis}</span>
-            </div>
-            <div style="font-size:11px;opacity:0.7;margin-bottom:8px">${d.description}</div>
-            <div style="display:flex;justify-content:space-between;align-items:baseline;padding-top:8px;border-top:1px solid var(--oaria-border)">
-              <span style="font-size:24px;font-weight:800;color:${getValueColor(d.value)}">${d.value.toFixed(1)}%</span>
-              <span style="font-size:11px;opacity:0.6">${d.count.toLocaleString()} / ${d.total.toLocaleString()}</span>
-            </div>`
-          );
-      };
-
-      const hideTooltip = () => {
-        point.select("circle:nth-child(2)")
-          .transition().duration(150)
-          .attr("r", 6);
-        tip.style("visibility", "hidden");
-      };
-
-      const moveTooltip = (event: MouseEvent) => {
-        const [mx, my] = d3.pointer(event, el);
-        tip.style("left", `${mx + 15}px`).style("top", `${my - 10}px`);
-      };
-
-      point.on("mouseover", showTooltip)
+      point.on("mouseover", () => {
+        point.select("circle").transition().duration(150).attr("r", 8);
+        showTooltip(d, i);
+      })
         .on("mousemove", (e) => moveTooltip(e as unknown as MouseEvent))
-        .on("mouseout", hideTooltip);
-
-      labelGroup.on("mouseover", showTooltip)
-        .on("mousemove", (e) => moveTooltip(e as unknown as MouseEvent))
-        .on("mouseout", hideTooltip);
+        .on("mouseout", () => {
+          point.select("circle").transition().duration(150).attr("r", 5);
+          hideTooltip();
+        });
     });
 
-    // Center score display
+    // Tooltip functions
+    function showTooltip(d: DataQualityMetric, _i: number) {
+      tip.style("visibility", "visible")
+        .html(
+          `<div style="display:flex;align-items:center;gap:8px;margin-bottom:8px">
+            <div style="width:10px;height:10px;border-radius:50%;background:${getValueColor(d.value)}"></div>
+            <span style="font-weight:800;font-size:14px">${d.axis}</span>
+          </div>
+          <div style="font-size:11px;opacity:0.7;margin-bottom:8px">${d.description}</div>
+          <div style="display:flex;justify-content:space-between;align-items:baseline;padding-top:8px;border-top:1px solid ${isDark ? "rgba(255,255,255,0.1)" : "rgba(0,0,0,0.1)"}">
+            <span style="font-size:24px;font-weight:800;color:${getValueColor(d.value)}">${d.value.toFixed(1)}%</span>
+            <span style="font-size:11px;opacity:0.6">${d.count.toLocaleString()} / ${d.total.toLocaleString()}</span>
+          </div>`
+        );
+    }
+
+    function hideTooltip() {
+      tip.style("visibility", "hidden");
+    }
+
+    function moveTooltip(event: MouseEvent) {
+      const [mx, my] = d3.pointer(event, el);
+      tip.style("left", `${mx + 15}px`).style("top", `${my - 10}px`);
+    }
+
+    // Center score display - minimal design
     const avgScore = data.reduce((sum, d) => sum + d.value, 0) / data.length;
     const scoreColor = avgScore >= 80 ? COLORS.success : avgScore >= 60 ? COLORS.primary : avgScore >= 40 ? COLORS.highlight : COLORS.danger;
 
-    // Center circle background
-    const centerRadius = 32;
+    // Center circle - compact size
+    const centerRadius = Math.min(20, radius * 0.25);
     g.append("circle")
       .attr("r", centerRadius)
-      .attr("fill", isDark ? "rgba(10,10,20,0.8)" : "rgba(255,255,255,0.95)")
+      .attr("fill", isDark ? "rgba(15,23,42,0.9)" : "rgba(255,255,255,0.95)")
       .attr("stroke", scoreColor)
-      .attr("stroke-width", 3)
-      .attr("filter", "url(#point-shadow)");
+      .attr("stroke-width", 2);
 
-    // Score text
+    // Score number only
     g.append("text")
       .attr("text-anchor", "middle")
-      .attr("dy", "0.1em")
+      .attr("dy", "0.35em")
       .text(avgScore.toFixed(0))
-      .style("font-size", "20px")
+      .style("font-size", `${Math.min(14, centerRadius * 0.8)}px`)
       .style("font-weight", "800")
       .style("fill", scoreColor);
-
-    g.append("text")
-      .attr("text-anchor", "middle")
-      .attr("dy", "1.8em")
-      .text("SCORE")
-      .style("font-size", "7px")
-      .style("font-weight", "700")
-      .style("letter-spacing", "1px")
-      .style("fill", "var(--oaria-text-secondary)");
 
     // Sample info at bottom
     if (sampleSize && totalPapers) {
