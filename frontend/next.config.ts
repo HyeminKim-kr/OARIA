@@ -15,6 +15,17 @@ const nextConfig: NextConfig = {
     "react-force-graph-3d",
     "three-spritetext",
   ],
+  // Three.js WebGL 버전 강제 사용 (WebGPU 대신)
+  webpack: (config, { isServer }) => {
+    if (!isServer) {
+      config.resolve.alias = {
+        ...config.resolve.alias,
+        // three/webgpu 요청을 일반 three로 리다이렉트 (WebGL 사용)
+        "three/webgpu": "three",
+      };
+    }
+    return config;
+  },
 };
 
 export default nextConfig;
