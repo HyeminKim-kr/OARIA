@@ -18,17 +18,66 @@ from app.config import settings
 logger = logging.getLogger(__name__)
 
 
-# OpenAI TTS voice mapping (energetic, uplifting voices)
+# OpenAI TTS voice mapping - distinctive male/female voices
 VOICE_MAP = {
-    # Two hosts style
-    "Alex": "fable",      # Expressive, energetic
-    "Sam": "shimmer",     # Light, optimistic
+    # Two hosts style - clearly different male & female
+    "Alex": "onyx",       # Deep male voice - lead host
+    "Sam": "shimmer",     # Bright female voice - co-host
 
     # Interview style
-    "Dr. Kim": "onyx",    # Deep, authoritative
+    "Dr. Kim": "onyx",    # Deep, authoritative expert (male)
+    "Host": "nova",       # Warm female interviewer
+
+    # Solo narration
+    "Narrator": "fable",  # Expressive, British accent
 
     # Fallback
-    "default": "fable",
+    "default": "onyx",
+}
+
+# Speaker-specific instructions for natural, engaging delivery
+VOICE_INSTRUCTIONS = {
+    # Two hosts style - male & female co-hosts
+    "Alex": (
+        "You are Alex, a male podcast host with a warm, deep voice. "
+        "Speak with genuine enthusiasm and authority about scientific topics. "
+        "Be engaging and conversational, like explaining fascinating discoveries to a friend. "
+        "Use natural pacing with thoughtful pauses. Sound confident but approachable."
+    ),
+    "Sam": (
+        "You are Sam, a female co-host with a bright, energetic voice. "
+        "Speak with curiosity and warmth. React naturally - sound genuinely impressed, "
+        "curious, or excited as appropriate. Be lively and conversational, "
+        "bringing energy to the discussion. Ask insightful follow-up questions."
+    ),
+
+    # Interview style - professional but engaging
+    "Dr. Kim": (
+        "You are Dr. Kim, a distinguished male researcher being interviewed. "
+        "Speak with authority and deep expertise, but remain passionate and accessible. "
+        "Explain complex topics clearly, with the enthusiasm of someone who loves their field. "
+        "Use a measured, confident pace."
+    ),
+    "Host": (
+        "You are a professional female podcast interviewer. "
+        "Speak with warmth, curiosity, and genuine interest in your guest's expertise. "
+        "Ask thoughtful questions and react naturally to answers. "
+        "Be engaging and guide the conversation smoothly."
+    ),
+
+    # Solo narration - documentary style
+    "Narrator": (
+        "You are a narrator for a science documentary podcast. "
+        "Speak with a sophisticated British accent, calm and measured. "
+        "Be clear and engaging, with subtle emphasis on key discoveries. "
+        "Sound knowledgeable yet accessible, inspiring wonder about the topic."
+    ),
+
+    # Default fallback
+    "default": (
+        "Speak as an engaging podcast host. Be warm, conversational, and enthusiastic. "
+        "Use natural pacing with appropriate pauses. Sound genuinely interested in the topic."
+    ),
 }
 
 
@@ -80,19 +129,25 @@ class TTSService:
         """Get the OpenAI voice ID for a speaker name."""
         return VOICE_MAP.get(speaker, VOICE_MAP["default"])
 
+    def get_instructions_for_speaker(self, speaker: str) -> str:
+        """Get the voice instructions for a speaker name."""
+        return VOICE_INSTRUCTIONS.get(speaker, VOICE_INSTRUCTIONS["default"])
+
     async def generate_speech(
         self,
         text: str,
-        voice: str = "alloy",
+        voice: str = "coral",
         speed: float = 1.0,
+        instructions: str | None = None,
     ) -> bytes:
         """
         Generate speech audio for a single text segment.
 
         Args:
             text: Text to convert to speech
-            voice: OpenAI voice ID (alloy, echo, fable, onyx, nova, shimmer)
+            voice: OpenAI voice ID (alloy, ash, coral, echo, fable, nova, onyx, sage, shimmer)
             speed: Speech speed (0.25 to 4.0)
+            instructions: Optional instructions for how the voice should speak (gpt-4o-mini-tts only)
 
         Returns:
             Audio bytes in MP3 format
@@ -101,13 +156,20 @@ class TTSService:
         if not client:
             raise ValueError("OpenAI API key not configured")
 
-        response = await client.audio.speech.create(
-            model="tts-1",  # Use tts-1-hd for higher quality
-            voice=voice,
-            input=text,
-            speed=speed,
-            response_format="mp3",
-        )
+        # Use the newest model with instructions support for natural voices
+        create_params: dict = {
+            "model": "gpt-4o-mini-tts",
+            "voice": voice,
+            "input": text,
+            "speed": speed,
+            "response_format": "mp3",
+        }
+
+        # Add instructions if provided (makes voices much more natural)
+        if instructions:
+            create_params["instructions"] = instructions
+
+        response = await client.audio.speech.create(**create_params)
 
         return response.content
 
@@ -125,7 +187,7 @@ class TTSService:
     async def generate_dialogue_audio(
         self,
         script: dict[str, Any],
-        speed: float = 1.3,
+        speed: float = 1.05,
     ) -> TTSResult:
         """
         Generate audio for a complete dialogue script.
@@ -133,9 +195,12 @@ class TTSService:
         Generates audio for each turn and concatenates them.
         Tracks per-turn timing for frontend transcript highlighting.
 
+        Uses gpt-4o-mini-tts with speaker-specific instructions for
+        natural, engaging podcast-style delivery.
+
         Args:
             script: DialogueScript as dict with 'turns' list
-            speed: Speech speed (default 1.05 for slightly more dynamic pacing)
+            speed: Speech speed (default 1.05 for natural conversational pacing)
 
         Returns:
             TTSResult with combined audio and turn_timings
@@ -173,12 +238,14 @@ class TTSService:
 
             speakers.add(speaker)
             voice = self.get_voice_for_speaker(speaker)
+            instructions = self.get_instructions_for_speaker(speaker)
 
             try:
                 audio_data = await self.generate_speech(
                     text=text,
                     voice=voice,
                     speed=speed,
+                    instructions=instructions,
                 )
                 segment_duration = self._get_mp3_duration(audio_data)
                 turn_timings.append(

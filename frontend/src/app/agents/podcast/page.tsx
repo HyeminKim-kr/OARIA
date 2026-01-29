@@ -24,6 +24,8 @@ import {
   Users,
   Quote,
   Volume2,
+  Download,
+  ExternalLink,
 } from "lucide-react";
 import { podcastApi, PodcastSSEEvent, PodcastDialogueScript, PodcastReference, TurnTiming, fetchWithAuth } from "@/lib/api";
 
@@ -76,22 +78,22 @@ const createInitialNodes = (): NodeProgress[] => [
 
 const features: Feature[] = [
   {
-    icon: <Search size={28} className="text-[var(--oaria-teal)]" />,
+    icon: <Search size={28} className="text-[var(--oaria-coral)]" />,
     title: "RAG 기반 콘텐츠",
     description: "실제 암 연구 논문을 기반으로 정확하고 신뢰할 수 있는 콘텐츠를 생성합니다.",
   },
   {
-    icon: <Quote size={28} className="text-[var(--oaria-teal)]" />,
+    icon: <Quote size={28} className="text-[var(--oaria-coral)]" />,
     title: "인용 포함",
     description: "모든 주요 주장에 [1], [2] 형태의 인용을 포함하여 근거를 제시합니다.",
   },
   {
-    icon: <Users size={28} className="text-[var(--oaria-teal)]" />,
+    icon: <Users size={28} className="text-[var(--oaria-coral)]" />,
     title: "다양한 스타일",
     description: "두 호스트 대화, 인터뷰, 단독 발표 등 다양한 팟캐스트 형식을 지원합니다.",
   },
   {
-    icon: <Clock size={28} className="text-[var(--oaria-teal)]" />,
+    icon: <Clock size={28} className="text-[var(--oaria-coral)]" />,
     title: "맞춤 길이",
     description: "5분, 10분, 15분 등 원하는 에피소드 길이를 선택할 수 있습니다.",
   },
@@ -469,22 +471,37 @@ export default function PodcastPage() {
 
         {/* Scrollable Content */}
         <div className="flex-1 overflow-y-auto">
-          <div className="max-w-4xl mx-auto px-6 py-8">
-            {/* Back Button */}
-            <Link href="/agents" className="inline-flex items-center gap-2 text-sm text-[var(--oaria-text-secondary)] hover:text-[var(--foreground)] mb-6 transition-colors">
-              <ArrowLeft size={16} />
-              모든 에이전트
-            </Link>
-
-            {/* Hero Section */}
-            <div className="text-center mb-12">
-              <div className="w-20 h-20 rounded-2xl bg-[var(--oaria-coral)] flex items-center justify-center mx-auto mb-6 text-white">
-                <Mic2 size={40} />
+          {/* Hero Section */}
+          <section className="relative overflow-hidden bg-gradient-to-b from-[var(--oaria-coral)]/5 to-transparent">
+            <div className="max-w-5xl mx-auto px-6 py-16">
+              {/* Back to Agents - Left aligned */}
+              <div className="mb-6 text-left">
+                <Link
+                  href="/agents"
+                  className="inline-flex items-center gap-1 text-sm text-[var(--oaria-text-secondary)] hover:text-[var(--oaria-coral)] transition-colors"
+                >
+                  <ArrowLeft size={16} />
+                  모든 에이전트
+                </Link>
               </div>
-              <h1 className="font-[family-name:var(--font-outfit)] text-4xl font-bold mb-4">
-                Podcast Agent
+
+              {/* Icon Badge - Center aligned */}
+              <div className="mb-6 text-center">
+                <div className="inline-flex items-center gap-2 px-4 py-2 rounded-full bg-[var(--oaria-coral)]/10 border border-[var(--oaria-coral)]/20">
+                  <Sparkles size={16} className="text-[var(--oaria-coral)]" />
+                  <span className="font-[family-name:var(--font-dm-sans)] text-sm font-medium text-[var(--oaria-coral)]">
+                    AI-Powered Podcast
+                  </span>
+                </div>
+              </div>
+
+              {/* Main Title */}
+              <h1 className="font-[family-name:var(--font-outfit)] text-4xl md:text-5xl font-bold mb-4 leading-tight text-center">
+                <span className="text-[var(--foreground)]">Podcast Agent</span>
               </h1>
-              <p className="font-[family-name:var(--font-dm-sans)] text-lg text-[var(--oaria-text-secondary)] max-w-2xl mx-auto mb-8">
+
+              {/* Subtitle */}
+              <p className="font-[family-name:var(--font-dm-sans)] text-lg text-[var(--oaria-text-secondary)] max-w-2xl mx-auto mb-8 leading-relaxed text-center">
                 암 연구 논문을 기반으로 팟캐스트 스크립트를 자동 생성합니다.
                 <br />
                 RAG 기반 인용과 다양한 대화 스타일을 지원합니다.
@@ -494,82 +511,101 @@ export default function PodcastPage() {
               <div className="flex items-center justify-center gap-4">
                 <button
                   onClick={() => setViewMode("generate")}
-                  className="px-8 py-4 rounded-xl bg-[var(--oaria-teal)] text-white font-[family-name:var(--font-dm-sans)] font-semibold hover:bg-[#0B7A70] transition-colors flex items-center gap-2"
+                  className="inline-flex items-center gap-2 px-6 py-3 rounded-xl bg-[var(--oaria-coral)] text-white font-[family-name:var(--font-dm-sans)] font-medium hover:bg-[var(--oaria-coral)]/80 transition-colors shadow-lg shadow-[var(--oaria-coral)]/20"
                 >
-                  <Sparkles size={20} />
+                  <Mic2 size={20} />
                   팟캐스트 만들기
                 </button>
                 <Link
                   href="/agents/podcast/history"
-                  className="px-8 py-4 rounded-xl border-2 border-[var(--oaria-border-strong)] text-[var(--foreground)] font-[family-name:var(--font-dm-sans)] font-semibold hover:border-[var(--oaria-teal)] transition-colors flex items-center gap-2"
+                  className="inline-flex items-center gap-2 px-6 py-3 rounded-xl border-2 border-[var(--oaria-border-strong)] bg-[var(--background)] text-[var(--foreground)] font-[family-name:var(--font-dm-sans)] font-medium hover:border-[var(--oaria-coral)] hover:text-[var(--oaria-coral)] transition-colors"
                 >
                   <History size={20} />
                   내 기록 보기
                 </Link>
               </div>
             </div>
+          </section>
 
-            {/* Features Section */}
-            <div className="mb-16">
-              <h2 className="font-[family-name:var(--font-outfit)] text-2xl font-semibold text-center mb-8">
+          {/* Features Section */}
+          <section className="max-w-5xl mx-auto px-6 py-12">
+            <div className="text-center mb-10">
+              <h2 className="font-[family-name:var(--font-outfit)] text-2xl font-semibold mb-2">
                 주요 기능
               </h2>
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                {features.map((feature, idx) => (
-                  <div
-                    key={idx}
-                    className="p-6 rounded-xl border-2 border-[var(--oaria-border)] bg-[var(--background)] hover:border-[var(--oaria-teal)]/30 transition-colors"
-                  >
-                    <div className="w-12 h-12 rounded-xl bg-[var(--oaria-teal)]/10 flex items-center justify-center mb-4">
-                      {feature.icon}
-                    </div>
-                    <h3 className="font-[family-name:var(--font-outfit)] text-lg font-semibold mb-2">
-                      {feature.title}
-                    </h3>
-                    <p className="font-[family-name:var(--font-dm-sans)] text-sm text-[var(--oaria-text-secondary)]">
-                      {feature.description}
-                    </p>
-                  </div>
-                ))}
-              </div>
+              <p className="font-[family-name:var(--font-dm-sans)] text-[var(--oaria-text-secondary)]">
+                연구 논문 기반 팟캐스트 제작을 AI가 지원합니다
+              </p>
             </div>
 
-            {/* FAQ Section */}
-            <div className="mb-16">
-              <h2 className="font-[family-name:var(--font-outfit)] text-2xl font-semibold text-center mb-8">
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+              {features.map((feature, idx) => (
+                <div
+                  key={idx}
+                  className="p-6 rounded-xl border-2 border-[var(--oaria-border)] bg-[var(--background)] hover:border-[var(--oaria-coral)]/30 transition-colors"
+                >
+                  <div className="w-12 h-12 rounded-xl bg-[var(--oaria-coral)]/10 flex items-center justify-center mb-4">
+                    {feature.icon}
+                  </div>
+                  <h3 className="font-[family-name:var(--font-outfit)] text-lg font-semibold mb-2">
+                    {feature.title}
+                  </h3>
+                  <p className="font-[family-name:var(--font-dm-sans)] text-sm text-[var(--oaria-text-secondary)] leading-relaxed">
+                    {feature.description}
+                  </p>
+                </div>
+              ))}
+            </div>
+          </section>
+
+          {/* FAQ Section */}
+          <section className="max-w-3xl mx-auto px-6 py-12 pb-16">
+            <div className="text-center mb-10">
+              <h2 className="font-[family-name:var(--font-outfit)] text-2xl font-semibold mb-2">
                 자주 묻는 질문
               </h2>
-              <div className="space-y-4">
-                {faqs.map((faq, idx) => (
-                  <div
-                    key={idx}
-                    className="border-2 border-[var(--oaria-border)] rounded-xl overflow-hidden"
-                  >
-                    <button
-                      onClick={() => setExpandedFaq(expandedFaq === idx ? null : idx)}
-                      className="w-full px-6 py-4 flex items-center justify-between text-left hover:bg-[var(--oaria-border)]/30 transition-colors"
-                    >
-                      <span className="font-[family-name:var(--font-dm-sans)] font-medium">
-                        {faq.question}
-                      </span>
-                      {expandedFaq === idx ? (
-                        <ChevronUp size={20} className="text-[var(--oaria-text-secondary)]" />
-                      ) : (
-                        <ChevronDown size={20} className="text-[var(--oaria-text-secondary)]" />
-                      )}
-                    </button>
-                    {expandedFaq === idx && (
-                      <div className="px-6 pb-4">
-                        <p className="font-[family-name:var(--font-dm-sans)] text-sm text-[var(--oaria-text-secondary)]">
-                          {faq.answer}
-                        </p>
-                      </div>
-                    )}
-                  </div>
-                ))}
-              </div>
+              <p className="font-[family-name:var(--font-dm-sans)] text-[var(--oaria-text-secondary)]">
+                Podcast Agent에 대해 궁금한 점을 확인하세요
+              </p>
             </div>
-          </div>
+
+            <div className="space-y-3">
+              {faqs.map((faq, idx) => (
+                <div
+                  key={idx}
+                  className="border-2 border-[var(--oaria-border)] rounded-xl overflow-hidden"
+                >
+                  <button
+                    type="button"
+                    onClick={() => setExpandedFaq(expandedFaq === idx ? null : idx)}
+                    className="w-full flex items-center justify-between p-4 text-left bg-[var(--background)] hover:bg-[var(--oaria-coral)]/5 transition-colors"
+                  >
+                    <span className="font-[family-name:var(--font-dm-sans)] font-medium pr-4">
+                      {faq.question}
+                    </span>
+                    {expandedFaq === idx ? (
+                      <ChevronUp
+                        size={20}
+                        className="text-[var(--oaria-coral)] flex-shrink-0"
+                      />
+                    ) : (
+                      <ChevronDown
+                        size={20}
+                        className="text-[var(--oaria-text-secondary)] flex-shrink-0"
+                      />
+                    )}
+                  </button>
+                  {expandedFaq === idx && (
+                    <div className="px-4 pb-4 bg-[var(--background)]">
+                      <p className="font-[family-name:var(--font-dm-sans)] text-sm text-[var(--oaria-text-secondary)] leading-relaxed">
+                        {faq.answer}
+                      </p>
+                    </div>
+                  )}
+                </div>
+              ))}
+            </div>
+          </section>
         </div>
       </div>
     );
@@ -609,28 +645,50 @@ export default function PodcastPage() {
       <div className="flex-1 flex overflow-hidden">
         {/* Main Area */}
         <div className="flex-1 overflow-y-auto p-6">
-          <div className="max-w-3xl mx-auto">
-            {/* Back Button */}
-            <button
-              onClick={handleReset}
-              className="inline-flex items-center gap-2 text-sm text-[var(--oaria-text-secondary)] hover:text-[var(--foreground)] mb-6 transition-colors"
+          <div className="max-w-5xl mx-auto">
+            {/* Back Link */}
+            <Link
+              href="/agents"
+              className="inline-flex items-center gap-1 text-sm text-[var(--oaria-text-secondary)] hover:text-[var(--oaria-coral)] transition-colors mb-6"
             >
               <ArrowLeft size={16} />
-              처음으로
-            </button>
+              모든 에이전트
+            </Link>
 
             {/* Header */}
-            <div className="flex items-center gap-4 mb-8">
-              <div className="w-12 h-12 rounded-xl bg-[var(--oaria-coral)] flex items-center justify-center text-white">
-                <Mic2 size={24} />
+            <div className="flex items-center justify-between mb-8">
+              <div className="flex items-center gap-4">
+                <div className="w-12 h-12 rounded-xl bg-[var(--oaria-coral)] flex items-center justify-center text-white">
+                  <Mic2 size={24} />
+                </div>
+                <div>
+                  <h1 className="font-[family-name:var(--font-outfit)] text-xl font-semibold">
+                    Podcast Agent
+                  </h1>
+                  <p className="font-[family-name:var(--font-dm-sans)] text-sm text-[var(--oaria-text-secondary)]">
+                    암 연구 논문 기반 팟캐스트 생성
+                  </p>
+                </div>
               </div>
-              <div>
-                <h1 className="font-[family-name:var(--font-outfit)] text-2xl font-bold">
-                  팟캐스트 생성
-                </h1>
-                <p className="font-[family-name:var(--font-dm-sans)] text-sm text-[var(--oaria-text-secondary)]">
-                  주제를 입력하고 팟캐스트 스크립트를 생성하세요
-                </p>
+
+              {/* 오른쪽: 중단 버튼 & 히스토리 링크 */}
+              <div className="flex items-center gap-3">
+                {isLoading && (
+                  <button
+                    onClick={handleCancel}
+                    className="flex items-center gap-2 px-4 py-2 text-sm font-medium text-red-600 bg-red-50 hover:bg-red-100 rounded-lg transition-colors"
+                  >
+                    <X size={16} />
+                    중단
+                  </button>
+                )}
+                <Link
+                  href="/agents/podcast/history"
+                  className="flex items-center gap-2 px-4 py-2 text-sm font-medium text-[var(--oaria-coral)] bg-[var(--oaria-coral)]/10 hover:bg-[var(--oaria-coral)]/20 rounded-lg transition-colors"
+                >
+                  <History size={16} />
+                  기록
+                </Link>
               </div>
             </div>
 
@@ -646,7 +704,7 @@ export default function PodcastPage() {
                     value={goal}
                     onChange={(e) => setGoal(e.target.value)}
                     placeholder="예: EGFR 표적 치료의 최신 동향 설명해줘"
-                    className="w-full px-4 py-3 rounded-xl border-2 border-[var(--oaria-border)] bg-[var(--background)] font-[family-name:var(--font-dm-sans)] text-sm resize-none focus:outline-none focus:border-[var(--oaria-teal)] transition-colors"
+                    className="w-full px-4 py-3 rounded-xl border-2 border-[var(--oaria-border)] bg-[var(--background)] font-[family-name:var(--font-dm-sans)] text-sm resize-none focus:outline-none focus:border-[var(--oaria-coral)] transition-colors"
                     rows={3}
                   />
                   <p className="mt-2 text-xs text-[var(--oaria-text-secondary)]">
@@ -664,7 +722,7 @@ export default function PodcastPage() {
                     <select
                       value={duration}
                       onChange={(e) => setDuration(e.target.value as typeof duration)}
-                      className="w-full px-4 py-2.5 rounded-xl border-2 border-[var(--oaria-border)] bg-[var(--background)] font-[family-name:var(--font-dm-sans)] text-sm focus:outline-none focus:border-[var(--oaria-teal)] transition-colors"
+                      className="w-full px-4 py-2.5 rounded-xl border-2 border-[var(--oaria-border)] bg-[var(--background)] font-[family-name:var(--font-dm-sans)] text-sm focus:outline-none focus:border-[var(--oaria-coral)] transition-colors"
                     >
                       <option value="short">짧게 (~5분)</option>
                       <option value="medium">보통 (~10분)</option>
@@ -680,7 +738,7 @@ export default function PodcastPage() {
                     <select
                       value={style}
                       onChange={(e) => setStyle(e.target.value as typeof style)}
-                      className="w-full px-4 py-2.5 rounded-xl border-2 border-[var(--oaria-border)] bg-[var(--background)] font-[family-name:var(--font-dm-sans)] text-sm focus:outline-none focus:border-[var(--oaria-teal)] transition-colors"
+                      className="w-full px-4 py-2.5 rounded-xl border-2 border-[var(--oaria-border)] bg-[var(--background)] font-[family-name:var(--font-dm-sans)] text-sm focus:outline-none focus:border-[var(--oaria-coral)] transition-colors"
                     >
                       <option value="two_hosts">두 호스트 대화</option>
                       <option value="interview">인터뷰</option>
@@ -696,7 +754,7 @@ export default function PodcastPage() {
                     <select
                       value={language}
                       onChange={(e) => setLanguage(e.target.value as typeof language)}
-                      className="w-full px-4 py-2.5 rounded-xl border-2 border-[var(--oaria-border)] bg-[var(--background)] font-[family-name:var(--font-dm-sans)] text-sm focus:outline-none focus:border-[var(--oaria-teal)] transition-colors"
+                      className="w-full px-4 py-2.5 rounded-xl border-2 border-[var(--oaria-border)] bg-[var(--background)] font-[family-name:var(--font-dm-sans)] text-sm focus:outline-none focus:border-[var(--oaria-coral)] transition-colors"
                     >
                       <option value="ko">한국어</option>
                       <option value="en">English</option>
@@ -708,7 +766,7 @@ export default function PodcastPage() {
                 <button
                   onClick={handleGenerate}
                   disabled={!goal.trim()}
-                  className="w-full px-6 py-4 rounded-xl bg-[var(--oaria-teal)] text-white font-[family-name:var(--font-dm-sans)] font-semibold hover:bg-[#0B7A70] disabled:opacity-50 disabled:cursor-not-allowed transition-colors flex items-center justify-center gap-2"
+                  className="w-full px-6 py-4 rounded-xl bg-[var(--oaria-coral)] text-white font-[family-name:var(--font-dm-sans)] font-semibold hover:bg-[var(--oaria-coral)]/80 disabled:opacity-50 disabled:cursor-not-allowed transition-colors flex items-center justify-center gap-2"
                 >
                   <Sparkles size={20} />
                   팟캐스트 생성하기
@@ -735,7 +793,7 @@ export default function PodcastPage() {
                         key={node.id}
                         className={`flex items-center gap-3 p-3 rounded-lg transition-colors ${
                           node.status === "active"
-                            ? "bg-[var(--oaria-teal)]/10"
+                            ? "bg-[var(--oaria-coral)]/10"
                             : node.status === "completed"
                             ? "bg-green-500/10"
                             : ""
@@ -743,7 +801,7 @@ export default function PodcastPage() {
                       >
                         <div className={`flex-shrink-0 ${
                           node.status === "active"
-                            ? "text-[var(--oaria-teal)]"
+                            ? "text-[var(--oaria-coral)]"
                             : node.status === "completed"
                             ? "text-green-500"
                             : "text-[var(--oaria-text-secondary)]"
@@ -771,13 +829,6 @@ export default function PodcastPage() {
                   </div>
                 </div>
 
-                {/* Cancel Button */}
-                <button
-                  onClick={handleCancel}
-                  className="w-full px-6 py-3 rounded-xl border-2 border-[var(--oaria-border-strong)] text-[var(--foreground)] font-[family-name:var(--font-dm-sans)] font-medium hover:border-red-500 hover:text-red-500 transition-colors"
-                >
-                  취소
-                </button>
               </div>
             )}
 
@@ -800,7 +851,7 @@ export default function PodcastPage() {
             {script && !isLoading && (
               <div className="space-y-6">
                 {/* Script Header */}
-                <div className="p-6 rounded-xl border-2 border-[var(--oaria-teal)]/30 bg-[var(--oaria-teal)]/5">
+                <div className="p-6 rounded-xl border-2 border-[var(--oaria-coral)]/30 bg-[var(--oaria-coral)]/5">
                   <div className="flex items-start justify-between mb-4">
                     <div>
                       <h2 className="font-[family-name:var(--font-outfit)] text-xl font-bold mb-2">
@@ -827,16 +878,26 @@ export default function PodcastPage() {
                   {/* Audio Player */}
                   {audioUrl && (
                     <div className="mt-4 p-4 rounded-lg bg-[var(--background)] border border-[var(--oaria-border)]">
-                      <div className="flex items-center gap-3 mb-2">
-                        <Mic2 size={18} className="text-[var(--oaria-teal)]" />
-                        <span className="font-[family-name:var(--font-dm-sans)] text-sm font-medium">
-                          팟캐스트 오디오
-                        </span>
-                        {turnTimings.length > 0 && (
-                          <span className="text-xs text-[var(--oaria-text-secondary)]">
-                            (대화를 클릭하면 해당 위치로 이동합니다)
+                      <div className="flex items-center justify-between mb-2">
+                        <div className="flex items-center gap-3">
+                          <Mic2 size={18} className="text-[var(--oaria-coral)]" />
+                          <span className="font-[family-name:var(--font-dm-sans)] text-sm font-medium">
+                            팟캐스트 오디오
                           </span>
-                        )}
+                          {turnTimings.length > 0 && (
+                            <span className="text-xs text-[var(--oaria-text-secondary)]">
+                              (대화를 클릭하면 해당 위치로 이동합니다)
+                            </span>
+                          )}
+                        </div>
+                        <a
+                          href={audioUrl}
+                          download={`podcast-${script?.title || "episode"}.mp3`}
+                          className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm font-medium text-[var(--oaria-coral)] bg-[var(--oaria-coral)]/10 hover:bg-[var(--oaria-coral)]/20 transition-colors"
+                        >
+                          <Download size={14} />
+                          다운로드
+                        </a>
                       </div>
                       <audio
                         ref={audioRef}
@@ -869,20 +930,20 @@ export default function PodcastPage() {
                         }}
                         className={`p-4 rounded-xl border-2 transition-all duration-300 ${
                           isActive
-                            ? "border-[var(--oaria-teal)] bg-[var(--oaria-teal)]/15 ring-2 ring-[var(--oaria-teal)]/40 shadow-lg shadow-[var(--oaria-teal)]/10"
+                            ? "border-[var(--oaria-coral)] bg-[var(--oaria-coral)]/15 ring-2 ring-[var(--oaria-coral)]/40 shadow-lg shadow-[var(--oaria-coral)]/10"
                             : turn.speaker === script.speakers[0]
-                            ? "border-[var(--oaria-teal)]/30 bg-[var(--oaria-teal)]/5"
+                            ? "border-[var(--oaria-coral)]/30 bg-[var(--oaria-coral)]/5"
                             : "border-[var(--oaria-border)] bg-[var(--background)]"
-                        } ${hasTiming ? "cursor-pointer hover:border-[var(--oaria-teal)]/60" : ""}`}
+                        } ${hasTiming ? "cursor-pointer hover:border-[var(--oaria-coral)]/60" : ""}`}
                       >
                         <div className="flex items-center gap-2 mb-2">
                           {isActive && (
-                            <Volume2 size={14} className="text-[var(--oaria-teal)] animate-pulse" />
+                            <Volume2 size={14} className="text-[var(--oaria-coral)] animate-pulse" />
                           )}
                           <span className={`px-2 py-0.5 rounded text-xs font-semibold ${
                             turn.speaker === script.speakers[0]
-                              ? "bg-[var(--oaria-teal)] text-white"
-                              : "bg-[var(--oaria-coral)] text-white"
+                              ? "bg-[var(--oaria-coral)] text-white"
+                              : "bg-[var(--oaria-coral)]/70 text-white"
                           }`}>
                             {turn.speaker}
                           </span>
@@ -908,16 +969,27 @@ export default function PodcastPage() {
                     </h3>
                     <div className="space-y-3">
                       {references.map((ref) => (
-                        <div key={ref.index} className="text-sm">
-                          <span className="font-medium text-[var(--oaria-teal)]">[{ref.index}]</span>{" "}
-                          <span className="font-medium">{ref.title}</span>
-                          {ref.journal && (
-                            <span className="text-[var(--oaria-text-secondary)]">
-                              {" - "}{ref.journal}
-                              {ref.year && ` (${ref.year})`}
-                            </span>
-                          )}
-                        </div>
+                        <Link
+                          key={ref.index}
+                          href={`/papers/${ref.paper_id}`}
+                          className="block p-3 -mx-3 rounded-lg hover:bg-[var(--oaria-coral)]/5 transition-colors group"
+                        >
+                          <div className="flex items-start justify-between gap-2">
+                            <div className="text-sm">
+                              <span className="font-medium text-[var(--oaria-coral)]">[{ref.index}]</span>{" "}
+                              <span className="font-medium group-hover:text-[var(--oaria-coral)] transition-colors">
+                                {ref.title}
+                              </span>
+                              {ref.journal && (
+                                <span className="text-[var(--oaria-text-secondary)]">
+                                  {" - "}{ref.journal}
+                                  {ref.year && ` (${ref.year})`}
+                                </span>
+                              )}
+                            </div>
+                            <ExternalLink size={14} className="flex-shrink-0 text-[var(--oaria-text-secondary)] group-hover:text-[var(--oaria-coral)] transition-colors mt-0.5" />
+                          </div>
+                        </Link>
                       ))}
                     </div>
                   </div>
@@ -927,21 +999,21 @@ export default function PodcastPage() {
                 <div className="flex items-center gap-4">
                   <button
                     onClick={handleReset}
-                    className="flex-1 px-6 py-3 rounded-xl border-2 border-[var(--oaria-border-strong)] text-[var(--foreground)] font-[family-name:var(--font-dm-sans)] font-medium hover:border-[var(--oaria-teal)] transition-colors"
+                    className="flex-1 px-6 py-3 rounded-xl border-2 border-[var(--oaria-border-strong)] text-[var(--foreground)] font-[family-name:var(--font-dm-sans)] font-medium hover:border-[var(--oaria-coral)] transition-colors"
                   >
                     새로 만들기
                   </button>
                   {episodeId ? (
                     <Link
                       href={`/agents/podcast/${episodeId}`}
-                      className="flex-1 px-6 py-3 rounded-xl bg-[var(--oaria-teal)] text-white font-[family-name:var(--font-dm-sans)] font-medium hover:bg-[#0B7A70] transition-colors text-center"
+                      className="flex-1 px-6 py-3 rounded-xl bg-[var(--oaria-coral)] text-white font-[family-name:var(--font-dm-sans)] font-medium hover:bg-[var(--oaria-coral)]/80 transition-colors text-center"
                     >
                       에피소드 보기
                     </Link>
                   ) : (
                     <Link
                       href="/agents/podcast/history"
-                      className="flex-1 px-6 py-3 rounded-xl bg-[var(--oaria-teal)] text-white font-[family-name:var(--font-dm-sans)] font-medium hover:bg-[#0B7A70] transition-colors text-center"
+                      className="flex-1 px-6 py-3 rounded-xl bg-[var(--oaria-coral)] text-white font-[family-name:var(--font-dm-sans)] font-medium hover:bg-[var(--oaria-coral)]/80 transition-colors text-center"
                     >
                       기록 보기
                     </Link>
@@ -977,13 +1049,13 @@ export default function PodcastPage() {
                         : log.type === "result"
                         ? "bg-green-500/10 border border-green-500/30"
                         : log.type === "action"
-                        ? "bg-[var(--oaria-teal)]/10 border border-[var(--oaria-teal)]/30"
+                        ? "bg-[var(--oaria-coral)]/10 border border-[var(--oaria-coral)]/30"
                         : "bg-[var(--oaria-border)]/30"
                     }`}
                   >
                     <div className="flex items-center gap-2 mb-1">
                       {log.type === "thinking" && <Brain size={14} className="text-[var(--oaria-text-secondary)]" />}
-                      {log.type === "action" && <Target size={14} className="text-[var(--oaria-teal)]" />}
+                      {log.type === "action" && <Target size={14} className="text-[var(--oaria-coral)]" />}
                       {log.type === "result" && <CheckCircle2 size={14} className="text-green-500" />}
                       {log.type === "error" && <X size={14} className="text-red-500" />}
                       <span className="font-medium">{log.title}</span>

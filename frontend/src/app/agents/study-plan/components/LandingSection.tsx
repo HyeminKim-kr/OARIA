@@ -3,7 +3,7 @@
 import Link from "next/link";
 import {
   ArrowLeft,
-  Beaker,
+  BookOpen,
   History,
   Sparkles,
   ChevronDown,
@@ -26,20 +26,20 @@ export function LandingSection({
     <>
       {/* Hero Section */}
       <section className="relative overflow-hidden bg-gradient-to-b from-[var(--oaria-teal)]/5 to-transparent">
-        <div className="max-w-5xl mx-auto px-6 py-16 text-center">
-          {/* Back to Agents */}
-          <div className="mb-6">
+        <div className="max-w-5xl mx-auto px-6 py-16">
+          {/* Back to Agents - Left aligned */}
+          <div className="mb-6 text-left">
             <Link
               href="/agents"
               className="inline-flex items-center gap-1 text-sm text-[var(--oaria-text-secondary)] hover:text-[var(--oaria-teal)] transition-colors"
             >
               <ArrowLeft size={16} />
-              AI Agents
+              모든 에이전트
             </Link>
           </div>
 
-          {/* Icon Badge */}
-          <div className="mb-6">
+          {/* Icon Badge - Center aligned */}
+          <div className="mb-6 text-center">
             <div className="inline-flex items-center gap-2 px-4 py-2 rounded-full bg-[var(--oaria-teal)]/10 border border-[var(--oaria-teal)]/20">
               <Sparkles size={16} className="text-[var(--oaria-teal)]" />
               <span className="font-[family-name:var(--font-dm-sans)] text-sm font-medium text-[var(--oaria-teal)]">
@@ -49,12 +49,12 @@ export function LandingSection({
           </div>
 
           {/* Main Title */}
-          <h1 className="font-[family-name:var(--font-outfit)] text-4xl md:text-5xl font-bold mb-4 leading-tight">
+          <h1 className="font-[family-name:var(--font-outfit)] text-4xl md:text-5xl font-bold mb-4 leading-tight text-center">
             <span className="text-[var(--foreground)]">Study Plan Agent</span>
           </h1>
 
           {/* Subtitle */}
-          <p className="font-[family-name:var(--font-dm-sans)] text-lg text-[var(--oaria-text-secondary)] max-w-2xl mx-auto mb-8 leading-relaxed">
+          <p className="font-[family-name:var(--font-dm-sans)] text-lg text-[var(--oaria-text-secondary)] max-w-2xl mx-auto mb-8 leading-relaxed text-center">
             가설을 입력하면 AI가 체계적인 실험 설계 계획서를 자동으로 생성합니다.
             <br />
             선행 연구 검색부터 실험 설계까지, 연구 계획의 전 과정을 지원합니다.
@@ -66,7 +66,7 @@ export function LandingSection({
               onClick={onStartGenerate}
               className="inline-flex items-center gap-2 px-6 py-3 rounded-xl bg-[var(--oaria-teal)] text-white font-[family-name:var(--font-dm-sans)] font-medium hover:bg-[#0B7A70] transition-colors shadow-lg shadow-[var(--oaria-teal)]/20"
             >
-              <Beaker size={20} />
+              <BookOpen size={20} />
               실험 계획 시작하기
             </button>
             <Link
