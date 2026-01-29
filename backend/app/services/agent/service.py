@@ -199,11 +199,55 @@ class AgentService:
         final_state["final_answer"] = final_answer
         final_state["citations"] = all_citations
 
+        # Gate 3: RAGAS Quality Evaluation (OAR-13)
+        from app.services.gates.gate3_ragas import get_gate3_service
+
+        gate3 = get_gate3_service()
+        gate3_result = None
+
+        if gate3.is_enabled:
+            yield AgentEvent(
+                event_type="status",
+                data={"step": "evaluating", "message": "답변 품질 평가 중..."},
+            )
+
+            # Collect contexts for evaluation
+            contexts = [ref.snippet for ref in all_citations]
+
+            gate3_result = await gate3.evaluate(
+                question=query,
+                answer=final_answer,
+                contexts=contexts,
+            )
+
+            # Emit Gate 3 result event
+            yield AgentEvent(
+                event_type="gate3",
+                data={
+                    "passed": gate3_result.passed,
+                    "faithfulness": gate3_result.faithfulness,
+                    "answer_relevancy": gate3_result.answer_relevancy,
+                    "overall_score": gate3_result.overall_score,
+                    "reason": gate3_result.reason.value if gate3_result.reason else None,
+                    "message": gate3_result.message,
+                },
+            )
+
         # Calculate total duration
         total_duration_ms = int((time.perf_counter() - start_time) * 1000)
 
         # Build metadata
         agent_execution = self._build_execution_metadata(final_state, total_duration_ms)
+
+        # Add Gate 3 results to metadata
+        if gate3_result:
+            agent_execution["gate3"] = {
+                "passed": gate3_result.passed,
+                "faithfulness": gate3_result.faithfulness,
+                "answer_relevancy": gate3_result.answer_relevancy,
+                "overall_score": gate3_result.overall_score,
+                "reason": gate3_result.reason.value if gate3_result.reason else None,
+            }
 
         # Yield final result as special event
         yield AgentEvent(
@@ -216,6 +260,11 @@ class AgentService:
                 else str(final_state.get("complexity", "simple")),
                 "subtasks_count": len(final_state.get("subtasks", [])),
                 "total_duration_ms": total_duration_ms,
+                "gate3": {
+                    "passed": gate3_result.passed if gate3_result else None,
+                    "faithfulness": gate3_result.faithfulness if gate3_result else None,
+                    "answer_relevancy": gate3_result.answer_relevancy if gate3_result else None,
+                } if gate3_result else None,
             },
         )
 

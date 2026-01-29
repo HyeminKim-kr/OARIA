@@ -6,7 +6,7 @@ import {
   Search,
   Bot,
   MessageSquare,
-  Beaker,
+  BookOpen,
   BarChart3,
   ArrowLeft,
   AlertTriangle,
@@ -473,52 +473,20 @@ export default function StudyPlanPage() {
             {/* 왼쪽: 메인 콘텐츠 */}
             <div className="flex-1 overflow-y-auto">
               <div className="max-w-5xl mx-auto px-6 py-8">
-                {/* Back & Header */}
+                {/* Back Link */}
+                <Link
+                  href="/agents"
+                  className="inline-flex items-center gap-1 text-sm text-[var(--oaria-text-secondary)] hover:text-[var(--oaria-teal)] transition-colors mb-6"
+                >
+                  <ArrowLeft size={16} />
+                  모든 에이전트
+                </Link>
+
+                {/* Header */}
                 <div className="flex items-center justify-between mb-8">
                   <div className="flex items-center gap-4">
-                    <button
-                      onClick={async () => {
-                        if (isLoading && jobId) {
-                          // 실행 중일 때: 확인 후 취소하고 돌아가기
-                          if (confirm("실행 중인 작업을 중단하시겠습니까?")) {
-                            try {
-                              await cancelJob();
-                            } catch (e) {
-                              console.error("Failed to cancel job:", e);
-                            }
-                            setIsLoading(false);
-                            updateViewMode("landing");
-                            setHypothesis("");
-                            setResearchContext("");
-                            setNodes(createInitialNodes());
-                            setState({ status: "idle", nodeDetails: {} });
-                            setThinkingSteps([]);
-                            setCurrentThinkingStep(null);
-                            setCurrentIteration(0);
-                            setResultData({});
-                            resetJob();
-                          }
-                        } else {
-                          // jobId 없거나 로딩 중 아닐 때: 그냥 돌아가기
-                          if (isLoading) setIsLoading(false);
-                          updateViewMode("landing");
-                          setHypothesis("");
-                          setResearchContext("");
-                          setNodes(createInitialNodes());
-                          setState({ status: "idle", nodeDetails: {} });
-                          setThinkingSteps([]);
-                          setCurrentThinkingStep(null);
-                          setCurrentIteration(0);
-                          setResultData({});
-                          resetJob();
-                        }
-                      }}
-                      className="p-2 rounded-lg hover:bg-[var(--oaria-border)] transition-colors"
-                    >
-                      <ArrowLeft size={20} />
-                    </button>
-                    <div className="w-12 h-12 rounded-xl bg-green-500 flex items-center justify-center text-white">
-                      <Beaker size={24} />
+                    <div className="w-12 h-12 rounded-xl bg-[var(--oaria-teal)] flex items-center justify-center text-white">
+                      <BookOpen size={24} />
                     </div>
                     <div>
                       <h1 className="font-[family-name:var(--font-outfit)] text-xl font-semibold">

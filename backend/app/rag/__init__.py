@@ -22,9 +22,9 @@ Strategy Pattern + Registry Pattern으로 모듈화된 RAG 컴포넌트들을 �
 from app.rag import chunkers  # noqa: F401
 from app.rag import classifiers  # noqa: F401
 from app.rag import embedders  # noqa: F401
+from app.rag import evaluators  # noqa: F401
 from app.rag import retrievers  # noqa: F401
 from app.rag import rerankers  # noqa: F401
-from app.rag import classifiers  # noqa: F401
 
 # 공통 타입
 from app.rag.base import (

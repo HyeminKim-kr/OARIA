@@ -5,11 +5,11 @@ import {
   Search,
   Bot,
   MessageSquare,
-  Beaker,
   ArrowRight,
   BarChart3,
   Mic2,
   BookOpen,
+  FileText,
 } from "lucide-react";
 
 interface AgentCard {
@@ -35,12 +35,12 @@ const agents: AgentCard[] = [
     description:
       "가설 기반 후속 실험 설계를 자동화합니다. NSPE 분석, Evidence Pack 구축, 실험 설계를 지원합니다.",
     features: ["NSPE 분석", "Evidence Pack", "실험 프로토콜 생성"],
-    icon: <Beaker size={28} />,
+    icon: <BookOpen size={28} />,
     href: "/agents/study-plan",
-    accentColor: "#F97066",
-    bgGradientFrom: "from-[#F97066]/10",
-    bgGradientTo: "to-[#F97066]/5",
-    iconBg: "bg-[#F97066]",
+    accentColor: "#0D9488", // OARIA teal
+    bgGradientFrom: "from-[#0D9488]/10",
+    bgGradientTo: "to-[#0D9488]/5",
+    iconBg: "bg-[#0D9488]",
   },
   {
     id: "podcast",
@@ -51,10 +51,10 @@ const agents: AgentCard[] = [
     features: ["다중 화자 TTS", "RAG 기반 인용", "실시간 대사 추적"],
     icon: <Mic2 size={28} />,
     href: "/agents/podcast",
-    accentColor: "#94A3B8",
-    bgGradientFrom: "from-[#94A3B8]/10",
-    bgGradientTo: "to-[#94A3B8]/5",
-    iconBg: "bg-[#94A3B8]",
+    accentColor: "#F97066", // OARIA coral
+    bgGradientFrom: "from-[#F97066]/10",
+    bgGradientTo: "to-[#F97066]/5",
+    iconBg: "bg-[#F97066]",
   },
   {
     id: "research-assistant",
@@ -63,9 +63,9 @@ const agents: AgentCard[] = [
     description:
       "논문 분석, 연구 동향 파악, 관련 연구 탐색을 도와드립니다. 체계적 문헌 고찰을 지원합니다.",
     features: ["논문 분석", "동향 파악", "문헌 고찰"],
-    icon: <BookOpen size={28} />,
+    icon: <FileText size={28} />,
     href: "/agents/research-assistant",
-    accentColor: "#1E293B",
+    accentColor: "#1E293B", // OARIA navy
     bgGradientFrom: "from-[#1E293B]/10",
     bgGradientTo: "to-[#1E293B]/5",
     iconBg: "bg-[#1E293B]",
