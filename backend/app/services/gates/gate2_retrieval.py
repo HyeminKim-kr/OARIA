@@ -107,11 +107,12 @@ class Gate2Service:
         GATE2_ENABLED: true/false (기본 true)
     """
 
-    # 기본 임계값 설정
-    DEFAULT_SIMILARITY_THRESHOLD = 0.7  # OAR-37: max similarity >= 0.7
-    DEFAULT_RELEVANT_SCORE = 0.6        # OAR-38: 관련 문서 판정 기준
-    DEFAULT_MIN_RELEVANT_DOCS = 3       # OAR-38: 최소 관련 문서 수
-    DEFAULT_DOMAIN_RATIO = 0.8          # OAR-39: oncology 비율 >= 80%
+    # 기본 임계값 설정 (완화된 값 - 2026-01-30)
+    # 원래 값: 0.7, 0.6, 3, 0.8 → 일상 쿼리가 모두 실패함
+    DEFAULT_SIMILARITY_THRESHOLD = 0.4  # OAR-37: max similarity >= 0.4 (was 0.7)
+    DEFAULT_RELEVANT_SCORE = 0.4        # OAR-38: 관련 문서 판정 기준 (was 0.6)
+    DEFAULT_MIN_RELEVANT_DOCS = 1       # OAR-38: 최소 관련 문서 수 (was 3)
+    DEFAULT_DOMAIN_RATIO = 0.5          # OAR-39: oncology 비율 >= 50% (was 80%)
 
     # Oncology 관련 키워드 (Domain Validation용)
     ONCOLOGY_KEYWORDS = [

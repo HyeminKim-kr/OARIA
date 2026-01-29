@@ -1,6 +1,7 @@
 """Evidence Synthesizer node (OAR-51)."""
 
 import logging
+import re
 from collections.abc import AsyncGenerator
 
 from app.schemas.chat import Reference
@@ -8,6 +9,76 @@ from app.services.llm_service import llm_service
 from ..state import AgentState, TaskResult
 
 logger = logging.getLogger(__name__)
+
+
+def _extract_cited_indices(answer: str) -> set[int]:
+    """
+    답변에서 실제 인용된 reference 번호를 추출합니다.
+
+    지원 형식:
+    - [1], [2], [3]
+    - [1, 2], [1, 3, 5]
+    - [1,2,3] (공백 없음)
+
+    Args:
+        answer: LLM이 생성한 답변 텍스트
+
+    Returns:
+        인용된 reference 번호 set (1-indexed)
+    """
+    cited = set()
+
+    # [숫자] 또는 [숫자, 숫자, ...] 패턴 매칭
+    pattern = r'\[(\d+(?:\s*,\s*\d+)*)\]'
+    matches = re.findall(pattern, answer)
+
+    for match in matches:
+        # 콤마로 분리하고 각 숫자 추출
+        numbers = re.findall(r'\d+', match)
+        for num in numbers:
+            cited.add(int(num))
+
+    return cited
+
+
+def _filter_cited_references(
+    answer: str,
+    all_references: list[Reference]
+) -> tuple[str, list[tuple[int, Reference]]]:
+    """
+    답변에서 실제 인용된 reference만 필터링합니다.
+
+    스트리밍 호환성을 위해 답변의 인용 번호는 변경하지 않고,
+    대신 각 reference에 원본 인용 번호를 함께 반환합니다.
+
+    Args:
+        answer: 원본 답변 (예: "결과는 [1]과 [5]에서...")
+        all_references: 전체 reference 목록
+
+    Returns:
+        (원본 답변, [(원본 인용번호, reference), ...])
+        예: ("결과는 [1]과 [5]에서...", [(1, ref1), (5, ref5)])
+    """
+    cited_indices = _extract_cited_indices(answer)
+
+    if not cited_indices:
+        logger.info("No citations found in answer, returning all references")
+        # 모든 reference에 순차 번호 부여
+        return answer, [(i + 1, ref) for i, ref in enumerate(all_references)]
+
+    # 인용된 reference만 추출 (원본 번호 유지)
+    cited_refs_with_index: list[tuple[int, Reference]] = []
+
+    for idx in sorted(cited_indices):
+        if 1 <= idx <= len(all_references):
+            cited_refs_with_index.append((idx, all_references[idx - 1]))
+
+    logger.info(
+        f"Filtered references: {len(all_references)} → {len(cited_refs_with_index)} "
+        f"(cited: {sorted(cited_indices)})"
+    )
+
+    return answer, cited_refs_with_index
 
 
 async def synthesize_answer(state: AgentState) -> AgentState:
@@ -70,14 +141,25 @@ async def synthesize_answer(state: AgentState) -> AgentState:
         references=all_references,
     )
 
+    # Filter to only cited references (with original citation indices)
+    final_answer, cited_refs_with_index = _filter_cited_references(
+        llm_response.content, all_references
+    )
+
+    # Extract just the references for citations (indices stored separately)
+    cited_references = [ref for _, ref in cited_refs_with_index]
+    citation_indices = [idx for idx, _ in cited_refs_with_index]
+
     logger.info(
-        f"Synthesis complete. Answer length: {len(llm_response.content)}, "
-        f"Citations: {len(all_references)}"
+        f"Synthesis complete. Answer length: {len(final_answer)}, "
+        f"Citations: {len(cited_references)} (filtered from {len(all_references)}), "
+        f"indices: {citation_indices}"
     )
 
     return {
-        "final_answer": llm_response.content,
-        "citations": all_references,
+        "final_answer": final_answer,
+        "citations": cited_references,
+        "citation_indices": citation_indices,  # 원본 인용 번호
     }
 
 
