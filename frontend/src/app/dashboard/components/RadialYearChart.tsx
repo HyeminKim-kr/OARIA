@@ -74,8 +74,6 @@ export default function RadialYearChart({ data }: Props) {
       .join("path")
       .attr("fill", (_d, i) => color(String(i)))
       .attr("opacity", 0.88)
-      .attr("stroke", theme.surface)
-      .attr("stroke-width", 2)
       .style("cursor", "pointer")
       .on("mouseover", function () {
         d3.select(this).attr("opacity", 1);

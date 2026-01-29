@@ -107,7 +107,7 @@ export default function TopAuthorsBar({ data }: Props) {
       .attr("dy", "0.35em")
       .text((d) => d.value)
       .style("font-size", "11px")
-      .style("fill", theme.textPrimary)
+      .style("fill", "var(--foreground)")
       .style("font-weight", "700")
       .attr("opacity", 0)
       .transition()

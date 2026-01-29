@@ -146,7 +146,8 @@ export default function WorldMap({ data }: Props) {
     });
 
     const maxCount = d3.max(data, (d) => d.count) || 1;
-    const rScale = d3.scaleSqrt().domain([1, maxCount]).range([5, 38]);
+    // Reduced max range from 38 to 26 for better clarity in crowded areas
+    const rScale = d3.scaleSqrt().domain([1, maxCount]).range([4, 26]);
 
     // Tooltip
     const tip = d3
@@ -176,15 +177,15 @@ export default function WorldMap({ data }: Props) {
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
         const borders = topojson.mesh(world as any, (world as any).objects.countries, (a: any, b: any) => a !== b);
 
-        // Ocean gradient - more contrast for light mode
+        // Ocean gradient - high contrast for both modes
         const oceanGrad = defs.append("linearGradient")
           .attr("id", "ocean-gradient")
           .attr("x1", "0%").attr("y1", "0%")
           .attr("x2", "0%").attr("y2", "100%");
         oceanGrad.append("stop").attr("offset", "0%")
-          .attr("stop-color", isDark ? "#0c1929" : "#dbeafe");
+          .attr("stop-color", isDark ? "#0c1929" : "#e0f2fe");
         oceanGrad.append("stop").attr("offset", "100%")
-          .attr("stop-color", isDark ? "#0a1220" : "#bfdbfe");
+          .attr("stop-color", isDark ? "#0a1220" : "#bae6fd");
 
         // Ocean background
         mainG.append("rect")
@@ -200,36 +201,38 @@ export default function WorldMap({ data }: Props) {
           .datum(graticule())
           .attr("d", pathGen)
           .attr("fill", "none")
-          .attr("stroke", isDark ? "rgba(255,255,255,0.05)" : "rgba(0,0,0,0.05)")
+          .attr("stroke", isDark ? "rgba(255,255,255,0.06)" : "rgba(14,116,144,0.12)")
           .attr("stroke-width", 0.5);
 
-        // Countries - better contrast for light mode
+        // Countries - high visibility with brand-aligned colors
         mainG.append("g")
           .selectAll("path")
           .data((countries as { type: string; features: d3.GeoPermissibleObjects[] }).features)
           .join("path")
           .attr("d", pathGen as never)
-          .attr("fill", isDark ? "#1e3a5f" : "#f8fafc")
-          .attr("stroke", isDark ? "#2d4a6f" : "#94a3b8")
-          .attr("stroke-width", 0.5);
+          .attr("fill", isDark ? "#1e3a5f" : "#f0fdfa")
+          .attr("stroke", isDark ? "#3d6a8f" : BRAND.teal)
+          .attr("stroke-width", isDark ? 0.5 : 0.6)
+          .attr("stroke-opacity", isDark ? 1 : 0.4);
 
-        // Borders
+        // Borders - using brand teal for light mode
         mainG.append("path")
           .datum(borders as d3.GeoPermissibleObjects)
           .attr("d", pathGen)
           .attr("fill", "none")
-          .attr("stroke", isDark ? "#3d5a7f" : "#64748b")
-          .attr("stroke-width", 0.4);
+          .attr("stroke", isDark ? "#4d7a9f" : BRAND.teal)
+          .attr("stroke-width", isDark ? 0.4 : 0.5)
+          .attr("stroke-opacity", isDark ? 1 : 0.3);
 
         // Draw bubbles
         drawBubbles(mainG, defs, data, projection, rScale, tip, el, totalCount, isDark);
       })
       .catch(() => {
-        // Fallback
+        // Fallback - use brand-aligned ocean color
         mainG.append("rect")
           .attr("width", width)
           .attr("height", height)
-          .attr("fill", isDark ? "#0c1929" : "#e3f2fd");
+          .attr("fill", isDark ? "#0c1929" : "#e0f2fe");
 
         drawBubbles(mainG, defs, data, projection, rScale, tip, el, totalCount, isDark);
       });
@@ -242,8 +245,8 @@ export default function WorldMap({ data }: Props) {
       width: 28,
       height: 28,
       rx: 6,
-      fill: isDark ? "rgba(255,255,255,0.1)" : "rgba(0,0,0,0.05)",
-      stroke: isDark ? "rgba(255,255,255,0.2)" : "rgba(0,0,0,0.1)",
+      fill: isDark ? "rgba(255,255,255,0.15)" : "rgba(13,148,136,0.7)",
+      stroke: isDark ? "rgba(255,255,255,0.25)" : "rgba(13,148,136,0.9)",
     };
 
     // Zoom in button
@@ -260,7 +263,8 @@ export default function WorldMap({ data }: Props) {
       .text("+")
       .style("font-size", "16px")
       .style("font-weight", "600")
-      .style("fill", "var(--foreground)");
+      .style("fill", "#FFFFFF")
+      .style("text-shadow", "0 1px 2px rgba(0,0,0,0.5)");
 
     // Zoom out button
     const zoomOutBtn = controlsG.append("g")
@@ -277,7 +281,8 @@ export default function WorldMap({ data }: Props) {
       .text("−")
       .style("font-size", "18px")
       .style("font-weight", "600")
-      .style("fill", "var(--foreground)");
+      .style("fill", "#FFFFFF")
+      .style("text-shadow", "0 1px 2px rgba(0,0,0,0.5)");
 
     // Reset button
     const resetBtn = controlsG.append("g")
@@ -293,7 +298,8 @@ export default function WorldMap({ data }: Props) {
       .attr("text-anchor", "middle")
       .text("⟲")
       .style("font-size", "14px")
-      .style("fill", "var(--foreground)");
+      .style("fill", "#FFFFFF")
+      .style("text-shadow", "0 1px 2px rgba(0,0,0,0.5)");
 
     svg.attr("opacity", 0).transition().duration(600).attr("opacity", 1);
   }, [data]);
@@ -329,9 +335,12 @@ function drawBubbles(
   totalCount: number,
   isDark: boolean
 ) {
+  // Get the correct color palette based on theme
+  const BUBBLE_COLORS = isDark ? SOLID_COLORS_DARK : SOLID_COLORS_LIGHT;
+
   // Create gradients for each bubble - more vibrant for light mode
   data.forEach((_, i) => {
-    const color = SOLID_COLORS[i % SOLID_COLORS.length];
+    const color = BUBBLE_COLORS[i % BUBBLE_COLORS.length];
     const grad = defs.append("radialGradient")
       .attr("id", `bubble-grad-${i}`)
       .attr("cx", "30%").attr("cy", "30%").attr("r", "70%");
@@ -354,30 +363,30 @@ function drawBubbles(
     })
     .style("cursor", "pointer");
 
-  // Soft shadow/glow
+  // Refined shadow/glow - smaller and more subtle
   bubbles
     .append("circle")
-    .attr("r", (d) => rScale(d.count) + 3)
-    .attr("fill", (_d, i) => SOLID_COLORS[i % SOLID_COLORS.length])
-    .attr("opacity", 0.2)
-    .attr("filter", "blur(4px)")
+    .attr("r", (d) => rScale(d.count) + 2)
+    .attr("fill", (_d, i) => BUBBLE_COLORS[i % BUBBLE_COLORS.length])
+    .attr("opacity", isDark ? 0.15 : 0.25)
+    .attr("filter", "blur(3px)")
     .style("pointer-events", "none");
 
-  // Main bubble with gradient - better stroke visibility
+  // Main bubble with gradient - sharper stroke
   bubbles
     .append("circle")
     .attr("class", "main-bubble")
     .attr("r", 0)
     .attr("fill", (_d, i) => `url(#bubble-grad-${i})`)
-    .attr("stroke", isDark ? "rgba(255,255,255,0.4)" : "rgba(255,255,255,0.9)")
-    .attr("stroke-width", isDark ? 1.5 : 2)
-    .style("filter", isDark ? "none" : "drop-shadow(0 2px 4px rgba(0,0,0,0.15))")
+    .attr("stroke", isDark ? "rgba(255,255,255,0.5)" : "rgba(255,255,255,1.0)")
+    .attr("stroke-width", isDark ? 1.2 : 1.5)
+    .style("filter", isDark ? "none" : "drop-shadow(0 1px 2px rgba(0,0,0,0.2))")
     .on("mouseover", function (_event, d) {
       const i = data.indexOf(d);
       d3.select(this)
         .transition().duration(200)
         .attr("r", rScale(d.count) * 1.15)
-        .attr("stroke-width", 2.5);
+        .attr("stroke-width", 2);
 
       const rank = i + 1;
       const pct = ((d.count / totalCount) * 100).toFixed(1);
@@ -385,7 +394,7 @@ function drawBubbles(
 
       tip.style("visibility", "visible")
         .html(
-          `<div style="display:flex;align-items:center;gap:10px;margin-bottom:10px;padding-bottom:10px;border-bottom:1px solid var(--oaria-border)">
+          `<div style="display:flex;align-items:center;gap:10px;margin-bottom:10px;padding-bottom:10px;border-bottom:1px solid ${isDark ? "rgba(255,255,255,0.1)" : "rgba(0,0,0,0.1)"}">
             <span style="font-size:28px">${flag}</span>
             <div>
               <div style="font-size:16px;font-weight:700">${d.country}</div>
@@ -395,7 +404,7 @@ function drawBubbles(
           <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px">
             <div>
               <div style="font-size:10px;opacity:0.5;margin-bottom:2px">논문 수</div>
-              <div style="font-size:20px;font-weight:800;color:${SOLID_COLORS[i % SOLID_COLORS.length]}">${d.count.toLocaleString()}</div>
+              <div style="font-size:20px;font-weight:800;color:${BUBBLE_COLORS[i % BUBBLE_COLORS.length]}">${d.count.toLocaleString()}</div>
             </div>
             <div>
               <div style="font-size:10px;opacity:0.5;margin-bottom:2px">전체 비율</div>
@@ -412,7 +421,7 @@ function drawBubbles(
       d3.select(this)
         .transition().duration(200)
         .attr("r", rScale(d.count))
-        .attr("stroke-width", 1.5);
+        .attr("stroke-width", 1.2);
       tip.style("visibility", "hidden");
     })
     .transition()
@@ -441,7 +450,7 @@ function drawBubbles(
     .delay((_d, i) => i * 40 + 500)
     .attr("opacity", 1);
 
-  // Country labels
+  // Country labels - white text with shadow for visibility
   bubbles
     .filter((_d, i) => i < 15)
     .append("text")
@@ -450,12 +459,10 @@ function drawBubbles(
     .attr("dy", (d) => rScale(d.count) + 12)
     .attr("text-anchor", "middle")
     .style("font-size", "9px")
-    .style("font-weight", "600")
-    .style("fill", "var(--foreground)")
+    .style("font-weight", "700")
+    .style("fill", "#FFFFFF")
     .style("pointer-events", "none")
-    .style("text-shadow", isDark
-      ? "0 0 4px rgba(0,0,0,0.8), 0 1px 2px rgba(0,0,0,0.9)"
-      : "0 0 4px rgba(255,255,255,0.9), 0 1px 2px rgba(255,255,255,1)")
+    .style("text-shadow", "0 0 6px rgba(0,0,0,0.8), 0 1px 3px rgba(0,0,0,0.9), 0 0 12px rgba(0,0,0,0.5)")
     .style("display", (_d, i) => i < 10 ? "block" : "none")
     .attr("opacity", 0)
     .transition()

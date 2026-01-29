@@ -58,7 +58,10 @@ export default function BumpChart({ data, keywords, periods }: Props) {
       .style("z-index", "50")
       .style("color", theme.textPrimary);
 
-    const x = d3.scalePoint<string>().domain(periods).range([0, width]).padding(0.1);
+    const x = d3.scalePoint<string>()
+      .domain(periods)
+      .range(periods.length === 1 ? [width / 2, width / 2] : [0, width])
+      .padding(0.5);
     const y = d3.scaleLinear().domain([1, keywords.length]).range([0, height]);
     const color = d3.scaleOrdinal<string>().domain(keywords).range(palette);
 
@@ -126,29 +129,31 @@ export default function BumpChart({ data, keywords, periods }: Props) {
         })
         .filter(Boolean) as { period: string; rank: number }[];
 
-      if (points.length < 2) return;
+      if (points.length === 0) return;
 
-      // Line
-      const path = svg
-        .append("path")
-        .datum(points)
-        .attr("fill", "none")
-        .attr("stroke", color(kw))
-        .attr("stroke-width", 3)
-        .attr("stroke-linecap", "round")
-        .attr("opacity", 0.75)
-        .attr("d", line);
+      // Line (only if 2+ points)
+      if (points.length >= 2) {
+        const path = svg
+          .append("path")
+          .datum(points)
+          .attr("fill", "none")
+          .attr("stroke", color(kw))
+          .attr("stroke-width", 3)
+          .attr("stroke-linecap", "round")
+          .attr("opacity", 0.75)
+          .attr("d", line);
 
-      // Animate line drawing
-      const totalLength = (path.node() as SVGPathElement)?.getTotalLength?.() || 0;
-      if (totalLength > 0) {
-        path
-          .attr("stroke-dasharray", `${totalLength} ${totalLength}`)
-          .attr("stroke-dashoffset", totalLength)
-          .transition()
-          .duration(1500)
-          .ease(d3.easeCubicOut)
-          .attr("stroke-dashoffset", 0);
+        // Animate line drawing
+        const totalLength = (path.node() as SVGPathElement)?.getTotalLength?.() || 0;
+        if (totalLength > 0) {
+          path
+            .attr("stroke-dasharray", `${totalLength} ${totalLength}`)
+            .attr("stroke-dashoffset", totalLength)
+            .transition()
+            .duration(1500)
+            .ease(d3.easeCubicOut)
+            .attr("stroke-dashoffset", 0);
+        }
       }
 
       // Dots

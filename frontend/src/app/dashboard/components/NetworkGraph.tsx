@@ -176,19 +176,19 @@ export default function NetworkGraph({ nodes, links, onNodeClick }: Props) {
       .attr("r", (d) => rScale(d.count))
       .attr("fill", (_d, i) => color(String(i)))
       .attr("opacity", 0.9)
-      .attr("stroke", theme.surface)
-      .attr("stroke-width", 2);
+      .attr("stroke", "rgba(255,255,255,0.5)")
+      .attr("stroke-width", 1.5);
 
-    // Text inside nodes - use white for visibility on colored circles
+    // Text inside nodes - black text for visibility
     nodeGroup
       .append("text")
       .text((d) => (rScale(d.count) > 10 ? (d.id.length > 12 ? d.id.slice(0, 10) + ".." : d.id) : ""))
       .attr("text-anchor", "middle")
       .attr("dy", "0.35em")
       .style("font-size", "9px")
-      .style("fill", "#FFFFFF")
-      .style("font-weight", "600")
-      .style("text-shadow", "0 1px 2px rgba(0,0,0,0.4)")
+      .style("fill", "#0F172A")
+      .style("font-weight", "700")
+      .style("text-shadow", "0 0 3px rgba(255,255,255,0.8)")
       .style("pointer-events", "none");
 
     sim.on("tick", () => {
