@@ -67,9 +67,12 @@ const MOCK_AUTHORS_WITH_AFF: { name: string; aff: string }[] = [
 
 function generateMockPapers(count: number): Paper[] {
   const papers: Paper[] = [];
-  const baseDate = new Date("2020-01-01");
+  const currentYear = new Date().getFullYear();
+  const years = [currentYear - 4, currentYear - 3, currentYear - 2, currentYear - 1, currentYear];  // 최근 5년
+
   for (let i = 0; i < count; i++) {
-    const year = 2020 + Math.floor(Math.random() * 6); // 2020-2025
+    // 연도별 균등 분배
+    const year = years[i % years.length];
     const kwCount = 2 + Math.floor(Math.random() * 4);
     const kwSet = new Set<string>();
     while (kwSet.size < kwCount) kwSet.add(MOCK_KEYWORDS[Math.floor(Math.random() * MOCK_KEYWORDS.length)]);
@@ -83,8 +86,10 @@ function generateMockPapers(count: number): Paper[] {
         affiliation: a.aff,
       };
     });
-    const daysOffset = Math.floor(Math.random() * 2000);
-    const created = new Date(baseDate.getTime() + daysOffset * 86400000);
+    // 해당 연도 내 랜덤 날짜
+    const month = Math.floor(Math.random() * 12);
+    const day = 1 + Math.floor(Math.random() * 28);
+    const created = new Date(year, month, day);
     papers.push({
       id: `mock-${i}`,
       paper_id: `mock:${i}`,
@@ -100,18 +105,25 @@ function generateMockPapers(count: number): Paper[] {
   return papers;
 }
 
-const MOCK_STATS = {
-  total: 12403,
-  recent_count: 187,
-  by_year: [
-    { year: 2020, count: 1420 },
-    { year: 2021, count: 1980 },
-    { year: 2022, count: 2340 },
-    { year: 2023, count: 2870 },
-    { year: 2024, count: 3150 },
-    { year: 2025, count: 643 },
-  ],
+// 동적으로 최근 5년치 Mock 통계 생성
+const generateMockStats = () => {
+  const currentYear = new Date().getFullYear();
+  const by_year = [];
+  for (let i = 4; i >= 0; i--) {
+    const year = currentYear - i;
+    // 과거로 갈수록 데이터가 적고, 최근으로 올수록 많음
+    const count = 1000 + Math.floor(Math.random() * 500) + (4 - i) * 400;
+    by_year.push({ year, count });
+  }
+  const total = by_year.reduce((sum, y) => sum + y.count, 0);
+  return {
+    total,
+    recent_count: 150 + Math.floor(Math.random() * 100),
+    by_year,
+  };
 };
+
+const MOCK_STATS = generateMockStats();
 
 let _cachedMockPapers: Paper[] | null = null;
 function getMockPapers() {
@@ -220,15 +232,13 @@ function processBumpData(papers: Paper[], caseMap: Record<string, string>) {
 
   const minYear = Math.min(...years);
   const maxYear = Math.max(...years);
+  const yearRange = maxYear - minYear;
 
-  const dates = papers
-    .map((p) => (p.created_at ? new Date(p.created_at).getTime() : null))
-    .filter(Boolean) as number[];
-  const dateRangeDays = dates.length > 0 ? (Math.max(...dates) - Math.min(...dates)) / (86400 * 1000) : 0;
-
-  // Use weekly if range is short (<= 45 days)
-  const useWeekly = dateRangeDays > 0 && dateRangeDays <= 45;
-  const useMonthly = !useWeekly && (maxYear - minYear) <= 3;
+  // 연도별 모드 우선: 연도 범위가 2년 이상이면 연도별 표시
+  // 연도 범위가 1년 이하인 경우에만 세부 기간(월/주) 표시
+  const useYearly = yearRange >= 2;
+  const useWeekly = false;  // 연도별 5년치 표시를 위해 주간 모드 비활성화
+  const useMonthly = !useYearly && yearRange <= 1;
 
   // Build period → item → count
   const periodItemCount: Record<string, Record<string, number>> = {};
@@ -676,12 +686,23 @@ export default function DashboardPage() {
     enabled: !useMockData,
   });
 
+  // 현재 연도 기준 최근 3년치 데이터 (2024~2026)
+  const currentYear = new Date().getFullYear();
+  const threeYearsAgo = currentYear - 2;  // 현재 연도 포함 3년 (2024~2026)
+
   const papersQuery = useQuery({
-    queryKey: ["dashboard", "analysisPapers"],
-    queryFn: () => dashboardApi.getAnalysisPapers(500, 2020),  // Fetch from 2020 onwards
+    queryKey: ["dashboard", "analysisPapers", threeYearsAgo, currentYear],
+    queryFn: () => dashboardApi.getAnalysisPapers(1000, threeYearsAgo, currentYear, true),  // 연도별 균등 샘플링
     enabled: !useMockData,
     staleTime: 5 * 60 * 1000,  // Cache for 5 minutes
+    retry: 2,  // 실패 시 2번 재시도
+    retryDelay: 1000,  // 1초 후 재시도
   });
+
+  // 에러 로깅 (개발 환경)
+  if (papersQuery.error && process.env.NODE_ENV === 'development') {
+    console.error('[Dashboard] Papers API Error:', papersQuery.error);
+  }
 
   const papers = useMockData ? getMockPapers() : (papersQuery.data || []);
 
@@ -754,6 +775,8 @@ export default function DashboardPage() {
 
 
   const isLoading = !useMockData && (statsQuery.isLoading || papersQuery.isLoading);
+  const hasError = !useMockData && (statsQuery.isError || papersQuery.isError);
+  const hasNoPapers = !useMockData && !papersQuery.isLoading && papers.length === 0;
 
   return (
     <div className="h-full flex flex-col overflow-hidden">
@@ -830,7 +853,50 @@ export default function DashboardPage() {
             </div>
           )}
 
-          {!isLoading && (
+          {/* Error state */}
+          {hasError && !isLoading && (
+            <div className="flex items-center justify-center py-20">
+              <div className="flex flex-col items-center gap-3 text-center">
+                <div className="w-12 h-12 rounded-full bg-red-100 dark:bg-red-900/30 flex items-center justify-center">
+                  <Database size={24} className="text-red-500" />
+                </div>
+                <p className="text-sm font-medium text-red-600 dark:text-red-400">
+                  데이터를 불러오는 중 오류가 발생했습니다
+                </p>
+                <p className="text-xs text-[var(--oaria-text-secondary)]">
+                  백엔드 서버 연결을 확인해주세요
+                </p>
+                <button
+                  onClick={() => {
+                    statsQuery.refetch();
+                    papersQuery.refetch();
+                  }}
+                  className="mt-2 px-4 py-2 text-sm bg-[var(--oaria-teal)] text-white rounded-lg hover:opacity-90 transition-opacity"
+                >
+                  다시 시도
+                </button>
+              </div>
+            </div>
+          )}
+
+          {/* No data state */}
+          {hasNoPapers && !hasError && !isLoading && (
+            <div className="flex items-center justify-center py-20">
+              <div className="flex flex-col items-center gap-3 text-center">
+                <div className="w-12 h-12 rounded-full bg-amber-100 dark:bg-amber-900/30 flex items-center justify-center">
+                  <FileText size={24} className="text-amber-500" />
+                </div>
+                <p className="text-sm font-medium text-amber-600 dark:text-amber-400">
+                  분석할 논문 데이터가 없습니다
+                </p>
+                <p className="text-xs text-[var(--oaria-text-secondary)]">
+                  논문을 먼저 수집해주세요
+                </p>
+              </div>
+            </div>
+          )}
+
+          {!isLoading && !hasError && !hasNoPapers && (
             <>
               {/* ─── Row 1: Hero Stat Cards ─── */}
               <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-6">

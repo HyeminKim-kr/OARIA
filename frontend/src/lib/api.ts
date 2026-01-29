@@ -614,8 +614,8 @@ export const dashboardApi = {
     api.get<{ count: number }>('/notifications/unread-count'),
   getAgentJobsByStatus: () =>
     api.get<PaginatedAgentJobs>('/agent-jobs/', { params: { page: 1, size: 100 } }),
-  getAnalysisPapers: (limit = 500, year_from?: number, year_to?: number) =>
-    api.get<Paper[]>('/papers/recent', { params: { limit, year_from, year_to } }).then((res) => res.data),
+  getAnalysisPapers: (limit = 500, year_from?: number, year_to?: number, sample_by_year = true) =>
+    api.get<Paper[]>('/papers/recent', { params: { limit, year_from, year_to, sample_by_year } }).then((res) => res.data),
 };
 
 // Podcast Types

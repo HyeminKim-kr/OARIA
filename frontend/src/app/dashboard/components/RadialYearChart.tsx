@@ -38,7 +38,9 @@ export default function RadialYearChart({ data }: Props) {
       .attr("width", width)
       .attr("height", height)
       .append("g")
-      .attr("transform", `translate(${width / 2},${height / 2})`);
+      .attr("transform", `translate(${width / 2},${height / 2})`)
+      .attr("stroke", "none")
+      .attr("stroke-width", 0);
 
     const tip = d3
       .select(el)
@@ -74,6 +76,8 @@ export default function RadialYearChart({ data }: Props) {
       .join("path")
       .attr("fill", (_d, i) => color(String(i)))
       .attr("opacity", 0.88)
+      .attr("stroke", "none")
+      .attr("stroke-width", 0)
       .style("cursor", "pointer")
       .on("mouseover", function () {
         d3.select(this).attr("opacity", 1);

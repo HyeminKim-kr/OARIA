@@ -104,12 +104,55 @@ async def search_papers(
 
 @router.get("/recent", response_model=list[PaperListItem])
 async def get_recent_papers(
-    limit: int = Query(10, ge=1, le=500, description="가져올 개수"),
+    limit: int = Query(10, ge=1, le=2000, description="가져올 개수 (대시보드용 최대 2000)"),
     year_from: Optional[int] = Query(None, description="시작 연도"),
     year_to: Optional[int] = Query(None, description="종료 연도"),
+    sample_by_year: bool = Query(False, description="연도별 균등 샘플링 (Dashboard용)"),
     db: AsyncSession = Depends(get_db),
 ):
-    """최근 수집된 논문 목록"""
+    """최근 수집된 논문 목록
+
+    sample_by_year=True인 경우: 실제 데이터가 있는 연도에서 균등하게 샘플링하여 반환
+    """
+    # 연도별 균등 샘플링 모드
+    if sample_by_year and year_from:
+        from datetime import datetime
+        current_year = year_to or datetime.now().year
+
+        # 실제 데이터가 있는 연도만 조회
+        years_with_data_query = (
+            select(Paper.year, func.count(Paper.id).label("cnt"))
+            .where(Paper.year >= year_from)
+            .where(Paper.year <= current_year)
+            .where(Paper.year.isnot(None))
+            .group_by(Paper.year)
+            .having(func.count(Paper.id) > 0)
+            .order_by(Paper.year)
+        )
+        years_result = await db.execute(years_with_data_query)
+        years_with_data = [row.year for row in years_result]
+
+        if not years_with_data:
+            return []
+
+        per_year_limit = max(limit // len(years_with_data), 50) if years_with_data else limit
+
+        all_papers = []
+        for year in years_with_data:
+            year_query = (
+                select(Paper)
+                .options(selectinload(Paper.authors))
+                .where(Paper.year == year)
+                .order_by(desc(Paper.created_at))
+                .limit(per_year_limit)
+            )
+            result = await db.execute(year_query)
+            year_papers = result.scalars().unique().all()
+            all_papers.extend(year_papers)
+
+        return [PaperListItem.model_validate(paper) for paper in all_papers]
+
+    # 기본 모드: 최근 수집 순
     query = (
         select(Paper)
         .options(selectinload(Paper.authors))
