@@ -6,6 +6,7 @@ Admin에서 RAG 품질 테스트를 위한 API
 - Reranker 테스트: 검색 결과 재정렬
 """
 
+import asyncio
 import time
 from typing import Any
 
@@ -183,7 +184,8 @@ async def test_search(request: SearchTestRequest):
 
             # 선택한 reranker 전략 사용
             reranker = get_reranker(reranker_name)
-            rerank_results = reranker.rerank(
+            rerank_results = await asyncio.to_thread(
+                reranker.rerank,
                 query=request.query,
                 documents=results,
                 top_k=request.limit,

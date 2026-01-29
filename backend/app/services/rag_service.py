@@ -36,7 +36,7 @@ class RagService:
         top_k: int = 5,
         alpha: float = 0.5,  # 하이브리드 검색 비중
         use_reranker: bool = True,  # Reranker 사용 여부
-        rerank_top_k: int = 20,  # Reranker 전 검색 개수
+        rerank_top_k: int = 10,  # Reranker 전 검색 개수
     ):
         self.top_k = top_k
         self.alpha = alpha
@@ -102,7 +102,8 @@ class RagService:
         if should_rerank and search_results:
             rerank_start = time.perf_counter()
 
-            rerank_results = reranker_service.rerank(
+            rerank_results = await asyncio.to_thread(
+                reranker_service.rerank,
                 query=query,
                 documents=search_results,
                 content_key="content",

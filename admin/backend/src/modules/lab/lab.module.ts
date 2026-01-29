@@ -8,7 +8,7 @@ import { LabFeedback, LabTestLog } from '../../entities';
 @Module({
   imports: [
     HttpModule.register({
-      timeout: 60000, // 60초 (LLM 생성 시간 고려)
+      timeout: 300000, // 5분 (Reranker + LLM 생성 시간 고려)
       maxRedirects: 5,
     }),
     TypeOrmModule.forFeature([LabFeedback, LabTestLog]),

@@ -8,6 +8,7 @@
 2. 관련 논문 포함 검색 (유사 논문 참조)
 """
 
+import asyncio
 import logging
 import time
 from dataclasses import dataclass
@@ -40,7 +41,7 @@ class PaperRagService:
         top_k: int = 5,
         alpha: float = 0.5,
         use_reranker: bool = True,
-        rerank_top_k: int = 15,
+        rerank_top_k: int = 10,
     ):
         self.top_k = top_k
         self.alpha = alpha
@@ -186,7 +187,8 @@ class PaperRagService:
         if should_rerank and search_results:
             rerank_start = time.perf_counter()
 
-            rerank_results = reranker_service.rerank(
+            rerank_results = await asyncio.to_thread(
+                reranker_service.rerank,
                 query=query,
                 documents=search_results,
                 content_key="content",
