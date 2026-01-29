@@ -160,16 +160,29 @@ export default function VectorGraph3D({
 
   // 3D 그래프 초기화
   useEffect(() => {
-    if (!isClient || !containerRef.current || !webglSupported) return;
+    if (!isClient || !webglSupported) return;
     if (dimensions.width === 0 || dimensions.height === 0) return;
 
+    let mounted = true;
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    let graph: any = null;
+
     const initGraph = async () => {
+      // 컨테이너가 DOM에 마운트되었는지 확인
+      if (!containerRef.current || !document.body.contains(containerRef.current)) {
+        return;
+      }
+
       setIsLoading(true);
       setError(null);
 
       try {
         // 3d-force-graph 동적 임포트
         const ForceGraph3DModule = await import("3d-force-graph");
+
+        // 컴포넌트가 언마운트되었으면 중단
+        if (!mounted || !containerRef.current) return;
+
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
         const ForceGraph3D = ForceGraph3DModule.default as any;
 
@@ -177,21 +190,33 @@ export default function VectorGraph3D({
         if (graphRef.current) {
           try {
             graphRef.current._destructor?.();
-          } catch (e) {
+          } catch {
             // ignore
           }
           graphRef.current = null;
         }
 
         // 컨테이너 초기화
-        if (containerRef.current) {
-          containerRef.current.innerHTML = "";
+        containerRef.current.innerHTML = "";
+
+        // DOM에 완전히 렌더링될 때까지 대기
+        await new Promise(resolve => requestAnimationFrame(resolve));
+
+        if (!mounted || !containerRef.current) return;
+
+        // 컨테이너의 실제 크기 다시 확인
+        const rect = containerRef.current.getBoundingClientRect();
+        const width = rect.width || dimensions.width;
+        const height = rect.height || dimensions.height;
+
+        if (width <= 0 || height <= 0) {
+          throw new Error("Invalid container dimensions");
         }
 
         // 3D 그래프 생성
-        const graph = ForceGraph3D(containerRef.current!)
-          .width(dimensions.width)
-          .height(dimensions.height)
+        graph = ForceGraph3D(containerRef.current)
+          .width(width)
+          .height(height)
           .graphData(graphData)
           .backgroundColor("rgba(0,0,0,0)")
           .nodeLabel((node: Graph3DNode) => `${node.label} (${node.type})`)
@@ -220,23 +245,30 @@ export default function VectorGraph3D({
         // 카메라 초기 위치
         graph.cameraPosition({ x: 0, y: 0, z: 400 });
 
-        graphRef.current = graph;
-        onStatsChange(graphData.nodes.length, graphData.links.length);
-        setIsLoading(false);
+        if (mounted) {
+          graphRef.current = graph;
+          onStatsChange(graphData.nodes.length, graphData.links.length);
+          setIsLoading(false);
+        }
       } catch (err) {
         console.error("3D Graph initialization error:", err);
-        setError("3D 그래프를 초기화하는 중 오류가 발생했습니다.");
-        setIsLoading(false);
+        if (mounted) {
+          setError("3D 그래프를 초기화하는 중 오류가 발생했습니다. 2D 모드를 사용해 주세요.");
+          setIsLoading(false);
+        }
       }
     };
 
-    initGraph();
+    // 초기화를 약간 지연시켜 DOM이 안정화되도록 함
+    const timer = setTimeout(initGraph, 200);
 
     return () => {
+      mounted = false;
+      clearTimeout(timer);
       if (graphRef.current) {
         try {
           graphRef.current._destructor?.();
-        } catch (e) {
+        } catch {
           // ignore
         }
         graphRef.current = null;
