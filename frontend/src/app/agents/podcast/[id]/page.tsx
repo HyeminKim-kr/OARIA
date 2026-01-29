@@ -18,6 +18,8 @@ import {
   Users,
   AlertCircle,
   CheckCircle2,
+  Download,
+  ExternalLink,
 } from "lucide-react";
 import { podcastApi, PodcastEpisode, PodcastDialogueScript, PodcastReference, TurnTiming } from "@/lib/api";
 
@@ -175,7 +177,7 @@ export default function PodcastEpisodeDetailPage({ params }: PageProps) {
             </Link>
             <Link
               href="/agents"
-              className="flex items-center gap-2 px-4 py-3 font-[family-name:var(--font-dm-sans)] text-base font-medium border-b-2 border-[var(--oaria-teal)] text-[var(--oaria-teal)]"
+              className="flex items-center gap-2 px-4 py-3 font-[family-name:var(--font-dm-sans)] text-base font-medium border-b-2 border-[var(--oaria-coral)] text-[var(--oaria-coral)]"
             >
               <Bot size={20} />
               Agents
@@ -196,17 +198,17 @@ export default function PodcastEpisodeDetailPage({ params }: PageProps) {
         <div className="max-w-4xl mx-auto px-6 py-8">
           {/* Back Button */}
           <Link
-            href="/agents/podcast/history"
-            className="inline-flex items-center gap-2 text-sm text-[var(--oaria-text-secondary)] hover:text-[var(--foreground)] mb-6 transition-colors"
+            href="/agents"
+            className="inline-flex items-center gap-1 text-sm text-[var(--oaria-text-secondary)] hover:text-[var(--oaria-coral)] mb-6 transition-colors"
           >
             <ArrowLeft size={16} />
-            에피소드 목록
+            모든 에이전트
           </Link>
 
           {/* Loading State */}
           {isLoading && (
             <div className="flex items-center justify-center py-20">
-              <Loader2 size={32} className="animate-spin text-[var(--oaria-teal)]" />
+              <Loader2 size={32} className="animate-spin text-[var(--oaria-coral)]" />
             </div>
           )}
 
@@ -224,7 +226,7 @@ export default function PodcastEpisodeDetailPage({ params }: PageProps) {
           {!isLoading && !error && episode && (
             <div className="space-y-6">
               {/* Header */}
-              <div className="p-6 rounded-xl border-2 border-[var(--oaria-teal)]/30 bg-[var(--oaria-teal)]/5">
+              <div className="p-6 rounded-xl border-2 border-[var(--oaria-coral)]/30 bg-[var(--oaria-coral)]/5">
                 <div className="flex items-start gap-4 mb-4">
                   <div className="w-14 h-14 rounded-xl bg-[var(--oaria-coral)] flex items-center justify-center text-white flex-shrink-0">
                     <Mic2 size={28} />
@@ -293,7 +295,7 @@ export default function PodcastEpisodeDetailPage({ params }: PageProps) {
                             audio.play();
                           }
                         }}
-                        className="w-12 h-12 rounded-full bg-[var(--oaria-teal)] text-white flex items-center justify-center hover:bg-[#0B7A70] transition-colors"
+                        className="w-12 h-12 rounded-full bg-[var(--oaria-coral)] text-white flex items-center justify-center hover:bg-[var(--oaria-coral)]/80 transition-colors"
                       >
                         {isPlaying ? <Volume2 size={20} /> : <Play size={20} className="ml-0.5" />}
                       </button>
@@ -314,6 +316,14 @@ export default function PodcastEpisodeDetailPage({ params }: PageProps) {
                           </p>
                         )}
                       </div>
+                      <a
+                        href={episode.audio_url}
+                        download={`podcast-${script?.title || episode.title || "episode"}.mp3`}
+                        className="flex items-center gap-1.5 px-3 py-2 rounded-lg text-sm font-medium text-[var(--oaria-coral)] bg-[var(--oaria-coral)]/10 hover:bg-[var(--oaria-coral)]/20 transition-colors"
+                      >
+                        <Download size={16} />
+                        다운로드
+                      </a>
                     </div>
                   </div>
                 )}
@@ -343,20 +353,20 @@ export default function PodcastEpisodeDetailPage({ params }: PageProps) {
                           }}
                           className={`p-4 rounded-xl border-2 transition-all duration-300 ${
                             isActive
-                              ? "border-[var(--oaria-teal)] bg-[var(--oaria-teal)]/15 ring-2 ring-[var(--oaria-teal)]/40 shadow-lg shadow-[var(--oaria-teal)]/10"
+                              ? "border-[var(--oaria-coral)] bg-[var(--oaria-coral)]/15 ring-2 ring-[var(--oaria-coral)]/40 shadow-lg shadow-[var(--oaria-coral)]/10"
                               : turn.speaker === script.speakers[0]
-                              ? "border-[var(--oaria-teal)]/30 bg-[var(--oaria-teal)]/5"
+                              ? "border-[var(--oaria-coral)]/30 bg-[var(--oaria-coral)]/5"
                               : "border-[var(--oaria-border)] bg-[var(--background)]"
-                          } ${hasTiming ? "cursor-pointer hover:border-[var(--oaria-teal)]/60" : ""}`}
+                          } ${hasTiming ? "cursor-pointer hover:border-[var(--oaria-coral)]/60" : ""}`}
                         >
                           <div className="flex items-center gap-2 mb-2">
                             {isActive && (
-                              <Volume2 size={14} className="text-[var(--oaria-teal)] animate-pulse" />
+                              <Volume2 size={14} className="text-[var(--oaria-coral)] animate-pulse" />
                             )}
                             <span
                               className={`px-2 py-0.5 rounded text-xs font-semibold ${
                                 turn.speaker === script.speakers[0]
-                                  ? "bg-[var(--oaria-teal)] text-white"
+                                  ? "bg-[var(--oaria-coral)] text-white"
                                   : "bg-[var(--oaria-coral)] text-white"
                               }`}
                             >
@@ -384,15 +394,24 @@ export default function PodcastEpisodeDetailPage({ params }: PageProps) {
                   <h2 className="font-[family-name:var(--font-outfit)] text-lg font-semibold mb-4">
                     참고 문헌
                   </h2>
-                  <div className="space-y-4">
+                  <div className="space-y-3">
                     {references.map((ref) => (
-                      <div key={ref.index} className="text-sm">
-                        <div className="flex items-start gap-2 mb-1">
-                          <span className="font-semibold text-[var(--oaria-teal)] flex-shrink-0">
+                      <Link
+                        key={ref.index}
+                        href={`/papers/${ref.paper_id}`}
+                        className="block p-3 -mx-3 rounded-lg hover:bg-[var(--oaria-coral)]/5 transition-colors group"
+                      >
+                        <div className="flex items-start gap-2">
+                          <span className="font-semibold text-[var(--oaria-coral)] flex-shrink-0">
                             [{ref.index}]
                           </span>
                           <div className="flex-1">
-                            <p className="font-medium">{ref.title}</p>
+                            <div className="flex items-start justify-between gap-2">
+                              <p className="font-medium group-hover:text-[var(--oaria-coral)] transition-colors">
+                                {ref.title}
+                              </p>
+                              <ExternalLink size={14} className="flex-shrink-0 text-[var(--oaria-text-secondary)] group-hover:text-[var(--oaria-coral)] transition-colors mt-0.5" />
+                            </div>
                             {ref.authors && ref.authors.length > 0 && (
                               <p className="text-[var(--oaria-text-secondary)] text-xs mt-0.5">
                                 {ref.authors.slice(0, 3).join(", ")}
@@ -410,7 +429,7 @@ export default function PodcastEpisodeDetailPage({ params }: PageProps) {
                             )}
                           </div>
                         </div>
-                      </div>
+                      </Link>
                     ))}
                   </div>
                 </div>
@@ -437,13 +456,13 @@ export default function PodcastEpisodeDetailPage({ params }: PageProps) {
               <div className="flex items-center gap-4 pt-4">
                 <Link
                   href="/agents/podcast"
-                  className="flex-1 px-6 py-3 rounded-xl bg-[var(--oaria-teal)] text-white font-[family-name:var(--font-dm-sans)] font-medium hover:bg-[#0B7A70] transition-colors text-center"
+                  className="flex-1 px-6 py-3 rounded-xl bg-[var(--oaria-coral)] text-white font-[family-name:var(--font-dm-sans)] font-medium hover:bg-[var(--oaria-coral)]/80 transition-colors text-center"
                 >
                   새 에피소드 만들기
                 </Link>
                 <Link
                   href="/agents/podcast/history"
-                  className="flex-1 px-6 py-3 rounded-xl border-2 border-[var(--oaria-border-strong)] text-[var(--foreground)] font-[family-name:var(--font-dm-sans)] font-medium hover:border-[var(--oaria-teal)] transition-colors text-center"
+                  className="flex-1 px-6 py-3 rounded-xl border-2 border-[var(--oaria-border-strong)] text-[var(--foreground)] font-[family-name:var(--font-dm-sans)] font-medium hover:border-[var(--oaria-coral)] hover:text-[var(--oaria-coral)] transition-colors text-center"
                 >
                   목록으로
                 </Link>

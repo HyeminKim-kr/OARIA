@@ -12,6 +12,7 @@ import {
   Mic2,
   Clock,
   Trash2,
+  ChevronLeft,
   ChevronRight,
   FileText,
   Calendar,
@@ -165,42 +166,38 @@ export default function PodcastHistoryPage() {
       {/* Scrollable Content */}
       <div className="flex-1 overflow-y-auto">
         <div className="max-w-4xl mx-auto px-6 py-8">
-          {/* Back Button */}
-          <Link
-            href="/agents/podcast"
-            className="inline-flex items-center gap-2 text-sm text-[var(--oaria-text-secondary)] hover:text-[var(--foreground)] mb-6 transition-colors"
-          >
-            <ArrowLeft size={16} />
-            Podcast Agent
-          </Link>
-
-          {/* Header */}
-          <div className="flex items-center justify-between mb-8">
-            <div className="flex items-center gap-4">
-              <div className="w-12 h-12 rounded-xl bg-[var(--oaria-coral)] flex items-center justify-center text-white">
-                <Mic2 size={24} />
-              </div>
+          {/* Back Link & Title */}
+          <div className="mb-8">
+            <Link
+              href="/agents"
+              className="inline-flex items-center gap-1 text-sm text-[var(--oaria-text-secondary)] hover:text-[var(--oaria-coral)] transition-colors mb-4"
+            >
+              <ArrowLeft size={16} />
+              모든 에이전트
+            </Link>
+            <div className="flex items-center justify-between">
               <div>
-                <h1 className="font-[family-name:var(--font-outfit)] text-2xl font-bold">
-                  에피소드 기록
+                <h1 className="font-[family-name:var(--font-outfit)] text-2xl font-semibold">
+                  Podcast 기록
                 </h1>
-                <p className="font-[family-name:var(--font-dm-sans)] text-sm text-[var(--oaria-text-secondary)]">
-                  생성된 팟캐스트 에피소드 목록
+                <p className="font-[family-name:var(--font-dm-sans)] text-sm text-[var(--oaria-text-secondary)] mt-1">
+                  생성된 팟캐스트 에피소드를 확인할 수 있습니다.
                 </p>
               </div>
+              <Link
+                href="/agents/podcast"
+                className="inline-flex items-center gap-2 px-5 py-2.5 rounded-xl bg-[var(--oaria-coral)] text-white font-[family-name:var(--font-dm-sans)] font-medium hover:bg-[var(--oaria-coral)]/80 transition-colors"
+              >
+                <Mic2 size={18} />
+                새 에피소드 만들기
+              </Link>
             </div>
-            <Link
-              href="/agents/podcast"
-              className="px-4 py-2 rounded-xl bg-[var(--oaria-teal)] text-white font-[family-name:var(--font-dm-sans)] font-medium text-sm hover:bg-[#0B7A70] transition-colors"
-            >
-              새 에피소드 만들기
-            </Link>
           </div>
 
           {/* Loading State */}
           {isLoading && (
             <div className="flex items-center justify-center py-20">
-              <Loader2 size={32} className="animate-spin text-[var(--oaria-teal)]" />
+              <Loader2 size={32} className="animate-spin text-[var(--oaria-coral)]" />
             </div>
           )}
 
@@ -216,19 +213,19 @@ export default function PodcastHistoryPage() {
 
           {/* Empty State */}
           {!isLoading && !error && episodes.length === 0 && (
-            <div className="p-12 rounded-xl border-2 border-[var(--oaria-border)] text-center">
-              <div className="w-16 h-16 rounded-full bg-[var(--oaria-border)]/50 flex items-center justify-center mx-auto mb-4">
-                <FileText size={28} className="text-[var(--oaria-text-secondary)]" />
+            <div className="flex flex-col items-center justify-center py-16 text-center">
+              <div className="w-16 h-16 rounded-full bg-[var(--oaria-coral)]/10 flex items-center justify-center mb-4">
+                <FileText size={28} className="text-[var(--oaria-coral)]" />
               </div>
               <h3 className="font-[family-name:var(--font-outfit)] text-lg font-semibold mb-2">
-                아직 에피소드가 없습니다
+                아직 기록이 없습니다
               </h3>
-              <p className="font-[family-name:var(--font-dm-sans)] text-sm text-[var(--oaria-text-secondary)] mb-6">
-                첫 번째 팟캐스트를 만들어보세요!
+              <p className="text-sm text-[var(--oaria-text-secondary)] mb-6">
+                Podcast Agent로 첫 번째 에피소드를 생성해보세요.
               </p>
               <Link
                 href="/agents/podcast"
-                className="inline-flex items-center gap-2 px-6 py-3 rounded-xl bg-[var(--oaria-teal)] text-white font-[family-name:var(--font-dm-sans)] font-medium hover:bg-[#0B7A70] transition-colors"
+                className="inline-flex items-center gap-2 px-5 py-2.5 rounded-xl bg-[var(--oaria-coral)] text-white font-[family-name:var(--font-dm-sans)] font-medium hover:bg-[var(--oaria-coral)]/80 transition-colors"
               >
                 <Mic2 size={18} />
                 팟캐스트 만들기
@@ -238,11 +235,11 @@ export default function PodcastHistoryPage() {
 
           {/* Episode List */}
           {!isLoading && !error && episodes.length > 0 && (
-            <div className="space-y-4">
+            <div className="space-y-3">
               {episodes.map((episode) => (
                 <div
                   key={episode.id}
-                  className="p-5 rounded-xl border-2 border-[var(--oaria-border)] bg-[var(--background)] hover:border-[var(--oaria-teal)]/30 transition-colors group"
+                  className="p-4 rounded-xl border-2 border-[var(--oaria-border)] bg-[var(--background)] hover:border-[var(--oaria-coral)]/30 transition-colors group"
                 >
                   <div className="flex items-start justify-between gap-4">
                     {/* Left: Content */}
@@ -306,7 +303,7 @@ export default function PodcastHistoryPage() {
                           </button>
                           <Link
                             href={`/agents/podcast/${episode.id}`}
-                            className="p-2 rounded-lg text-[var(--oaria-text-secondary)] hover:text-[var(--oaria-teal)] hover:bg-[var(--oaria-teal)]/10 transition-colors"
+                            className="p-2 rounded-lg text-[var(--oaria-text-secondary)] hover:text-[var(--oaria-coral)] hover:bg-[var(--oaria-coral)]/10 transition-colors"
                           >
                             <ChevronRight size={20} />
                           </Link>
@@ -323,21 +320,23 @@ export default function PodcastHistoryPage() {
           {totalPages > 1 && (
             <div className="flex items-center justify-center gap-2 mt-8">
               <button
+                type="button"
                 onClick={() => setPage(p => Math.max(1, p - 1))}
                 disabled={page === 1}
-                className="px-4 py-2 rounded-lg border-2 border-[var(--oaria-border)] font-[family-name:var(--font-dm-sans)] text-sm font-medium disabled:opacity-50 disabled:cursor-not-allowed hover:border-[var(--oaria-teal)] transition-colors"
+                className="p-2 rounded-lg border border-[var(--oaria-border)] disabled:opacity-50 disabled:cursor-not-allowed hover:border-[var(--oaria-coral)] transition-colors"
               >
-                이전
+                <ChevronLeft size={18} />
               </button>
-              <span className="px-4 py-2 font-[family-name:var(--font-dm-sans)] text-sm text-[var(--oaria-text-secondary)]">
+              <span className="px-4 py-2 text-sm font-medium">
                 {page} / {totalPages}
               </span>
               <button
+                type="button"
                 onClick={() => setPage(p => Math.min(totalPages, p + 1))}
                 disabled={page === totalPages}
-                className="px-4 py-2 rounded-lg border-2 border-[var(--oaria-border)] font-[family-name:var(--font-dm-sans)] text-sm font-medium disabled:opacity-50 disabled:cursor-not-allowed hover:border-[var(--oaria-teal)] transition-colors"
+                className="p-2 rounded-lg border border-[var(--oaria-border)] disabled:opacity-50 disabled:cursor-not-allowed hover:border-[var(--oaria-coral)] transition-colors"
               >
-                다음
+                <ChevronRight size={18} />
               </button>
             </div>
           )}
