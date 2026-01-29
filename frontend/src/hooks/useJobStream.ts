@@ -110,6 +110,12 @@ interface UseJobStreamReturn {
   selectRecovery: (optionId: string) => Promise<void>;
 }
 
+// 개발 환경에서만 로그 출력
+const isDev = process.env.NODE_ENV === "development";
+const log = (...args: unknown[]) => isDev && console.log(...args);
+const warn = (...args: unknown[]) => isDev && console.warn(...args);
+const logError = (...args: unknown[]) => isDev && console.error(...args);
+
 export function useJobStream(options: UseJobStreamOptions = {}): UseJobStreamReturn {
   const [jobId, setJobId] = useState<string | null>(null);
   const [status, setStatus] = useState<JobStreamStatus>("idle");
@@ -155,7 +161,7 @@ export function useJobStream(options: UseJobStreamOptions = {}): UseJobStreamRet
     eventSourceRef.current = eventSource;
 
     eventSource.onopen = () => {
-      console.log("[useJobStream] SSE connected");
+      log("[useJobStream] SSE connected");
       setStatus("running");
     };
 
@@ -164,7 +170,7 @@ export function useJobStream(options: UseJobStreamOptions = {}): UseJobStreamRet
       try {
         // Skip if event.data is undefined or empty
         if (!event.data || event.data === "undefined") {
-          console.warn("[useJobStream] Received empty event data, skipping");
+          warn("[useJobStream] Received empty event data, skipping");
           return;
         }
 
@@ -174,7 +180,7 @@ export function useJobStream(options: UseJobStreamOptions = {}): UseJobStreamRet
           ...parsedData,
           event: event.type || parsedData.event || "message",
         };
-        console.log("[useJobStream] Event received:", data.event, data);
+        log("[useJobStream] Event received:", data.event, data);
 
         // Update progress
         if (data.progress_percent !== undefined) {
@@ -241,7 +247,7 @@ export function useJobStream(options: UseJobStreamOptions = {}): UseJobStreamRet
         // Call generic event handler
         optionsRef.current.onEvent?.(data);
       } catch (e) {
-        console.error("[useJobStream] Parse error:", e, event.data);
+        logError("[useJobStream] Parse error:", e, event.data);
       }
     };
 
@@ -288,7 +294,7 @@ export function useJobStream(options: UseJobStreamOptions = {}): UseJobStreamRet
     eventSource.onmessage = handleEvent;
 
     eventSource.onerror = (e) => {
-      console.error("[useJobStream] SSE error:", e);
+      logError("[useJobStream] SSE error:", e);
       setStatus("failed");
       setError("Connection lost");
       eventSource.close();

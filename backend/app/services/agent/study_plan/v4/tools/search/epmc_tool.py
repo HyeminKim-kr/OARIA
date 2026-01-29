@@ -101,24 +101,29 @@ class EPMCSearchTool(BaseTool):
                 max_results=max_results,
             )
 
-            # EPMCPaper 객체를 dict로 변환 (URL 포함)
+            # EPMCPaper 객체를 dict로 변환 (통합 형식)
             papers = []
             for paper in results.papers[:max_results]:
+                title_short = paper.title[:50] + "..." if len(paper.title) > 50 else paper.title
                 paper_dict = {
-                    "pmcid": paper.pmcid,
-                    "pmid": paper.pmid,
+                    # 공통 필수 필드
                     "title": paper.title,
-                    "abstract": paper.abstract,
+                    "url": paper.url,
+                    "score": 0.7,  # EPMC는 기본 점수 (추후 개선 가능)
+                    "source": "epmc",  # 검색 소스 표시
+                    "citation_text": paper.citation_text or title_short,
+                    "markdown_link": paper.markdown_link or (f"[{title_short}]({paper.url})" if paper.url else title_short),
+                    # EPMC/논문 전용 필드
+                    "paper_id": paper.pmcid or paper.pmid,
                     "journal": paper.journal,
                     "year": paper.year,
+                    "doi": paper.doi,
+                    "pmcid": paper.pmcid,
+                    "pmid": paper.pmid,
+                    "abstract": paper.abstract,
                     "authors": paper.authors,
                     "is_open_access": paper.is_open_access,
                     "citations": paper.citations,
-                    "doi": paper.doi,
-                    "url": paper.url,
-                    # 출처 표시용 필드
-                    "citation_text": paper.citation_text,
-                    "markdown_link": paper.markdown_link,
                 }
                 papers.append(paper_dict)
 

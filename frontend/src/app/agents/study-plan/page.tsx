@@ -75,6 +75,30 @@ export default function StudyPlanPage() {
     totalDuration?: number;
     paperCount?: number;
     snippetCount?: number;
+    // 실제 데이터 배열 (통합 형식)
+    retrievedPapers?: Array<{
+      title: string;
+      url?: string;
+      score?: number;
+      source?: "rag" | "epmc" | "web";  // 검색 소스
+      citation_text?: string;
+      markdown_link?: string;
+      paper_id?: string;
+      journal?: string;
+      year?: number;
+      doi?: string;
+      pmcid?: string;
+      pmid?: string;
+      content?: string;  // Web 검색용
+    }>;
+    evidenceSnippets?: Array<{
+      snippet_id?: string;
+      paper_id?: string;
+      section?: string;
+      text: string;
+      relevance_score?: number;
+      source?: string;  // 스니펫 소스
+    }>;
   }>({});
 
   // v4 사고 과정 state
@@ -199,6 +223,8 @@ export default function StudyPlanPage() {
       });
 
       // 결과 데이터 저장 (ResultsPanel용)
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const eventData = event as any;
       setResultData({
         planA: sseEvent.plan_a,
         planB: sseEvent.plan_b,
@@ -206,6 +232,9 @@ export default function StudyPlanPage() {
         totalDuration: sseEvent.total_duration_ms || 0,
         paperCount: sseEvent.paper_count || 0,
         snippetCount: sseEvent.snippet_count || 0,
+        // 실제 데이터 배열
+        retrievedPapers: eventData.retrieved_papers || [],
+        evidenceSnippets: eventData.evidence_snippets || [],
       });
 
       setIsLoading(false);
@@ -585,6 +614,8 @@ export default function StudyPlanPage() {
                       nodeDetails={state.nodeDetails as Record<string, unknown>}
                       paperCount={resultData.paperCount}
                       snippetCount={resultData.snippetCount}
+                      retrievedPapers={resultData.retrievedPapers}
+                      evidenceSnippets={resultData.evidenceSnippets}
                     />
                   </div>
                 )}

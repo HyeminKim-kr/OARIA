@@ -1,4 +1,9 @@
-"""Unified search tool - 3-tier integrated search."""
+"""RAG Search Tool - Unified 3-tier integrated search.
+
+Combines results from:
+- Weaviate (internal vector DB) - paper_id format: pmc:PMC... or pmid:...
+- Tavily (web search) - paper_id format: web_...
+"""
 
 import logging
 from typing import Any
@@ -19,59 +24,13 @@ class RAGSearchTool(BaseTool):
     - Tier 1: Weaviate (internal vector DB)
     - Tier 2: Europe PMC (external paper database)
     - Tier 3: Tavily (web search for protocols, reagents, etc.)
+
+    Output format (unified):
+    - papers[]: title, url, score, source, citation_text, markdown_link, ...
+    - snippets[]: snippet_id, paper_id, section, text, relevance_score, source
+    - coverage: float (0-1)
+    - source: "rag", "web", or "rag+web"
     """
-
-    async def _fetch_paper_urls(self, paper_ids: list[str]) -> dict[str, dict[str, Any]]:
-        """Fetch paper URLs from database by paper_id.
-
-        Args:
-            paper_ids: List of paper_ids to look up
-
-        Returns:
-            Dict mapping paper_id to URL info dict
-        """
-        if not paper_ids:
-            return {}
-
-        url_map: dict[str, dict[str, Any]] = {}
-
-        try:
-            async with async_session_maker() as session:
-                # Query papers by paper_id
-                stmt = select(Paper).where(Paper.paper_id.in_(paper_ids))
-                result = await session.execute(stmt)
-                papers = result.scalars().all()
-
-                for paper in papers:
-                    # Build URL with priority: source_url > DOI > PMC > PubMed
-                    url = None
-                    if paper.source_url:
-                        url = paper.source_url
-                    elif paper.doi:
-                        url = f"https://doi.org/{paper.doi}"
-                    elif paper.pmcid:
-                        url = f"https://europepmc.org/article/PMC/{paper.pmcid}"
-                    elif paper.pmid:
-                        url = f"https://pubmed.ncbi.nlm.nih.gov/{paper.pmid}/"
-
-                    if url:
-                        # Create citation text
-                        title_short = paper.title[:50] + "..." if len(paper.title) > 50 else paper.title
-                        url_map[paper.paper_id] = {
-                            "url": url,
-                            "doi": paper.doi,
-                            "pmcid": paper.pmcid,
-                            "pmid": paper.pmid,
-                            "citation_text": title_short,
-                            "markdown_link": f"[{title_short}]({url})",
-                        }
-
-                logger.info(f"Fetched URLs for {len(url_map)}/{len(paper_ids)} papers from DB")
-
-        except Exception as e:
-            logger.warning(f"Failed to fetch paper URLs from DB: {e}")
-
-        return url_map
 
     @property
     def name(self) -> str:
@@ -136,66 +95,49 @@ class RAGSearchTool(BaseTool):
         logger.info(f"RAG search: {query[:100]}... (top_k={top_k})")
 
         try:
-            # Import here to avoid circular dependencies
             from app.services.agent.study_plan.shared.rag.search import StudySearchService
 
             # Parse filters
-            year_from = None
-            year_to = None
-            sections = None
-            if filters:
-                year_from = filters.get("year_from")
-                year_to = filters.get("year_to")
-                sections = filters.get("sections")
+            year_from = filters.get("year_from") if filters else None
+            year_to = filters.get("year_to") if filters else None
+            sections = filters.get("sections") if filters else None
 
-            # StudySearchService takes a list of queries
+            # Execute search (combines Weaviate + Tavily)
             rag_service = StudySearchService(top_k_per_query=top_k)
             result = await rag_service.search_studies(
-                queries=[query],  # Wrap single query in list
+                queries=[query],
                 year_from=year_from,
                 year_to=year_to,
                 sections=sections,
             )
 
-            # Collect paper_ids for URL lookup
-            paper_ids = [paper.paper_id for paper in result.papers if paper.paper_id]
+            # Separate by source type:
+            # - Weaviate: paper_id = "pmc:PMC..." or "pmid:..." (need DB lookup for URL)
+            # - Tavily: paper_id = "web_..." (URL stored in journal field)
+            weaviate_papers = [p for p in result.papers if not p.paper_id.startswith("web_")]
+            tavily_papers = [p for p in result.papers if p.paper_id.startswith("web_")]
 
-            # Fetch URLs from database
-            url_map = await self._fetch_paper_urls(paper_ids)
+            # Fetch URLs from DB for Weaviate papers only
+            weaviate_ids = [p.paper_id for p in weaviate_papers if p.paper_id]
+            url_map = await self._fetch_paper_urls(weaviate_ids) if weaviate_ids else {}
 
-            # Convert PaperResult objects to dicts with URLs
+            logger.info(
+                f"Search results: {len(weaviate_papers)} from Weaviate, "
+                f"{len(tavily_papers)} from Tavily, {len(url_map)} URLs found"
+            )
+
+            # Convert to unified output format
             papers = []
             snippets = []
+
             for paper in result.papers:
-                # Get URL info from DB lookup
-                url_info = url_map.get(paper.paper_id, {})
-
-                paper_dict = {
-                    "paper_id": paper.paper_id,
-                    "title": paper.title,
-                    "journal": paper.journal,
-                    "year": paper.year,
-                    "score": paper.max_relevance_score,
-                    # URL fields from DB
-                    "url": url_info.get("url"),
-                    "doi": url_info.get("doi"),
-                    "pmcid": url_info.get("pmcid"),
-                    "pmid": url_info.get("pmid"),
-                    "citation_text": url_info.get("citation_text", paper.title[:50] + "..." if len(paper.title) > 50 else paper.title),
-                    "markdown_link": url_info.get("markdown_link"),
-                }
+                paper_dict, paper_snippets = self._convert_paper(paper, url_map)
                 papers.append(paper_dict)
+                snippets.extend(paper_snippets)
 
-                # Extract snippets from paper
-                for snippet in paper.snippets:
-                    snippet_dict = {
-                        "snippet_id": snippet.snippet_id,
-                        "paper_id": snippet.paper_id,
-                        "section": snippet.section,
-                        "text": snippet.text,
-                        "relevance_score": snippet.relevance_score,
-                    }
-                    snippets.append(snippet_dict)
+            # Determine sources used
+            sources_used = set(p.get("source") for p in papers)
+            source_str = "+".join(sorted(sources_used)) if sources_used else "rag"
 
             return {
                 "papers": papers[:top_k],
@@ -203,59 +145,162 @@ class RAGSearchTool(BaseTool):
                 "coverage": result.coverage_score,
                 "total_found": len(result.papers),
                 "tier": 1,
-                "source": "rag",
+                "source": source_str,
             }
 
         except ImportError as e:
-            # Fallback if RAG service not available
             logger.warning(f"RAG service import error: {e}")
-            return {
-                "papers": [],
-                "snippets": [],
-                "coverage": 0.0,
-                "total_found": 0,
-                "tier": 1,
-                "source": "rag",
-                "error": f"RAG service not available: {e}",
-            }
+            return self._error_response(f"RAG service not available: {e}")
 
         except Exception as e:
             logger.error(f"RAG search error: {e}")
-            return {
-                "papers": [],
-                "snippets": [],
-                "coverage": 0.0,
-                "total_found": 0,
-                "tier": 1,
-                "source": "rag",
-                "error": f"RAG search failed: {e}",
-            }
+            return self._error_response(f"RAG search failed: {e}")
 
-    def _calculate_coverage(
-        self,
-        papers: list[dict],
-        snippets: list[dict],
-    ) -> float:
-        """Calculate search coverage score.
+    def _convert_paper(self, paper: Any, url_map: dict) -> tuple[dict, list[dict]]:
+        """Convert PaperResult to unified output format.
 
-        Based on:
-        - Number of results
-        - Relevance scores
-        - Evidence density
+        Args:
+            paper: PaperResult object
+            url_map: Dict mapping paper_id to URL info (for Weaviate papers)
+
+        Returns:
+            Tuple of (paper_dict, snippets_list)
         """
-        if not papers:
-            return 0.0
+        is_tavily = paper.paper_id.startswith("web_") or paper.source == "tavily"
+        actual_source = "web" if is_tavily else ("rag" if paper.source == "weaviate" else paper.source)
 
-        # Base coverage from count (max 0.5)
-        count_score = min(len(papers) / 10, 0.5)
+        # Get URL and identifiers based on source
+        if is_tavily:
+            # Tavily: URL is stored in journal field
+            url = paper.journal if paper.journal else None
+            doi, pmcid, pmid = None, None, None
+            journal_display = self._extract_domain(paper.journal)
+        else:
+            # Weaviate: lookup from DB
+            url_info = url_map.get(paper.paper_id, {})
+            url = url_info.get("url")
+            doi = url_info.get("doi")
+            pmcid = url_info.get("pmcid")
+            pmid = url_info.get("pmid")
+            journal_display = paper.journal
 
-        # Relevance score average (max 0.3)
-        relevance_scores = [p.get("score", 0) for p in papers if "score" in p]
-        avg_relevance = sum(relevance_scores) / len(relevance_scores) if relevance_scores else 0.5
-        relevance_score = avg_relevance * 0.3
+            # URL fallback: DOI > PMC > PubMed
+            if not url:
+                url = self._build_url_from_identifiers(doi, pmcid, pmid)
 
-        # Evidence density from snippets (max 0.2)
-        snippet_count = len(snippets)
-        density_score = min(snippet_count / 20, 0.2)
+        title_short = paper.title[:50] + "..." if len(paper.title) > 50 else paper.title
 
-        return min(count_score + relevance_score + density_score, 1.0)
+        paper_dict = {
+            # Common required fields
+            "title": paper.title,
+            "url": url,
+            "score": paper.max_relevance_score,
+            "source": actual_source,
+            "citation_text": title_short,
+            "markdown_link": f"[{title_short}]({url})" if url else title_short,
+            # Paper-specific fields
+            "paper_id": paper.paper_id,
+            "journal": journal_display,
+            "year": paper.year if paper.year > 0 else None,
+            "doi": doi,
+            "pmcid": pmcid,
+            "pmid": pmid,
+            # Web-specific field
+            "content": paper.snippets[0].text if is_tavily and paper.snippets else None,
+        }
+
+        # Convert snippets
+        snippets = [
+            {
+                "snippet_id": s.snippet_id,
+                "paper_id": s.paper_id,
+                "section": s.section,
+                "text": s.text,
+                "relevance_score": s.relevance_score,
+                "source": actual_source,
+            }
+            for s in paper.snippets
+        ]
+
+        return paper_dict, snippets
+
+    async def _fetch_paper_urls(self, paper_ids: list[str]) -> dict[str, dict[str, Any]]:
+        """Fetch paper URLs and identifiers from database.
+
+        Args:
+            paper_ids: List of paper_ids (format: pmc:PMC... or pmid:...)
+
+        Returns:
+            Dict mapping paper_id to {url, doi, pmcid, pmid}
+        """
+        if not paper_ids:
+            return {}
+
+        url_map: dict[str, dict[str, Any]] = {}
+
+        try:
+            async with async_session_maker() as session:
+                stmt = select(Paper).where(Paper.paper_id.in_(paper_ids))
+                result = await session.execute(stmt)
+                papers = result.scalars().all()
+
+                for paper in papers:
+                    url = self._build_url_from_paper(paper)
+                    url_map[paper.paper_id] = {
+                        "url": url,
+                        "doi": paper.doi,
+                        "pmcid": paper.pmcid,
+                        "pmid": paper.pmid,
+                    }
+
+                # Log missing papers for debugging
+                missing = set(paper_ids) - set(url_map.keys())
+                if missing:
+                    logger.debug(f"Papers not found in DB: {list(missing)[:3]}...")
+
+        except Exception as e:
+            logger.warning(f"Failed to fetch paper URLs: {e}")
+
+        return url_map
+
+    def _build_url_from_paper(self, paper: Paper) -> str | None:
+        """Build URL from Paper model with priority: source_url > DOI > PMC > PubMed."""
+        if paper.source_url:
+            return paper.source_url
+        return self._build_url_from_identifiers(paper.doi, paper.pmcid, paper.pmid)
+
+    def _build_url_from_identifiers(
+        self, doi: str | None, pmcid: str | None, pmid: str | None
+    ) -> str | None:
+        """Build URL from identifiers with priority: DOI > PMC > PubMed."""
+        if doi:
+            return f"https://doi.org/{doi}"
+        if pmcid:
+            return f"https://europepmc.org/article/PMC/{pmcid}"
+        if pmid:
+            return f"https://pubmed.ncbi.nlm.nih.gov/{pmid}/"
+        return None
+
+    def _extract_domain(self, url: str | None) -> str:
+        """Extract domain from URL for display (e.g., 'nature.com')."""
+        if not url:
+            return ""
+        try:
+            from urllib.parse import urlparse
+            parsed = urlparse(url)
+            domain = parsed.netloc or parsed.path.split("/")[0]
+            return domain[4:] if domain.startswith("www.") else domain
+        except Exception:
+            return url[:50] if url else ""
+
+    def _error_response(self, error: str) -> dict[str, Any]:
+        """Return standardized error response."""
+        return {
+            "papers": [],
+            "snippets": [],
+            "coverage": 0.0,
+            "total_found": 0,
+            "tier": 1,
+            "source": "rag",
+            "error": error,
+        }

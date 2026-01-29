@@ -135,7 +135,7 @@ class AgentService:
         Yields:
             AgentEvent for each step (마지막에 result 이벤트 포함)
         """
-        from .nodes.synthesizer import synthesize_answer_stream
+        from .nodes.synthesizer import synthesize_answer_stream, _filter_cited_references
 
         start_time = time.perf_counter()
 
@@ -195,9 +195,24 @@ class AgentService:
 
         final_answer = "".join(final_answer_parts)
 
+        # Filter to only cited references (with original citation indices)
+        _, cited_refs_with_index = _filter_cited_references(
+            final_answer, all_citations
+        )
+
+        # Build references with citation_index for frontend
+        references_with_index = []
+        for citation_idx, ref in cited_refs_with_index:
+            ref_dict = ref.model_dump()
+            ref_dict["citation_index"] = citation_idx  # 원본 인용 번호 추가
+            references_with_index.append(ref_dict)
+
+        # Extract just references for state
+        cited_references = [ref for _, ref in cited_refs_with_index]
+
         # Update state with synthesis results
         final_state["final_answer"] = final_answer
-        final_state["citations"] = all_citations
+        final_state["citations"] = cited_references
 
         # Gate 3: RAGAS Quality Evaluation (OAR-13)
         from app.services.gates.gate3_ragas import get_gate3_service
@@ -254,7 +269,7 @@ class AgentService:
             event_type="result",
             data={
                 "answer": final_answer,
-                "references": [ref.model_dump() for ref in all_citations],
+                "references": references_with_index,  # citation_index 포함
                 "complexity": final_state.get("complexity", ComplexityLevel.SIMPLE).value
                 if hasattr(final_state.get("complexity"), "value")
                 else str(final_state.get("complexity", "simple")),

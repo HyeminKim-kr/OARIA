@@ -157,20 +157,53 @@ def _extract_sources(action_name: str, result: Any) -> list[dict] | None:
     if not isinstance(result, dict):
         return None
 
+    # Determine search source from action name
+    source_type_map = {
+        "search_rag": "rag",
+        "search_epmc": "epmc",
+        "search_web": "web",
+    }
+    search_source = source_type_map.get(action_name, "unknown")
+
     sources = []
     papers = result.get("papers", [])
 
     for i, paper in enumerate(papers[:10]):  # Limit to 10 sources
+        # Get URL with fallback logic
+        url = paper.get("url")
+        doi = paper.get("doi", "")
+        pmcid = paper.get("pmcid", "")
+        pmid = paper.get("pmid", paper.get("paper_id", ""))
+
+        if not url:
+            # Fallback: construct URL from identifiers
+            if doi:
+                url = f"https://doi.org/{doi}"
+            elif pmcid:
+                url = f"https://europepmc.org/article/PMC/{pmcid}"
+            elif pmid:
+                url = f"https://pubmed.ncbi.nlm.nih.gov/{pmid}/"
+
+        # Create title for citation
+        title = paper.get("title", "Unknown Title")
+        title_short = title[:50] + "..." if len(title) > 50 else title
+
         source = {
             "id": i + 1,
             "type": "paper",
-            "title": paper.get("title", "Unknown Title"),
+            "title": title,
             "journal": paper.get("journal", ""),
             "year": paper.get("year"),
             "authors": paper.get("authors", [])[:3],  # First 3 authors
             "relevance": paper.get("score", paper.get("relevance_score", 0)),
-            "pmid": paper.get("pmid", paper.get("paper_id", "")),
-            "doi": paper.get("doi", ""),
+            "pmid": pmid,
+            "pmcid": pmcid,
+            "doi": doi,
+            # New unified fields
+            "url": url,
+            "source": paper.get("source", search_source),  # rag, epmc, or web
+            "citation_text": paper.get("citation_text", title_short),
+            "markdown_link": paper.get("markdown_link") or (f"[{title_short}]({url})" if url else title_short),
         }
         sources.append(source)
 
@@ -185,6 +218,7 @@ def _extract_sources(action_name: str, result: Any) -> list[dict] | None:
                 "section": snippet.get("section", ""),
                 "paper_id": snippet.get("paper_id", ""),
                 "relevance": snippet.get("relevance_score", 0),
+                "source": search_source,
             }
             sources.append(source)
 
@@ -325,20 +359,50 @@ def _extract_result_details(action_name: str, result: Any) -> dict | None:
         details["count"] = len(questions)
 
     elif action_name in {"search_rag", "search_epmc", "search_web"}:
+        # Determine search source from action name
+        source_type_map = {
+            "search_rag": "rag",
+            "search_epmc": "epmc",
+            "search_web": "web",
+        }
+        search_source = source_type_map.get(action_name, "unknown")
+
         # Extract paper/evidence info
         papers = result.get("papers", result.get("results", []))
-        details["papers"] = [
-            {
-                "title": p.get("title", "")[:100],
+        details_papers = []
+        for p in papers[:5]:  # Limit to 5
+            # Get URL with fallback logic
+            url = p.get("url")
+            doi = p.get("doi", "")
+            pmcid = p.get("pmcid", "")
+            pmid = p.get("pmid", p.get("paper_id", ""))
+
+            if not url:
+                if doi:
+                    url = f"https://doi.org/{doi}"
+                elif pmcid:
+                    url = f"https://europepmc.org/article/PMC/{pmcid}"
+                elif pmid:
+                    url = f"https://pubmed.ncbi.nlm.nih.gov/{pmid}/"
+
+            title = p.get("title", "")[:100]
+            details_papers.append({
+                "title": title,
                 "authors": p.get("authors", [])[:3],
                 "year": p.get("year"),
                 "journal": p.get("journal", ""),
                 "relevance": p.get("score", p.get("relevance_score", 0)),
-            }
-            for p in papers[:5]  # Limit to 5
-        ]
+                # New unified fields
+                "url": url,
+                "source": p.get("source", search_source),
+                "doi": doi,
+                "pmcid": pmcid,
+                "pmid": pmid,
+            })
+        details["papers"] = details_papers
         details["total_count"] = len(papers)
         details["coverage"] = result.get("coverage", 0)
+        details["search_source"] = search_source
 
     elif action_name == "design_experiment":
         # Extract experiment design - result is wrapped in "experiment" key

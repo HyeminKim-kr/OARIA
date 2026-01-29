@@ -57,6 +57,7 @@ interface Reference {
   offset_start: number;
   offset_end: number;
   distance: number;
+  citation_index?: number;  // 답변에서 인용된 원본 번호 (예: [1], [5] → 1, 5)
 }
 
 interface SubTask {
@@ -135,7 +136,7 @@ export default function AskPage() {
         id: m.id,
         role: m.role as "user" | "assistant",
         content: m.content,
-        references: m.references?.map((r) => ({
+        references: m.references?.map((r, idx) => ({
           paper_id: r.paper_id,
           chunk_id: r.chunk_id,
           title: r.title,
@@ -146,6 +147,7 @@ export default function AskPage() {
           offset_start: r.offset_start,
           offset_end: r.offset_end,
           distance: r.distance,
+          citation_index: r.citation_index ?? (idx + 1),  // 저장된 데이터에 없으면 순차 번호
         })),
       }));
       setMessages(loadedMessages);
@@ -598,7 +600,7 @@ export default function AskPage() {
                               >
                                 <div className="flex items-start gap-3">
                                   <span className="flex-shrink-0 w-6 h-6 rounded-full bg-[var(--oaria-teal)]/20 text-[var(--oaria-teal)] text-xs font-medium flex items-center justify-center">
-                                    {idx + 1}
+                                    {ref.citation_index ?? (idx + 1)}
                                   </span>
                                   <div className="flex-1 min-w-0">
                                     <div className="flex items-start justify-between gap-2">

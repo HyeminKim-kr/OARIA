@@ -21,6 +21,35 @@ import {
   Sparkles,
 } from "lucide-react";
 
+// 논문 타입 (통합 형식)
+interface RetrievedPaper {
+  // 공통 필수 필드
+  title: string;
+  url?: string;
+  score?: number;
+  source?: "rag" | "epmc" | "web";  // 검색 소스
+  citation_text?: string;
+  markdown_link?: string;
+  // 논문 전용 필드
+  paper_id?: string;
+  journal?: string;
+  year?: number;
+  doi?: string;
+  pmcid?: string;
+  pmid?: string;
+  // Web 전용 필드
+  content?: string;
+}
+
+// 스니펫 타입
+interface EvidenceSnippet {
+  snippet_id?: string;
+  paper_id?: string;
+  section?: string;
+  text: string;
+  relevance_score?: number;
+}
+
 interface ResultsPanelProps {
   finalPlan: string;
   executiveSummary?: string;
@@ -31,6 +60,9 @@ interface ResultsPanelProps {
   nodeDetails?: Record<string, unknown>;
   paperCount?: number;
   snippetCount?: number;
+  // 실제 데이터 배열
+  retrievedPapers?: RetrievedPaper[];
+  evidenceSnippets?: EvidenceSnippet[];
 }
 
 type TabId = "summary" | "experiments" | "evidence" | "full";
@@ -58,6 +90,8 @@ export function ResultsPanel({
   nodeDetails = {},
   paperCount = 0,
   snippetCount = 0,
+  retrievedPapers = [],
+  evidenceSnippets = [],
 }: ResultsPanelProps) {
   const [activeTab, setActiveTab] = useState<TabId>("summary");
   const [copied, setCopied] = useState(false);
@@ -88,8 +122,8 @@ export function ResultsPanel({
   }> || [];
 
   // Use props for paper and snippet counts (fallback to nodeDetails for backwards compatibility)
-  const evidenceSnippets = snippetCount || Number((nodeDetails.build_evidence as Record<string, unknown>)?.snippet_count) || 0;
-  const evidencePacks = paperCount || Number((nodeDetails.build_evidence as Record<string, unknown>)?.pack_count) || 0;
+  const snippetCountDisplay = snippetCount || Number((nodeDetails.build_evidence as Record<string, unknown>)?.snippet_count) || 0;
+  const paperCountDisplay = paperCount || Number((nodeDetails.build_evidence as Record<string, unknown>)?.pack_count) || 0;
 
   const getExperimentIcon = (type: string) => {
     switch (type?.toLowerCase()) {
@@ -150,7 +184,7 @@ export function ResultsPanel({
           <div className="bg-white/50 dark:bg-black/20 rounded-xl p-3">
             <div className="flex items-center gap-2 text-blue-500">
               <BookOpen size={18} />
-              <span className="text-2xl font-bold">{evidencePacks}</span>
+              <span className="text-2xl font-bold">{paperCountDisplay}</span>
             </div>
             <p className="text-xs text-[var(--oaria-text-secondary)] mt-1">참고 논문</p>
           </div>
@@ -332,25 +366,168 @@ export function ResultsPanel({
               exit={{ opacity: 0, x: 20 }}
               className="space-y-4"
             >
+              {/* Summary Stats */}
               <div className="grid grid-cols-2 gap-4">
                 <div className="p-4 rounded-xl bg-blue-500/10 border border-blue-500/20">
                   <div className="flex items-center gap-2 text-blue-500 mb-2">
                     <BookOpen size={20} />
-                    <span className="text-2xl font-bold">{evidencePacks}</span>
+                    <span className="text-2xl font-bold">{paperCountDisplay}</span>
                   </div>
                   <p className="text-xs text-[var(--oaria-text-secondary)]">참고 논문</p>
                 </div>
                 <div className="p-4 rounded-xl bg-purple-500/10 border border-purple-500/20">
                   <div className="flex items-center gap-2 text-purple-500 mb-2">
                     <FileText size={20} />
-                    <span className="text-2xl font-bold">{evidenceSnippets}</span>
+                    <span className="text-2xl font-bold">{snippetCountDisplay}</span>
                   </div>
                   <p className="text-xs text-[var(--oaria-text-secondary)]">근거 스니펫</p>
                 </div>
               </div>
-              <p className="text-sm text-[var(--oaria-text-secondary)] text-center">
-                상세 근거 자료는 전체 계획서에서 확인할 수 있습니다.
-              </p>
+
+              {/* Papers List */}
+              {retrievedPapers.length > 0 && (
+                <div className="space-y-2">
+                  <h3 className="font-semibold text-sm flex items-center gap-2">
+                    <BookOpen size={16} className="text-blue-500" />
+                    참고 논문 목록
+                  </h3>
+                  <div className="max-h-[300px] overflow-y-auto space-y-2">
+                    {retrievedPapers.map((paper, index) => {
+                      // URL fallback: url > doi > pmcid > pmid > markdown_link 파싱
+                      // markdown_link 형식: "[제목](https://...)"
+                      const extractUrlFromMarkdown = (mdLink?: string): string | null => {
+                        if (!mdLink) return null;
+                        const match = mdLink.match(/\]\((https?:\/\/[^)]+)\)/);
+                        return match ? match[1] : null;
+                      };
+
+                      const paperUrl = paper.url
+                        || (paper.doi ? `https://doi.org/${paper.doi}` : null)
+                        || (paper.pmcid ? `https://europepmc.org/article/PMC/${paper.pmcid}` : null)
+                        || (paper.pmid ? `https://pubmed.ncbi.nlm.nih.gov/${paper.pmid}/` : null)
+                        || extractUrlFromMarkdown(paper.markdown_link);
+
+                      // 소스별 뱃지 스타일
+                      const getSourceBadge = (source?: string) => {
+                        switch (source) {
+                          case "rag":
+                            return { label: "RAG", className: "bg-emerald-500/20 text-emerald-400 border-emerald-500/30" };
+                          case "epmc":
+                            return { label: "EPMC", className: "bg-blue-500/20 text-blue-400 border-blue-500/30" };
+                          case "web":
+                            return { label: "Web", className: "bg-orange-500/20 text-orange-400 border-orange-500/30" };
+                          default:
+                            return null;
+                        }
+                      };
+
+                      const sourceBadge = getSourceBadge(paper.source);
+
+                      const CardContent = (
+                        <>
+                          <div className="flex items-start justify-between gap-2">
+                            <p className={`font-medium text-sm line-clamp-2 ${paperUrl ? "text-blue-600 dark:text-blue-400" : ""}`}>
+                              {paper.title}
+                            </p>
+                            {sourceBadge && (
+                              <span className={`flex-shrink-0 px-1.5 py-0.5 rounded border text-[10px] font-medium ${sourceBadge.className}`}>
+                                {sourceBadge.label}
+                              </span>
+                            )}
+                          </div>
+                          {paperUrl && (
+                            <p className="text-xs text-[var(--oaria-text-secondary)] mt-0.5 truncate">
+                              {paperUrl}
+                            </p>
+                          )}
+                          <div className="flex items-center gap-2 mt-1 text-xs text-[var(--oaria-text-secondary)]">
+                            {paper.journal && <span>{paper.journal}</span>}
+                            {paper.year && <span>({paper.year})</span>}
+                            {paper.score !== undefined && (
+                              <span className="px-1.5 py-0.5 rounded bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-400">
+                                관련도: {(paper.score * 100).toFixed(0)}%
+                              </span>
+                            )}
+                          </div>
+                        </>
+                      );
+
+                      const handleClick = () => {
+                        if (paperUrl) {
+                          window.open(paperUrl, "_blank", "noopener,noreferrer");
+                        }
+                      };
+
+                      return (
+                        <motion.div
+                          key={paper.paper_id || index}
+                          initial={{ opacity: 0, y: 10 }}
+                          animate={{ opacity: 1, y: 0 }}
+                          transition={{ delay: index * 0.05 }}
+                          onClick={handleClick}
+                          onKeyDown={(e) => e.key === "Enter" && handleClick()}
+                          role={paperUrl ? "button" : undefined}
+                          tabIndex={paperUrl ? 0 : undefined}
+                          className={`p-3 rounded-lg border border-[var(--oaria-border)] ${
+                            paperUrl
+                              ? "cursor-pointer hover:border-blue-500/50 hover:bg-blue-500/10 active:bg-blue-500/20"
+                              : ""
+                          } transition-all select-none`}
+                        >
+                          {CardContent}
+                        </motion.div>
+                      );
+                    })}
+                  </div>
+                </div>
+              )}
+
+              {/* Evidence Snippets */}
+              {evidenceSnippets.length > 0 && (
+                <div className="space-y-2">
+                  <h3 className="font-semibold text-sm flex items-center gap-2">
+                    <FileText size={16} className="text-purple-500" />
+                    근거 스니펫
+                  </h3>
+                  <div className="max-h-[300px] overflow-y-auto space-y-2">
+                    {evidenceSnippets.slice(0, 10).map((snippet, index) => (
+                      <motion.div
+                        key={snippet.snippet_id || index}
+                        initial={{ opacity: 0, y: 10 }}
+                        animate={{ opacity: 1, y: 0 }}
+                        transition={{ delay: index * 0.05 }}
+                        className="p-3 rounded-lg border border-[var(--oaria-border)] hover:border-purple-500/30 hover:bg-purple-500/5 transition-all"
+                      >
+                        <div className="flex items-start gap-2">
+                          <span className="text-xs px-1.5 py-0.5 rounded bg-purple-100 dark:bg-purple-900/30 text-purple-700 dark:text-purple-400 whitespace-nowrap">
+                            {snippet.section || "본문"}
+                          </span>
+                          {snippet.relevance_score !== undefined && (
+                            <span className="text-xs px-1.5 py-0.5 rounded bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-400">
+                              {(snippet.relevance_score * 100).toFixed(0)}%
+                            </span>
+                          )}
+                        </div>
+                        <p className="text-sm mt-2 text-[var(--oaria-text-secondary)] line-clamp-3">
+                          {snippet.text}
+                        </p>
+                      </motion.div>
+                    ))}
+                    {evidenceSnippets.length > 10 && (
+                      <p className="text-xs text-center text-[var(--oaria-text-secondary)]">
+                        +{evidenceSnippets.length - 10}개 더...
+                      </p>
+                    )}
+                  </div>
+                </div>
+              )}
+
+              {/* Empty state */}
+              {retrievedPapers.length === 0 && evidenceSnippets.length === 0 && (
+                <p className="text-sm text-[var(--oaria-text-secondary)] text-center py-4">
+                  상세 근거 자료는 전체 계획서에서 확인할 수 있습니다.
+                </p>
+              )}
             </motion.div>
           )}
 
