@@ -717,6 +717,78 @@ export interface PodcastSSEEvent {
   error?: string;
 }
 
+// ============================================================
+// Research Assistant - Vector Graph API
+// ============================================================
+
+export interface VectorGraphNode {
+  id: string;
+  type: "paper" | "author" | "keyword" | "concept";
+  label: string;
+  cluster?: string;
+  metadata?: {
+    pmid?: string;
+    journal?: string;
+    pubdate?: string;
+    abstract?: string;
+    paper_count?: number;
+    certainty_score?: number;
+    domain?: string;
+  };
+}
+
+export interface VectorGraphLink {
+  source: string;
+  target: string;
+  type: "similar" | "authored" | "contains" | "causal" | "correlational" | "hierarchical" | "contradictory";
+  similarity?: number;
+  weight?: number;
+  evidence_hint?: string;
+}
+
+export interface VectorGraphResponse {
+  nodes: VectorGraphNode[];
+  links: VectorGraphLink[];
+  query: string;
+  total_papers: number;
+  total_authors: number;
+  total_keywords: number;
+}
+
+export interface VectorSearchRequest {
+  query: string;
+  limit?: number;
+  min_similarity?: number;
+  include_authors?: boolean;
+  include_keywords?: boolean;
+}
+
+// Research Assistant API
+export const researchAssistantApi = {
+  // 벡터 그래프 검색
+  searchVectorGraph: (request: VectorSearchRequest) =>
+    api.post<VectorGraphResponse>('/ai/research/vector-graph', request)
+      .then((res) => res.data),
+
+  // 시맨틱 분해 (질문을 개념 노드로 분해)
+  decomposeQuery: (query: string) =>
+    api.post<{
+      core_question: string;
+      concept_nodes: Array<{
+        node_id: string;
+        label: string;
+        domain: string;
+        certainty_score: number;
+      }>;
+      relation_edges: Array<{
+        source: string;
+        target: string;
+        edge_type: string;
+        weight: number;
+      }>;
+    }>('/ai/research/decompose', { query }),
+};
+
 // Podcast API
 export const podcastApi = {
   // 에피소드 생성 (SSE 스트림)

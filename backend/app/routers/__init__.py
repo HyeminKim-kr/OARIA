@@ -8,6 +8,7 @@ from .paper_chat import router as paper_chat_router
 from .agent_jobs import router as agent_jobs_router
 from .notifications import router as notifications_router
 from .podcast import router as podcast_router
+from .research import router as research_router
 
 __all__ = [
     "auth_router",
@@ -18,4 +19,5 @@ __all__ = [
     "agent_jobs_router",
     "notifications_router",
     "podcast_router",
+    "research_router",
 ]

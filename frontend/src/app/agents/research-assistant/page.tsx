@@ -16,9 +16,12 @@ import {
   TrendingUp,
   Library,
   Brain,
+  Box,
+  Layers,
 } from "lucide-react";
 import type { GraphNode, GraphLink, ActiveFilters, ViewMode } from "./types";
 import { generateSampleGraphData, EXAMPLE_QUESTIONS } from "./constants";
+import { researchAssistantApi } from "@/lib/api";
 import {
   ControlPanel,
   LinkSummaryPanel,
@@ -26,13 +29,25 @@ import {
   QuestionInputPanel,
 } from "./components";
 
-// VectorGraph3D를 동적으로 로드 (SSR 비활성화)
-const VectorGraph3D = dynamic(() => import("./components/VectorGraph3D"), {
+// Graph 컴포넌트를 동적으로 로드 (SSR 비활성화)
+const VectorGraph2D = dynamic(() => import("./components/VectorGraph2D"), {
   ssr: false,
   loading: () => (
     <div className="w-full h-full flex items-center justify-center">
       <div className="flex items-center gap-3 text-slate-400">
         <div className="w-6 h-6 border-2 border-blue-500 border-t-transparent rounded-full animate-spin" />
+        <span className="text-sm">Loading 2D Graph...</span>
+      </div>
+    </div>
+  ),
+});
+
+const VectorGraph3D = dynamic(() => import("./components/VectorGraph3D"), {
+  ssr: false,
+  loading: () => (
+    <div className="w-full h-full flex items-center justify-center">
+      <div className="flex items-center gap-3 text-slate-400">
+        <div className="w-6 h-6 border-2 border-purple-500 border-t-transparent rounded-full animate-spin" />
         <span className="text-sm">Loading 3D Graph...</span>
       </div>
     </div>
@@ -47,10 +62,16 @@ export default function ResearchAssistantPage() {
   // View mode
   const [viewMode, setViewMode] = useState<ViewMode>("landing");
 
+  // Graph dimension mode (2d or 3d)
+  const [graphMode, setGraphMode] = useState<"2d" | "3d">("2d");
+
   // Graph data
-  const [graphData] = useState<{ nodes: GraphNode[]; links: GraphLink[] }>(() =>
+  const [graphData, setGraphData] = useState<{ nodes: GraphNode[]; links: GraphLink[] }>(() =>
     generateSampleGraphData()
   );
+
+  // Current query
+  const [currentQuery, setCurrentQuery] = useState<string>("");
 
   // Graph controls
   const [activeFilters, setActiveFilters] = useState<ActiveFilters>({
@@ -120,16 +141,49 @@ export default function ResearchAssistantPage() {
     setLinkCount(links);
   }, []);
 
-  // Question submit handler
-  const handleQuestionSubmit = useCallback((question: string) => {
+  // Question submit handler - API 호출하여 벡터 그래프 데이터 가져오기
+  const handleQuestionSubmit = useCallback(async (question: string) => {
     setIsProcessing(true);
+    setCurrentQuery(question);
     console.log("Research Question:", question);
 
-    // TODO: 실제 API 호출 및 그래프 데이터 업데이트
-    setTimeout(() => {
+    try {
+      // 벡터 API 호출
+      const response = await researchAssistantApi.searchVectorGraph({
+        query: question,
+        limit: 50,
+        min_similarity: 0.6,
+        include_authors: true,
+        include_keywords: true,
+      });
+
+      // 그래프 데이터 업데이트
+      const newNodes: GraphNode[] = response.nodes.map((node) => ({
+        id: node.id,
+        type: node.type,
+        label: node.label,
+        cluster: node.cluster,
+        metadata: node.metadata,
+      }));
+
+      const newLinks: GraphLink[] = response.links.map((link) => ({
+        source: link.source,
+        target: link.target,
+        type: link.type,
+        similarity: link.similarity,
+        weight: link.weight,
+        evidence_hint: link.evidence_hint,
+      }));
+
+      setGraphData({ nodes: newNodes, links: newLinks });
+      console.log(`Loaded ${newNodes.length} nodes and ${newLinks.length} links`);
+    } catch (error) {
+      console.error("Vector search error:", error);
+      // API 실패 시 샘플 데이터 유지 (또는 에러 처리)
+    } finally {
       setIsProcessing(false);
       setShowQuestionInput(false);
-    }, 2000);
+    }
   }, []);
 
   // Filtered links for summary panel
@@ -155,49 +209,216 @@ export default function ResearchAssistantPage() {
   // ─────────────────────────────────────────────────────────────
 
   return (
-    <div className="h-full flex flex-col overflow-hidden">
-      {/* Header with Tabs */}
-      <div className="bg-[var(--background)]">
-        <div className="flex items-center justify-center">
-          <div className="flex items-center gap-6">
-            <Link
-              href="/ask"
-              className="flex items-center gap-2 px-4 py-3 font-[family-name:var(--font-dm-sans)] text-base font-medium border-b-2 border-transparent text-[var(--oaria-text-secondary)] hover:text-[var(--foreground)] transition-colors"
+    <>
+      {/* Graph View - Fullscreen Overlay */}
+      {viewMode === "graph" && (
+        <div
+          className="fixed inset-0 z-[200]"
+          style={{
+            background:
+              "linear-gradient(135deg, #060a14 0%, #0a1020 40%, #0e1830 100%)",
+          }}
+        >
+          {/* Grid Pattern Overlay */}
+          <div
+            className="absolute inset-0 pointer-events-none opacity-[0.025]"
+            style={{
+              backgroundImage:
+                "radial-gradient(circle, #fff 1px, transparent 1px)",
+              backgroundSize: "48px 48px",
+            }}
+          />
+
+          {/* Top Bar - X button and 2D/3D toggle */}
+          <div className="absolute top-4 left-0 right-0 z-[220] flex items-center justify-between px-5">
+            {/* Left: Mode indicator & Current Query */}
+            <div className="flex items-center gap-3">
+              <div className="px-3 py-1.5 rounded-lg bg-slate-800/80 text-white text-xs font-medium flex items-center gap-1.5">
+                <span className={`w-2 h-2 rounded-full animate-pulse ${graphMode === "2d" ? "bg-blue-500" : "bg-purple-500"}`} />
+                {graphMode === "2d" ? "2D" : "3D"} Force Graph
+              </div>
+              {currentQuery && (
+                <div className="px-3 py-1.5 rounded-lg bg-blue-600/20 text-blue-400 text-xs font-medium flex items-center gap-1.5 max-w-md truncate">
+                  <Search size={12} />
+                  <span className="truncate">{currentQuery}</span>
+                </div>
+              )}
+            </div>
+
+            {/* Center: 2D/3D Toggle */}
+            <div
+              className="flex items-center rounded-lg overflow-hidden"
+              style={{
+                background: "rgba(10, 14, 26, 0.9)",
+                backdropFilter: "blur(20px)",
+                border: "1px solid rgba(255, 255, 255, 0.1)",
+              }}
             >
-              <MessageSquare size={20} />
-              Ask AI
-            </Link>
-            <Link
-              href="/main"
-              className="flex items-center gap-2 px-4 py-3 font-[family-name:var(--font-dm-sans)] text-base font-medium border-b-2 border-transparent text-[var(--oaria-text-secondary)] hover:text-[var(--foreground)] transition-colors"
+              <button
+                onClick={() => setGraphMode("2d")}
+                className={`flex items-center gap-1.5 px-4 py-2.5 text-sm font-medium transition-all ${
+                  graphMode === "2d"
+                    ? "bg-blue-600 text-white"
+                    : "text-white/50 hover:text-white hover:bg-white/10"
+                }`}
+              >
+                <Layers size={16} />
+                2D
+              </button>
+              <button
+                onClick={() => setGraphMode("3d")}
+                className={`flex items-center gap-1.5 px-4 py-2.5 text-sm font-medium transition-all ${
+                  graphMode === "3d"
+                    ? "bg-purple-600 text-white"
+                    : "text-white/50 hover:text-white hover:bg-white/10"
+                }`}
+              >
+                <Box size={16} />
+                3D
+              </button>
+            </div>
+
+            {/* Right: Close Button */}
+            <button
+              onClick={() => setViewMode("landing")}
+              className="w-10 h-10 rounded-lg flex items-center justify-center text-white/60 hover:text-white hover:bg-white/10 transition-all cursor-pointer group"
+              style={{
+                background: "rgba(10, 14, 26, 0.9)",
+                backdropFilter: "blur(20px)",
+                border: "1px solid rgba(255, 255, 255, 0.1)",
+              }}
             >
-              <Search size={20} />
-              Search Papers
-            </Link>
-            <Link
-              href="/agents"
-              className="flex items-center gap-2 px-4 py-3 font-[family-name:var(--font-dm-sans)] text-base font-medium border-b-2 border-[var(--oaria-teal)] text-[var(--oaria-teal)]"
+              <X
+                size={20}
+                className="group-hover:rotate-90 transition-transform duration-300"
+              />
+            </button>
+          </div>
+
+          {/* Vector Graph - 2D or 3D based on mode */}
+          {graphMode === "2d" ? (
+            <VectorGraph2D
+              nodes={graphData.nodes}
+              links={graphData.links}
+              activeFilters={activeFilters}
+              minSimilarity={minSimilarity}
+              searchQuery={searchQuery}
+              highlightNodes={highlightNodes}
+              highlightLinks={highlightLinks}
+              onNodeHover={handleNodeHover}
+              onNodeClick={handleNodeClick}
+              onStatsChange={handleStatsChange}
+            />
+          ) : (
+            <VectorGraph3D
+              nodes={graphData.nodes}
+              links={graphData.links}
+              activeFilters={activeFilters}
+              minSimilarity={minSimilarity}
+              searchQuery={searchQuery}
+              highlightNodes={highlightNodes}
+              highlightLinks={highlightLinks}
+              onNodeHover={handleNodeHover}
+              onNodeClick={handleNodeClick}
+              onStatsChange={handleStatsChange}
+            />
+          )}
+
+          {/* Control Panel - Left side, below top bar */}
+          <div className="absolute top-20 left-5 z-[210]">
+            <ControlPanel
+              nodeCount={nodeCount}
+              linkCount={linkCount}
+              activeFilters={activeFilters}
+              onFilterToggle={handleFilterToggle}
+              searchQuery={searchQuery}
+              onSearchChange={setSearchQuery}
+              minSimilarity={minSimilarity}
+              onSimilarityChange={setMinSimilarity}
+            />
+          </div>
+
+          {/* Link Summary Panel - Right side, below top bar */}
+          <div className="absolute top-20 right-5 z-[210]">
+            <LinkSummaryPanel links={filteredLinks} nodes={graphData.nodes} />
+          </div>
+
+          {/* Node Detail Panel */}
+          {selectedNode && (
+            <NodeDetailPanel
+              node={selectedNode}
+              nodes={graphData.nodes}
+              links={graphData.links}
+              onClose={() => setSelectedNode(null)}
+            />
+          )}
+
+          {/* Question Input Toggle Button */}
+          {!showQuestionInput && !selectedNode && (
+            <button
+              onClick={() => setShowQuestionInput(true)}
+              className="absolute bottom-6 left-1/2 -translate-x-1/2 z-[215] px-6 py-3 rounded-xl text-white font-bold flex items-center gap-3 shadow-xl hover:shadow-2xl transition-all hover:scale-105"
+              style={{
+                background: "linear-gradient(135deg, #2563eb, #7c3aed)",
+                boxShadow: "0 8px 32px rgba(37,99,235,0.4)",
+              }}
             >
-              <Bot size={20} />
-              Agents
-            </Link>
-            <Link
-              href="/dashboard"
-              className="flex items-center gap-2 px-4 py-3 font-[family-name:var(--font-dm-sans)] text-base font-medium border-b-2 border-transparent text-[var(--oaria-text-secondary)] hover:text-[var(--foreground)] transition-colors"
-            >
-              <BarChart3 size={20} />
-              Dashboard
-            </Link>
+              <Sparkles size={20} />
+              새로운 연구 질문
+            </button>
+          )}
+
+          {/* Question Input Panel */}
+          {showQuestionInput && !selectedNode && (
+            <QuestionInputPanel
+              onSubmit={handleQuestionSubmit}
+              isProcessing={isProcessing}
+              onClose={() => setShowQuestionInput(false)}
+            />
+          )}
+        </div>
+      )}
+
+      {/* Normal Page Layout */}
+      <div className="h-full flex flex-col">
+        {/* Header with Tabs */}
+        <div className="bg-[var(--background)]">
+          <div className="flex items-center justify-center">
+            <div className="flex items-center gap-6">
+              <Link
+                href="/ask"
+                className="flex items-center gap-2 px-4 py-3 font-[family-name:var(--font-dm-sans)] text-base font-medium border-b-2 border-transparent text-[var(--oaria-text-secondary)] hover:text-[var(--foreground)] transition-colors"
+              >
+                <MessageSquare size={20} />
+                Ask AI
+              </Link>
+              <Link
+                href="/main"
+                className="flex items-center gap-2 px-4 py-3 font-[family-name:var(--font-dm-sans)] text-base font-medium border-b-2 border-transparent text-[var(--oaria-text-secondary)] hover:text-[var(--foreground)] transition-colors"
+              >
+                <Search size={20} />
+                Search Papers
+              </Link>
+              <Link
+                href="/agents"
+                className="flex items-center gap-2 px-4 py-3 font-[family-name:var(--font-dm-sans)] text-base font-medium border-b-2 border-[var(--oaria-teal)] text-[var(--oaria-teal)]"
+              >
+                <Bot size={20} />
+                Agents
+              </Link>
+              <Link
+                href="/dashboard"
+                className="flex items-center gap-2 px-4 py-3 font-[family-name:var(--font-dm-sans)] text-base font-medium border-b-2 border-transparent text-[var(--oaria-text-secondary)] hover:text-[var(--foreground)] transition-colors"
+              >
+                <BarChart3 size={20} />
+                Dashboard
+              </Link>
+            </div>
           </div>
         </div>
-      </div>
 
-      {/* Main Content */}
-      <div className="flex-1 overflow-hidden">
-        {viewMode === "landing" ? (
-          // ─────────────────────────────────────────────────────────────
-          // Landing View
-          // ─────────────────────────────────────────────────────────────
+        {/* Main Content - Landing View */}
+        <div className="flex-1 overflow-auto">
           <div className="h-full overflow-y-auto">
             <div className="max-w-5xl mx-auto px-6 py-8">
               {/* Hero Section */}
@@ -215,12 +436,12 @@ export default function ResearchAssistantPage() {
                 </h1>
                 <p className="font-[family-name:var(--font-dm-sans)] text-lg text-[var(--oaria-text-secondary)] max-w-2xl mx-auto mb-2">
                   <span className="font-semibold text-blue-600">
-                    Vector-Based 3D Reasoning Engine
+                    Vector-Based Reasoning Engine
                   </span>
                 </p>
                 <p className="font-[family-name:var(--font-dm-sans)] text-base text-[var(--oaria-text-secondary)] max-w-2xl mx-auto mb-8">
                   복잡한 연구 질문을 구조화하고, 의미 기반 벡터 공간에서 지식들을
-                  연결하며, 시각적으로 아름다운 3D 그래프 구조로 표현합니다.
+                  연결하며, 시각적 그래프 구조로 표현합니다. 2D/3D 모드 전환을 지원합니다.
                 </p>
                 <button
                   onClick={() => setViewMode("graph")}
@@ -230,7 +451,7 @@ export default function ResearchAssistantPage() {
                   }}
                 >
                   <Sparkles size={24} />
-                  3D Vector Graph 시작하기
+                  Vector Graph 시작하기
                   <ArrowRight size={20} />
                 </button>
               </div>
@@ -264,7 +485,7 @@ export default function ResearchAssistantPage() {
                     <Library size={20} className="text-purple-600" />
                   </div>
                   <h3 className="font-[family-name:var(--font-outfit)] text-base font-semibold mb-1">
-                    3D 시각화
+                    2D/3D 시각화
                   </h3>
                   <p className="font-[family-name:var(--font-dm-sans)] text-xs text-[var(--oaria-text-secondary)]">
                     Semantic Graph 인터랙티브 탐색
@@ -311,7 +532,10 @@ export default function ResearchAssistantPage() {
                         {category.questions.map((question, idx) => (
                           <button
                             key={idx}
-                            onClick={() => setViewMode("graph")}
+                            onClick={() => {
+                              setViewMode("graph");
+                              handleQuestionSubmit(question);
+                            }}
                             className="w-full text-left p-3 rounded-lg border border-[var(--oaria-border)] hover:border-[#1E293B] hover:bg-[#1E293B]/5 transition-colors"
                           >
                             <p className="font-[family-name:var(--font-dm-sans)] text-sm text-[var(--foreground)]">
@@ -349,7 +573,7 @@ export default function ResearchAssistantPage() {
                     3. 노드 간 관계를 가중치가 있는 엣지로 연결
                   </p>
                   <p>
-                    4. 전체를 3D Semantic Graph로 시각화
+                    4. 전체를 Semantic Graph로 시각화 (2D/3D 전환 가능)
                   </p>
                   <p>
                     5. 추론 경로를 따라 노드들을 순차적으로 탐색
@@ -361,108 +585,8 @@ export default function ResearchAssistantPage() {
               </div>
             </div>
           </div>
-        ) : (
-          // ─────────────────────────────────────────────────────────────
-          // Graph View
-          // ─────────────────────────────────────────────────────────────
-          <div
-            className="relative w-full h-full"
-            style={{
-              background:
-                "linear-gradient(135deg, #060a14 0%, #0a1020 40%, #0e1830 100%)",
-            }}
-          >
-            {/* Grid Pattern Overlay */}
-            <div
-              className="absolute inset-0 pointer-events-none opacity-[0.025]"
-              style={{
-                backgroundImage:
-                  "radial-gradient(circle, #fff 1px, transparent 1px)",
-                backgroundSize: "48px 48px",
-              }}
-            />
-
-            {/* Close Button */}
-            <button
-              onClick={() => setViewMode("landing")}
-              className="absolute top-5 right-5 z-[120] w-10 h-10 rounded-lg flex items-center justify-center text-white/50 hover:text-white hover:bg-white/10 transition-all cursor-pointer group"
-              style={{
-                background: "rgba(10, 14, 26, 0.82)",
-                backdropFilter: "blur(20px)",
-                border: "1px solid rgba(255, 255, 255, 0.08)",
-              }}
-            >
-              <X
-                size={20}
-                className="group-hover:rotate-90 transition-transform duration-300"
-              />
-            </button>
-
-            {/* 3D Vector Graph */}
-            <VectorGraph3D
-              nodes={graphData.nodes}
-              links={graphData.links}
-              activeFilters={activeFilters}
-              minSimilarity={minSimilarity}
-              searchQuery={searchQuery}
-              highlightNodes={highlightNodes}
-              highlightLinks={highlightLinks}
-              onNodeHover={handleNodeHover}
-              onNodeClick={handleNodeClick}
-              onStatsChange={handleStatsChange}
-            />
-
-            {/* Control Panel */}
-            <ControlPanel
-              nodeCount={nodeCount}
-              linkCount={linkCount}
-              activeFilters={activeFilters}
-              onFilterToggle={handleFilterToggle}
-              searchQuery={searchQuery}
-              onSearchChange={setSearchQuery}
-              minSimilarity={minSimilarity}
-              onSimilarityChange={setMinSimilarity}
-            />
-
-            {/* Link Summary Panel */}
-            <LinkSummaryPanel links={filteredLinks} nodes={graphData.nodes} />
-
-            {/* Node Detail Panel */}
-            {selectedNode && (
-              <NodeDetailPanel
-                node={selectedNode}
-                nodes={graphData.nodes}
-                links={graphData.links}
-                onClose={() => setSelectedNode(null)}
-              />
-            )}
-
-            {/* Question Input Toggle Button */}
-            {!showQuestionInput && !selectedNode && (
-              <button
-                onClick={() => setShowQuestionInput(true)}
-                className="absolute bottom-6 left-1/2 -translate-x-1/2 z-[115] px-6 py-3 rounded-xl text-white font-bold flex items-center gap-3 shadow-xl hover:shadow-2xl transition-all hover:scale-105"
-                style={{
-                  background: "linear-gradient(135deg, #2563eb, #7c3aed)",
-                  boxShadow: "0 8px 32px rgba(37,99,235,0.4)",
-                }}
-              >
-                <Sparkles size={20} />
-                새로운 연구 질문
-              </button>
-            )}
-
-            {/* Question Input Panel */}
-            {showQuestionInput && !selectedNode && (
-              <QuestionInputPanel
-                onSubmit={handleQuestionSubmit}
-                isProcessing={isProcessing}
-                onClose={() => setShowQuestionInput(false)}
-              />
-            )}
-          </div>
-        )}
+        </div>
       </div>
-    </div>
+    </>
   );
 }

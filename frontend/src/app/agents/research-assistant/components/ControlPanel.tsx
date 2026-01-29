@@ -33,7 +33,7 @@ export default function ControlPanel({
 
   return (
     <div
-      className="absolute top-5 left-5 z-[110] w-60 rounded-2xl overflow-hidden shadow-2xl"
+      className="w-60 rounded-2xl overflow-hidden shadow-2xl"
       style={{
         background: "rgba(10, 14, 26, 0.82)",
         backdropFilter: "blur(20px)",
