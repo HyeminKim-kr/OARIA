@@ -113,7 +113,7 @@ export class LabService {
           collection_name: collectionName,
           classifier: classifier,
         }).pipe(
-          timeout(60000), // Reranker 사용 시 시간이 더 걸릴 수 있음
+          timeout(300000), // 5분 (Reranker 사용 시 시간이 더 걸릴 수 있음)
         ),
       );
 
@@ -232,7 +232,7 @@ export class LabService {
           collection_name: collectionName,
           classifier: classifier,
         }).pipe(
-          timeout(120000), // Reranker + LLM 시간 고려
+          timeout(300000), // 5분 (Reranker + LLM 시간 고려)
         ),
       );
 
