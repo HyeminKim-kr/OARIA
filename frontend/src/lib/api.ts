@@ -586,6 +586,38 @@ export const notificationsApi = {
   streamUrl: () => `${API_BASE_URL}/notifications/stream`,
 };
 
+// Paper Stats Types
+export interface YearCount {
+  year: number;
+  count: number;
+}
+
+export interface PaperStats {
+  total: number;
+  by_year: YearCount[];
+  recent_count: number;
+}
+
+// Dashboard API (combines multiple endpoints)
+export const dashboardApi = {
+  getPaperStats: () =>
+    api.get<PaperStats>('/papers/stats').then((res) => res.data),
+  getRecentPapers: (limit = 5) =>
+    api.get<Paper[]>(`/papers/recent?limit=${limit}`).then((res) => res.data),
+  getConversations: (page = 1, size = 1) =>
+    api.get<PaginatedConversations>('/ai/conversations', { params: { page, size } }),
+  getAgentJobs: (page = 1, size = 1) =>
+    api.get<PaginatedAgentJobs>('/agent-jobs/', { params: { page, size } }),
+  getPodcastEpisodes: (page = 1, size = 1) =>
+    api.get<PaginatedPodcastEpisodes>('/podcast/episodes', { params: { page, size } }),
+  getUnreadNotifications: () =>
+    api.get<{ count: number }>('/notifications/unread-count'),
+  getAgentJobsByStatus: () =>
+    api.get<PaginatedAgentJobs>('/agent-jobs/', { params: { page: 1, size: 100 } }),
+  getAnalysisPapers: (limit = 500, year_from?: number, year_to?: number, sample_by_year = true) =>
+    api.get<Paper[]>('/papers/recent', { params: { limit, year_from, year_to, sample_by_year } }).then((res) => res.data),
+};
+
 // Podcast Types
 export interface TurnTiming {
   turn_index: number;

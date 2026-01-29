@@ -261,8 +261,8 @@ start_docker_prod() {
 
     cd "$PROJECT_ROOT"
 
-    echo -e "  ${YELLOW}▸${NC} 인프라 + 앱 서비스 빌드 및 실행 중..."
-    docker compose -f docker-compose.yml -f docker-compose.prod.yml up -d --build
+    echo -e "  ${YELLOW}▸${NC} 인프라 + 앱 서비스 실행 중..."
+    docker compose -f docker-compose.yml -f docker-compose.prod.yml up -d
 
     echo -e "  ${YELLOW}▸${NC} 서비스 헬스체크 대기 중..."
 
@@ -357,8 +357,8 @@ start_docker_dev() {
     run_migrations
 
     # 3. 앱 서비스 시작 (마이그레이션 완료 후)
-    echo -e "  ${YELLOW}▸${NC} 앱 서비스 빌드 및 시작 중..."
-    docker compose -f docker-compose.yml -f docker-compose.dev.yml up -d --build
+    echo -e "  ${YELLOW}▸${NC} 앱 서비스 시작 중..."
+    docker compose -f docker-compose.yml -f docker-compose.dev.yml up -d
 
     echo -e "  ${YELLOW}▸${NC} 앱 서비스 헬스체크 대기 중..."
     local app_services=("service-backend:8000" "service-frontend:3000" "admin-backend:13000" "admin-frontend:13001")

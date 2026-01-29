@@ -8,6 +8,13 @@ const nextConfig: NextConfig = {
   eslint: {
     ignoreDuringBuilds: true,
   },
+  // 3D Force Graph 관련 패키지 transpile
+  transpilePackages: [
+    "3d-force-graph",
+    "three-forcegraph",
+    "react-force-graph-3d",
+    "three-spritetext",
+  ],
 };
 
 export default nextConfig;

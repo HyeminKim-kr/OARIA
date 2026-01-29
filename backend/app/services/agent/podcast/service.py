@@ -39,15 +39,15 @@ from app.schemas.podcast import (
 )
 from app.schemas.chat import Reference
 
-from .agent import (
+from .langgraph import (
     PodcastTaskType,
     PodcastStatus,
     execute_rag_search,
     execute_paper_analysis,
     execute_script_generation,
 )
-from .agent.tasks.rag_search import format_references_for_podcast
-from .tts_service import tts_service, TurnTiming
+from .langgraph.tasks.rag_search import format_references_for_podcast
+from .core.tts import tts_service, TurnTiming
 
 logger = logging.getLogger(__name__)
 

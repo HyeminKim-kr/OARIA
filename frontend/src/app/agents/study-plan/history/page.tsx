@@ -11,6 +11,7 @@ import {
   BarChart3,
   ArrowLeft,
   Calendar,
+  BookOpen,
   Beaker,
   Trash2,
   ChevronLeft,
@@ -222,7 +223,7 @@ export default function StudyPlanHistoryPage() {
               className="inline-flex items-center gap-1 text-sm text-[var(--oaria-text-secondary)] hover:text-[var(--oaria-teal)] transition-colors mb-4"
             >
               <ArrowLeft size={16} />
-              Agents로 돌아가기
+              모든 에이전트
             </Link>
             <h1 className="font-[family-name:var(--font-outfit)] text-2xl font-semibold">
               Study Plan 기록
@@ -273,7 +274,7 @@ export default function StudyPlanHistoryPage() {
                 href="/agents/study-plan"
                 className="inline-flex items-center gap-2 px-5 py-2.5 rounded-xl bg-[var(--oaria-teal)] text-white font-[family-name:var(--font-dm-sans)] font-medium hover:bg-[var(--oaria-teal)]/80 transition-colors"
               >
-                <Beaker size={18} />
+                <BookOpen size={18} />
                 실험 계획 시작하기
               </Link>
             </div>

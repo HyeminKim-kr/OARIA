@@ -41,13 +41,13 @@ celery_app.conf.update(
     beat_schedule={
         # Daily podcast generation (6 AM UTC)
         "podcast-daily-generation": {
-            "task": "app.services.podcast.scheduler.generate_daily_podcasts",
+            "task": "app.services.agent.podcast.core.scheduler.generate_daily_podcasts",
             "schedule": crontab(hour=6, minute=0),
             "options": {"queue": "podcast"},
         },
         # Weekly digest (Monday 7 AM UTC)
         "podcast-weekly-digest": {
-            "task": "app.services.podcast.scheduler.generate_weekly_digests",
+            "task": "app.services.agent.podcast.core.scheduler.generate_weekly_digests",
             "schedule": crontab(day_of_week=1, hour=7, minute=0),
             "options": {"queue": "podcast"},
         },
@@ -63,11 +63,11 @@ celery_app.conf.update(
         },
     },
     task_routes={
-        "app.services.podcast.scheduler.*": {"queue": "podcast"},
+        "app.services.agent.podcast.core.scheduler.*": {"queue": "podcast"},
     },
 )
 
 # Auto-discover tasks
 celery_app.autodiscover_tasks([
-    "app.services.podcast",
+    "app.services.agent.podcast.core",
 ])
