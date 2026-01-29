@@ -1,7 +1,7 @@
 "use client";
 import { useRef, useEffect } from "react";
 import * as d3 from "d3";
-import { PASTEL } from "../constants";
+import { getChartPalette, getThemeColors } from "../constants";
 
 interface NetworkNode extends d3.SimulationNodeDatum {
   id: string;
@@ -25,6 +25,12 @@ export default function NetworkGraph({ nodes, links, onNodeClick }: Props) {
     if (!ref.current || !nodes.length) return;
     const el = ref.current;
     d3.select(el).selectAll("*").remove();
+
+    // Detect dark mode
+    const isDark = window.matchMedia("(prefers-color-scheme: dark)").matches
+      || document.documentElement.classList.contains("dark");
+    const theme = getThemeColors(isDark);
+    const palette = getChartPalette(isDark);
 
     const width = el.clientWidth;
     const height = el.clientHeight;
@@ -55,31 +61,31 @@ export default function NetworkGraph({ nodes, links, onNodeClick }: Props) {
       .attr("y", height - 8)
       .text("scroll to zoom · drag to pan")
       .style("font-size", "9px")
-      .style("fill", "var(--oaria-text-secondary)")
-      .style("opacity", 0.6);
+      .style("fill", theme.textMuted)
+      .style("opacity", 0.8);
 
     const tip = d3
       .select(el)
       .append("div")
       .style("position", "absolute")
       .style("visibility", "hidden")
-      .style("background", "var(--background)")
-      .style("border", "1px solid var(--oaria-border)")
+      .style("background", theme.tooltipBg)
+      .style("border", `1px solid ${theme.tooltipBorder}`)
       .style("border-radius", "10px")
       .style("padding", "8px 14px")
       .style("font-size", "13px")
-      .style("box-shadow", "0 4px 20px rgba(0,0,0,0.08)")
+      .style("box-shadow", `0 4px 20px ${theme.tooltipShadow}`)
       .style("pointer-events", "none")
       .style("z-index", "50")
-      .style("color", "var(--foreground)");
+      .style("color", theme.textPrimary);
 
     const maxCount = d3.max(nodes, (d) => d.count) || 1;
     const rScale = d3.scaleSqrt().domain([1, maxCount]).range([5, 22]);
-    const color = d3.scaleOrdinal<string>().range(PASTEL);
+    const color = d3.scaleOrdinal<string>().range(palette);
 
     const maxWeight = d3.max(links, (d) => d.weight) || 1;
     const linkWidth = d3.scaleLinear().domain([1, maxWeight]).range([0.5, 3]);
-    const linkOpacity = d3.scaleLinear().domain([1, maxWeight]).range([0.15, 0.5]);
+    const linkOpacity = d3.scaleLinear().domain([1, maxWeight]).range([isDark ? 0.2 : 0.25, isDark ? 0.6 : 0.7]);
 
     const sim = d3
       .forceSimulation<NetworkNode>(nodes)
@@ -102,7 +108,7 @@ export default function NetworkGraph({ nodes, links, onNodeClick }: Props) {
       .selectAll("line")
       .data(links)
       .join("line")
-      .attr("stroke", "var(--oaria-text-secondary)")
+      .attr("stroke", theme.textSecondary)
       .attr("stroke-opacity", (d) => linkOpacity(d.weight))
       .attr("stroke-width", (d) => linkWidth(d.weight));
 
@@ -169,18 +175,20 @@ export default function NetworkGraph({ nodes, links, onNodeClick }: Props) {
       .append("circle")
       .attr("r", (d) => rScale(d.count))
       .attr("fill", (_d, i) => color(String(i)))
-      .attr("opacity", 0.85)
-      .attr("stroke", "white")
-      .attr("stroke-width", 1.5);
+      .attr("opacity", 0.9)
+      .attr("stroke", theme.surface)
+      .attr("stroke-width", 2);
 
+    // Text inside nodes - use white for visibility on colored circles
     nodeGroup
       .append("text")
       .text((d) => (rScale(d.count) > 10 ? (d.id.length > 12 ? d.id.slice(0, 10) + ".." : d.id) : ""))
       .attr("text-anchor", "middle")
       .attr("dy", "0.35em")
       .style("font-size", "9px")
-      .style("fill", "var(--foreground)")
-      .style("font-weight", "500")
+      .style("fill", "#FFFFFF")
+      .style("font-weight", "600")
+      .style("text-shadow", "0 1px 2px rgba(0,0,0,0.4)")
       .style("pointer-events", "none");
 
     sim.on("tick", () => {

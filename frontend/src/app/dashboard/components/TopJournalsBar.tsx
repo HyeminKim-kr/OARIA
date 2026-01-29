@@ -1,7 +1,7 @@
 "use client";
 import { useRef, useEffect } from "react";
 import * as d3 from "d3";
-import { PASTEL } from "../constants";
+import { getChartPalette, getThemeColors } from "../constants";
 
 interface BarItem {
   label: string;
@@ -21,6 +21,12 @@ export default function TopJournalsBar({ data, accentIndex }: Props) {
     const el = ref.current;
     d3.select(el).selectAll("*").remove();
 
+    // Detect dark mode
+    const isDark = window.matchMedia("(prefers-color-scheme: dark)").matches
+      || document.documentElement.classList.contains("dark");
+    const theme = getThemeColors(isDark);
+    const palette = getChartPalette(isDark);
+
     const margin = { top: 5, right: 40, bottom: 5, left: 130 };
     const width = el.clientWidth - margin.left - margin.right;
     const height = el.clientHeight - margin.top - margin.bottom;
@@ -39,15 +45,15 @@ export default function TopJournalsBar({ data, accentIndex }: Props) {
       .append("div")
       .style("position", "absolute")
       .style("visibility", "hidden")
-      .style("background", "var(--background)")
-      .style("border", "1px solid var(--oaria-border)")
+      .style("background", theme.tooltipBg)
+      .style("border", `1px solid ${theme.tooltipBorder}`)
       .style("border-radius", "10px")
       .style("padding", "8px 14px")
       .style("font-size", "13px")
-      .style("box-shadow", "0 4px 20px rgba(0,0,0,0.08)")
+      .style("box-shadow", `0 4px 20px ${theme.tooltipShadow}`)
       .style("pointer-events", "none")
       .style("z-index", "50")
-      .style("color", "var(--foreground)");
+      .style("color", theme.textPrimary);
 
     const y = d3
       .scaleBand()
@@ -60,7 +66,7 @@ export default function TopJournalsBar({ data, accentIndex }: Props) {
       .domain([0, d3.max(data, (d) => d.value) || 1])
       .range([0, width]);
 
-    const color = d3.scaleOrdinal<string>().range(PASTEL);
+    const color = d3.scaleOrdinal<string>().range(palette);
 
     svg
       .selectAll("rect")
@@ -70,15 +76,15 @@ export default function TopJournalsBar({ data, accentIndex }: Props) {
       .attr("height", y.bandwidth())
       .attr("x", 0)
       .attr("rx", 6)
-      .attr("fill", (_d, i) => (i === accentIndex ? "var(--oaria-teal)" : color(String(i))))
-      .attr("opacity", 0.8)
+      .attr("fill", (_d, i) => (i === accentIndex ? theme.primary : color(String(i))))
+      .attr("opacity", 0.9)
       .style("cursor", "pointer")
       .attr("width", 0)
       .transition()
       .duration(800)
       .delay((_d, i) => i * 60)
       .attr("width", (d) => x(d.value))
-      .attr("opacity", 0.8);
+      .attr("opacity", 0.9);
 
     // Re-attach events
     svg
@@ -112,7 +118,8 @@ export default function TopJournalsBar({ data, accentIndex }: Props) {
       .attr("text-anchor", "end")
       .text((d) => (d.label.length > 18 ? d.label.slice(0, 16) + ".." : d.label))
       .style("font-size", "11px")
-      .style("fill", "var(--oaria-text-secondary)");
+      .style("fill", theme.textSecondary)
+      .style("font-weight", "500");
 
     // Value labels
     svg
@@ -125,8 +132,8 @@ export default function TopJournalsBar({ data, accentIndex }: Props) {
       .attr("dy", "0.35em")
       .text((d) => d.value)
       .style("font-size", "11px")
-      .style("fill", "var(--oaria-text-secondary)")
-      .style("font-weight", "600")
+      .style("fill", theme.textPrimary)
+      .style("font-weight", "700")
       .attr("opacity", 0)
       .transition()
       .duration(800)

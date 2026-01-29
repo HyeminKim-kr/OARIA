@@ -1,7 +1,7 @@
 "use client";
 import { useRef, useEffect } from "react";
 import * as d3 from "d3";
-import { PASTEL } from "../constants";
+import { getChartPalette, getThemeColors } from "../constants";
 
 interface Props {
   data: Record<string, number>[];
@@ -16,6 +16,12 @@ export default function StreamGraph({ data, keys, monthly }: Props) {
     if (!ref.current || !data.length || !keys.length) return;
     const el = ref.current;
     d3.select(el).selectAll("*").remove();
+
+    // Detect dark mode
+    const isDark = window.matchMedia("(prefers-color-scheme: dark)").matches
+      || document.documentElement.classList.contains("dark");
+    const theme = getThemeColors(isDark);
+    const palette = getChartPalette(isDark);
 
     const margin = { top: 20, right: 20, bottom: 30, left: 50 };
     const width = el.clientWidth - margin.left - margin.right;
@@ -35,15 +41,15 @@ export default function StreamGraph({ data, keys, monthly }: Props) {
       .append("div")
       .style("position", "absolute")
       .style("visibility", "hidden")
-      .style("background", "var(--background)")
-      .style("border", "1px solid var(--oaria-border)")
+      .style("background", theme.tooltipBg)
+      .style("border", `1px solid ${theme.tooltipBorder}`)
       .style("border-radius", "10px")
       .style("padding", "8px 14px")
       .style("font-size", "13px")
-      .style("box-shadow", "0 4px 20px rgba(0,0,0,0.08)")
+      .style("box-shadow", `0 4px 20px ${theme.tooltipShadow}`)
       .style("pointer-events", "none")
       .style("z-index", "50")
-      .style("color", "var(--foreground)");
+      .style("color", theme.textPrimary);
 
     const x = d3
       .scaleLinear()
@@ -66,7 +72,7 @@ export default function StreamGraph({ data, keys, monthly }: Props) {
       ])
       .range([height, 0]);
 
-    const color = d3.scaleOrdinal<string>().domain(keys).range(PASTEL);
+    const color = d3.scaleOrdinal<string>().domain(keys).range(palette);
 
     const area = d3
       .area<d3.SeriesPoint<Record<string, number>>>()
@@ -98,8 +104,8 @@ export default function StreamGraph({ data, keys, monthly }: Props) {
       .join("path")
       .attr("d", area)
       .attr("fill", (_d, i) => color(keys[i]))
-      .attr("opacity", 0.82)
-      .attr("stroke", "white")
+      .attr("opacity", 0.88)
+      .attr("stroke", theme.surface)
       .attr("stroke-width", 0.5)
       .style("cursor", "pointer")
       .on("mouseover", function (_event, d) {
@@ -147,14 +153,14 @@ export default function StreamGraph({ data, keys, monthly }: Props) {
             return String(v);
           })
       )
-      .call((g) => g.select(".domain").attr("stroke", "var(--oaria-border)"))
+      .call((g) => g.select(".domain").attr("stroke", theme.border))
       .call((g) =>
-        g.selectAll(".tick line").attr("stroke", "var(--oaria-border)")
+        g.selectAll(".tick line").attr("stroke", theme.border)
       )
       .call((g) =>
         g
           .selectAll(".tick text")
-          .style("fill", "var(--oaria-text-secondary)")
+          .style("fill", theme.axisText)
           .style("font-size", "11px")
       );
 
@@ -176,7 +182,7 @@ export default function StreamGraph({ data, keys, monthly }: Props) {
         .attr("x", 10)
         .attr("y", 4)
         .style("font-size", "10px")
-        .style("fill", "var(--oaria-text-secondary)");
+        .style("fill", theme.textSecondary);
     });
   }, [data, keys]);
 

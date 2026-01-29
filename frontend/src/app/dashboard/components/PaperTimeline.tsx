@@ -1,7 +1,7 @@
 "use client";
 import { useRef, useEffect } from "react";
 import * as d3 from "d3";
-import { PASTEL } from "../constants";
+import { getChartPalette, getThemeColors } from "../constants";
 
 interface TimelineItem {
   id: string;
@@ -23,6 +23,12 @@ export default function PaperTimeline({ data, onPaperClick }: Props) {
     const el = ref.current;
     d3.select(el).selectAll("*").remove();
 
+    // Detect dark mode
+    const isDark = window.matchMedia("(prefers-color-scheme: dark)").matches
+      || document.documentElement.classList.contains("dark");
+    const theme = getThemeColors(isDark);
+    const palette = getChartPalette(isDark);
+
     const margin = { top: 20, right: 20, bottom: 30, left: 20 };
     const width = el.clientWidth - margin.left - margin.right;
     const height = el.clientHeight - margin.top - margin.bottom;
@@ -41,16 +47,16 @@ export default function PaperTimeline({ data, onPaperClick }: Props) {
       .append("div")
       .style("position", "absolute")
       .style("visibility", "hidden")
-      .style("background", "var(--background)")
-      .style("border", "1px solid var(--oaria-border)")
+      .style("background", theme.tooltipBg)
+      .style("border", `1px solid ${theme.tooltipBorder}`)
       .style("border-radius", "10px")
       .style("padding", "8px 14px")
       .style("font-size", "13px")
       .style("line-height", "1.5")
-      .style("box-shadow", "0 4px 20px rgba(0,0,0,0.08)")
+      .style("box-shadow", `0 4px 20px ${theme.tooltipShadow}`)
       .style("pointer-events", "none")
       .style("z-index", "50")
-      .style("color", "var(--foreground)")
+      .style("color", theme.textPrimary)
       .style("max-width", "300px");
 
     const dates = data.map((d) => new Date(d.date));
@@ -67,11 +73,11 @@ export default function PaperTimeline({ data, onPaperClick }: Props) {
       .attr("x2", width)
       .attr("y1", lineY)
       .attr("y2", lineY)
-      .attr("stroke", "var(--oaria-border)")
+      .attr("stroke", theme.border)
       .attr("stroke-width", 2)
       .attr("stroke-dasharray", "4,4");
 
-    const color = d3.scaleOrdinal<string>().range(PASTEL);
+    const color = d3.scaleOrdinal<string>().range(palette);
 
     // Dots
     svg
@@ -82,7 +88,7 @@ export default function PaperTimeline({ data, onPaperClick }: Props) {
       .attr("cy", (_d, i) => lineY + (i % 2 === 0 ? -20 : 20))
       .attr("r", 0)
       .attr("fill", (_d, i) => color(String(i)))
-      .attr("stroke", "white")
+      .attr("stroke", theme.surface)
       .attr("stroke-width", 2)
       .style("cursor", "pointer")
       .on("mouseover", function (_event, d) {
@@ -118,7 +124,7 @@ export default function PaperTimeline({ data, onPaperClick }: Props) {
       .attr("x2", (d) => x(new Date(d.date)))
       .attr("y1", lineY)
       .attr("y2", (_d, i) => lineY + (i % 2 === 0 ? -13 : 13))
-      .attr("stroke", "var(--oaria-border)")
+      .attr("stroke", theme.border)
       .attr("stroke-width", 1);
 
     // X axis
@@ -126,10 +132,10 @@ export default function PaperTimeline({ data, onPaperClick }: Props) {
       .append("g")
       .attr("transform", `translate(0,${height})`)
       .call(d3.axisBottom(x).ticks(5).tickFormat(d3.timeFormat("%m/%d") as unknown as (d: d3.NumberValue, i: number) => string))
-      .call((g) => g.select(".domain").attr("stroke", "var(--oaria-border)"))
-      .call((g) => g.selectAll(".tick line").attr("stroke", "var(--oaria-border)"))
+      .call((g) => g.select(".domain").attr("stroke", theme.border))
+      .call((g) => g.selectAll(".tick line").attr("stroke", theme.border))
       .call((g) =>
-        g.selectAll("text").style("fill", "var(--oaria-text-secondary)").style("font-size", "10px")
+        g.selectAll("text").style("fill", theme.axisText).style("font-size", "10px")
       );
   }, [data, onPaperClick]);
 

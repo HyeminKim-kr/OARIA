@@ -1,7 +1,7 @@
 "use client";
 import { useRef, useEffect } from "react";
 import * as d3 from "d3";
-import { PASTEL } from "../constants";
+import { getChartPalette, getThemeColors } from "../constants";
 
 interface RadialItem {
   year: number;
@@ -21,6 +21,12 @@ export default function RadialYearChart({ data }: Props) {
     const el = ref.current;
     d3.select(el).selectAll("*").remove();
 
+    // Detect dark mode
+    const isDark = window.matchMedia("(prefers-color-scheme: dark)").matches
+      || document.documentElement.classList.contains("dark");
+    const theme = getThemeColors(isDark);
+    const palette = getChartPalette(isDark);
+
     const width = el.clientWidth;
     const height = el.clientHeight;
     const radius = Math.min(width, height) / 2 - 30;
@@ -39,15 +45,15 @@ export default function RadialYearChart({ data }: Props) {
       .append("div")
       .style("position", "absolute")
       .style("visibility", "hidden")
-      .style("background", "var(--background)")
-      .style("border", "1px solid var(--oaria-border)")
+      .style("background", theme.tooltipBg)
+      .style("border", `1px solid ${theme.tooltipBorder}`)
       .style("border-radius", "10px")
       .style("padding", "8px 14px")
       .style("font-size", "13px")
-      .style("box-shadow", "0 4px 20px rgba(0,0,0,0.08)")
+      .style("box-shadow", `0 4px 20px ${theme.tooltipShadow}`)
       .style("pointer-events", "none")
       .style("z-index", "50")
-      .style("color", "var(--foreground)");
+      .style("color", theme.textPrimary);
 
     const sorted = [...data].sort((a, b) => a.year - b.year);
     const maxCount = d3.max(sorted, (d) => d.count) || 1;
@@ -60,16 +66,16 @@ export default function RadialYearChart({ data }: Props) {
 
     const rScale = d3.scaleLinear().domain([0, maxCount]).range([radius * 0.25, radius]);
 
-    const color = d3.scaleOrdinal<string>().range(PASTEL);
+    const color = d3.scaleOrdinal<string>().range(palette);
 
     svg
       .selectAll("path")
       .data(sorted)
       .join("path")
       .attr("fill", (_d, i) => color(String(i)))
-      .attr("opacity", 0.82)
-      .attr("stroke", "var(--background)")
-      .attr("stroke-width", 1)
+      .attr("opacity", 0.88)
+      .attr("stroke", theme.surface)
+      .attr("stroke-width", 2)
       .style("cursor", "pointer")
       .on("mouseover", function () {
         d3.select(this).attr("opacity", 1);
@@ -138,8 +144,8 @@ export default function RadialYearChart({ data }: Props) {
         return String(d.year).length > 4 ? String(d.year).slice(2) : String(d.year).slice(2);
       })
       .style("font-size", "10px")
-      .style("fill", "var(--oaria-text-secondary)")
-      .style("font-weight", "500");
+      .style("fill", theme.textSecondary)
+      .style("font-weight", "600");
 
     // Center label
     svg
@@ -148,7 +154,8 @@ export default function RadialYearChart({ data }: Props) {
       .attr("text-anchor", "middle")
       .attr("dy", "0.35em")
       .style("font-size", "11px")
-      .style("fill", "var(--oaria-text-secondary)");
+      .style("fill", theme.textSecondary)
+      .style("font-weight", "500");
   }, [data]);
 
   if (!data.length) {

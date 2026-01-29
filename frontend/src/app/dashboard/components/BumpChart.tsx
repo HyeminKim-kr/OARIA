@@ -1,7 +1,7 @@
 "use client";
 import { useRef, useEffect } from "react";
 import * as d3 from "d3";
-import { PASTEL } from "../constants";
+import { getChartPalette, getThemeColors } from "../constants";
 
 interface BumpItem {
   period: string;     // e.g. "2025.01"
@@ -24,6 +24,12 @@ export default function BumpChart({ data, keywords, periods }: Props) {
     const el = ref.current;
     d3.select(el).selectAll("*").remove();
 
+    // Detect dark mode
+    const isDark = window.matchMedia("(prefers-color-scheme: dark)").matches
+      || document.documentElement.classList.contains("dark");
+    const theme = getThemeColors(isDark);
+    const palette = getChartPalette(isDark);
+
     const margin = { top: 24, right: 130, bottom: 32, left: 50 };
     const width = el.clientWidth - margin.left - margin.right;
     const height = el.clientHeight - margin.top - margin.bottom;
@@ -42,19 +48,19 @@ export default function BumpChart({ data, keywords, periods }: Props) {
       .append("div")
       .style("position", "absolute")
       .style("visibility", "hidden")
-      .style("background", "var(--background)")
-      .style("border", "1px solid var(--oaria-border)")
+      .style("background", theme.tooltipBg)
+      .style("border", `1px solid ${theme.tooltipBorder}`)
       .style("border-radius", "10px")
       .style("padding", "8px 14px")
       .style("font-size", "13px")
-      .style("box-shadow", "0 4px 20px rgba(0,0,0,0.08)")
+      .style("box-shadow", `0 4px 20px ${theme.tooltipShadow}`)
       .style("pointer-events", "none")
       .style("z-index", "50")
-      .style("color", "var(--foreground)");
+      .style("color", theme.textPrimary);
 
     const x = d3.scalePoint<string>().domain(periods).range([0, width]).padding(0.1);
     const y = d3.scaleLinear().domain([1, keywords.length]).range([0, height]);
-    const color = d3.scaleOrdinal<string>().domain(keywords).range(PASTEL);
+    const color = d3.scaleOrdinal<string>().domain(keywords).range(palette);
 
     // Build lookup: period+keyword → item
     const lookup = new Map<string, BumpItem>();
@@ -68,7 +74,7 @@ export default function BumpChart({ data, keywords, periods }: Props) {
       .call((g) => g.select(".domain").remove())
       .call((g) =>
         g.selectAll("text")
-          .style("fill", "var(--oaria-text-secondary)")
+          .style("fill", theme.axisText)
           .style("font-size", "10px")
       );
 
@@ -86,7 +92,7 @@ export default function BumpChart({ data, keywords, periods }: Props) {
       .call((g) => g.select(".domain").remove())
       .call((g) =>
         g.selectAll("text")
-          .style("fill", "var(--oaria-text-secondary)")
+          .style("fill", theme.axisText)
           .style("font-size", "10px")
           .style("font-weight", "600")
       );
@@ -101,9 +107,9 @@ export default function BumpChart({ data, keywords, periods }: Props) {
       .attr("x2", width)
       .attr("y1", (d) => y(d))
       .attr("y2", (d) => y(d))
-      .attr("stroke", "var(--oaria-border)")
-      .attr("stroke-width", 0.5)
-      .attr("stroke-opacity", 0.5);
+      .attr("stroke", theme.gridLine)
+      .attr("stroke-width", 1)
+      .attr("stroke-opacity", 1);
 
     // Lines for each keyword
     const line = d3
@@ -154,7 +160,7 @@ export default function BumpChart({ data, keywords, periods }: Props) {
         .attr("cy", (d) => y(d.rank))
         .attr("r", 0)
         .attr("fill", color(kw))
-        .attr("stroke", "white")
+        .attr("stroke", theme.surface)
         .attr("stroke-width", 2)
         .style("cursor", "pointer")
         .on("mouseover", function (_event, d) {

@@ -1,7 +1,7 @@
 "use client";
 import { useRef, useEffect } from "react";
 import * as d3 from "d3";
-import { PASTEL } from "../constants";
+import { getChartPalette, getThemeColors } from "../constants";
 
 interface Slice {
   label: string;
@@ -21,6 +21,12 @@ export default function DonutChart({ data, centerLabel }: Props) {
     const el = ref.current;
     d3.select(el).selectAll("*").remove();
 
+    // Detect dark mode
+    const isDark = window.matchMedia("(prefers-color-scheme: dark)").matches
+      || document.documentElement.classList.contains("dark");
+    const theme = getThemeColors(isDark);
+    const palette = getChartPalette(isDark);
+
     const width = el.clientWidth;
     const height = el.clientHeight;
     const radius = Math.min(width, height) / 2 - 10;
@@ -39,17 +45,17 @@ export default function DonutChart({ data, centerLabel }: Props) {
       .append("div")
       .style("position", "absolute")
       .style("visibility", "hidden")
-      .style("background", "var(--background)")
-      .style("border", "1px solid var(--oaria-border)")
+      .style("background", theme.tooltipBg)
+      .style("border", `1px solid ${theme.tooltipBorder}`)
       .style("border-radius", "10px")
       .style("padding", "8px 14px")
       .style("font-size", "13px")
-      .style("box-shadow", "0 4px 20px rgba(0,0,0,0.08)")
+      .style("box-shadow", `0 4px 20px ${theme.tooltipShadow}`)
       .style("pointer-events", "none")
       .style("z-index", "50")
-      .style("color", "var(--foreground)");
+      .style("color", theme.textPrimary);
 
-    const color = d3.scaleOrdinal<string>().range(PASTEL);
+    const color = d3.scaleOrdinal<string>().range(palette);
     const pie = d3
       .pie<Slice>()
       .value((d) => d.value)
@@ -73,8 +79,8 @@ export default function DonutChart({ data, centerLabel }: Props) {
       .data(pie(data))
       .join("path")
       .attr("fill", (_d, i) => color(String(i)))
-      .attr("opacity", 0.85)
-      .attr("stroke", "var(--background)")
+      .attr("opacity", 0.9)
+      .attr("stroke", theme.surface)
       .attr("stroke-width", 2)
       .style("cursor", "pointer")
       .on("mouseover", function (_event, d) {
@@ -119,7 +125,7 @@ export default function DonutChart({ data, centerLabel }: Props) {
         .attr("text-anchor", "middle")
         .attr("dy", "-0.2em")
         .style("font-size", "13px")
-        .style("fill", "var(--oaria-text-secondary)")
+        .style("fill", theme.textSecondary)
         .style("font-weight", "500");
       svg
         .append("text")
@@ -127,7 +133,7 @@ export default function DonutChart({ data, centerLabel }: Props) {
         .attr("text-anchor", "middle")
         .attr("dy", "1.2em")
         .style("font-size", "20px")
-        .style("fill", "var(--foreground)")
+        .style("fill", theme.textPrimary)
         .style("font-weight", "700");
     }
   }, [data, centerLabel]);
