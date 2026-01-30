@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useCallback, useMemo } from "react";
+import { useState, useCallback, useMemo, useRef, useEffect } from "react";
 import Link from "next/link";
 import dynamic from "next/dynamic";
 import {
@@ -42,17 +42,8 @@ const VectorGraph2D = dynamic(() => import("./components/VectorGraph2D"), {
   ),
 });
 
-const VectorGraph3D = dynamic(() => import("./components/VectorGraph3D"), {
-  ssr: false,
-  loading: () => (
-    <div className="w-full h-full flex items-center justify-center">
-      <div className="flex items-center gap-3 text-slate-400">
-        <div className="w-6 h-6 border-2 border-purple-500 border-t-transparent rounded-full animate-spin" />
-        <span className="text-sm">Loading 3D Graph...</span>
-      </div>
-    </div>
-  ),
-});
+// 3D Graph는 별도 서버(port 10000)에서 iframe으로 로드
+const GRAPH_3D_URL = process.env.NEXT_PUBLIC_3D_GRAPH_URL || "http://oaria.3d.sday.me";
 
 // ─────────────────────────────────────────────────────────────
 // Component
@@ -99,6 +90,45 @@ export default function ResearchAssistantPage() {
   // Question input
   const [showQuestionInput, setShowQuestionInput] = useState(false);
   const [isProcessing, setIsProcessing] = useState(false);
+
+  // 3D Graph iframe ref
+  const iframe3DRef = useRef<HTMLIFrameElement>(null);
+  const [iframe3DReady, setIframe3DReady] = useState(false);
+
+  // iframe 통신: 그래프 데이터 전송
+  useEffect(() => {
+    if (graphMode === "3d" && iframe3DReady && iframe3DRef.current?.contentWindow) {
+      // 토큰 전송
+      const token = typeof window !== "undefined" ? localStorage.getItem("access_token") : null;
+      if (token) {
+        iframe3DRef.current.contentWindow.postMessage({
+          type: "SET_TOKEN",
+          payload: { token },
+        }, "*");
+      }
+
+      // 그래프 데이터 전송
+      iframe3DRef.current.contentWindow.postMessage({
+        type: "SET_GRAPH_DATA",
+        payload: {
+          nodes: graphData.nodes,
+          links: graphData.links,
+          query: currentQuery,
+        },
+      }, "*");
+    }
+  }, [graphMode, iframe3DReady, graphData, currentQuery]);
+
+  // iframe 메시지 수신 (3D 그래프에서 READY 신호)
+  useEffect(() => {
+    const handleMessage = (event: MessageEvent) => {
+      if (event.data?.type === "READY") {
+        setIframe3DReady(true);
+      }
+    };
+    window.addEventListener("message", handleMessage);
+    return () => window.removeEventListener("message", handleMessage);
+  }, []);
 
   // Filter toggle handler
   const handleFilterToggle = useCallback((type: keyof ActiveFilters) => {
@@ -231,13 +261,13 @@ export default function ResearchAssistantPage() {
 
           {/* Top Bar - X button and 2D/3D toggle */}
           <div className="absolute top-4 left-0 right-0 z-[220] flex items-center justify-between px-5">
-            {/* Left: Mode indicator & Current Query */}
+            {/* Left: Mode indicator & Current Query (2D 모드에서만 쿼리 표시) */}
             <div className="flex items-center gap-3">
-              <div className="px-3 py-1.5 rounded-lg bg-slate-800/80 text-white text-xs font-medium flex items-center gap-1.5">
-                <span className={`w-2 h-2 rounded-full animate-pulse ${graphMode === "2d" ? "bg-blue-500" : "bg-purple-500"}`} />
+              <div className={`px-3 py-1.5 rounded-lg text-white text-xs font-medium flex items-center gap-1.5 ${graphMode === "2d" ? "bg-blue-600" : "bg-purple-600"}`}>
+                <span className="w-2 h-2 rounded-full bg-white animate-pulse" />
                 {graphMode === "2d" ? "2D" : "3D"} Force Graph
               </div>
-              {currentQuery && (
+              {graphMode === "2d" && currentQuery && (
                 <div className="px-3 py-1.5 rounded-lg bg-blue-600/20 text-blue-400 text-xs font-medium flex items-center gap-1.5 max-w-md truncate">
                   <Search size={12} />
                   <span className="truncate">{currentQuery}</span>
@@ -310,41 +340,61 @@ export default function ResearchAssistantPage() {
               onStatsChange={handleStatsChange}
             />
           ) : (
-            <VectorGraph3D
-              nodes={graphData.nodes}
-              links={graphData.links}
-              activeFilters={activeFilters}
-              minSimilarity={minSimilarity}
-              searchQuery={searchQuery}
-              highlightNodes={highlightNodes}
-              highlightLinks={highlightLinks}
-              onNodeHover={handleNodeHover}
-              onNodeClick={handleNodeClick}
-              onStatsChange={handleStatsChange}
+            /* 3D Graph - iframe으로 별도 서버에서 로드 */
+            <iframe
+              ref={iframe3DRef}
+              src={GRAPH_3D_URL}
+              className="absolute inset-0 w-full h-full border-0"
+              style={{ background: "transparent" }}
+              allow="accelerometer; autoplay; encrypted-media; gyroscope"
+              onLoad={() => {
+                // iframe 로드 완료 시 데이터 전송 시도
+                if (iframe3DRef.current?.contentWindow) {
+                  const token = typeof window !== "undefined" ? localStorage.getItem("access_token") : null;
+                  if (token) {
+                    iframe3DRef.current.contentWindow.postMessage({
+                      type: "SET_TOKEN",
+                      payload: { token },
+                    }, "*");
+                  }
+                  iframe3DRef.current.contentWindow.postMessage({
+                    type: "SET_GRAPH_DATA",
+                    payload: {
+                      nodes: graphData.nodes,
+                      links: graphData.links,
+                      query: currentQuery,
+                    },
+                  }, "*");
+                }
+              }}
             />
           )}
 
-          {/* Control Panel - Left side, below top bar */}
-          <div className="absolute top-20 left-5 z-[210]">
-            <ControlPanel
-              nodeCount={nodeCount}
-              linkCount={linkCount}
-              activeFilters={activeFilters}
-              onFilterToggle={handleFilterToggle}
-              searchQuery={searchQuery}
-              onSearchChange={setSearchQuery}
-              minSimilarity={minSimilarity}
-              onSimilarityChange={setMinSimilarity}
-            />
-          </div>
+          {/* Control Panel - Left side, below top bar (2D 모드에서만 표시) */}
+          {graphMode === "2d" && (
+            <div className="absolute top-20 left-5 z-[210]">
+              <ControlPanel
+                nodeCount={nodeCount}
+                linkCount={linkCount}
+                activeFilters={activeFilters}
+                onFilterToggle={handleFilterToggle}
+                searchQuery={searchQuery}
+                onSearchChange={setSearchQuery}
+                minSimilarity={minSimilarity}
+                onSimilarityChange={setMinSimilarity}
+              />
+            </div>
+          )}
 
-          {/* Link Summary Panel - Right side, below top bar */}
-          <div className="absolute top-20 right-5 z-[210]">
-            <LinkSummaryPanel links={filteredLinks} nodes={graphData.nodes} />
-          </div>
+          {/* Link Summary Panel - Right side, below top bar (2D 모드에서만 표시) */}
+          {graphMode === "2d" && (
+            <div className="absolute top-20 right-5 z-[210]">
+              <LinkSummaryPanel links={filteredLinks} nodes={graphData.nodes} />
+            </div>
+          )}
 
-          {/* Node Detail Panel */}
-          {selectedNode && (
+          {/* Node Detail Panel (2D 모드에서만 표시) */}
+          {graphMode === "2d" && selectedNode && (
             <NodeDetailPanel
               node={selectedNode}
               nodes={graphData.nodes}
