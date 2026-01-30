@@ -166,6 +166,7 @@ export interface Paper {
   authors: PaperAuthor[];
   citation_count?: number;
   has_pdf?: boolean;
+  like_count?: number;
 }
 
 export interface PaginatedPapers {
@@ -757,4 +758,153 @@ export const podcastApi = {
 
   // 구독 삭제
   deleteSubscription: (id: string) => api.delete(`/podcast/subscriptions/${id}`),
+};
+
+// ============================================================
+// Like & Bookmark Types
+// ============================================================
+export interface LikeResponse {
+  paper_id: string;
+  is_liked: boolean;
+  like_count: number;
+}
+
+export interface BookmarkResponse {
+  paper_id: string;
+  is_bookmarked: boolean;
+  bookmark_id?: string;
+  collection_id?: string;
+}
+
+export interface PaperInteractionStatus {
+  paper_id: string;
+  is_liked: boolean;
+  is_bookmarked: boolean;
+  like_count: number;
+}
+
+export interface BulkInteractionStatusResponse {
+  statuses: Record<string, PaperInteractionStatus>;
+}
+
+export interface BookmarkCollection {
+  id: string;
+  name: string;
+  description?: string;
+  is_default: boolean;
+  sort_order: number;
+  bookmark_count: number;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface CollectionListResponse {
+  items: BookmarkCollection[];
+  total: number;
+}
+
+export interface BookmarkedPaperItem {
+  bookmark_id: string;
+  paper_id: string;
+  paper_str_id: string;
+  title: string;
+  abstract?: string;
+  journal?: string;
+  year?: number;
+  collection_id?: string;
+  collection_name?: string;
+  bookmarked_at: string;
+}
+
+export interface PaginatedBookmarkedPapers {
+  items: BookmarkedPaperItem[];
+  total: number;
+  page: number;
+  limit: number;
+  total_pages: number;
+}
+
+export interface LikedPaperItem {
+  paper_id: string;
+  paper_str_id: string;
+  title: string;
+  abstract?: string;
+  journal?: string;
+  year?: number;
+  liked_at: string;
+}
+
+export interface PaginatedLikedPapers {
+  items: LikedPaperItem[];
+  total: number;
+  page: number;
+  limit: number;
+  total_pages: number;
+}
+
+// Like & Bookmark API
+export const interactionsApi = {
+  toggleLike: (paperId: string) =>
+    api.post<LikeResponse>(`/papers/${paperId}/like`).then((res) => res.data),
+
+  toggleBookmark: (paperId: string, collectionId?: string) =>
+    api
+      .post<BookmarkResponse>(
+        `/papers/${paperId}/bookmark`,
+        collectionId ? { collection_id: collectionId } : {}
+      )
+      .then((res) => res.data),
+
+  moveBookmark: (paperId: string, collectionId?: string) =>
+    api
+      .patch<BookmarkResponse>(`/papers/${paperId}/bookmark/move`, {
+        collection_id: collectionId || null,
+      })
+      .then((res) => res.data),
+
+  getBulkStatus: (paperIds: string[]) =>
+    api
+      .post<BulkInteractionStatusResponse>("/papers/interaction-status", {
+        paper_ids: paperIds,
+      })
+      .then((res) => res.data),
+
+  getMyLikes: (page = 1, limit = 20) =>
+    api
+      .get<PaginatedLikedPapers>("/users/me/likes", {
+        params: { page, limit },
+      })
+      .then((res) => res.data),
+
+  getMyBookmarks: (page = 1, limit = 20, collectionId?: string) =>
+    api
+      .get<PaginatedBookmarkedPapers>("/users/me/bookmarks", {
+        params: {
+          page,
+          limit,
+          collection_id: collectionId || undefined,
+        },
+      })
+      .then((res) => res.data),
+
+  getCollections: () =>
+    api
+      .get<CollectionListResponse>("/users/me/collections")
+      .then((res) => res.data),
+
+  createCollection: (name: string, description?: string) =>
+    api
+      .post<BookmarkCollection>("/users/me/collections", { name, description })
+      .then((res) => res.data),
+
+  updateCollection: (
+    id: string,
+    data: { name?: string; description?: string; sort_order?: number }
+  ) =>
+    api
+      .patch<BookmarkCollection>(`/users/me/collections/${id}`, data)
+      .then((res) => res.data),
+
+  deleteCollection: (id: string) =>
+    api.delete(`/users/me/collections/${id}`),
 };

@@ -83,6 +83,35 @@ async def get_current_active_superuser(
     return current_user
 
 
+async def get_optional_user(
+    db: Annotated[AsyncSession, Depends(get_db)],
+    credentials: Annotated[
+        HTTPAuthorizationCredentials | None, Depends(security)
+    ] = None,
+) -> User | None:
+    """Optional 인증 - 비로그인도 허용
+
+    인증 헤더가 있으면 사용자를 반환, 없으면 None 반환.
+    토큰이 유효하지 않아도 None (에러를 발생시키지 않음).
+    """
+    if not credentials:
+        return None
+
+    try:
+        token_payload = verify_token(credentials.credentials, token_type="access")
+        if not token_payload:
+            return None
+
+        user_service = UserService(db)
+        user = await user_service.get_by_id(token_payload.sub)
+        if user and user.is_active:
+            return user
+        return None
+    except Exception:
+        return None
+
+
 # 타입 별칭
 CurrentUser = Annotated[User, Depends(get_current_user)]
 CurrentSuperuser = Annotated[User, Depends(get_current_active_superuser)]
+OptionalUser = Annotated[User | None, Depends(get_optional_user)]

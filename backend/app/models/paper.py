@@ -25,6 +25,7 @@ from .base import Base
 
 if TYPE_CHECKING:
     from .chat import Conversation
+    from .interaction import PaperLike, PaperBookmark
 
 
 class Paper(Base):
@@ -95,6 +96,9 @@ class Paper(Base):
     citation_count: Mapped[int] = mapped_column(Integer, default=0)
     reference_count: Mapped[int] = mapped_column(Integer, default=0)
 
+    # 좋아요 캐시
+    like_count: Mapped[int] = mapped_column(Integer, default=0, server_default="0")
+
     # 타임스탬프
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), server_default="NOW()", index=True
@@ -117,6 +121,12 @@ class Paper(Base):
     )
     summaries: Mapped[list["PaperSummary"]] = relationship(
         "PaperSummary", back_populates="paper", cascade="all, delete-orphan"
+    )
+    likes: Mapped[list["PaperLike"]] = relationship(
+        "PaperLike", back_populates="paper", cascade="all, delete-orphan"
+    )
+    bookmarks: Mapped[list["PaperBookmark"]] = relationship(
+        "PaperBookmark", back_populates="paper", cascade="all, delete-orphan"
     )
 
 

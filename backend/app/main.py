@@ -20,6 +20,7 @@ from .routers import (
     agent_jobs_router,
     notifications_router,
     podcast_router,
+    interactions_router,
 )
 
 logger = logging.getLogger(__name__)
@@ -84,6 +85,7 @@ app.include_router(lab_router)  # RAG Lab (품질 테스트)
 app.include_router(agent_jobs_router)  # Agent Jobs (Study Plan 포함)
 app.include_router(notifications_router)  # Notifications
 app.include_router(podcast_router)  # Podcast Generation (F-11)
+app.include_router(interactions_router)  # Like & Bookmark
 
 
 @app.get("/")

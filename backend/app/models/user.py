@@ -17,6 +17,7 @@ if TYPE_CHECKING:
     from .agent_job import AgentJob
     from .notification import Notification
     from .podcast import PodcastSubscription, PodcastEpisode
+    from .interaction import PaperLike, BookmarkCollection, PaperBookmark
 
 
 class User(Base):
@@ -96,6 +97,21 @@ class User(Base):
     )
     podcast_episodes: Mapped[list["PodcastEpisode"]] = relationship(
         "PodcastEpisode",
+        back_populates="user",
+        cascade="all, delete-orphan",
+    )
+    paper_likes: Mapped[list["PaperLike"]] = relationship(
+        "PaperLike",
+        back_populates="user",
+        cascade="all, delete-orphan",
+    )
+    bookmark_collections: Mapped[list["BookmarkCollection"]] = relationship(
+        "BookmarkCollection",
+        back_populates="user",
+        cascade="all, delete-orphan",
+    )
+    paper_bookmarks: Mapped[list["PaperBookmark"]] = relationship(
+        "PaperBookmark",
         back_populates="user",
         cascade="all, delete-orphan",
     )

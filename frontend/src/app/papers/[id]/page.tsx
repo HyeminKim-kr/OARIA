@@ -14,12 +14,16 @@ import {
   Loader2,
   AlertCircle,
   Calendar,
+  ThumbsUp,
 } from 'lucide-react';
 import { useState, useRef, useEffect } from 'react';
 import { papersApi } from '@/lib/api';
 import { PaperFigure, FigureGallery } from '@/components/papers/PaperFigure';
 import { SimilarPapers } from '@/components/papers/SimilarPapers';
 import { PaperChatPanel } from '@/components/paper-chat';
+import { useAuth } from '@/contexts/AuthContext';
+import { usePaperInteractions, useToggleLike, useToggleBookmark } from '@/hooks';
+import { LoginPromptModal } from '@/components/common/LoginPromptModal';
 
 // 하이라이트 정보 타입
 interface HighlightInfo {
@@ -32,8 +36,29 @@ export default function PaperDetailPage() {
   const params = useParams();
   const router = useRouter();
   const id = params.id as string;
+  const { isAuthenticated } = useAuth();
   const [activeTab, setActiveTab] = useState<'assistant' | 'notes' | 'similar'>('assistant');
   const [selectedText, setSelectedText] = useState<string>('');
+  const [showLoginModal, setShowLoginModal] = useState(false);
+
+  // Interaction hooks
+  const { data: interactionData } = usePaperInteractions(id ? [id] : []);
+  const toggleLike = useToggleLike();
+  const toggleBookmark = useToggleBookmark();
+
+  const interactionStatus = interactionData?.statuses?.[id];
+  const isLiked = interactionStatus?.is_liked ?? false;
+  const isBookmarked = interactionStatus?.is_bookmarked ?? false;
+
+  const handleLikeClick = () => {
+    if (!isAuthenticated) { setShowLoginModal(true); return; }
+    toggleLike.mutate(id);
+  };
+
+  const handleBookmarkClick = () => {
+    if (!isAuthenticated) { setShowLoginModal(true); return; }
+    toggleBookmark.mutate({ paperId: id });
+  };
 
   // 하이라이트 상태
   const [highlightInfo, setHighlightInfo] = useState<HighlightInfo | null>(null);
@@ -169,8 +194,27 @@ export default function PaperDetailPage() {
       <div className="flex flex-1 overflow-hidden">
         {/* Left Toolbar */}
         <div className="flex w-14 flex-shrink-0 flex-col items-center gap-1 border-r border-[var(--oaria-border)] py-4">
-          <button className="flex h-10 w-10 items-center justify-center rounded-lg text-[var(--oaria-text-secondary)] hover:bg-[var(--oaria-border)]/50 hover:text-[var(--oaria-teal)]">
-            <Bookmark size={20} />
+          <button
+            onClick={handleLikeClick}
+            title="좋아요"
+            className={`flex h-10 w-10 items-center justify-center rounded-lg transition-colors ${
+              isLiked
+                ? 'text-[var(--oaria-coral)] bg-[var(--oaria-coral)]/10'
+                : 'text-[var(--oaria-text-secondary)] hover:bg-[var(--oaria-border)]/50 hover:text-[var(--oaria-coral)]'
+            }`}
+          >
+            <ThumbsUp size={20} fill={isLiked ? 'currentColor' : 'none'} />
+          </button>
+          <button
+            onClick={handleBookmarkClick}
+            title="북마크"
+            className={`flex h-10 w-10 items-center justify-center rounded-lg transition-colors ${
+              isBookmarked
+                ? 'text-[var(--oaria-teal)] bg-[var(--oaria-teal)]/10'
+                : 'text-[var(--oaria-text-secondary)] hover:bg-[var(--oaria-border)]/50 hover:text-[var(--oaria-teal)]'
+            }`}
+          >
+            <Bookmark size={20} fill={isBookmarked ? 'currentColor' : 'none'} />
           </button>
           <button className="flex h-10 w-10 items-center justify-center rounded-lg text-[var(--oaria-text-secondary)] hover:bg-[var(--oaria-border)]/50 hover:text-[var(--oaria-teal)]">
             <Download size={20} />
@@ -466,6 +510,12 @@ export default function PaperDetailPage() {
           </div>
         </aside>
       </div>
+
+      {/* Login Prompt Modal */}
+      <LoginPromptModal
+        isOpen={showLoginModal}
+        onClose={() => setShowLoginModal(false)}
+      />
     </div>
   );
 }
