@@ -29,7 +29,7 @@ export default function QuestionInputPanel({
 
   return (
     <div
-      className="absolute bottom-6 left-1/2 -translate-x-1/2 z-[115] w-full max-w-3xl px-4"
+      className="absolute bottom-6 left-1/2 -translate-x-1/2 z-[220] w-full max-w-3xl px-4"
       style={{ animation: "fadeSlideUp 0.4s ease-out" }}
     >
       <style jsx>{`
