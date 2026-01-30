@@ -20,6 +20,7 @@ interface NodeMeshProps {
 function NodeMesh({ node, position, isHighlighted, isDimmed, isSelected, onClick, onHover }: NodeMeshProps) {
   const meshRef = useRef<THREE.Mesh>(null);
   const [hovered, setHovered] = useState(false);
+  const [tooltipPosition, setTooltipPosition] = useState<"above" | "below">("above");
 
   const color = NODE_COLORS[node.type] || "#888888";
   // 노드 크기 축소 (더 작고 깔끔하게)
@@ -54,6 +55,10 @@ function NodeMesh({ node, position, isHighlighted, isDimmed, isSelected, onClick
           setHovered(true);
           onHover(true);
           document.body.style.cursor = "pointer";
+          // 마우스 Y 위치에 따라 툴팁 위치 결정
+          const mouseY = e.nativeEvent?.clientY || 0;
+          const windowHeight = typeof window !== "undefined" ? window.innerHeight : 800;
+          setTooltipPosition(mouseY > windowHeight * 0.5 ? "above" : "below");
         }}
         onPointerOut={() => {
           setHovered(false);
@@ -138,11 +143,10 @@ function NodeMesh({ node, position, isHighlighted, isDimmed, isSelected, onClick
         </div>
       </Html>
 
-      {/* Detailed tooltip on hover */}
+      {/* Detailed tooltip on hover - 마우스 위치에 따라 위/아래 표시 */}
       {hovered && (
         <Html
-          position={[0, size + 1.5, 0]}
-          center
+          position={[size + 1, tooltipPosition === "above" ? size : -size, 0]}
           style={{ pointerEvents: "none" }}
         >
           <div
@@ -151,9 +155,10 @@ function NodeMesh({ node, position, isHighlighted, isDimmed, isSelected, onClick
               background: "rgba(10, 14, 26, 0.95)",
               backdropFilter: "blur(16px)",
               border: "1px solid rgba(255, 255, 255, 0.12)",
-              minWidth: "180px",
-              maxWidth: "300px",
+              minWidth: "200px",
+              maxWidth: "320px",
               boxShadow: "0 8px 32px rgba(0,0,0,0.5), 0 0 0 1px rgba(255,255,255,0.05)",
+              transform: tooltipPosition === "above" ? "translateY(-100%)" : "translateY(0)",
             }}
           >
             {/* Type badge */}
