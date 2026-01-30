@@ -279,18 +279,18 @@ export default function ResearchAssistantPage() {
           {/* Top Bar - X button and 2D/3D toggle */}
           <div className="absolute top-4 left-0 right-0 z-[220] flex items-center justify-between px-5">
             {/* Left: Mode indicator & Current Query */}
-            <div className="flex items-center gap-3">
-              <div className={`px-3 py-1.5 rounded-lg text-white text-xs font-medium flex items-center gap-1.5 ${graphMode === "2d" ? "bg-blue-600" : "bg-purple-600"}`}>
+            <div className="flex items-center gap-4">
+              <div className={`flex-shrink-0 px-3 py-1.5 rounded-lg text-white text-xs font-medium flex items-center gap-1.5 ${graphMode === "2d" ? "bg-blue-600" : "bg-purple-600"}`}>
                 <span className="w-2 h-2 rounded-full bg-white animate-pulse" />
                 {graphMode === "2d" ? "2D" : "3D"} Force Graph
               </div>
               {currentQuery && (
-                <div className={`px-3 py-1.5 rounded-lg text-xs font-medium flex items-center gap-1.5 max-w-md truncate ${
+                <div className={`ml-2 px-3 py-1.5 rounded-lg text-xs font-medium flex items-center gap-1.5 max-w-md truncate ${
                   graphMode === "2d"
                     ? "bg-blue-600/20 text-blue-400"
                     : "bg-purple-600/20 text-purple-400"
                 }`}>
-                  <Search size={12} />
+                  <Search size={12} className="flex-shrink-0" />
                   <span className="truncate">{currentQuery}</span>
                 </div>
               )}
