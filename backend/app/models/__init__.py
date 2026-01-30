@@ -35,6 +35,7 @@ from .podcast import (
     PaperSelectionMode,
     EpisodeStatus,
 )
+from .interaction import PaperLike, BookmarkCollection, PaperBookmark
 
 __all__ = [
     # Base
@@ -82,4 +83,8 @@ __all__ = [
     "PodcastDuration",
     "PaperSelectionMode",
     "EpisodeStatus",
+    # Interactions
+    "PaperLike",
+    "BookmarkCollection",
+    "PaperBookmark",
 ]

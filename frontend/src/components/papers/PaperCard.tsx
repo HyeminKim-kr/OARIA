@@ -13,6 +13,11 @@ import type { Paper } from '@/lib/api';
 
 interface PaperCardProps {
   paper: Paper;
+  isLiked?: boolean;
+  isBookmarked?: boolean;
+  likeCount?: number;
+  onLikeClick?: (paperId: string) => void;
+  onBookmarkClick?: (paperId: string) => void;
 }
 
 /**
@@ -30,7 +35,14 @@ function formatDate(isoDate: string): string {
   return `${day} ${month} ${year}`;
 }
 
-export function PaperCard({ paper }: PaperCardProps) {
+export function PaperCard({
+  paper,
+  isLiked = false,
+  isBookmarked = false,
+  likeCount,
+  onLikeClick,
+  onBookmarkClick,
+}: PaperCardProps) {
   // Date formatting: created_at → "DD Mon YYYY"
   const formattedDate = formatDate(paper.created_at);
 
@@ -46,8 +58,7 @@ export function PaperCard({ paper }: PaperCardProps) {
   // Keywords → tags with # prefix
   const tags = (paper.keywords || []).map((k) => `#${k}`);
 
-  // likes는 추후 기능 추가 예정, 현재 0으로 표시
-  const likes = 0;
+  const displayLikeCount = likeCount ?? paper.like_count ?? 0;
 
   // hasResources는 has_pdf 기반
   const hasResources = paper.has_pdf ?? false;
@@ -90,12 +101,34 @@ export function PaperCard({ paper }: PaperCardProps) {
             </div>
           )}
           <div className="flex items-center gap-4">
-            <button className="flex items-center gap-1.5 text-sm text-[var(--oaria-text-secondary)] transition-colors hover:text-[var(--oaria-teal)]">
-              <ThumbsUp size={16} />
-              {likes}
+            <button
+              onClick={(e) => {
+                e.preventDefault();
+                e.stopPropagation();
+                onLikeClick?.(paper.id);
+              }}
+              className={`flex items-center gap-1.5 text-sm transition-colors ${
+                isLiked
+                  ? 'text-[var(--oaria-coral)]'
+                  : 'text-[var(--oaria-text-secondary)] hover:text-[var(--oaria-coral)]'
+              }`}
+            >
+              <ThumbsUp size={16} fill={isLiked ? 'currentColor' : 'none'} />
+              {displayLikeCount}
             </button>
-            <button className="flex items-center gap-1.5 text-sm text-[var(--oaria-text-secondary)] transition-colors hover:text-[var(--oaria-teal)]">
-              <Bookmark size={16} />
+            <button
+              onClick={(e) => {
+                e.preventDefault();
+                e.stopPropagation();
+                onBookmarkClick?.(paper.id);
+              }}
+              className={`flex items-center gap-1.5 text-sm transition-colors ${
+                isBookmarked
+                  ? 'text-[var(--oaria-teal)]'
+                  : 'text-[var(--oaria-text-secondary)] hover:text-[var(--oaria-teal)]'
+              }`}
+            >
+              <Bookmark size={16} fill={isBookmarked ? 'currentColor' : 'none'} />
               Bookmark
             </button>
             {hasResources && (
@@ -110,7 +143,7 @@ export function PaperCard({ paper }: PaperCardProps) {
         <div className="relative hidden h-40 w-32 flex-shrink-0 overflow-hidden rounded-lg bg-[var(--oaria-border)]/30 md:block">
           <div className="absolute right-2 top-2 flex items-center gap-1 rounded-full bg-[var(--oaria-coral)] px-2 py-0.5 text-xs text-white">
             <Flame size={10} />
-            {likes}
+            {displayLikeCount}
           </div>
           <div className="flex h-full items-center justify-center">
             <FileText size={32} className="text-[var(--oaria-tagline)]" />

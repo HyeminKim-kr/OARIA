@@ -62,6 +62,40 @@ PAPER_CHAT_PROMPT = """당신은 논문 내용을 설명해주는 친절한 연�
 
 {context}
 """
+
+PAPER_CHAT_HIGHLIGHT_PROMPT = """당신은 논문 내용을 설명해주는 친절한 연구 도우미입니다.
+사용자가 논문의 특정 부분을 선택(하이라이트)하고 질문했습니다.
+반드시 아래 "사용자가 선택한 텍스트"를 중심으로 답변해야 합니다.
+
+## 핵심 규칙
+1. **사용자가 선택한 텍스트를 최우선으로 참고**하여 답변
+2. 선택된 텍스트의 내용을 직접적으로 설명하고 질문에 답변
+3. 필요하면 논문의 다른 부분도 보조적으로 활용
+4. 마크다운 헤더(###) 사용 금지 - 자연스러운 문장으로
+5. "선택하신 부분에서는", "이 부분은" 같은 표현 사용
+
+## 답변 방식
+- 선택된 텍스트와 직접 관련된 답변을 먼저 제공
+- 필요하면 해당 내용의 배경이나 맥락을 추가 설명
+- 질문이 단순 요약이면 선택 텍스트를 간결하게 요약
+
+## 추천 질문 (선택적)
+사용자가 더 궁금해할 만한 질문이 있다면 마지막에:
+```suggestions
+- 질문1?
+- 질문2?
+- 질문3?
+```
+
+---
+[논문: {paper_title}]
+
+## 사용자가 선택한 텍스트
+{highlight_context}
+
+## 논문 컨텍스트
+{context}
+"""
 from sqlalchemy import select, func
 from sqlalchemy.ext.asyncio import AsyncSession
 from sse_starlette.sse import EventSourceResponse
@@ -190,6 +224,15 @@ async def ask_paper(
         }
 
         # 1. RAG 검색 (질문 유형별 전략 적용)
+        # 하이라이트 컨텍스트가 있으면 RAG 쿼리에 포함하여 관련 섹션 우선 검색
+        rag_query = request.question
+        has_highlight = bool(request.highlight_context and request.highlight_context.strip())
+        if has_highlight:
+            # 하이라이트 텍스트 앞부분을 쿼리에 추가하여 해당 섹션 근처 결과를 높임
+            highlight_snippet = request.highlight_context[:200].strip()
+            rag_query = f"{highlight_snippet}\n\n{request.question}"
+            logger.info(f"[PaperChat] Using highlight context for RAG query (len={len(request.highlight_context)})")
+
         rag_start = time.perf_counter()
         try:
             if request.include_related:
@@ -208,14 +251,14 @@ async def ask_paper(
                 result = await paper_rag_service.retrieve_with_related(
                     paper_id=paper.paper_id,
                     related_paper_ids=related_ids,
-                    query=request.question,
+                    query=rag_query,
                     use_reranker=strategy.use_reranker,
                     min_score=strategy.min_rerank_score,
                 )
             else:
                 result = await paper_rag_service.retrieve_from_paper(
                     paper_id=paper.paper_id,
-                    query=request.question,
+                    query=rag_query,
                     sections=strategy.sections,
                     use_reranker=strategy.use_reranker,
                     min_score=strategy.min_rerank_score,
@@ -243,11 +286,18 @@ async def ask_paper(
         token_count = 0
         first_token_received = False
 
-        # 논문 제목으로 프롬프트 구성
-        paper_prompt = PAPER_CHAT_PROMPT.format(
-            paper_title=paper.title or paper.paper_id,
-            context=result.context,
-        )
+        # 논문 제목으로 프롬프트 구성 (하이라이트 컨텍스트 유무에 따라 분기)
+        if has_highlight:
+            paper_prompt = PAPER_CHAT_HIGHLIGHT_PROMPT.format(
+                paper_title=paper.title or paper.paper_id,
+                highlight_context=request.highlight_context,
+                context=result.context,
+            )
+        else:
+            paper_prompt = PAPER_CHAT_PROMPT.format(
+                paper_title=paper.title or paper.paper_id,
+                context=result.context,
+            )
 
         try:
             async for chunk in llm_service.generate_stream(

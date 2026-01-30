@@ -43,6 +43,7 @@ class PaperListItem(BaseModel):
     keywords: Optional[list[str]] = None
     is_open_access: bool = True
     created_at: datetime
+    like_count: int = 0
 
     # 저자 (첫 번째 저자만 또는 전체)
     authors: list[AuthorResponse] = []

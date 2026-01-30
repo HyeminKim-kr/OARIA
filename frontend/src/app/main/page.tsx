@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo } from "react";
 import Link from "next/link";
 import { useQuery } from "@tanstack/react-query";
 import {
@@ -17,16 +17,27 @@ import {
   MessageSquare,
   Loader2,
   BarChart3,
+  LogIn,
 } from "lucide-react";
 import { papersApi } from "@/lib/api";
 import { PaperCard } from "@/components/papers";
+import { useAuth } from "@/contexts/AuthContext";
+import {
+  usePaperInteractions,
+  useToggleLike,
+  useToggleBookmark,
+  useMyBookmarks,
+} from "@/hooks";
+import { LoginPromptModal } from "@/components/common/LoginPromptModal";
 
 export default function MainPage() {
+  const { isAuthenticated, login } = useAuth();
   const [searchQuery, setSearchQuery] = useState("");
   const [debouncedQuery, setDebouncedQuery] = useState("");
   const [activeFilter, setActiveFilter] = useState<"recent" | "recommended" | "bookmark">(
     "recent"
   );
+  const [showLoginModal, setShowLoginModal] = useState(false);
 
   // Debounce search query (300ms)
   useEffect(() => {
@@ -47,6 +58,53 @@ export default function MainPage() {
       return papersApi.getRecent(10);
     },
   });
+
+  // 북마크 탭: 내 북마크 목록
+  const { data: bookmarksData, isLoading: bookmarksLoading } = useMyBookmarks(
+    1,
+    20,
+    undefined
+  );
+
+  // paper IDs for bulk interaction status (only for non-bookmark tabs)
+  const paperIds = useMemo(
+    () => (papers || []).map((p) => p.id),
+    [papers]
+  );
+
+  // Bulk interaction status
+  const { data: interactionData } = usePaperInteractions(paperIds);
+
+  // Interaction mutations
+  const toggleLike = useToggleLike();
+  const toggleBookmark = useToggleBookmark();
+
+  const handleLikeClick = (paperId: string) => {
+    if (!isAuthenticated) {
+      setShowLoginModal(true);
+      return;
+    }
+    toggleLike.mutate(paperId);
+  };
+
+  const handleBookmarkClick = (paperId: string) => {
+    if (!isAuthenticated) {
+      setShowLoginModal(true);
+      return;
+    }
+    toggleBookmark.mutate({ paperId });
+  };
+
+  // Build interaction status map (statuses is Record<paper_id, PaperInteractionStatus>)
+  const interactionMap = useMemo(() => {
+    const map: Record<string, { is_liked: boolean; is_bookmarked: boolean }> = {};
+    if (interactionData?.statuses) {
+      for (const [paperId, s] of Object.entries(interactionData.statuses)) {
+        map[paperId] = { is_liked: s.is_liked, is_bookmarked: s.is_bookmarked };
+      }
+    }
+    return map;
+  }, [interactionData]);
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
@@ -186,7 +244,22 @@ export default function MainPage() {
 
           {/* Paper Cards */}
           <div className="space-y-5">
-            {isLoading ? (
+            {activeFilter === "bookmark" && !isAuthenticated ? (
+              // 비로그인 상태에서 북마크 탭
+              <div className="rounded-xl border-2 border-[var(--oaria-border-strong)] bg-[var(--background)] p-8 text-center">
+                <Bookmark size={48} className="mx-auto mb-4 text-[var(--oaria-tagline)]" />
+                <p className="mb-2 text-[var(--oaria-text-secondary)]">
+                  북마크한 논문을 확인하려면 로그인이 필요합니다.
+                </p>
+                <button
+                  onClick={login}
+                  className="mt-4 inline-flex items-center gap-2 rounded-xl bg-[var(--oaria-teal)] px-4 py-2.5 text-sm font-medium text-white transition-colors hover:bg-[var(--oaria-light-teal)]"
+                >
+                  <LogIn size={16} />
+                  로그인
+                </button>
+              </div>
+            ) : (isLoading || (activeFilter === "bookmark" && bookmarksLoading)) ? (
               // Loading skeleton
               <div className="space-y-3">
                 {[1, 2, 3].map((i) => (
@@ -208,6 +281,40 @@ export default function MainPage() {
                   </div>
                 ))}
               </div>
+            ) : activeFilter === "bookmark" ? (
+              // 북마크 탭 (로그인된 상태)
+              bookmarksData && bookmarksData.items.length > 0 ? (
+                <div className="flex flex-col gap-5">
+                  {bookmarksData.items.map((item) => (
+                    <Link key={item.bookmark_id} href={`/papers/${item.paper_id}`}>
+                      <article className="group relative rounded-xl border-2 border-[var(--oaria-border-strong)] bg-[var(--background)] p-5 transition-colors hover:border-[var(--oaria-teal)]/50 cursor-pointer">
+                        <h2 className="mb-2 font-[family-name:var(--font-outfit)] text-lg font-semibold text-[var(--foreground)] transition-colors group-hover:text-[var(--oaria-teal)]">
+                          {item.title}
+                        </h2>
+                        <div className="mb-2 flex items-center gap-3 text-sm text-[var(--oaria-tagline)]">
+                          {item.journal && <span>{item.journal}</span>}
+                          {item.year && <span>{item.year}</span>}
+                          {item.collection_name && (
+                            <span className="rounded bg-[var(--oaria-teal)]/10 px-2 py-0.5 text-xs text-[var(--oaria-teal)]">
+                              {item.collection_name}
+                            </span>
+                          )}
+                        </div>
+                        {item.abstract && (
+                          <p className="line-clamp-2 font-[family-name:var(--font-dm-sans)] text-sm text-[var(--oaria-text-secondary)]">
+                            {item.abstract}
+                          </p>
+                        )}
+                      </article>
+                    </Link>
+                  ))}
+                </div>
+              ) : (
+                <div className="rounded-xl border-2 border-[var(--oaria-border-strong)] bg-[var(--background)] p-8 text-center">
+                  <Bookmark size={48} className="mx-auto mb-4 text-[var(--oaria-tagline)]" />
+                  <p className="text-[var(--oaria-text-secondary)]">북마크한 논문이 없습니다.</p>
+                </div>
+              )
             ) : error ? (
               // Error state
               <div className="rounded-xl border-2 border-red-200 bg-red-50 p-8 text-center">
@@ -218,7 +325,15 @@ export default function MainPage() {
               // Paper list
               <div className="flex flex-col gap-5">
                 {papers.map((paper) => (
-                  <PaperCard key={paper.id} paper={paper} />
+                  <PaperCard
+                    key={paper.id}
+                    paper={paper}
+                    isLiked={interactionMap[paper.id]?.is_liked}
+                    isBookmarked={interactionMap[paper.id]?.is_bookmarked}
+                    likeCount={paper.like_count}
+                    onLikeClick={handleLikeClick}
+                    onBookmarkClick={handleBookmarkClick}
+                  />
                 ))}
               </div>
             ) : (
@@ -235,6 +350,12 @@ export default function MainPage() {
           </div>
         </div>
       </div>
+
+      {/* Login Prompt Modal */}
+      <LoginPromptModal
+        isOpen={showLoginModal}
+        onClose={() => setShowLoginModal(false)}
+      />
     </div>
   );
 }
