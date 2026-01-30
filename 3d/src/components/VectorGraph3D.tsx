@@ -28,13 +28,14 @@ function NodeMesh({ node, position, isHighlighted, isDimmed, isSelected, onClick
   // 라벨 truncate (더 짧게)
   const truncatedLabel = node.label.length > 15 ? node.label.slice(0, 15) + "..." : node.label;
 
-  // 선택/하이라이트 상태에 따른 색상
-  const displayColor = isSelected ? "#ff6600" : isHighlighted ? "#ff9933" : color;
-  const opacity = isDimmed ? 0.25 : 0.95;
+  // 선택/하이라이트 상태에 따른 색상 (선택된 노드는 빨간색으로 강조)
+  const displayColor = isSelected ? "#ff2222" : isHighlighted ? "#ff6633" : color;
+  const opacity = isDimmed ? 0.2 : 0.95;
 
   useFrame(() => {
     if (meshRef.current) {
-      const targetScale = isSelected ? 1.6 : hovered || isHighlighted ? 1.4 : isDimmed ? 0.8 : 1;
+      // 선택된 노드는 더 크게
+      const targetScale = isSelected ? 2.0 : hovered || isHighlighted ? 1.5 : isDimmed ? 0.7 : 1;
       meshRef.current.scale.lerp(new THREE.Vector3(targetScale, targetScale, targetScale), 0.1);
     }
   });
@@ -64,22 +65,22 @@ function NodeMesh({ node, position, isHighlighted, isDimmed, isSelected, onClick
         <meshStandardMaterial
           color={displayColor}
           emissive={displayColor}
-          emissiveIntensity={isSelected ? 0.6 : hovered ? 0.5 : isHighlighted ? 0.4 : isDimmed ? 0.05 : 0.15}
+          emissiveIntensity={isSelected ? 1.0 : hovered ? 0.6 : isHighlighted ? 0.5 : isDimmed ? 0.03 : 0.15}
           transparent
           opacity={opacity}
-          roughness={0.3}
-          metalness={0.1}
+          roughness={0.2}
+          metalness={0.2}
         />
       </mesh>
 
       {/* Glow effect for highlighted/selected nodes */}
       {(isSelected || hovered || isHighlighted) && !isDimmed && (
         <mesh>
-          <sphereGeometry args={[size * (isSelected ? 1.5 : 1.3), 16, 16]} />
+          <sphereGeometry args={[size * (isSelected ? 2.0 : 1.4), 16, 16]} />
           <meshBasicMaterial
             color={displayColor}
             transparent
-            opacity={isSelected ? 0.25 : 0.15}
+            opacity={isSelected ? 0.4 : 0.2}
           />
         </mesh>
       )}
