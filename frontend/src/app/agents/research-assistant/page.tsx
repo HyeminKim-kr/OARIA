@@ -344,7 +344,7 @@ export default function ResearchAssistantPage() {
             <iframe
               ref={iframe3DRef}
               src={GRAPH_3D_URL}
-              className="absolute inset-0 w-full h-full border-0"
+              className="absolute inset-0 w-full h-full border-0 z-[100]"
               style={{ background: "transparent" }}
               allow="accelerometer; autoplay; encrypted-media; gyroscope"
               onLoad={() => {
@@ -386,14 +386,12 @@ export default function ResearchAssistantPage() {
             </div>
           )}
 
-          {/* Link Summary Panel - Right side, below top bar (2D 모드에서만 표시) */}
-          {graphMode === "2d" && (
-            <div className="absolute top-20 right-5 z-[210]">
-              <LinkSummaryPanel links={filteredLinks} nodes={graphData.nodes} />
-            </div>
-          )}
+          {/* Link Summary Panel - Right side, below top bar (2D/3D 모두 표시) */}
+          <div className="absolute top-20 right-5 z-[210]">
+            <LinkSummaryPanel links={filteredLinks} nodes={graphData.nodes} />
+          </div>
 
-          {/* Node Detail Panel (2D 모드에서만 표시) */}
+          {/* Node Detail Panel (2D 모드에서만 표시 - 3D는 iframe 내부에서 처리) */}
           {graphMode === "2d" && selectedNode && (
             <NodeDetailPanel
               node={selectedNode}
