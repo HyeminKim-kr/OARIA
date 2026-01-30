@@ -299,6 +299,7 @@ export default function Home() {
         activeFilters={activeFilters}
         minSimilarity={minSimilarity}
         searchQuery={searchQuery}
+        selectedNodeId={selectedNode?.id || null}
         onNodeClick={handleNodeClick}
         onStatsChange={handleStatsChange}
       />

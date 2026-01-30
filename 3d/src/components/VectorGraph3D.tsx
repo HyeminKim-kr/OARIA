@@ -11,11 +11,13 @@ interface NodeMeshProps {
   node: GraphNode;
   position: [number, number, number];
   isHighlighted: boolean;
+  isDimmed: boolean;
+  isSelected: boolean;
   onClick: () => void;
   onHover: (hover: boolean) => void;
 }
 
-function NodeMesh({ node, position, isHighlighted, onClick, onHover }: NodeMeshProps) {
+function NodeMesh({ node, position, isHighlighted, isDimmed, isSelected, onClick, onHover }: NodeMeshProps) {
   const meshRef = useRef<THREE.Mesh>(null);
   const [hovered, setHovered] = useState(false);
 
@@ -25,9 +27,13 @@ function NodeMesh({ node, position, isHighlighted, onClick, onHover }: NodeMeshP
   // 라벨 truncate
   const truncatedLabel = node.label.length > 20 ? node.label.slice(0, 20) + "..." : node.label;
 
+  // 선택/하이라이트 상태에 따른 색상
+  const displayColor = isSelected ? "#ff6600" : isHighlighted ? "#ff9933" : color;
+  const opacity = isDimmed ? 0.25 : 0.95;
+
   useFrame(() => {
     if (meshRef.current) {
-      const targetScale = hovered || isHighlighted ? 1.4 : 1;
+      const targetScale = isSelected ? 1.6 : hovered || isHighlighted ? 1.4 : isDimmed ? 0.8 : 1;
       meshRef.current.scale.lerp(new THREE.Vector3(targetScale, targetScale, targetScale), 0.1);
     }
   });
@@ -55,24 +61,24 @@ function NodeMesh({ node, position, isHighlighted, onClick, onHover }: NodeMeshP
       >
         <sphereGeometry args={[size, 32, 32]} />
         <meshStandardMaterial
-          color={isHighlighted ? "#ff6600" : color}
-          emissive={isHighlighted ? "#ff6600" : color}
-          emissiveIntensity={hovered ? 0.6 : isHighlighted ? 0.4 : 0.15}
+          color={displayColor}
+          emissive={displayColor}
+          emissiveIntensity={isSelected ? 0.6 : hovered ? 0.5 : isHighlighted ? 0.4 : isDimmed ? 0.05 : 0.15}
           transparent
-          opacity={0.95}
+          opacity={opacity}
           roughness={0.3}
           metalness={0.1}
         />
       </mesh>
 
-      {/* Glow effect for highlighted nodes */}
-      {(hovered || isHighlighted) && (
+      {/* Glow effect for highlighted/selected nodes */}
+      {(isSelected || hovered || isHighlighted) && !isDimmed && (
         <mesh>
-          <sphereGeometry args={[size * 1.3, 16, 16]} />
+          <sphereGeometry args={[size * (isSelected ? 1.5 : 1.3), 16, 16]} />
           <meshBasicMaterial
-            color={isHighlighted ? "#ff6600" : color}
+            color={displayColor}
             transparent
-            opacity={0.15}
+            opacity={isSelected ? 0.25 : 0.15}
           />
         </mesh>
       )}
@@ -87,9 +93,9 @@ function NodeMesh({ node, position, isHighlighted, onClick, onHover }: NodeMeshP
         <div
           className="text-center whitespace-nowrap"
           style={{
-            color: isHighlighted ? "#fff" : "rgba(255,255,255,0.7)",
+            color: isSelected ? "#fff" : isHighlighted ? "#fff" : isDimmed ? "rgba(255,255,255,0.3)" : "rgba(255,255,255,0.7)",
             fontSize: "10px",
-            fontWeight: isHighlighted ? 600 : 400,
+            fontWeight: isSelected ? 700 : isHighlighted ? 600 : 400,
             textShadow: "0 1px 3px rgba(0,0,0,0.8)",
             maxWidth: "120px",
             overflow: "hidden",
@@ -172,18 +178,19 @@ interface LinkLineProps {
   end: [number, number, number];
   type: string;
   isHighlighted: boolean;
+  isDimmed: boolean;
   similarity?: number;
 }
 
-function LinkLine({ start, end, type, isHighlighted, similarity }: LinkLineProps) {
+function LinkLine({ start, end, type, isHighlighted, isDimmed, similarity }: LinkLineProps) {
   const color = isHighlighted ? "#60a5fa" : LINK_COLORS[type] || "#334155";
-  const opacity = isHighlighted ? 0.9 : (similarity ?? 0.5) * 0.6;
+  const opacity = isDimmed ? 0.08 : isHighlighted ? 0.9 : (similarity ?? 0.5) * 0.6;
 
   return (
     <Line
       points={[start, end]}
       color={color}
-      lineWidth={isHighlighted ? 2.5 : 1}
+      lineWidth={isHighlighted ? 2.5 : isDimmed ? 0.3 : 1}
       transparent
       opacity={opacity}
     />
@@ -196,6 +203,7 @@ interface SceneProps {
   activeFilters: ActiveFilters;
   minSimilarity: number;
   searchQuery: string;
+  selectedNodeId: string | null;
   onNodeClick: (node: GraphNode) => void;
   onStatsChange: (nodeCount: number, linkCount: number) => void;
 }
@@ -206,6 +214,7 @@ function Scene({
   activeFilters,
   minSimilarity,
   searchQuery,
+  selectedNodeId,
   onNodeClick,
   onStatsChange,
 }: SceneProps) {
@@ -277,15 +286,18 @@ function Scene({
     onStatsChange(filteredNodes.length, filteredLinks.length);
   }, [filteredNodes.length, filteredLinks.length, onStatsChange]);
 
-  // 하이라이트 노드/링크 계산
-  const { highlightNodes, highlightLinks } = useMemo(() => {
+  // 하이라이트 노드/링크 계산 (hover 또는 selected)
+  const { highlightNodes, highlightLinks, hasSelection } = useMemo(() => {
     const highlightNodes = new Set<string>();
     const highlightLinks = new Set<string>();
 
-    if (hoveredNode) {
-      highlightNodes.add(hoveredNode);
+    // 선택된 노드가 있으면 해당 노드와 연결된 노드들 하이라이트
+    const targetNode = hoveredNode || selectedNodeId;
+
+    if (targetNode) {
+      highlightNodes.add(targetNode);
       filteredLinks.forEach((l) => {
-        if (l.source === hoveredNode || l.target === hoveredNode) {
+        if (l.source === targetNode || l.target === targetNode) {
           highlightLinks.add(`${l.source}-${l.target}`);
           highlightNodes.add(l.source);
           highlightNodes.add(l.target);
@@ -293,8 +305,8 @@ function Scene({
       });
     }
 
-    return { highlightNodes, highlightLinks };
-  }, [hoveredNode, filteredLinks]);
+    return { highlightNodes, highlightLinks, hasSelection: !!selectedNodeId };
+  }, [hoveredNode, selectedNodeId, filteredLinks]);
 
   // 카메라 초기 위치 설정
   useEffect(() => {
@@ -317,13 +329,17 @@ function Scene({
         if (!startPos || !endPos) return null;
 
         const linkId = `${link.source}-${link.target}`;
+        const isLinkHighlighted = highlightLinks.has(linkId);
+        const isLinkDimmed = hasSelection && !isLinkHighlighted;
+
         return (
           <LinkLine
             key={linkId}
             start={startPos}
             end={endPos}
             type={link.type}
-            isHighlighted={highlightLinks.has(linkId)}
+            isHighlighted={isLinkHighlighted}
+            isDimmed={isLinkDimmed}
             similarity={link.similarity}
           />
         );
@@ -334,12 +350,18 @@ function Scene({
         const position = nodePositions.get(node.id);
         if (!position) return null;
 
+        const isNodeHighlighted = highlightNodes.has(node.id);
+        const isNodeSelected = node.id === selectedNodeId;
+        const isNodeDimmed = hasSelection && !isNodeHighlighted;
+
         return (
           <NodeMesh
             key={node.id}
             node={node}
             position={position}
-            isHighlighted={highlightNodes.has(node.id)}
+            isHighlighted={isNodeHighlighted}
+            isDimmed={isNodeDimmed}
+            isSelected={isNodeSelected}
             onClick={() => onNodeClick(node)}
             onHover={(hover) => setHoveredNode(hover ? node.id : null)}
           />
@@ -366,6 +388,7 @@ interface VectorGraph3DProps {
   activeFilters: ActiveFilters;
   minSimilarity: number;
   searchQuery: string;
+  selectedNodeId: string | null;
   onNodeClick: (node: GraphNode) => void;
   onStatsChange: (nodeCount: number, linkCount: number) => void;
 }
@@ -376,6 +399,7 @@ export default function VectorGraph3D({
   activeFilters,
   minSimilarity,
   searchQuery,
+  selectedNodeId,
   onNodeClick,
   onStatsChange,
 }: VectorGraph3DProps) {
@@ -393,6 +417,7 @@ export default function VectorGraph3D({
           activeFilters={activeFilters}
           minSimilarity={minSimilarity}
           searchQuery={searchQuery}
+          selectedNodeId={selectedNodeId}
           onNodeClick={onNodeClick}
           onStatsChange={onStatsChange}
         />
