@@ -28,8 +28,8 @@ function NodeMesh({ node, position, isHighlighted, isDimmed, isSelected, onClick
   // 라벨 truncate (더 짧게)
   const truncatedLabel = node.label.length > 15 ? node.label.slice(0, 15) + "..." : node.label;
 
-  // 선택/하이라이트 상태에 따른 색상 (선택된 노드는 빨간색으로 강조)
-  const displayColor = isSelected ? "#ff2222" : isHighlighted ? "#ff6633" : color;
+  // 선택/하이라이트 상태에 따른 색상 (선택된 노드는 파란색으로 강조)
+  const displayColor = isSelected ? "#3b82f6" : isHighlighted ? "#60a5fa" : color;
   const opacity = isDimmed ? 0.2 : 0.95;
 
   useFrame(() => {
@@ -75,14 +75,43 @@ function NodeMesh({ node, position, isHighlighted, isDimmed, isSelected, onClick
 
       {/* Glow effect for highlighted/selected nodes */}
       {(isSelected || hovered || isHighlighted) && !isDimmed && (
-        <mesh>
-          <sphereGeometry args={[size * (isSelected ? 2.0 : 1.4), 16, 16]} />
-          <meshBasicMaterial
-            color={displayColor}
-            transparent
-            opacity={isSelected ? 0.4 : 0.2}
-          />
-        </mesh>
+        <>
+          {/* Inner glow */}
+          <mesh>
+            <sphereGeometry args={[size * (isSelected ? 1.6 : 1.3), 16, 16]} />
+            <meshBasicMaterial
+              color={isSelected ? "#60a5fa" : displayColor}
+              transparent
+              opacity={isSelected ? 0.5 : 0.2}
+            />
+          </mesh>
+          {/* Outer glow for selected */}
+          {isSelected && (
+            <>
+              <mesh>
+                <sphereGeometry args={[size * 2.2, 16, 16]} />
+                <meshBasicMaterial
+                  color="#3b82f6"
+                  transparent
+                  opacity={0.2}
+                />
+              </mesh>
+              <mesh>
+                <sphereGeometry args={[size * 3.0, 16, 16]} />
+                <meshBasicMaterial
+                  color="#1d4ed8"
+                  transparent
+                  opacity={0.1}
+                />
+              </mesh>
+              {/* Ring effect */}
+              <mesh rotation={[Math.PI / 2, 0, 0]}>
+                <torusGeometry args={[size * 2.5, 0.05, 8, 32]} />
+                <meshBasicMaterial color="#60a5fa" transparent opacity={0.6} />
+              </mesh>
+            </>
+          )}
+        </>
       )}
 
       {/* Always visible label (like 2D) */}
