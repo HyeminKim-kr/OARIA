@@ -221,37 +221,123 @@ function Scene({
   const [hoveredNode, setHoveredNode] = useState<string | null>(null);
   const { camera } = useThree();
 
-  // 노드 위치 계산 (3D spherical distribution)
+  // 노드 위치 계산 (연결된 노드끼리 클러스터링)
   const nodePositions = useMemo(() => {
     const positions = new Map<string, [number, number, number]>();
     const filteredNodes = nodes.filter((n) => activeFilters[n.type as keyof ActiveFilters]);
+    const nodeIds = new Set(filteredNodes.map((n) => n.id));
 
-    // Golden ratio for even distribution
+    // 연결 정보 구축
+    const connections = new Map<string, Set<string>>();
+    filteredNodes.forEach((n) => connections.set(n.id, new Set()));
+
+    links.forEach((link) => {
+      if (nodeIds.has(link.source) && nodeIds.has(link.target)) {
+        connections.get(link.source)?.add(link.target);
+        connections.get(link.target)?.add(link.source);
+      }
+    });
+
+    // 연결된 클러스터 찾기 (Union-Find)
+    const parent = new Map<string, string>();
+    filteredNodes.forEach((n) => parent.set(n.id, n.id));
+
+    const find = (id: string): string => {
+      if (parent.get(id) !== id) {
+        parent.set(id, find(parent.get(id)!));
+      }
+      return parent.get(id)!;
+    };
+
+    const union = (a: string, b: string) => {
+      const rootA = find(a);
+      const rootB = find(b);
+      if (rootA !== rootB) {
+        parent.set(rootA, rootB);
+      }
+    };
+
+    links.forEach((link) => {
+      if (nodeIds.has(link.source) && nodeIds.has(link.target)) {
+        union(link.source, link.target);
+      }
+    });
+
+    // 클러스터별로 노드 그룹화
+    const clusters = new Map<string, GraphNode[]>();
+    filteredNodes.forEach((node) => {
+      const root = find(node.id);
+      if (!clusters.has(root)) {
+        clusters.set(root, []);
+      }
+      clusters.get(root)!.push(node);
+    });
+
+    // 클러스터 정렬 (큰 클러스터가 중앙에)
+    const sortedClusters = [...clusters.values()].sort((a, b) => b.length - a.length);
+
+    // Golden ratio for distribution
     const phi = Math.PI * (3 - Math.sqrt(5));
 
-    filteredNodes.forEach((node, index) => {
-      const typeIndex = ["paper", "author", "keyword", "concept"].indexOf(node.type);
-      const nodesOfType = filteredNodes.filter((n) => n.type === node.type);
-      const indexInType = nodesOfType.indexOf(node);
-      const totalOfType = nodesOfType.length;
+    // 각 클러스터 배치
+    sortedClusters.forEach((clusterNodes, clusterIndex) => {
+      const isMainCluster = clusterIndex === 0 && clusterNodes.length > 3;
+      const isSingleNode = clusterNodes.length === 1;
 
-      // Radius based on type
-      const baseRadius = 12 + typeIndex * 8;
+      // 클러스터 중심 위치 계산
+      let clusterCenterX = 0;
+      let clusterCenterY = 0;
+      let clusterCenterZ = 0;
 
-      // Spherical fibonacci distribution
-      const y = 1 - (indexInType / Math.max(totalOfType - 1, 1)) * 2;
-      const radiusAtY = Math.sqrt(1 - y * y);
-      const theta = phi * indexInType;
+      if (isMainCluster) {
+        // 메인 클러스터는 중앙에
+        clusterCenterX = 0;
+        clusterCenterY = 0;
+        clusterCenterZ = 0;
+      } else if (isSingleNode) {
+        // 연결 없는 단일 노드는 외곽에 배치
+        const angle = (clusterIndex / Math.max(sortedClusters.length - 1, 1)) * Math.PI * 2;
+        const outerRadius = 45 + Math.random() * 10;
+        clusterCenterX = Math.cos(angle) * outerRadius;
+        clusterCenterY = (Math.random() - 0.5) * 20;
+        clusterCenterZ = Math.sin(angle) * outerRadius;
+      } else {
+        // 작은 클러스터는 중간 거리에 배치
+        const angle = (clusterIndex / Math.max(sortedClusters.length, 1)) * Math.PI * 2;
+        const midRadius = 25 + clusterIndex * 5;
+        clusterCenterX = Math.cos(angle) * midRadius;
+        clusterCenterY = (clusterIndex % 3 - 1) * 8;
+        clusterCenterZ = Math.sin(angle) * midRadius;
+      }
 
-      const x = Math.cos(theta) * radiusAtY * baseRadius;
-      const z = Math.sin(theta) * radiusAtY * baseRadius;
-      const yPos = y * baseRadius * 0.5;
+      // 클러스터 내 노드들 배치
+      clusterNodes.forEach((node, indexInCluster) => {
+        const connectionCount = connections.get(node.id)?.size || 0;
+        const typeIndex = ["paper", "author", "keyword", "concept"].indexOf(node.type);
 
-      positions.set(node.id, [x, yPos, z]);
+        if (isSingleNode) {
+          // 단일 노드는 클러스터 중심에
+          positions.set(node.id, [clusterCenterX, clusterCenterY, clusterCenterZ]);
+        } else {
+          // 연결 많은 노드는 중심 가까이
+          const distanceFromCenter = Math.max(3, 12 - connectionCount * 1.5) + typeIndex * 2;
+
+          // 클러스터 내 분포
+          const y = 1 - (indexInCluster / Math.max(clusterNodes.length - 1, 1)) * 2;
+          const radiusAtY = Math.sqrt(1 - y * y);
+          const theta = phi * indexInCluster;
+
+          const x = clusterCenterX + Math.cos(theta) * radiusAtY * distanceFromCenter;
+          const z = clusterCenterZ + Math.sin(theta) * radiusAtY * distanceFromCenter;
+          const yPos = clusterCenterY + y * distanceFromCenter * 0.5;
+
+          positions.set(node.id, [x, yPos, z]);
+        }
+      });
     });
 
     return positions;
-  }, [nodes, activeFilters]);
+  }, [nodes, links, activeFilters]);
 
   // 필터링된 노드와 링크
   const { filteredNodes, filteredLinks } = useMemo(() => {
