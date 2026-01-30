@@ -20,6 +20,9 @@ const VectorGraph3D = dynamic(() => import("@/components/VectorGraph3D"), {
 });
 
 export default function Home() {
+  // iframe 내부인지 확인 (부모 페이지에서 embed된 경우)
+  const [isEmbedded, setIsEmbedded] = useState(false);
+
   // 초기에는 빈 그래프 (질문 입력 후 데이터 로드)
   const [graphData, setGraphData] = useState<{ nodes: GraphNode[]; links: GraphLink[] }>({
     nodes: [],
@@ -29,6 +32,13 @@ export default function Home() {
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [showQuestionInput, setShowQuestionInput] = useState(true);
+
+  // iframe 체크
+  useEffect(() => {
+    if (typeof window !== "undefined") {
+      setIsEmbedded(window.parent !== window);
+    }
+  }, []);
 
   // Controls
   const [activeFilters, setActiveFilters] = useState<ActiveFilters>({
@@ -249,48 +259,50 @@ export default function Home() {
         }}
       />
 
-      {/* Header - Query 및 상태 표시 */}
-      <div className="absolute top-4 left-4 right-4 z-20 flex items-center justify-between">
-        {/* Left: Current Query */}
-        <div className="flex items-center gap-3">
-          {currentQuery && !showQuestionInput && (
-            <div className="px-3 py-1.5 rounded-lg bg-purple-600/20 text-purple-400 text-xs font-medium flex items-center gap-2 max-w-md truncate">
-              <svg className="w-3 h-3 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+      {/* Header - Query 및 상태 표시 (embed된 경우 숨김 - 부모 페이지에서 표시) */}
+      {!isEmbedded && (
+        <div className="absolute top-4 left-4 right-4 z-20 flex items-center justify-between">
+          {/* Left: Current Query */}
+          <div className="flex items-center gap-3">
+            {currentQuery && !showQuestionInput && (
+              <div className="px-3 py-1.5 rounded-lg bg-purple-600/20 text-purple-400 text-xs font-medium flex items-center gap-2 max-w-md truncate">
+                <svg className="w-3 h-3 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+                </svg>
+                <span className="truncate">{currentQuery}</span>
+              </div>
+            )}
+            {isLoading && (
+              <div className="flex items-center gap-2 text-white/60 text-xs">
+                <div className="w-4 h-4 border-2 border-purple-500 border-t-transparent rounded-full animate-spin" />
+                Loading...
+              </div>
+            )}
+            {error && (
+              <div className="px-3 py-1.5 rounded-lg bg-red-500/20 text-red-400 text-xs">
+                {error}
+              </div>
+            )}
+          </div>
+
+          {/* Right: New Query Button */}
+          {!showQuestionInput && currentQuery && (
+            <button
+              onClick={() => setShowQuestionInput(true)}
+              className="px-4 py-2 rounded-lg text-white text-xs font-medium flex items-center gap-2 transition-all hover:scale-105"
+              style={{
+                background: "linear-gradient(135deg, #7c3aed, #a855f7)",
+                boxShadow: "0 4px 12px rgba(124,58,237,0.3)",
+              }}
+            >
+              <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
               </svg>
-              <span className="truncate">{currentQuery}</span>
-            </div>
-          )}
-          {isLoading && (
-            <div className="flex items-center gap-2 text-white/60 text-xs">
-              <div className="w-4 h-4 border-2 border-purple-500 border-t-transparent rounded-full animate-spin" />
-              Loading...
-            </div>
-          )}
-          {error && (
-            <div className="px-3 py-1.5 rounded-lg bg-red-500/20 text-red-400 text-xs">
-              {error}
-            </div>
+              새 질문
+            </button>
           )}
         </div>
-
-        {/* Right: New Query Button */}
-        {!showQuestionInput && currentQuery && (
-          <button
-            onClick={() => setShowQuestionInput(true)}
-            className="px-4 py-2 rounded-lg text-white text-xs font-medium flex items-center gap-2 transition-all hover:scale-105"
-            style={{
-              background: "linear-gradient(135deg, #7c3aed, #a855f7)",
-              boxShadow: "0 4px 12px rgba(124,58,237,0.3)",
-            }}
-          >
-            <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
-            </svg>
-            새 질문
-          </button>
-        )}
-      </div>
+      )}
 
       {/* 3D Graph */}
       <VectorGraph3D
@@ -355,8 +367,8 @@ export default function Home() {
         </div>
       )}
 
-      {/* Question Input Panel - 처음 또는 새 질문 시 표시 */}
-      {showQuestionInput && (
+      {/* Question Input Panel - 처음 또는 새 질문 시 표시 (embed된 경우 숨김) */}
+      {!isEmbedded && showQuestionInput && (
         <QuestionInputPanel
           onSubmit={handleQuestionSubmit}
           isProcessing={isLoading}
