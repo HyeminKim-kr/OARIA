@@ -38,19 +38,8 @@ function isWebGLSupported(): boolean {
   }
 }
 
-interface Graph3DNode {
-  id: string;
-  label: string;
-  type: string;
-  color: string;
-  size: number;
-}
-
-interface Graph3DLink {
-  source: string;
-  target: string;
-  color: string;
-}
+// ForceGraph3D에서 사용하는 노드/링크 데이터는 any 타입으로 처리
+// 라이브러리 내부에서 id, color, val, label 등의 속성을 자동으로 사용
 
 export default function VectorGraph3D({
   nodes,
@@ -101,9 +90,9 @@ export default function VectorGraph3D({
     return { nodes: filteredNodes, links: filteredLinks };
   }, [nodes, links, activeFilters, minSimilarity, searchQuery]);
 
-  // 그래프 데이터 준비
+  // 그래프 데이터 준비 (any 타입으로 ForceGraph3D 호환성 확보)
   const graphData = useMemo(() => {
-    const graphNodes: Graph3DNode[] = filteredData.nodes.map((n) => ({
+    const graphNodes = filteredData.nodes.map((n) => ({
       id: n.id,
       label: n.label,
       type: n.type,
@@ -111,10 +100,10 @@ export default function VectorGraph3D({
         highlightNodes.size && highlightNodes.has(n.id)
           ? "#ff6600"
           : NODE_COLORS[n.type] || "#888",
-      size: n.type === "paper" ? 8 : n.type === "author" ? 6 : 4,
+      val: n.type === "paper" ? 8 : n.type === "author" ? 6 : 4,
     }));
 
-    const graphLinks: Graph3DLink[] = filteredData.links.map((l) => {
+    const graphLinks = filteredData.links.map((l) => {
       const sourceId = typeof l.source === "string" ? l.source : l.source.id;
       const targetId = typeof l.target === "string" ? l.target : l.target.id;
       return {
@@ -191,11 +180,11 @@ export default function VectorGraph3D({
     }
   }, []);
 
-  // 노드 클릭 핸들러
+  // 노드 클릭 핸들러 (ForceGraph3D에서 전달받은 노드 객체 처리)
   const handleNodeClick = useCallback(
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    (node: any) => {
-      const originalNode = nodes.find((n) => n.id === node.id);
+    (node: { id?: string | number }) => {
+      if (!node.id) return;
+      const originalNode = nodes.find((n) => n.id === String(node.id));
       if (originalNode) onNodeClick(originalNode);
     },
     [nodes, onNodeClick]
@@ -231,7 +220,7 @@ export default function VectorGraph3D({
             backgroundColor="rgba(0,0,0,0)"
             nodeLabel="label"
             nodeColor="color"
-            nodeVal="size"
+            nodeVal="val"
             nodeOpacity={0.9}
             linkColor="color"
             linkWidth={0.5}

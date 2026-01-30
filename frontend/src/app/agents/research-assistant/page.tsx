@@ -95,34 +95,51 @@ export default function ResearchAssistantPage() {
   const iframe3DRef = useRef<HTMLIFrameElement>(null);
   const [iframe3DReady, setIframe3DReady] = useState(false);
 
-  // iframe 통신: 그래프 데이터 전송
+  // 3D 모드로 전환 시 iframe ready 상태 리셋
   useEffect(() => {
-    if (graphMode === "3d" && iframe3DReady && iframe3DRef.current?.contentWindow) {
-      // 토큰 전송
-      const token = typeof window !== "undefined" ? localStorage.getItem("access_token") : null;
-      if (token) {
-        iframe3DRef.current.contentWindow.postMessage({
-          type: "SET_TOKEN",
-          payload: { token },
-        }, "*");
-      }
+    if (graphMode === "2d") {
+      setIframe3DReady(false);
+    }
+  }, [graphMode]);
 
-      // 그래프 데이터 전송
+  // iframe에 데이터 전송하는 함수
+  const sendDataToIframe = useCallback(() => {
+    if (!iframe3DRef.current?.contentWindow) return;
+
+    // 토큰 전송
+    const token = typeof window !== "undefined" ? localStorage.getItem("access_token") : null;
+    if (token) {
       iframe3DRef.current.contentWindow.postMessage({
-        type: "SET_GRAPH_DATA",
-        payload: {
-          nodes: graphData.nodes,
-          links: graphData.links,
-          query: currentQuery,
-        },
+        type: "SET_TOKEN",
+        payload: { token },
       }, "*");
     }
-  }, [graphMode, iframe3DReady, graphData, currentQuery]);
+
+    // 그래프 데이터 전송
+    iframe3DRef.current.contentWindow.postMessage({
+      type: "SET_GRAPH_DATA",
+      payload: {
+        nodes: graphData.nodes,
+        links: graphData.links,
+        query: currentQuery,
+      },
+    }, "*");
+
+    console.log("Sent data to 3D iframe:", { nodes: graphData.nodes.length, links: graphData.links.length, query: currentQuery });
+  }, [graphData, currentQuery]);
+
+  // iframe 통신: 그래프 데이터 전송 (ready 상태일 때)
+  useEffect(() => {
+    if (graphMode === "3d" && iframe3DReady) {
+      sendDataToIframe();
+    }
+  }, [graphMode, iframe3DReady, sendDataToIframe]);
 
   // iframe 메시지 수신 (3D 그래프에서 READY 신호)
   useEffect(() => {
     const handleMessage = (event: MessageEvent) => {
       if (event.data?.type === "READY") {
+        console.log("3D iframe is ready");
         setIframe3DReady(true);
       }
     };
@@ -348,24 +365,11 @@ export default function ResearchAssistantPage() {
               style={{ background: "transparent" }}
               allow="accelerometer; autoplay; encrypted-media; gyroscope"
               onLoad={() => {
-                // iframe 로드 완료 시 데이터 전송 시도
-                if (iframe3DRef.current?.contentWindow) {
-                  const token = typeof window !== "undefined" ? localStorage.getItem("access_token") : null;
-                  if (token) {
-                    iframe3DRef.current.contentWindow.postMessage({
-                      type: "SET_TOKEN",
-                      payload: { token },
-                    }, "*");
-                  }
-                  iframe3DRef.current.contentWindow.postMessage({
-                    type: "SET_GRAPH_DATA",
-                    payload: {
-                      nodes: graphData.nodes,
-                      links: graphData.links,
-                      query: currentQuery,
-                    },
-                  }, "*");
-                }
+                // iframe 로드 완료 후 약간의 딜레이를 주고 데이터 전송
+                // (iframe 내부 React 앱이 마운트될 시간 확보)
+                setTimeout(() => {
+                  sendDataToIframe();
+                }, 500);
               }}
             />
           )}
