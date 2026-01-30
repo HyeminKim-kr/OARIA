@@ -4,7 +4,7 @@ import { useState, useCallback, useEffect } from "react";
 import dynamic from "next/dynamic";
 import type { GraphNode, GraphLink, ActiveFilters } from "@/lib/types";
 import { researchAssistantApi, setAccessToken } from "@/lib/api";
-import { ControlPanel, NodeDetailPanel, QuestionInputPanel } from "@/components";
+import { ControlPanel, NodeDetailPanel, QuestionInputPanel, LinkSummaryPanel } from "@/components";
 
 // Three.js 컴포넌트는 클라이언트에서만 로드
 const VectorGraph3D = dynamic(() => import("@/components/VectorGraph3D"), {
@@ -303,19 +303,31 @@ export default function Home() {
         onStatsChange={handleStatsChange}
       />
 
-      {/* Control Panel */}
-      <div className="absolute top-20 left-4 z-10">
-        <ControlPanel
-          nodeCount={nodeCount}
-          linkCount={linkCount}
-          activeFilters={activeFilters}
-          onFilterToggle={handleFilterToggle}
-          searchQuery={searchQuery}
-          onSearchChange={setSearchQuery}
-          minSimilarity={minSimilarity}
-          onSimilarityChange={setMinSimilarity}
-        />
-      </div>
+      {/* Control Panel - Left */}
+      {!showQuestionInput && graphData.nodes.length > 0 && (
+        <div className="absolute top-20 left-4 z-10">
+          <ControlPanel
+            nodeCount={nodeCount}
+            linkCount={linkCount}
+            activeFilters={activeFilters}
+            onFilterToggle={handleFilterToggle}
+            searchQuery={searchQuery}
+            onSearchChange={setSearchQuery}
+            minSimilarity={minSimilarity}
+            onSimilarityChange={setMinSimilarity}
+          />
+        </div>
+      )}
+
+      {/* Link Summary Panel - Right */}
+      {!showQuestionInput && graphData.nodes.length > 0 && (
+        <div className="absolute top-20 right-4 z-10">
+          <LinkSummaryPanel
+            links={graphData.links}
+            nodes={graphData.nodes}
+          />
+        </div>
+      )}
 
       {/* Node Detail Panel */}
       {selectedNode && (
