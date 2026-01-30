@@ -22,10 +22,11 @@ function NodeMesh({ node, position, isHighlighted, isDimmed, isSelected, onClick
   const [hovered, setHovered] = useState(false);
 
   const color = NODE_COLORS[node.type] || "#888888";
-  const size = node.type === "paper" ? 1.2 : node.type === "author" ? 0.9 : 0.6;
+  // 노드 크기 축소 (더 작고 깔끔하게)
+  const size = node.type === "paper" ? 0.6 : node.type === "author" ? 0.45 : 0.35;
 
-  // 라벨 truncate
-  const truncatedLabel = node.label.length > 20 ? node.label.slice(0, 20) + "..." : node.label;
+  // 라벨 truncate (더 짧게)
+  const truncatedLabel = node.label.length > 15 ? node.label.slice(0, 15) + "..." : node.label;
 
   // 선택/하이라이트 상태에 따른 색상
   const displayColor = isSelected ? "#ff6600" : isHighlighted ? "#ff9933" : color;
@@ -85,21 +86,22 @@ function NodeMesh({ node, position, isHighlighted, isDimmed, isSelected, onClick
 
       {/* Always visible label (like 2D) */}
       <Html
-        position={[0, -(size + 0.5), 0]}
+        position={[0, -(size + 0.3), 0]}
         center
         style={{ pointerEvents: "none" }}
-        distanceFactor={15}
+        distanceFactor={12}
       >
         <div
           className="text-center whitespace-nowrap"
           style={{
-            color: isSelected ? "#fff" : isHighlighted ? "#fff" : isDimmed ? "rgba(255,255,255,0.3)" : "rgba(255,255,255,0.7)",
-            fontSize: "10px",
-            fontWeight: isSelected ? 700 : isHighlighted ? 600 : 400,
-            textShadow: "0 1px 3px rgba(0,0,0,0.8)",
-            maxWidth: "120px",
+            color: isSelected ? "#fff" : isHighlighted ? "#fff" : isDimmed ? "rgba(255,255,255,0.2)" : "rgba(255,255,255,0.8)",
+            fontSize: "9px",
+            fontWeight: isSelected ? 600 : isHighlighted ? 500 : 400,
+            textShadow: "0 1px 4px rgba(0,0,0,0.9), 0 0 8px rgba(0,0,0,0.5)",
+            maxWidth: "100px",
             overflow: "hidden",
             textOverflow: "ellipsis",
+            letterSpacing: "0.02em",
           }}
         >
           {truncatedLabel}
